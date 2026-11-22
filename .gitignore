@@ -1,0 +1,29 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local-only scratch directory
+/reference/
+
+# Go
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+coverage.out
+
+# Frontend
+/frontend/node_modules/
+/frontend/.next/
+/frontend/next-env.d.ts
+/frontend/*.tsbuildinfo
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

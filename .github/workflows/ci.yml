@@ -1,0 +1,213 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege by default; jobs opt in to more.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  go-test:
+    name: Go · tests, race detector, coverage gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: go.mod / go.sum are tidy
+        run: make tidy-check
+      - name: Unit + integration tests (real PostgreSQL 18 / Redis 8) with coverage gate
+        run: make cover
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage.out ]; then
+            { echo '### Coverage'; echo '```'; go tool cover -func=coverage.out | tail -25; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: ignore
+          retention-days: 14
+
+  go-static:
+    name: Go · lint, generated code, vulnerabilities, licenses
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - run: make lint
+      - name: sqlc output matches queries and migrations
+        run: make sqlc-check
+      - name: Generated API code matches the OpenAPI spec
+        run: make api-check
+      - run: make vuln
+      - name: Go dependency licenses
+        run: go run github.com/google/go-licenses/v2@v2.0.1 check ./cmd/... ./internal/... --disallowed_types=forbidden,restricted
+
+  migrations:
+    name: SQL migrations · safety lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - run: make migrations-lint
+
+  web:
+    name: Web · lockfile, lint, types, format, build, audit, licenses
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install (fails if package-lock.json is out of sync)
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - working-directory: frontend
+        run: npm run lint
+      - working-directory: frontend
+        run: npm run typecheck
+      - working-directory: frontend
+        run: npm run format:check
+      - working-directory: frontend
+        run: npm run build
+      - name: Production dependency audit
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+      - name: Dependency licenses
+        run: |
+          cd frontend
+          npx -y license-checker-rseidelsohn@5.0.1 --production --excludePrivatePackages \
+            --excludePackagesStartingWith "@img/sharp-libvips" \
+            --onlyAllow "MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC-BY-4.0;BlueOak-1.0.0" >/dev/null
+
+  repo:
+    name: Repository · workflows, Dockerfiles, secrets, config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # full history for the secret scan
+      - run: make actions-lint
+      - run: make docker-lint
+      - name: Secret scan (working tree and full git history)
+        run: |
+          make secrets-scan
+          docker run --rm -v "$PWD":/repo -w /repo zricethezav/gitleaks:v8.30.1 git . --no-banner --redact -c /repo/.gitleaks.toml
+      - name: Compose file is valid
+        run: docker compose config --quiet
+      - name: Caddyfile is valid (HTTP and HTTPS modes)
+        run: |
+          for addr in ":80" "messora.example.com"; do
+            docker run --rm -e SITE_ADDRESS="$addr" -v "$PWD/deployments/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+              caddy:2.11.9 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          done
+      - name: Dockerfile / Compose misconfiguration scan
+        run: make config-scan
+
+  images:
+    name: Images · build and vulnerability scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build backend image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: messora/messora:dev
+          build-args: VERSION=${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: Build web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./frontend
+          load: true
+          tags: messora/messora-web:dev
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+      - name: Images run as non-root
+        run: |
+          for img in messora/messora:dev messora/messora-web:dev; do
+            user=$(docker image inspect "$img" --format '{{.Config.User}}')
+            echo "$img user=$user"
+            case "$user" in ""|root|0|0:0) echo "image runs as root"; exit 1;; esac
+          done
+      - name: Vulnerability scan (HIGH/CRITICAL with a fix available)
+        run: make image-scan
+
+  stack:
+    name: Stack · Docker Compose end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [go-test, web]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Start the stack exactly as the README instructs
+        run: |
+          cp .env.example .env
+          docker compose up -d --build --wait --wait-timeout 300
+      - name: Every component healthy, edge routing and BFF boundary enforced
+        run: ./scripts/stack-smoke.sh http://localhost
+      - name: Restart keeps generated secrets and data
+        run: |
+          docker compose down
+          docker compose up -d --wait --wait-timeout 300
+          docker compose logs messora-init | grep -q '"generated":null'
+          ./scripts/stack-smoke.sh http://localhost
+      - name: Worker recovers from a crash
+        run: |
+          c=$(docker compose ps -q messora-worker)
+          docker run --rm --pid=host --privileged busybox:1.37 kill -9 "$(docker inspect "$c" --format '{{.State.Pid}}')"
+          for _ in $(seq 1 30); do
+            [ "$(docker inspect "$c" --format '{{.State.Health.Status}} {{.RestartCount}}')" = "healthy 1" ] && exit 0
+            sleep 2
+          done
+          docker inspect "$c" --format '{{json .State}}'; exit 1
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down -v

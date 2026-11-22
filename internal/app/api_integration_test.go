@@ -1,0 +1,542 @@
+//go:build integration
+
+package app
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/getkin/kin-openapi/routers"
+	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pquerna/otp/totp"
+
+	"github.com/furkanmeclis/messora-app-go/internal/api"
+	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/testutil"
+)
+
+const bffSecret = "test-bff-secret-0123456789abcdef0123456789" // gitleaks:allow (test fixture)
+
+// capturingMailer records sent messages.
+type capturingMailer struct {
+	mu   sync.Mutex
+	sent []mailer.Message
+}
+
+func (m *capturingMailer) Enabled() bool { return true }
+func (m *capturingMailer) Send(_ context.Context, msg mailer.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sent = append(m.sent, msg)
+	return nil
+}
+func (m *capturingMailer) last() mailer.Message {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.sent[len(m.sent)-1]
+}
+
+type harness struct {
+	t      *testing.T
+	pool   *pgxpool.Pool
+	srv    *httptest.Server
+	svc    *services
+	mail   *capturingMailer
+	router routers.Router
+}
+
+func newHarness(t *testing.T) *harness {
+	t.Helper()
+	pool := testutil.MigratedPostgres(t)
+	rdb := testutil.Redis(t)
+	cfg := &config.Config{PublicAppURL: "https://messora.test", EncryptionKey: bytes.Repeat([]byte{7}, 32)}
+	mail := &capturingMailer{}
+	fast := crypto.Argon2Params{MemoryKiB: 8 * 1024, Iterations: 1, Parallelism: 1, SaltLen: 16, KeyLen: 32}
+	svc, err := newServicesWith(cfg, pool, rdb, testutil.DiscardLogger(), mail, fast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf, _ := centrifugo.New(config.CentrifugoConfig{APIURL: "http://127.0.0.1:1/api", APIKey: "x"})
+	sys := newSystemHandler(pool, rdb, queue.NewInspector(rdb), cf)
+
+	r := chi.NewRouter()
+	r.NotFound(httpx.NotFound)
+	r.Use(httpx.RequestID, httpx.Recover(testutil.DiscardLogger()), httpx.IdentifyBFF(bffSecret))
+	if err := mountAPI(r, svc, pool, sys, rdb, testutil.DiscardLogger()); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	spec, _ := api.GetSpec()
+	spec.Servers = nil // match paths relative to the test server
+	for p, item := range spec.Paths.Map() {
+		spec.Paths.Delete(p)
+		spec.Paths.Set("/api/v1"+p, item)
+	}
+	router, err := gorillamux.NewRouter(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &harness{t: t, pool: pool, srv: srv, svc: svc, mail: mail, router: router}
+}
+
+type call struct {
+	method, path string
+	body         any
+	token        string // bearer token (session or API key)
+	noBFF        bool   // simulate a request from outside the internal network
+	headers      map[string]string
+}
+
+type resp struct {
+	status int
+	header http.Header
+	raw    []byte
+	body   map[string]any
+}
+
+func (r resp) data() map[string]any {
+	d, _ := r.body["data"].(map[string]any)
+	return d
+}
+func (r resp) list() []any {
+	d, _ := r.body["data"].([]any)
+	return d
+}
+func (r resp) errCode() string {
+	e, _ := r.body["error"].(map[string]any)
+	c, _ := e["code"].(string)
+	return c
+}
+
+// do sends the request and validates the response against the OpenAPI spec.
+func (h *harness) do(c call) resp {
+	h.t.Helper()
+	var body io.Reader
+	if c.body != nil {
+		b, _ := json.Marshal(c.body)
+		body = bytes.NewReader(b)
+	}
+	req, _ := http.NewRequest(c.method, h.srv.URL+c.path, body)
+	if c.body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if !c.noBFF {
+		req.Header.Set(httpx.BFFHeader, bffSecret)
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	for k, v := range c.headers {
+		req.Header.Set(k, v)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(res.Body)
+	out := resp{status: res.StatusCode, header: res.Header, raw: raw}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &out.body); err != nil {
+			h.t.Fatalf("%s %s: non-JSON response %d: %s", c.method, c.path, res.StatusCode, raw)
+		}
+	}
+	h.validate(req, out)
+	return out
+}
+
+// validate checks the response against the operation's documented schema.
+func (h *harness) validate(req *http.Request, r resp) {
+	h.t.Helper()
+	vreq := req.Clone(context.Background())
+	vreq.URL.Host, vreq.URL.Scheme, vreq.Host = "", "", ""
+	route, params, err := h.router.FindRoute(vreq)
+	if err != nil {
+		return // unknown route: nothing documented to validate against
+	}
+	err = openapi3filter.ValidateResponse(context.Background(), &openapi3filter.ResponseValidationInput{
+		RequestValidationInput: &openapi3filter.RequestValidationInput{Request: vreq, PathParams: params, Route: route,
+			Options: &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc}},
+		Status: r.status, Header: r.header, Body: io.NopCloser(bytes.NewReader(r.raw)),
+		Options: &openapi3filter.Options{IncludeResponseStatus: true},
+	})
+	if err != nil {
+		h.t.Errorf("%s %s → %d violates the OpenAPI contract: %v\nbody: %s", req.Method, req.URL.Path, r.status, err, r.raw)
+	}
+}
+
+func (h *harness) expect(r resp, status int, code string) {
+	h.t.Helper()
+	if r.status != status || (code != "" && r.errCode() != code) {
+		h.t.Fatalf("want %d %s, got %d %s: %s", status, code, r.status, r.errCode(), r.raw)
+	}
+}
+
+const ownerPassword = "Horse-battery-staple-42"
+
+// setupOwner completes setup and enrols TOTP (owners must use 2FA by default).
+func (h *harness) setupOwner() (token, totpSecret string) {
+	h.t.Helper()
+	setupTok, err := h.svc.identity.EnsureSetupToken(context.Background(), false)
+	if err != nil || setupTok == "" {
+		h.t.Fatalf("setup token: %q %v", setupTok, err)
+	}
+	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{
+		"token": setupTok, "name": "Ayşe Owner", "email": "Owner@Example.com", "password": ownerPassword, "organization_name": "Acme",
+	}})
+	h.expect(r, 201, "")
+	token = r.data()["session_token"].(string)
+
+	r = h.do(call{method: "POST", path: "/api/v1/me/mfa/totp", token: token})
+	h.expect(r, 200, "")
+	totpSecret = r.data()["secret"].(string)
+	code, _ := totp.GenerateCode(totpSecret, time.Now())
+	r = h.do(call{method: "POST", path: "/api/v1/me/mfa/totp/confirm", token: token, body: map[string]any{"code": code}})
+	h.expect(r, 200, "")
+	return token, totpSecret
+}
+
+func TestSetupFlow(t *testing.T) {
+	h := newHarness(t)
+
+	r := h.do(call{method: "GET", path: "/api/v1/setup/status"})
+	h.expect(r, 200, "")
+	if r.data()["setup_required"] != true {
+		t.Fatal("fresh install must require setup")
+	}
+	r = h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{
+		"token": "mst_wrong-token-wrong-token-wrong", "name": "X", "email": "x@example.com", "password": ownerPassword,
+	}})
+	h.expect(r, 403, "SETUP_TOKEN_INVALID")
+
+	token, _ := h.setupOwner()
+
+	r = h.do(call{method: "GET", path: "/api/v1/me", token: token})
+	h.expect(r, 200, "")
+	user := r.data()["user"].(map[string]any)
+	if user["email"] != "owner@example.com" || user["role"].(map[string]any)["key"] != "owner" || user["mfa_enabled"] != true {
+		t.Fatalf("unexpected me: %s", r.raw)
+	}
+	if r.data()["mfa_required"] != false {
+		t.Fatal("mfa no longer pending after enrolment")
+	}
+
+	// Setup is single use, and the token generator now refuses.
+	r = h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": "mst_anything-anything-anything-1", "name": "Y", "email": "y@example.com", "password": ownerPassword}})
+	h.expect(r, 409, "SETUP_COMPLETE")
+	if tok, _ := h.svc.identity.EnsureSetupToken(context.Background(), true); tok != "" {
+		t.Fatal("setup token issued after setup")
+	}
+	r = h.do(call{method: "GET", path: "/api/v1/settings", token: token})
+	h.expect(r, 200, "")
+	if r.data()["organization_name"] != "Acme" {
+		t.Fatalf("organization name not applied: %s", r.raw)
+	}
+}
+
+func TestBoundaryAndValidation(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.setupOwner()
+
+	// Session tokens are worthless outside the internal network.
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: token, noBFF: true}), 401, "UNAUTHORIZED")
+	// Panel-only operations reject external callers.
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login", noBFF: true, body: map[string]any{"email": "a@b.co", "password": "x"}}), 403, "FORBIDDEN")
+	// Missing and invalid credentials.
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me"}), 401, "UNAUTHORIZED")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: "mss_bogus"}), 401, "SESSION_INVALID")
+
+	// Schema validation with field details.
+	r := h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "not-an-email", "password": "x", "extra": true}})
+	h.expect(r, 422, "VALIDATION_ERROR")
+	details := r.body["error"].(map[string]any)["details"].([]any)
+	if len(details) < 2 {
+		t.Fatalf("expected one detail per problem: %s", r.raw)
+	}
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/users/not-a-uuid", token: token, body: map[string]any{"status": "disabled"}}), 422, "VALIDATION_ERROR")
+
+	// Unknown routes keep the error envelope.
+	h.expect(h.do(call{method: "GET", path: "/api/v1/nope", token: token}), 404, "NOT_FOUND")
+}
+
+func TestLoginLockoutAndMFA(t *testing.T) {
+	h := newHarness(t)
+	_, secret := h.setupOwner()
+
+	// Wrong password is a generic error; unknown e-mail looks identical.
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "owner@example.com", "password": "wrong"}}), 401, "INVALID_CREDENTIALS")
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "nobody@example.com", "password": "wrong"}}), 401, "INVALID_CREDENTIALS")
+
+	// Correct password → second factor required.
+	r := h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "OWNER@example.com", "password": ownerPassword}})
+	h.expect(r, 200, "")
+	if r.data()["status"] != "mfa_required" || r.data()["session"] != nil {
+		t.Fatalf("expected MFA challenge without a session: %s", r.raw)
+	}
+	mfa := r.data()["mfa_token"].(string)
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login/mfa", body: map[string]any{"mfa_token": mfa, "code": "000000"}}), 401, "MFA_INVALID")
+
+	code, _ := totp.GenerateCode(secret, time.Now().Add(30*time.Second)) // next step: not used during enrolment
+	r = h.do(call{method: "POST", path: "/api/v1/auth/login/mfa", body: map[string]any{"mfa_token": mfa, "code": code}})
+	h.expect(r, 200, "")
+	session := r.data()["session_token"].(string)
+	// The challenge is single use.
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login/mfa", body: map[string]any{"mfa_token": mfa, "code": code}}), 401, "MFA_EXPIRED")
+
+	// A TOTP code cannot be replayed on another challenge.
+	r = h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "owner@example.com", "password": ownerPassword}})
+	mfa2 := r.data()["mfa_token"].(string)
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login/mfa", body: map[string]any{"mfa_token": mfa2, "code": code}}), 401, "MFA_INVALID")
+
+	// Recovery codes work once.
+	r = h.do(call{method: "POST", path: "/api/v1/auth/reauth", token: session, body: map[string]any{"password": ownerPassword}})
+	h.expect(r, 200, "")
+	r = h.do(call{method: "POST", path: "/api/v1/me/mfa/recovery-codes", token: session})
+	h.expect(r, 200, "")
+	rc := r.data()["codes"].([]any)[0].(string)
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login/mfa", body: map[string]any{"mfa_token": mfa2, "recovery_code": rc}}), 200, "")
+	r = h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "owner@example.com", "password": ownerPassword}})
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login/mfa", body: map[string]any{"mfa_token": r.data()["mfa_token"], "recovery_code": rc}}), 401, "MFA_INVALID")
+
+	// Owners cannot switch 2FA off while the policy requires it.
+	h.expect(h.do(call{method: "DELETE", path: "/api/v1/me/mfa/totp", token: session}), 403, "MFA_REQUIRED_BY_POLICY")
+
+	// Ten consecutive failures lock the account, even for the right password.
+	for range 10 {
+		h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "owner@example.com", "password": "wrong-again"},
+			headers: map[string]string{"X-Forwarded-For": "203.0.113.9"}})
+	}
+	r = h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "owner@example.com", "password": ownerPassword}})
+	if r.status != 429 || (r.errCode() != "ACCOUNT_LOCKED" && r.errCode() != "RATE_LIMITED") || r.header.Get("Retry-After") == "" {
+		t.Fatalf("expected lockout with Retry-After, got %d %s", r.status, r.raw)
+	}
+}
+
+func TestMandatoryMFABlocksEverythingElse(t *testing.T) {
+	h := newHarness(t)
+	setupTok, _ := h.svc.identity.EnsureSetupToken(context.Background(), false)
+	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": setupTok, "name": "O", "email": "o@example.com", "password": ownerPassword}})
+	token := r.data()["session_token"].(string)
+
+	r = h.do(call{method: "GET", path: "/api/v1/me", token: token})
+	h.expect(r, 200, "")
+	if r.data()["mfa_required"] != true {
+		t.Fatal("owner without 2FA must be flagged")
+	}
+	h.expect(h.do(call{method: "GET", path: "/api/v1/users", token: token}), 403, "MFA_SETUP_REQUIRED")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/settings", token: token}), 403, "MFA_SETUP_REQUIRED")
+}
+
+func TestInvitationsRolesAndLastOwner(t *testing.T) {
+	h := newHarness(t)
+	owner, _ := h.setupOwner()
+
+	// Invite an agent; the link is returned and e-mailed.
+	r := h.do(call{method: "POST", path: "/api/v1/invitations", token: owner, body: map[string]any{"email": "agent@example.com", "role": "agent"}})
+	h.expect(r, 201, "")
+	link := r.data()["accept_url"].(string)
+	if r.data()["email_sent"] != true || !strings.Contains(h.mail.last().Body, link) {
+		t.Fatal("invitation e-mail missing the link")
+	}
+	invToken := link[strings.Index(link, "token=")+6:]
+	h.expect(h.do(call{method: "POST", path: "/api/v1/invitations", token: owner, body: map[string]any{"email": "agent@example.com", "role": "agent"}}), 409, "INVITATION_EXISTS")
+	h.expect(h.do(call{method: "POST", path: "/api/v1/invitations", token: owner, body: map[string]any{"email": "owner@example.com", "role": "agent"}}), 409, "USER_EXISTS")
+
+	r = h.do(call{method: "POST", path: "/api/v1/invitations/lookup", body: map[string]any{"token": invToken}})
+	h.expect(r, 200, "")
+	if r.data()["email"] != "agent@example.com" {
+		t.Fatal(string(r.raw))
+	}
+	h.expect(h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": invToken, "name": "Agent", "password": "password1234"}}), 422, "VALIDATION_ERROR")
+	r = h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": invToken, "name": "Ali Agent", "password": "Correct-horse-staple-9"}})
+	h.expect(r, 201, "")
+	agent := r.data()["session_token"].(string)
+	agentID := r.data()["user"].(map[string]any)["id"].(string)
+	h.expect(h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": invToken, "name": "Again", "password": "Correct-horse-staple-9"}}), 403, "INVITATION_INVALID")
+
+	// Agents lack users.manage.
+	r = h.do(call{method: "GET", path: "/api/v1/users", token: agent})
+	h.expect(r, 403, "FORBIDDEN")
+	if !strings.Contains(r.raw2(), "users.manage") {
+		t.Fatalf("error must name the missing permission: %s", r.raw)
+	}
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: agent}), 200, "")
+
+	// Promote to admin; an admin cannot create owners or touch the owner.
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/users/" + agentID, token: owner, body: map[string]any{"role": "admin"}}), 200, "")
+	r = h.do(call{method: "GET", path: "/api/v1/users", token: owner})
+	ownerID := ""
+	for _, u := range r.list() {
+		if m := u.(map[string]any); m["email"] == "owner@example.com" {
+			ownerID = m["id"].(string)
+		}
+	}
+	// The admin must enrol 2FA before using admin features (policy).
+	h.expect(h.do(call{method: "GET", path: "/api/v1/users", token: agent}), 403, "MFA_SETUP_REQUIRED")
+	h.svc.settings.Invalidate()
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"mfa_required_roles": []string{"owner"}}}), 200, "")
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/users/" + ownerID, token: agent, body: map[string]any{"role": "agent"}}), 403, "INSUFFICIENT_ROLE")
+	h.expect(h.do(call{method: "POST", path: "/api/v1/invitations", token: agent, body: map[string]any{"email": "new@example.com", "role": "owner"}}), 403, "INSUFFICIENT_ROLE")
+
+	// Owners cannot change themselves; the last owner cannot be demoted.
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/users/" + ownerID, token: owner, body: map[string]any{"role": "admin"}}), 403, "SELF_MODIFICATION")
+
+	// Disabling a user ends their sessions immediately.
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/users/" + agentID, token: owner, body: map[string]any{"status": "disabled"}}), 200, "")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: agent}), 401, "SESSION_INVALID")
+}
+
+func (r resp) raw2() string { return string(r.raw) }
+
+func TestAPIKeysAndIdempotency(t *testing.T) {
+	h := newHarness(t)
+	owner, secret := h.setupOwner()
+
+	body := map[string]any{"name": "CRM sync", "scopes": []string{"contacts.read"}}
+	// Signing in counts as fresh authentication for 10 minutes; age it out.
+	if _, err := h.pool.Exec(context.Background(), "UPDATE user_sessions SET reauth_at = now() - interval '11 minutes'"); err != nil {
+		t.Fatal(err)
+	}
+	h.expect(h.do(call{method: "POST", path: "/api/v1/api-keys", token: owner, body: body}), 403, "REAUTH_REQUIRED")
+	code, _ := totp.GenerateCode(secret, time.Now().Add(30*time.Second))
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/reauth", token: owner, body: map[string]any{"code": code}}), 200, "")
+
+	idem := map[string]string{"Idempotency-Key": "create-key-0001"}
+	r1 := h.do(call{method: "POST", path: "/api/v1/api-keys", token: owner, body: body, headers: idem})
+	h.expect(r1, 201, "")
+	r2 := h.do(call{method: "POST", path: "/api/v1/api-keys", token: owner, body: body, headers: idem})
+	h.expect(r2, 201, "")
+	if r2.header.Get("Idempotent-Replayed") != "true" || !bytes.Equal(r1.raw, r2.raw) {
+		t.Fatal("retry with the same Idempotency-Key must replay the response")
+	}
+	h.expect(h.do(call{method: "POST", path: "/api/v1/api-keys", token: owner, body: map[string]any{"name": "other", "scopes": []string{"contacts.read"}}, headers: idem}), 409, "IDEMPOTENCY_KEY_REUSED")
+	r := h.do(call{method: "GET", path: "/api/v1/api-keys", token: owner})
+	if len(r.list()) != 1 {
+		t.Fatalf("replay must not create a second key: %s", r.raw)
+	}
+
+	key := r1.data()["secret"].(string)
+	keyID := r1.data()["api_key"].(map[string]any)["id"].(string)
+	// API keys work from outside the internal network…
+	r = h.do(call{method: "GET", path: "/api/v1/api-keys/whoami", token: key, noBFF: true})
+	h.expect(r, 200, "")
+	if r.data()["name"] != "CRM sync" {
+		t.Fatal(string(r.raw))
+	}
+	// …but never on session-only operations.
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: key, noBFF: true}), 403, "FORBIDDEN")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/users", token: key}), 403, "FORBIDDEN")
+
+	h.expect(h.do(call{method: "POST", path: "/api/v1/api-keys", token: owner, body: map[string]any{"name": "x", "scopes": []string{"nope.nope"}}}), 422, "VALIDATION_ERROR")
+
+	h.expect(h.do(call{method: "DELETE", path: "/api/v1/api-keys/" + keyID, token: owner}), 204, "")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/api-keys/whoami", token: key, noBFF: true}), 401, "API_KEY_INVALID")
+}
+
+func TestPasswordChangeResetAndSessions(t *testing.T) {
+	h := newHarness(t)
+	owner, secret := h.setupOwner()
+
+	// A second session (e.g. another browser).
+	r := h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "owner@example.com", "password": ownerPassword}})
+	code, _ := totp.GenerateCode(secret, time.Now().Add(30*time.Second))
+	r = h.do(call{method: "POST", path: "/api/v1/auth/login/mfa", body: map[string]any{"mfa_token": r.data()["mfa_token"], "code": code}})
+	other := r.data()["session_token"].(string)
+
+	r = h.do(call{method: "GET", path: "/api/v1/me/sessions", token: owner})
+	h.expect(r, 200, "")
+	if len(r.list()) != 2 {
+		t.Fatalf("want 2 sessions: %s", r.raw)
+	}
+
+	h.expect(h.do(call{method: "POST", path: "/api/v1/me/password", token: owner, body: map[string]any{"current_password": "wrong", "new_password": "Brand-new-password-77"}}), 422, "VALIDATION_ERROR")
+	h.expect(h.do(call{method: "POST", path: "/api/v1/me/password", token: owner, body: map[string]any{"current_password": ownerPassword, "new_password": "Brand-new-password-77"}}), 204, "")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: other}), 401, "SESSION_INVALID")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: owner}), 200, "")
+
+	// Password reset: unknown address is indistinguishable.
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/password/forgot", body: map[string]any{"email": "nobody@example.com"}}), 202, "")
+	before := len(h.mail.sent)
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/password/forgot", body: map[string]any{"email": "owner@example.com"}}), 202, "")
+	if len(h.mail.sent) != before+1 {
+		t.Fatal("reset e-mail not sent")
+	}
+	body := h.mail.last().Body
+	resetTok := body[strings.Index(body, "token=")+6:]
+	resetTok = strings.Fields(resetTok)[0]
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/password/reset", body: map[string]any{"token": resetTok, "password": "Reset-password-value-1"}}), 204, "")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: owner}), 401, "SESSION_INVALID")
+	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/password/reset", body: map[string]any{"token": resetTok, "password": "Another-password-value-2"}}), 403, "RESET_TOKEN_INVALID")
+	r = h.do(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "owner@example.com", "password": "Reset-password-value-1"}})
+	h.expect(r, 200, "")
+}
+
+func TestAuditTrailAndPagination(t *testing.T) {
+	h := newHarness(t)
+	owner, _ := h.setupOwner()
+	for i := range 3 {
+		h.do(call{method: "POST", path: "/api/v1/invitations", token: owner, body: map[string]any{"email": "p" + string(rune('a'+i)) + "@example.com", "role": "agent"}})
+	}
+	seen := map[string]bool{}
+	cursor := ""
+	pages := 0
+	for {
+		path := "/api/v1/audit-logs?limit=2"
+		if cursor != "" {
+			path += "&cursor=" + cursor
+		}
+		r := h.do(call{method: "GET", path: path, token: owner})
+		h.expect(r, 200, "")
+		for _, e := range r.list() {
+			seen[e.(map[string]any)["action"].(string)] = true
+		}
+		pages++
+		next, _ := r.body["meta"].(map[string]any)["next_cursor"].(string)
+		if next == "" || pages > 20 {
+			break
+		}
+		cursor = next
+	}
+	for _, a := range []string{"setup.complete", "user.login", "user.mfa_enable", "invitation.create"} {
+		if !seen[a] {
+			t.Errorf("audit log missing %s (saw %v)", a, seen)
+		}
+	}
+	if pages < 3 {
+		t.Fatalf("expected several pages, got %d", pages)
+	}
+	r := h.do(call{method: "GET", path: "/api/v1/audit-logs?action=invitation.create", token: owner})
+	if len(r.list()) != 3 {
+		t.Fatalf("filter by action: %s", r.raw)
+	}
+}
+
+func TestSystemStatusRequiresPermission(t *testing.T) {
+	h := newHarness(t)
+	owner, _ := h.setupOwner()
+	r := h.do(call{method: "GET", path: "/api/v1/system/status", token: owner})
+	h.expect(r, 200, "")
+	comps := r.data()["components"].(map[string]any)
+	if comps["postgres"].(map[string]any)["status"] != "ok" || comps["centrifugo"].(map[string]any)["status"] != "fail" {
+		t.Fatalf("unexpected component states: %s", r.raw)
+	}
+	h.expect(h.do(call{method: "GET", path: "/api/v1/system/status"}), 401, "UNAUTHORIZED")
+}

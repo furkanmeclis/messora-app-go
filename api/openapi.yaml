@@ -1,0 +1,1187 @@
+openapi: 3.1.0
+info:
+  title: Messora API
+  version: 0.2.0
+  description: |
+    REST API of Messora, a self-hosted WhatsApp Business Cloud API platform.
+
+    **Authentication.** Every operation declares its security requirement:
+
+    - `panel` — only callable by the Messora panel (Next.js BFF) over the
+      internal network. Used for sign-in flows.
+    - `session` — a signed-in panel user. Scopes are the permissions the
+      user's role must grant.
+    - `apiKey` — `Authorization: Bearer msk_live_…`. Scopes are the scopes the
+      key was created with.
+
+    **Envelope.** Success: `{"data": …, "meta": {"request_id": …}}`. Errors:
+    `{"error": {"code", "message", "details"}, "meta": {…}}`.
+
+    **Idempotency.** POST operations accept an `Idempotency-Key` header; a
+    retried request with the same key and body returns the stored response.
+  license:
+    name: MIT
+servers:
+  - url: /api/v1
+
+tags:
+  - name: setup
+  - name: auth
+  - name: me
+  - name: users
+  - name: roles
+  - name: settings
+  - name: audit
+  - name: api-keys
+  - name: system
+
+paths:
+  /setup/status:
+    get:
+      operationId: getSetupStatus
+      tags: [setup]
+      summary: Whether the first owner account still has to be created
+      security: [{ panel: [] }]
+      responses:
+        "200":
+          description: Setup status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetupStatusResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /setup:
+    post:
+      operationId: completeSetup
+      tags: [setup]
+      summary: Create the first owner account with the one-time setup token
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompleteSetupRequest" }
+      responses:
+        "201":
+          description: Owner created and signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Sign in with e-mail and password
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Signed in, or a second factor is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/login/mfa:
+    post:
+      operationId: loginMfa
+      tags: [auth]
+      summary: Complete sign-in with a TOTP or recovery code
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginMfaRequest" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: End the current session
+      security: [{ session: [] }]
+      responses:
+        "204": { description: "Signed out" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/reauth:
+    post:
+      operationId: reauthenticate
+      tags: [auth]
+      summary: Confirm identity before a sensitive action
+      description: Valid for 10 minutes on the current session.
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReauthRequest" }
+      responses:
+        "200":
+          description: Confirmed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReauthResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/password/forgot:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: E-mail a password reset link
+      description: Always answers 202 so that registered addresses cannot be discovered.
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForgotPasswordRequest" }
+      responses:
+        "202": { description: "If the address is registered, an e-mail was sent" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/password/reset:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password with a reset token
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        "204": { description: "Password changed; every session was ended" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/capabilities:
+    get:
+      operationId: getAuthCapabilities
+      tags: [auth]
+      summary: Which optional sign-in features are available
+      security: [{ panel: [] }]
+      responses:
+        "200":
+          description: Capabilities
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthCapabilitiesResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: The signed-in user, role, permissions and session
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MeResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateMe
+      tags: [me]
+      summary: Update profile
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMeRequest" }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MeResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me/password:
+    post:
+      operationId: changePassword
+      tags: [me]
+      summary: Change password; ends every other session
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "204": { description: "Changed" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me/sessions:
+    get:
+      operationId: listMySessions
+      tags: [me]
+      summary: Active sessions of the signed-in user
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: revokeOtherSessions
+      tags: [me]
+      summary: End every session except the current one
+      security: [{ session: [] }]
+      responses:
+        "204": { description: "Revoked" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me/sessions/{sessionId}:
+    delete:
+      operationId: revokeMySession
+      tags: [me]
+      summary: End one of the user's sessions
+      security: [{ session: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/SessionId" }
+      responses:
+        "204": { description: "Revoked" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me/mfa/totp:
+    post:
+      operationId: startTotpSetup
+      tags: [me]
+      summary: Generate a TOTP secret to enrol an authenticator app
+      description: Requires recent re-authentication.
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: Secret and otpauth URI (not active until confirmed)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TotpSetupResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: disableTotp
+      tags: [me]
+      summary: Turn off two-factor authentication
+      description: Requires recent re-authentication. Refused when the user's role requires two-factor authentication.
+      security: [{ session: [] }]
+      responses:
+        "204": { description: "Disabled" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me/mfa/totp/confirm:
+    post:
+      operationId: confirmTotp
+      tags: [me]
+      summary: Activate TOTP with a code from the app; returns recovery codes once
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TotpConfirmRequest" }
+      responses:
+        "200":
+          description: Enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecoveryCodesResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me/mfa/recovery-codes:
+    post:
+      operationId: regenerateRecoveryCodes
+      tags: [me]
+      summary: Replace all recovery codes
+      description: Requires recent re-authentication.
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: New codes (shown once)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecoveryCodesResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: All panel users
+      security: [{ session: [users.manage] }]
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /users/{userId}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Change a user's role or status
+      security: [{ session: [users.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /invitations:
+    get:
+      operationId: listInvitations
+      tags: [users]
+      summary: Pending invitations
+      security: [{ session: [users.manage] }]
+      responses:
+        "200":
+          description: Invitations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitationListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createInvitation
+      tags: [users]
+      summary: Invite someone by e-mail
+      description: The response contains the acceptance link once, so it can be shared when e-mail is not configured.
+      security: [{ session: [users.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInvitationRequest" }
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitationCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /invitations/{invitationId}:
+    delete:
+      operationId: revokeInvitation
+      tags: [users]
+      summary: Revoke a pending invitation
+      security: [{ session: [users.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/InvitationId" }
+      responses:
+        "204": { description: "Revoked" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /invitations/lookup:
+    post:
+      operationId: lookupInvitation
+      tags: [users]
+      summary: Show who an invitation token is for
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvitationTokenRequest" }
+      responses:
+        "200":
+          description: Invitation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitationPreviewResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /invitations/accept:
+    post:
+      operationId: acceptInvitation
+      tags: [users]
+      summary: Accept an invitation and create the account
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptInvitationRequest" }
+      responses:
+        "201":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [roles]
+      summary: Roles and the permissions they grant
+      security: [{ session: [users.manage] }]
+      responses:
+        "200":
+          description: Roles
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoleListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Workspace settings
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Change workspace settings
+      security: [{ session: [settings.update] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateSettingsRequest" }
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: Audit trail, newest first
+      security: [{ session: [audit.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - name: action
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: actor_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: entity_type
+          in: query
+          schema: { type: string, maxLength: 50 }
+        - name: entity_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Audit entries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditLogListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [api-keys]
+      summary: API keys (secrets are never returned again)
+      security: [{ session: [api_keys.manage] }]
+      responses:
+        "200":
+          description: Keys
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKeyListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createApiKey
+      tags: [api-keys]
+      summary: Create an API key; the secret is shown once
+      description: Requires recent re-authentication. Scopes cannot exceed the creator's permissions.
+      security: [{ session: [api_keys.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateApiKeyRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKeyCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api-keys/{apiKeyId}:
+    delete:
+      operationId: revokeApiKey
+      tags: [api-keys]
+      summary: Revoke an API key immediately
+      security: [{ session: [api_keys.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/ApiKeyId" }
+      responses:
+        "204": { description: "Revoked" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api-keys/whoami:
+    get:
+      operationId: getApiKeySelf
+      tags: [api-keys]
+      summary: Describe the API key used for this request
+      description: Lets integrations verify their credentials and scopes.
+      security: [{ apiKey: [] }]
+      responses:
+        "200":
+          description: The calling key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKeyResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /system/status:
+    get:
+      operationId: getSystemStatus
+      tags: [system]
+      summary: Health of every component of the installation
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Component status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemStatusResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    panel:
+      type: apiKey
+      in: header
+      name: X-Messora-BFF
+      description: Shared secret of the panel; only present on the internal network.
+    session:
+      type: http
+      scheme: bearer
+      description: Opaque panel session token, accepted only together with the panel secret.
+    apiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: msk_live_…
+
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ApiKeyId:
+      name: apiKeyId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor from `meta.next_cursor`.
+      schema: { type: string, maxLength: 200 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, minLength: 8, maxLength: 200 }
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  schemas:
+    Meta:
+      type: object
+      required: [request_id]
+      properties:
+        request_id: { type: string }
+        next_cursor: { type: string }
+
+    ErrorDetail:
+      type: object
+      required: [code]
+      properties:
+        field: { type: string }
+        code: { type: string }
+        message: { type: string }
+
+    ErrorBody:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+          examples: [VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, RATE_LIMITED, REAUTH_REQUIRED, INTERNAL_ERROR]
+        message: { type: string }
+        details:
+          type: array
+          items: { $ref: "#/components/schemas/ErrorDetail" }
+
+    ErrorEnvelope:
+      type: object
+      required: [error, meta]
+      properties:
+        error: { $ref: "#/components/schemas/ErrorBody" }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    Email:
+      type: string
+      format: email
+      minLength: 3
+      maxLength: 254
+
+    Password:
+      type: string
+      minLength: 12
+      maxLength: 256
+      description: At least 12 characters. Common passwords are rejected.
+
+    PersonName:
+      type: string
+      minLength: 1
+      maxLength: 120
+
+    RoleKey:
+      type: string
+      enum: [owner, admin, manager, agent]
+
+    Permission:
+      type: string
+      pattern: '^[a-z_]+\.[a-z_]+$'
+
+    RoleRef:
+      type: object
+      required: [key, name]
+      properties:
+        key: { $ref: "#/components/schemas/RoleKey" }
+        name: { type: string }
+
+    User:
+      type: object
+      required: [id, email, name, status, role, mfa_enabled, locale, timezone, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [active, disabled] }
+        role: { $ref: "#/components/schemas/RoleRef" }
+        mfa_enabled: { type: boolean }
+        locale: { type: string }
+        timezone: { type: string }
+        last_login_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    SessionInfo:
+      type: object
+      required: [id, created_at, last_seen_at, expires_at, current]
+      properties:
+        id: { type: string, format: uuid }
+        ip: { type: [string, "null"] }
+        user_agent: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        last_seen_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        current: { type: boolean }
+
+    Me:
+      type: object
+      required: [user, permissions, session, mfa_required]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+        session:
+          type: object
+          required: [id, expires_at]
+          properties:
+            id: { type: string, format: uuid }
+            expires_at: { type: string, format: date-time }
+            reauth_valid_until: { type: [string, "null"], format: date-time }
+        mfa_required:
+          type: boolean
+          description: The user's role requires two-factor authentication but it is not enabled yet.
+
+    SessionCreated:
+      type: object
+      required: [session_token, expires_at, user]
+      properties:
+        session_token:
+          type: string
+          description: Opaque token. The panel stores it in an HttpOnly cookie; never expose it to browsers.
+        expires_at: { type: string, format: date-time }
+        user: { $ref: "#/components/schemas/User" }
+
+    SetupStatus:
+      type: object
+      required: [setup_required]
+      properties:
+        setup_required: { type: boolean }
+
+    CompleteSetupRequest:
+      type: object
+      additionalProperties: false
+      required: [token, name, email, password]
+      properties:
+        token: { type: string, minLength: 20, maxLength: 200 }
+        name: { $ref: "#/components/schemas/PersonName" }
+        email: { $ref: "#/components/schemas/Email" }
+        password: { $ref: "#/components/schemas/Password" }
+        organization_name: { type: string, minLength: 1, maxLength: 120 }
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { $ref: "#/components/schemas/Email" }
+        password: { type: string, minLength: 1, maxLength: 256 }
+
+    LoginResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [authenticated, mfa_required] }
+        session: { $ref: "#/components/schemas/SessionCreated" }
+        mfa_token:
+          type: string
+          description: Present when status is mfa_required; valid for 5 minutes.
+
+    LoginMfaRequest:
+      type: object
+      additionalProperties: false
+      required: [mfa_token]
+      properties:
+        mfa_token: { type: string, minLength: 20, maxLength: 200 }
+        code: { type: string, pattern: '^\d{6}$' }
+        recovery_code: { type: string, pattern: '^[a-z2-9]{5}-?[a-z2-9]{5}$' }
+
+    ReauthRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        password: { type: string, minLength: 1, maxLength: 256 }
+        code: { type: string, pattern: '^\d{6}$' }
+
+    ReauthResult:
+      type: object
+      required: [valid_until]
+      properties:
+        valid_until: { type: string, format: date-time }
+
+    ForgotPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { $ref: "#/components/schemas/Email" }
+
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [token, password]
+      properties:
+        token: { type: string, minLength: 20, maxLength: 200 }
+        password: { $ref: "#/components/schemas/Password" }
+
+    AuthCapabilities:
+      type: object
+      required: [password_reset, setup_required]
+      properties:
+        password_reset:
+          type: boolean
+          description: False when outgoing e-mail is not configured.
+        setup_required: { type: boolean }
+
+    UpdateMeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { $ref: "#/components/schemas/PersonName" }
+        locale: { type: string, pattern: '^[a-z]{2}(-[A-Z]{2})?$' }
+        timezone: { type: string, minLength: 1, maxLength: 64 }
+
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string, minLength: 1, maxLength: 256 }
+        new_password: { $ref: "#/components/schemas/Password" }
+
+    TotpSetup:
+      type: object
+      required: [secret, otpauth_uri]
+      properties:
+        secret: { type: string }
+        otpauth_uri: { type: string }
+
+    TotpConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code: { type: string, pattern: '^\d{6}$' }
+
+    RecoveryCodes:
+      type: object
+      required: [codes]
+      properties:
+        codes:
+          type: array
+          items: { type: string }
+
+    UpdateUserRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        role: { $ref: "#/components/schemas/RoleKey" }
+        status: { type: string, enum: [active, disabled] }
+
+    Invitation:
+      type: object
+      required: [id, email, role, created_at, expires_at, status]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        role: { $ref: "#/components/schemas/RoleRef" }
+        invited_by: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        status: { type: string, enum: [pending, expired] }
+
+    InvitationCreated:
+      type: object
+      required: [invitation, accept_url, email_sent]
+      properties:
+        invitation: { $ref: "#/components/schemas/Invitation" }
+        accept_url:
+          type: string
+          description: Shown once. Share it with the invitee if e-mail is not configured.
+        email_sent: { type: boolean }
+
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email: { $ref: "#/components/schemas/Email" }
+        role: { $ref: "#/components/schemas/RoleKey" }
+
+    InvitationTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, minLength: 20, maxLength: 200 }
+
+    InvitationPreview:
+      type: object
+      required: [email, role, expires_at]
+      properties:
+        email: { type: string }
+        role: { $ref: "#/components/schemas/RoleRef" }
+        expires_at: { type: string, format: date-time }
+
+    AcceptInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [token, name, password]
+      properties:
+        token: { type: string, minLength: 20, maxLength: 200 }
+        name: { $ref: "#/components/schemas/PersonName" }
+        password: { $ref: "#/components/schemas/Password" }
+
+    Role:
+      type: object
+      required: [key, name, rank, permissions]
+      properties:
+        key: { $ref: "#/components/schemas/RoleKey" }
+        name: { type: string }
+        rank: { type: integer }
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+
+    PermissionInfo:
+      type: object
+      required: [key, module, description]
+      properties:
+        key: { $ref: "#/components/schemas/Permission" }
+        module: { type: string }
+        description: { type: string }
+
+    RolesAndPermissions:
+      type: object
+      required: [roles, permissions]
+      properties:
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/Role" }
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/PermissionInfo" }
+
+    Settings:
+      type: object
+      required: [organization_name, default_timezone, mfa_required_roles, session_idle_hours, session_lifetime_days]
+      properties:
+        organization_name: { type: string, minLength: 1, maxLength: 120 }
+        default_timezone: { type: string, minLength: 1, maxLength: 64 }
+        mfa_required_roles:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/RoleKey" }
+        session_idle_hours: { type: integer, minimum: 1, maximum: 720 }
+        session_lifetime_days: { type: integer, minimum: 1, maximum: 90 }
+
+    UpdateSettingsRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        organization_name: { type: string, minLength: 1, maxLength: 120 }
+        default_timezone: { type: string, minLength: 1, maxLength: 64 }
+        mfa_required_roles:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/RoleKey" }
+        session_idle_hours: { type: integer, minimum: 1, maximum: 720 }
+        session_lifetime_days: { type: integer, minimum: 1, maximum: 90 }
+
+    AuditActor:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [user, api_key, system] }
+        id: { type: [string, "null"], format: uuid }
+        name: { type: [string, "null"] }
+
+    AuditLog:
+      type: object
+      required: [id, occurred_at, actor, action, changes]
+      properties:
+        id: { type: string, format: uuid }
+        occurred_at: { type: string, format: date-time }
+        actor: { $ref: "#/components/schemas/AuditActor" }
+        action: { type: string }
+        entity_type: { type: [string, "null"] }
+        entity_id: { type: [string, "null"], format: uuid }
+        ip: { type: [string, "null"] }
+        request_id: { type: [string, "null"] }
+        changes:
+          type: object
+          additionalProperties: true
+
+    ApiKey:
+      type: object
+      required: [id, name, prefix, scopes, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        prefix: { type: string }
+        scopes:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+        created_by: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, "null"], format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+
+    ApiKeyCreated:
+      type: object
+      required: [api_key, secret]
+      properties:
+        api_key: { $ref: "#/components/schemas/ApiKey" }
+        secret:
+          type: string
+          description: Shown once; store it securely.
+
+    CreateApiKeyRequest:
+      type: object
+      additionalProperties: false
+      required: [name, scopes]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 40
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/Permission" }
+        expires_in_days: { type: integer, minimum: 1, maximum: 3650 }
+
+    ComponentStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok, fail] }
+        detail: {}
+        error: { type: string }
+
+    SystemStatus:
+      type: object
+      required: [version, healthy, components, checked_at]
+      properties:
+        version: { type: string }
+        healthy: { type: boolean }
+        components:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/ComponentStatus" }
+        checked_at: { type: string, format: date-time }
+
+    # ── Envelopes ────────────────────────────────────────────────────────
+    SetupStatusResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/SetupStatus" }, meta: { $ref: "#/components/schemas/Meta" } }
+    SessionCreatedResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/SessionCreated" }, meta: { $ref: "#/components/schemas/Meta" } }
+    LoginResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/LoginResult" }, meta: { $ref: "#/components/schemas/Meta" } }
+    ReauthResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/ReauthResult" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AuthCapabilitiesResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AuthCapabilities" }, meta: { $ref: "#/components/schemas/Meta" } }
+    MeResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Me" }, meta: { $ref: "#/components/schemas/Meta" } }
+    SessionListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/SessionInfo" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    TotpSetupResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/TotpSetup" }, meta: { $ref: "#/components/schemas/Meta" } }
+    RecoveryCodesResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/RecoveryCodes" }, meta: { $ref: "#/components/schemas/Meta" } }
+    UserResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/User" }, meta: { $ref: "#/components/schemas/Meta" } }
+    UserListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/User" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    InvitationListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Invitation" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    InvitationCreatedResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/InvitationCreated" }, meta: { $ref: "#/components/schemas/Meta" } }
+    InvitationPreviewResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/InvitationPreview" }, meta: { $ref: "#/components/schemas/Meta" } }
+    RoleListResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/RolesAndPermissions" }, meta: { $ref: "#/components/schemas/Meta" } }
+    SettingsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Settings" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AuditLogListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AuditLog" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ApiKeyResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/ApiKey" }, meta: { $ref: "#/components/schemas/Meta" } }
+    ApiKeyListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ApiKey" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ApiKeyCreatedResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/ApiKeyCreated" }, meta: { $ref: "#/components/schemas/Meta" } }
+    SystemStatusResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/SystemStatus" }, meta: { $ref: "#/components/schemas/Meta" } }

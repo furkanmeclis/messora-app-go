@@ -1,0 +1,11 @@
+# gitleaks configuration: default rules plus paths that are never committed.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local-only directories (git-ignored)"
+paths = [
+  '''^reference/''',
+  '''^frontend/node_modules/''',
+  '''^frontend/\.next/''',
+]

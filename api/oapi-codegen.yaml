@@ -1,0 +1,10 @@
+# Generates internal/api from api/openapi.yaml: `make api` (runs `go tool oapi-codegen`).
+package: api
+output: internal/api/api.gen.go
+generate:
+  models: true
+  chi-server: true
+  embedded-spec: true
+output-options:
+  skip-prune: true
+  nullable-type: false

@@ -1,0 +1,16 @@
+Messora
+Copyright (c) 2026 Messora contributors. Licensed under the MIT License (see LICENSE).
+
+Third-party software
+--------------------
+
+frontend/src/components/ui/* are generated from shadcn/ui
+(https://ui.shadcn.com, MIT License, Copyright (c) 2023 shadcn).
+
+Go and npm dependencies keep their own licenses; see go.mod and
+frontend/package-lock.json.
+
+Components that run as separate containers keep their own licenses:
+PostgreSQL (PostgreSQL License), Redis 8 (RSALv2 / SSPLv1 / AGPLv3, used
+unmodified; Valkey, BSD-3, is a compatible alternative), Centrifugo
+(Apache-2.0), Caddy (Apache-2.0).

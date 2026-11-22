@@ -1,0 +1,56 @@
+version: "2"
+
+run:
+  timeout: 5m
+  build-tags: [integration]
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - noctx
+    - revive
+    - sqlclosecheck
+    - unconvert
+    - wastedassign
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+    gosec:
+      excludes:
+        - G104 # unhandled errors are covered by errcheck
+    errcheck:
+      # Closing read-side resources (and best-effort temp cleanup) cannot be
+      # meaningfully handled; write paths check their Close errors explicitly.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.DB).Close
+        - (*github.com/hibiken/asynq.Client).Close
+        - (*github.com/hibiken/asynq.Inspector).Close
+        - (*github.com/redis/go-redis/v9.Client).Close
+        - (*os.File).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (*net/smtp.Client).Close
+        - os.Remove
+  exclusions:
+    generated: lax
+    paths:
+      - reference
+      - frontend
+    rules:
+      - path: _test\.go
+        linters: [gosec, noctx, revive]
+
+formatters:
+  enable: [gofmt, goimports]
+  settings:
+    goimports:
+      local-prefixes: [github.com/furkanmeclis/messora-app-go]
+  exclusions:
+    paths: [reference, frontend]

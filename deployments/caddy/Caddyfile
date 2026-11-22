@@ -1,0 +1,40 @@
+# Messora edge proxy. SITE_ADDRESS ":80" serves plain HTTP (local use);
+# set it to your domain (e.g. "messora.example.com") for automatic HTTPS,
+# which WhatsApp webhooks require.
+{
+	admin off
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# Public developer API and Meta webhooks go straight to the Go API.
+	# The BFF secret header is stripped so it can only come from the
+	# internal network.
+	@api path /api/v1/* /webhooks/*
+	handle @api {
+		request_header -X-Messora-BFF
+		reverse_proxy messora-api:8080
+	}
+
+	# Realtime WebSocket / SSE connections.
+	handle /connection/* {
+		reverse_proxy centrifugo:8000
+	}
+
+	# Everything else is the panel (Next.js BFF).
+	handle {
+		request_header -X-Messora-BFF
+		reverse_proxy messora-web:3000
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
