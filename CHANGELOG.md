@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 2: panel
+
+- Sign-in flows (setup, sign-in, two-factor verification, invitation
+  acceptance, password reset) and administration pages (overview, profile,
+  security with TOTP enrolment and sessions, users and invitations, API keys,
+  audit log, settings) on a Next.js BFF with HttpOnly session cookies and a
+  nonce-based Content Security Policy.
+- Playwright end-to-end journeys on a throw-away stack (`scripts/e2e.sh`),
+  run in CI.
+
 ### Added — Phase 2: identity and administration (API)
 
 - Spec-first REST API (`api/openapi.yaml`, OpenAPI 3.1) with generated Go

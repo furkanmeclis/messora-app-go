@@ -190,7 +190,7 @@ func (h *harness) expect(r resp, status int, code string) {
 	}
 }
 
-const ownerPassword = "Horse-battery-staple-42"
+const ownerPassword = "Horse-battery-staple-42" // gitleaks:allow (test fixture)
 
 // setupOwner completes setup and enrols TOTP (owners must use 2FA by default).
 func (h *harness) setupOwner() (token, totpSecret string) {
@@ -366,11 +366,11 @@ func TestInvitationsRolesAndLastOwner(t *testing.T) {
 		t.Fatal(string(r.raw))
 	}
 	h.expect(h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": invToken, "name": "Agent", "password": "password1234"}}), 422, "VALIDATION_ERROR")
-	r = h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": invToken, "name": "Ali Agent", "password": "Correct-horse-staple-9"}})
+	r = h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": invToken, "name": "Ali Agent", "password": "Correct-horse-staple-9"}}) // gitleaks:allow (test fixture)
 	h.expect(r, 201, "")
 	agent := r.data()["session_token"].(string)
 	agentID := r.data()["user"].(map[string]any)["id"].(string)
-	h.expect(h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": invToken, "name": "Again", "password": "Correct-horse-staple-9"}}), 403, "INVITATION_INVALID")
+	h.expect(h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": invToken, "name": "Again", "password": "Correct-horse-staple-9"}}), 403, "INVITATION_INVALID") // gitleaks:allow (test fixture)
 
 	// Agents lack users.manage.
 	r = h.do(call{method: "GET", path: "/api/v1/users", token: agent})

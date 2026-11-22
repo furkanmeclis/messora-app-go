@@ -21,6 +21,8 @@ coverage.out
 /frontend/.next/
 /frontend/next-env.d.ts
 /frontend/*.tsbuildinfo
+/frontend/playwright-report/
+/frontend/test-results/
 
 # Editors / OS
 .DS_Store

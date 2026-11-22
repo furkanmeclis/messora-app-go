@@ -39,8 +39,9 @@
 | Audit log | 2 | Implemented |
 | API key'ler (scope'lu) | 2 | Implemented |
 | API standardı: zarf, hata, pagination, rate limit, Idempotency-Key | 2 | Implemented |
-| OpenAPI 3.1 + üretilmiş tipler | 2 | Partial (Go tarafı ve contract testleri hazır; panel tipleri sırada) |
-| CSP (nonce) ve güvenlik başlıkları | 2 | Partial (temel başlıklar var) |
+| OpenAPI 3.1 + üretilmiş tipler (Go ve panel) | 2 | Implemented |
+| CSP (nonce) ve güvenlik başlıkları | 2 | Implemented |
+| Panel: kurulum, giriş, 2FA, davet, şifre sıfırlama, profil, güvenlik, kullanıcılar, API key'ler, audit, ayarlar | 2 | Implemented (Playwright E2E) |
 | Passkey (WebAuthn) | v1.x | Missing |
 
 ## WhatsApp Cloud API (Phase 3)
@@ -95,7 +96,8 @@
 
 | Özellik | Phase | Durum |
 |---|---|---|
-| E2E (Playwright) ve yük testleri | 10 | Missing |
+| E2E (Playwright) | 2+ | Partial (kimlik akışları kapsandı; her phase kendi akışlarını ekler) |
+| Yük testleri | 10 | Missing |
 | Backup / restore dokümanı ve provası | 10 | Missing |
 | OpenTelemetry tracing | 10 | Missing |
 | i18n (EN + TR) | v1.x | Missing |

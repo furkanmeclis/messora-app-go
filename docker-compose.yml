@@ -17,6 +17,7 @@ x-messora-app: &messora-app
       required: false
   environment: &messora-env
     MESSORA_SECRETS_FILE: /run/messora-secrets/secrets.env
+    PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
     POSTGRES_HOST: postgres
     REDIS_ADDR: redis:6379
     CENTRIFUGO_API_URL: http://centrifugo:8000/api
@@ -53,6 +54,7 @@ services:
     restart: "no"
     environment:
       MESSORA_SECRETS_DIR: /secrets
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
     volumes:
       - messora-secrets:/secrets
 
