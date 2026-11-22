@@ -1,0 +1,28 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Reference checkout of ZeroMsg (cloned locally for analysis, never committed)
+/reference/
+
+# Go
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# Frontend
+/frontend/node_modules/
+/frontend/.next/
+/frontend/next-env.d.ts
+/frontend/*.tsbuildinfo
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
