@@ -5,7 +5,7 @@
 *.pem
 *.key
 
-# Reference checkout of ZeroMsg (cloned locally for analysis, never committed)
+# Local-only scratch directory
 /reference/
 
 # Go

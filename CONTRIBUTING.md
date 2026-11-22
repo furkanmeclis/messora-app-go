@@ -54,11 +54,12 @@ docs(deployment): document docker compose setup
 Before opening a PR run `make check`. Describe what changed, why, and how you
 tested it. Keep PRs focused; open an issue first for large changes.
 
-## Code derived from ZeroMsg
+## UI components
 
-Parts of the UI are derived from [ZeroMsg](https://github.com/megoxv/zeromsg)
-(MIT). When you copy more code from it, keep the `Derived from ZeroMsg (MIT)`
-header and list the path in [`NOTICE`](NOTICE).
+Components in `frontend/src/components/ui` are generated with the shadcn CLI
+(`npx shadcn@4.23.0 add <name>` inside `frontend/`). Prefer adding components
+that way over hand-writing new primitives, and keep styling on the theme
+tokens in `frontend/src/app/globals.css`.
 
 ## Code of conduct
 

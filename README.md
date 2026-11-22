@@ -98,20 +98,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Document | Contents |
 |---|---|
-| [docs/ANALYSIS.md](docs/ANALYSIS.md) | Verified analysis of ZeroMsg, the project Messora derives from |
-| [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) | Feature-by-feature status and plan |
+| [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) | Feature scope and current status |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, reliability design, pinned versions |
 | [docs/DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md) | Target schema |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and controls |
-| [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md) | How ZeroMsg features move to Messora |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases and exit criteria |
 
 The design documents are currently written in Turkish.
 
-## Acknowledgements and license
+## License
 
-Messora is MIT licensed — see [LICENSE](LICENSE). Parts of the user interface
-are derived from [ZeroMsg](https://github.com/megoxv/zeromsg) by megoxv (MIT);
-see [NOTICE](NOTICE).
+Messora is MIT licensed — see [LICENSE](LICENSE). Third-party notices are in
+[NOTICE](NOTICE).
 
 Security issues: please follow [SECURITY.md](SECURITY.md).

@@ -1,6 +1,6 @@
 # Veritabanı Tasarımı (PostgreSQL 18)
 
-> Phase 0 · 2026-11-22 · Durum: **Önerildi**. DDL Phase 1–8 boyunca goose migration'ları olarak modül modül yazılacak. Bu doküman hedef şemayı ve gerekçeleri tanımlar.
+> DDL Phase 1–8 boyunca goose migration'ları olarak modül modül yazılacak. Bu doküman hedef şemayı ve gerekçeleri tanımlar.
 
 ## 1. Genel kurallar
 
@@ -66,7 +66,7 @@ outbox_events (id bigint GENERATED ALWAYS AS IDENTITY PK, topic text, payload js
   INDEX (id) WHERE published_at IS NULL
 ```
 
-- **Rol/izin:** Talimattaki 5 tablo korunur. Sistem rolleri (owner, admin, manager, agent) seed migration'ı ile yüklenir ve silinemez. Özel rol oluşturma ilk sürümde UI'da yoktur ama model destekler.
+- **Rol/izin:** `roles`, `permissions`, `role_permissions`, `user_roles` ve `users`. Sistem rolleri (owner, admin, manager, agent) seed migration'ı ile yüklenir ve silinemez. Özel rol oluşturma ilk sürümde UI'da yoktur ama model destekler.
 - `outbox_events.id` `bigint` identity'dir. Sıralı tüketim için ucuz ve hiçbir zaman dışarı açılmaz.
 
 ## 3. WhatsApp
@@ -105,7 +105,7 @@ whatsapp_media (
 )
 ```
 
-- Talimattaki `whatsapp_accounts` + `whatsapp_phone_numbers` ayrımı korunur. ZeroMsg'de bu tek tablodaydı. Token WABA seviyesinde, throughput ve kalite numara seviyesinde tutulur.
+- `whatsapp_accounts` ve `whatsapp_phone_numbers` ayrıdır. Token WABA seviyesinde, throughput ve kalite numara seviyesinde tutulur.
 - `components jsonb`: Meta'nın template şemasıdır ve sürümle değişir. Alanları tek tek normalize etmenin faydası yok. Gerekçeli JSONB kullanımı.
 - `whatsapp_webhook_events`: Meta zaten tekrar gönderdiği için body hash'i dedupe için yeterlidir. Ham kayıt hata ayıklama ve yeniden işleme (replay) için saklanır.
 
@@ -149,9 +149,9 @@ segments (
 )
 ```
 
-- **Telefon unique:** Tek işletme olduğu için `phone_e164` global unique'tir (F7 ve duplicate sorununun kökten çözümü). Import işlemi `ON CONFLICT (phone_e164) DO UPDATE/NOTHING` ile çalışır (kullanıcı seçimine göre).
-- **`custom_fields jsonb`:** Alan tanımları `custom_field_definitions`'ta durur ve tipler uygulamada doğrulanır. ZeroMsg'deki `var1..var5`, `var1..var5` anahtarlı tanımlar olarak taşınır, böylece mevcut template değişken eşlemeleri çalışmaya devam eder. EAV tablosu yerine JSONB seçildi, çünkü segment sorgularında join patlaması yaratmıyor ve GIN index ile filtrelenebiliyor.
-- **Opt-in kayıtları:** `contacts.consent_status` hızlı filtre içindir. Kanıt ve geçmiş `contact_consent_events`'te tutulur (kim, ne zaman, hangi kaynaktan). Talimat §17'deki "opt-in kayıtlarının tutulması" maddesini karşılar.
+- **Telefon unique:** Tek işletme olduğu için `phone_e164` global unique'tir (duplicate kayıtların kökten çözümü). Import işlemi `ON CONFLICT (phone_e164) DO UPDATE/NOTHING` ile çalışır (kullanıcı seçimine göre).
+- **`custom_fields jsonb`:** Alan tanımları `custom_field_definitions`'ta durur ve tipler uygulamada doğrulanır.var5` anahtarlı tanımlar olarak taşınır, böylece mevcut template değişken eşlemeleri çalışmaya devam eder. EAV tablosu yerine JSONB seçildi, çünkü segment sorgularında join patlaması yaratmıyor ve GIN index ile filtrelenebiliyor.
+- **Opt-in kayıtları:** `contacts.consent_status` hızlı filtre içindir. Kanıt ve geçmiş `contact_consent_events`'te tutulur (kim, ne zaman, hangi kaynaktan).
 - **Segmentler:**
   - `segment_rules` tablosu yerine kural ağacı `segments.rule` içinde **tipli JSONB** olarak saklanır. AND/OR ağacını tablolara bölmek her düzenlemede çok satırlı senkronizasyon gerektirir ve okuma tarafında kazanç sağlamaz. Kural uygulamada şemaya göre doğrulanır ve `rule_version` ile sürümlenir.
   - `segment_memberships` tablosu **yoktur**. Dinamik segmentler kullanım anında hesaplanır. Kampanyada sonuç `campaign_recipients` olarak donar ki bu zaten anlık görüntüdür. Materyalize üyelik tablosu güncelliğini kaybeder ve tutarsızlık kaynağı olur. Büyük kitlelerde önizleme sayısı `estimated_count` ile cache'lenir.
@@ -239,7 +239,7 @@ message_attempts (
 )
 ```
 
-- Talimattaki `message_status_history` → `message_status_events` adını aldı. `(message_id, status)` unique olduğu için tekrarlanan webhook'lar idempotent işlenir.
+- Durum geçmişi `message_status_events` tablosundadır. `(message_id, status)` unique olduğu için tekrarlanan webhook'lar idempotent işlenir.
 - Konuşma, `(numara, müşteri)` başına **tek satırdır**. Kapatılan konuşma yeni mesajla yeniden açılır, geçmiş bölünmez.
 - `customer_window_expires_at = last_inbound_at + 24h` alanı inbound mesaj işlenirken güncellenir. Inbox, API ve kampanyadaki tüm 24h kontrolleri bu tek alana bakar.
 - **Büyüme:** 100k'lık kampanyalar düzenli çalışırsa `messages` yılda on milyonlarca satıra ulaşır. v1'de partition yok. Bunun sebebi `wamid` global unique kısıtının partition anahtarı içermesi gerekmesi, bu da dedupe garantisini bozar. UUIDv7 + BRIN + kısmi index'ler bu ölçekte yeterli. Arşivleme ve partition stratejisi (`messages` → aylık partition + ayrı `message_wamids` dedupe tablosu) ROADMAP'te "ölçek" maddesi olarak duruyor.
@@ -251,7 +251,7 @@ automations (
   id uuid PK, name text, is_active bool DEFAULT false,
   trigger_type text CHECK (message_received|keyword|contact_created|tag_added|conversation_opened),
   trigger_config jsonb,                                  -- {"keyword":"fiyat","match":"contains"} | {"tag_id":"…"}
-  graph jsonb NOT NULL,                                  -- {nodes, edges, actions} — ZeroMsg v1 export formatıyla uyumlu
+  graph jsonb NOT NULL,                                  -- {nodes, edges}: görsel akış editörünün dokümanı
   version int NOT NULL DEFAULT 1, cooldown_seconds int DEFAULT 0, max_runs_per_contact_per_day int,
   created_by FK, created_at, updated_at
 )  INDEX (trigger_type) WHERE is_active
@@ -262,7 +262,7 @@ automation_executions (
   status text CHECK (running|waiting|completed|failed|skipped),
   skip_reason text, current_node text, depth int, resume_at timestamptz,
   started_at, finished_at, error text,
-  UNIQUE (automation_id, trigger_key)                    -- aynı tetikleyici iki kez çalışamaz (F3)
+  UNIQUE (automation_id, trigger_key)                    -- aynı tetikleyici iki kez çalışamaz
 )  INDEX (contact_id, started_at DESC) ; INDEX (resume_at) WHERE status='waiting'
 automation_execution_steps (id uuid PK, execution_id FK CASCADE, node_id text, action_type text, status text, output jsonb, error text, started_at, finished_at)
 ```
@@ -293,23 +293,3 @@ webhook_deliveries (
 | `audit_logs` | süresiz | `RETENTION_AUDIT_DAYS` (0 = süresiz) |
 | `user_sessions` (süresi dolmuş) | 7 gün sonra silinir | sabit |
 | `messages`, `conversations` | süresiz | ileride arşivleme |
-
-## 10. ZeroMsg → Messora tablo eşlemesi
-
-| ZeroMsg | Messora |
-|---|---|
-| `tenants` | — (kaldırıldı; `webhook_token` gerekmiyor) |
-| `users` | `users` + `user_roles` |
-| `passkeys` | (P10) `user_passkeys` |
-| `whatsapp_accounts` | `whatsapp_accounts` + `whatsapp_phone_numbers` |
-| `message_templates` | `whatsapp_templates` |
-| `campaigns` | `campaigns` + `campaign_stats` + `campaign_events` |
-| `campaign_recipients` | `campaign_recipients` + `messages` |
-| `whatsapp_chats` | `conversations` |
-| `whatsapp_messages` | `messages` + `message_status_events` |
-| `contacts` (`var1..5`, `notes`) | `contacts.custom_fields` + `custom_field_definitions` + `contact_notes` |
-| `contact_groups`, `contact_group_memberships` | `contact_groups`, `contact_group_members` |
-| `api_keys` | `api_keys` (+ scopes, prefix) |
-| `outgoing_webhooks` | `webhook_endpoints` (+ `webhook_deliveries`) |
-| `automation_flows` | `automations` (+ executions) |
-| `system_notifications` | `notifications` (kullanıcı bazında) |

@@ -23,11 +23,11 @@ All notable changes to this project are documented here. The format follows
 - Leader-elected scheduler (Redis lease lock + slot-based task IDs).
 - Health (`/healthz`, `/readyz`) and Prometheus metrics on an internal port
   for every service; panel-only `GET /api/v1/system/status`.
-- Next.js 16 panel/BFF with the ZeroMsg design system and an installation
-  status page.
+- Next.js 16 panel/BFF built on shadcn/ui with the Messora theme and an
+  installation status page.
 - Docker Compose stack (Caddy, panel, API, worker, scheduler, init, migrate,
   PostgreSQL, Redis, Centrifugo) that starts with one command and generates
   its own secrets.
 - CI: unit + integration tests, golangci-lint, govulncheck, sqlc drift check,
   frontend lint/type/build, secret scan and a Compose smoke test.
-- Phase 0 analysis documents in `docs/`.
+- Design documents in `docs/`.

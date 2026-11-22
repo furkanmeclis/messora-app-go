@@ -1,7 +1,7 @@
 # Messora Mimarisi
 
-> Phase 0 · 2026-11-22 · Durum: **Önerildi** (Phase 1 öncesi onay bekliyor)
-> İlgili: [`DATABASE_DESIGN.md`](DATABASE_DESIGN.md) · [`SECURITY.md`](SECURITY.md) · [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md)
+> Son güncelleme: 2026-11-22 (Phase 1 sonrası)
+> İlgili: [`DATABASE_DESIGN.md`](DATABASE_DESIGN.md) · [`SECURITY.md`](SECURITY.md) · [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md) · [`ROADMAP.md`](ROADMAP.md)
 
 ## 1. İlkeler
 
@@ -50,26 +50,28 @@
 | `redis` | `redis:8` | AOF açık, `noeviction` |
 | `centrifugo` | `centrifugo/centrifugo:v6.10.3` | WebSocket |
 
-> Talimattaki 7 servise **caddy**, **init** ve **migrate** eklendi. Caddy olmadan Meta webhook'u (HTTPS zorunlu), Centrifugo WebSocket'i ve panel aynı origin altında toplanamaz. Ayrıca bir self-host kullanıcısına ayrı bir reverse proxy kurdurmak "tek komutla kurulum" hedefini bozar. Kullanıcının kendi proxy'si varsa `caddy` servisi Compose profiliyle kapatılabilir.
+> **caddy**, **init** ve **migrate** neden ayrı servis: Caddy olmadan Meta webhook'u (HTTPS zorunlu), Centrifugo WebSocket'i ve panel aynı origin altında toplanamaz. Ayrıca bir self-host kullanıcısına ayrı bir reverse proxy kurdurmak "tek komutla kurulum" hedefini bozar. Kullanıcının kendi proxy'si varsa `caddy` servisi Compose profiliyle kapatılabilir.
 
-## 3. Frontend: Next.js BFF kararı
+## 3. Frontend: Next.js BFF
 
-**Karar (2026-11-22, kullanıcı onaylı):** Talimat §9'daki "Vite'ı koru" maddesinden bilinçli olarak sapıldı. Frontend **Next.js 16 (App Router, `output: 'standalone'`)** olarak yazılacak ve BFF görevi görecek.
+Frontend **Next.js 16 (App Router, `output: 'standalone'`)** ile yazılır ve BFF (backend-for-frontend) görevi görür.
 
-**Gerekçe:** ZeroMsg UI'ı Inertia.js'e bağlı (53 dosya). Sayfa verisi sunucudan prop olarak geliyor, ayrı bir API katmanı yok. Dolayısıyla veri ve routing katmanı her seçenekte yeniden yazılacaktı. Server Components, Inertia'nın "sunucudan prop" modeline en yakın karşılık. Ayrıca BFF sayesinde oturum token'ı ve Centrifugo secret'ları tarayıcı JS'ine hiç ulaşmıyor.
+**Gerekçe:**
+- Oturum token'ı ve Centrifugo secret'ları tarayıcı JS'ine hiç ulaşmaz.
+- Sayfa verisi Server Components ile sunucuda çekilir, interaktif parçalar `'use client'` bileşenleridir.
+- Go API yalnızca iç ağdan veya API key ile erişilebilir kalır.
 
-**Korunanlar:** React 19, TypeScript, Tailwind v4, shadcn/Radix bileşenleri (`components/ui/*`, 33 dosya), `@xyflow/react` akış editörü, `sonner`, `lucide-react`, sayfa layout'ları ve görsel tasarım. Interaktif sayfalar `'use client'` bileşeni olarak büyük ölçüde aynen taşınır. Yalnızca veri giriş ve çıkış noktaları değişir.
+**Yapı taşları:**
 
-**Değişenler:**
-
-| Inertia | Next.js karşılığı |
+| Konu | Yaklaşım |
 |---|---|
-| `Inertia::render('x', props)` | `app/(panel)/x/page.tsx` server component → Go API'den veri çeker → client bileşene prop geçer |
-| `useForm().post(route)` | Server Action + `useActionState`; doğrulama hataları `{field: message}` olarak aynı `InputError` bileşenine akar |
-| `router.reload()` / polling | Centrifugo event'i → `router.refresh()` veya yerel state güncellemesi |
-| Flash toast | Server Action dönüş değeri + `sonner` |
-| Wayfinder route helper'ları | Tipli path sabitleri + OpenAPI'den üretilmiş tipler (`openapi-typescript` + `openapi-fetch`) |
-| Shared props (auth, notifications) | `app/(panel)/layout.tsx` içinde `GET /api/v1/me` + bildirimler |
+| UI bileşenleri | shadcn/ui (Radix tabanı, `radix-nova` stili), CLI ile üretilir (`components.json`) |
+| Tema | Messora tasarım token'ları (`globals.css`: nötr yüzeyler, indigo marka rengi), `next-themes` ile light/dark/system |
+| Veri okuma | Server Component → `lib/server/api.ts` (server-only, BFF secret + oturum token'ı ekler) |
+| Veri yazma | Server Action + `useActionState`. Doğrulama hataları API'nin `details[]` alanından forma eşlenir |
+| Bildirimler | Server Action sonucu ve realtime event'ler → `sonner` |
+| Tipler | OpenAPI 3.1 spec'ten üretilir (`openapi-typescript`) |
+| Gerçek zamanlı | Centrifugo JS SDK, tek merkezi bağlantı (Phase 6) |
 
 ### 3.1 Güven sınırı (Next ↔ Go)
 
@@ -133,7 +135,7 @@ messora-app-go/
 └── docs/
 ```
 
-**Talimattaki öneriden sapmalar:**
+**Notlar:**
 - `channels` modülü eklendi. Böylece `whatsapp` saf bir Meta adaptörü kalır (DB'ye dokunmaz, mock'lanması kolay), hesap ve numara kayıtları ayrı bir modülde durur.
 - `media`, `notifications`, `realtime` eklendi.
 - `api/openapi.yaml` eklendi.
@@ -188,7 +190,7 @@ Inbox yanıtı, API, otomasyon ve kampanya dahil **her giden mesaj** aynı boru 
 3. **Uzlaştırma:** Her gönderimde `biz_opaque_callback_data = "m:<message_id>"` alanı geçilir. Meta bu değeri durum webhook'unda geri döndürür. `unknown` durumundaki bir mesaj için webhook gelirse `wamid` bağlanır ve durum ilerletilir. `MESSAGE_UNKNOWN_TIMEOUT` (varsayılan 30 dk) içinde webhook gelmezse mesaj `unknown` olarak kalır. UI'da "teslim durumu belirsiz" olarak işaretlenir, operatör bilinçli olarak yeniden gönderebilir veya `failed` olarak kapatabilir. *(Meta'nın bu alanı durum webhook'larında döndürdüğü Phase 3'te resmî dokümandan ve mock testlerinden doğrulanacak. Meta'nın `/messages` için idempotency anahtarı sunmadığı varsayılıyor; bu da aynı fazda doğrulanacak.)*
 4. **Worker çökmesi:** Lease süresi dolmuş `sending` kayıtlarını scheduler'daki reaper **`unknown`** durumuna taşır, `queued`'ya değil. İsteğin Meta'ya gidip gitmediği bilinemez. Gerçek sonuç, 3. maddedeki callback data ile kendiliğinden uzlaşır.
 5. **Graceful shutdown:** SIGTERM gelince asynq yeni task almayı bırakır, devam eden HTTP çağrılarının bitmesi için `SHUTDOWN_TIMEOUT` (varsayılan 30 sn, Meta client timeout'u 20 sn) beklenir. Bitmeyenler asynq tarafından kuyruğa iade edilir. Bu task'ler tekrar çalıştığında 1. maddedeki claim, durumu `sending` görüp çakışmayı engeller. Lease bitince 4. madde devreye girer.
-6. **Durum webhook'ları monoton işlenir:** Sıralama `accepted(1) < sent(2) < delivered(3) < read(4)`. Güncelleme yalnızca `rank` artıyorsa yapılır. `failed`, ancak `delivered` öncesindeyse uygulanır. Her event `message_status_events` tablosuna `(message_id, status)` unique olarak yazılır. Sayaçlar yalnızca gerçek bir geçiş olduğunda artırılır. Bu, F5'i ve sayaç yarışlarını çözer.
+6. **Durum webhook'ları monoton işlenir:** Sıralama `accepted(1) < sent(2) < delivered(3) < read(4)`. Güncelleme yalnızca `rank` artıyorsa yapılır. `failed`, ancak `delivered` öncesindeyse uygulanır. Her event `message_status_events` tablosuna `(message_id, status)` unique olarak yazılır. Sayaçlar yalnızca gerçek bir geçiş olduğunda artırılır. Bu, sıra dışı gelen durum güncellemelerini ve sayaç yarışlarını çözer.
 7. **Opt-out kontrolü gönderimden hemen önce bir kez daha yapılır.** Kampanya oluşturma ile gönderim arasında opt-out olan alıcı `skipped_opted_out` olur.
 8. **24h pencere:** Serbest metin ve medya mesajları (template olmayanlar) yalnızca konuşmanın `customer_window_expires_at > now()` olduğu durumda gönderilir. Aksi halde istek API'de `422 SESSION_WINDOW_CLOSED` ile reddedilir (Meta'ya hiç gitmez). Kampanyada bu alıcılar `skipped_no_session` olur.
 
@@ -219,8 +221,8 @@ worker message:send  → §6
 ```
 
 - **Redis şişmez:** Tüm alıcılar asla kuyruğa basılmaz. Kuyrukta en fazla `pencere` kadar (varsayılan `throughput_mps × 10`) task bulunur. 100k alıcılı kampanya Redis'te birkaç yüz küçük task'tir (payload yalnızca ID).
-- **Pause:** `running → paused`. Dispatcher durur. Claim anında kampanyası duraklatılmış olan mesaj `held` olur. **Resume:** `paused → running` + dispatch. Dispatcher önce `held` mesajları yeniden kuyruğa alır (F1 çözümü). **Cancel:** `→ cancelled`. `pending` ve `held` kayıtlar `cancelled` olur.
-- **Planlanmış kampanya:** Scheduler her dakika `UPDATE … SET status='preparing' WHERE status='scheduled' AND scheduled_at <= now() RETURNING id` çalıştırır (ZeroMsg'deki atomik claim deseni korunur) ve outbox'a yazar.
+- **Pause:** `running → paused`. Dispatcher durur. Claim anında kampanyası duraklatılmış olan mesaj `held` olur. **Resume:** `paused → running` + dispatch. Dispatcher önce `held` mesajları yeniden kuyruğa alır. **Cancel:** `→ cancelled`. `pending` ve `held` kayıtlar `cancelled` olur.
+- **Planlanmış kampanya:** Scheduler her dakika `UPDATE … SET status='preparing' WHERE status='scheduled' AND scheduled_at <= now() RETURNING id` çalıştırır ve outbox'a yazar.
 - **İstatistik:** `campaign_stats` satırı (pending, queued, accepted, sent, delivered, read, failed, unknown, skipped) durum geçişleriyle aynı transaction'da artırılır. Webhook başına COUNT sorgusu yok. 80 mps'de tek satır güncellemesi PostgreSQL için sorun değildir. 1000 mps senaryosunda sayaç sharding'i (`campaign_stats_shards`) roadmap'tedir.
 - **Event log:** `campaign_events` (started, paused, resumed, cancelled, completed, auto_paused + sebep, kullanıcı).
 
@@ -237,13 +239,13 @@ POST /webhooks/whatsapp
 worker webhook:process (idempotent):
   - mesaj: INSERT messages … ON CONFLICT (wamid) DO NOTHING RETURNING id
       → yalnızca yeni satır oluştuysa aynı TX'te: konuşma upsert, 24h pencere güncellemesi,
-        outbox(automation.evaluate, webhook.deliver, realtime.publish, media.download)   ← F3 çözümü
+        outbox(automation.evaluate, webhook.deliver, realtime.publish, media.download)   ← yan etkiler yalnızca yeni mesajda
   - durum: §6.2 madde 6 ; biz_opaque_callback_data ile unknown uzlaştırma
   - template durum güncellemesi, numara kalite güncellemesi, hesap event'leri
   - STOP / opt-out anahtar kelimeleri → consent kaydı (yapılandırılabilir)
 ```
 
-- `GET /webhooks/whatsapp`: `hub.mode=subscribe` **ve** `hub.verify_token` değeri `META_VERIFY_TOKEN` ile sabit zamanlı karşılaştırmada eşleşirse `hub.challenge` döner, aksi halde 403 (F4 çözümü).
+- `GET /webhooks/whatsapp`: `hub.mode=subscribe` **ve** `hub.verify_token` değeri `META_VERIFY_TOKEN` ile sabit zamanlı karşılaştırmada eşleşirse `hub.challenge` döner, aksi halde 403.
 - Tek işletme olduğu için URL'de tenant token'ı yoktur. Birden fazla Meta App kullanılırsa (nadir), imza her kayıtlı app secret ile denenir.
 
 ## 9. Outbox
@@ -282,7 +284,7 @@ worker webhook:process (idempotent):
 | Vadesi gelmiş planlı kampanyalar | 1 dk |
 | `sending` lease reaper, webhook event reaper, outbox reaper | 1 dk |
 | `unknown` mesaj zaman aşımı | 5 dk |
-| Template senkronizasyonu (F18 çözümü) | 30 dk |
+| Template senkronizasyonu | 30 dk |
 | Numara kalite / limit tier yenileme | 6 sa |
 | Süresi dolmuş oturum, idempotency, outbox temizliği | 1 sa |
 
@@ -297,7 +299,7 @@ worker webhook:process (idempotent):
   - `system:notifications`: bağlantı token'ındaki `subs` claim'i ile otomatik abonelik.
 - Abonelik token'ı `POST /api/v1/realtime/subscription-token`'dan alınır ve Go'da izin kontrolünden geçer. Centrifugo'da `allow_subscribe_for_client` **kapalıdır**, token'sız abonelik yoktur.
 - Event'ler kalıcı veri değildir. `campaign` ve `conversation` namespace'lerinde kısa history (`history_size: 50`, `history_ttl: 2m`) ve `force_recovery` açıktır. Kurtarılamayan kopmalarda client API'den güncel durumu yeniden çeker.
-- Event isimleri talimattaki listeyle aynıdır (`campaign.updated`, `message.sent`, `message.received`, `conversation.updated`, `contact.import.completed`, `system.notification` …). Payload'lar yalnızca ID ve özet içerir; mesaj gövdesi realtime kanaldan gönderilmez, client gerekirse API'den çeker. Bu tercih kopma/kurtarma senaryosunda tutarlılığı korur.
+- Event isimleri (`campaign.updated`, `message.sent`, `message.received`, `conversation.updated`, `contact.import.completed`, `system.notification` …). Payload'lar yalnızca ID ve özet içerir; mesaj gövdesi realtime kanaldan gönderilmez, client gerekirse API'den çeker. Bu tercih kopma/kurtarma senaryosunda tutarlılığı korur.
 - Centrifugo memory engine ile tek node çalışır. Çok node gerekirse Redis engine'e geçilir (roadmap).
 
 ## 13. Gözlemlenebilirlik
@@ -319,7 +321,7 @@ worker webhook:process (idempotent):
 - **Unit:** Servisler; dış bağımlılıklar arayüzlerle soyutlanır.
 - **Integration:** testcontainers-go ile gerçek Postgres 18 ve Redis 8 kullanılır.
 - **Meta mock:** `internal/modules/whatsapp/whatsapptest` paketi. Programlanabilir yanıtlar (başarı, hata kodları, gecikme ve timeout, imzalı webhook üretimi) içerir. `META_GRAPH_BASE_URL` ile yönlendirilir. `APP_ENV=test` veya `MESSAGING_DRY_RUN=true` iken gerçek Graph host'una istek **kod seviyesinde engellenir**.
-- **E2E:** Compose stack + Playwright (talimattaki 10 senaryo).
+- **E2E:** Compose stack + Playwright (ilk kurulum, login, contact ekleme, CSV import, segment, template sync, kampanya oluşturma/başlatma, webhook ile durum, pause/resume).
 - **Yük testi:** 100k alıcılı kampanya mock Meta'ya karşı çalıştırılır. Ölçülenler: duplicate sayısı (hedef 0), kayıp sayısı (hedef 0), worker kill/restart sırasında belirsiz kalan mesaj sayısı.
 
 ## 16. Sabitlenmiş sürümler (2026-11-22 itibarıyla doğrulandı; Phase 1'de güncellendi)
@@ -351,7 +353,8 @@ worker webhook:process (idempotent):
 | TypeScript | **6.0.3** | 7.0.2 mevcut, ama Go ile yazılmış yeni derleyicinin paketi klasik JS derleyici API'sini sunmuyor (yalnızca `unstable/*` export'ları var). Next.js'in build-time tip kontrolü ve typescript-eslint bu API'ye ihtiyaç duyuyor. 6.x ile kalındı. |
 | Tailwind CSS | 4.3.5 | |
 | ESLint | 10.15.0 + eslint-config-next 16.4.6 | |
-| lucide-react | 1.77.0 | ZeroMsg 0.475 kullanıyordu. Majör sürüm farkı; Phase 9'da sayfalar taşınırken ikon adları kontrol edilecek. |
+| lucide-react | 1.77.0 | |
+| shadcn (CLI) | 4.23.0 | `radix-ui` 1.8.1, `cn` 0.5.2, `next-themes` 0.4.6 |
 | Node.js | **26 LTS** (Lithium, 26.13.1) | |
 | golangci-lint | v2.15.0 | Docker'da çalışır |
 | govulncheck | v1.10.0 | |
@@ -367,7 +370,7 @@ Tüm sürümler `go.mod`, `package.json`, lockfile'lar ve Dockerfile/Compose ima
 | # | Karar | Durum |
 |---|---|---|
 | D1 | Modüler monolith, tek binary + alt komutlar | Kabul |
-| D2 | Next.js 16 BFF (talimattaki Vite yerine) | **Kullanıcı onayladı** 2026-11-22 |
+| D2 | Next.js 16 BFF + shadcn/ui | Kabul |
 | D3 | Opak session token + `X-Messora-BFF` güven sınırı | Önerildi |
 | D4 | Tek `/api/v1`. Session yalnızca BFF'den, API key dışarıdan | Önerildi |
 | D5 | Mesaj durum makinesi + `unknown` durumu + `biz_opaque_callback_data` uzlaştırması | Önerildi (P3'te Meta davranışı doğrulanacak) |

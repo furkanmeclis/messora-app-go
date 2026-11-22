@@ -1,21 +1,21 @@
 # Güvenlik Tasarımı ve Uyumluluk
 
-> Phase 0 · 2026-11-22 · Bu doküman tehdit modelini ve kontrolleri tanımlar. Açık bildirme (disclosure) politikası kök dizindeki `SECURITY.md` dosyasında olacak (Phase 1).
+> Bu doküman tehdit modelini ve kontrolleri tanımlar. Açık bildirme (disclosure) politikası kök dizindeki `SECURITY.md` dosyasında olacak (Phase 1).
 
 ## 1. Varlıklar ve tehditler
 
 | Varlık | Tehdit | Kontrol |
 |---|---|---|
-| Meta access token, app secret | DB sızıntısı, tarayıcıya sızma (ZeroMsg F6), log'a düşme | AES-256-GCM ile şifreli `_enc` kolonlar. API yanıtında asla dönmez, yalnızca `token_last4` döner. Log redaction uygulanır. Rotasyon: anahtar sürüm byte'ı. |
+| Meta access token, app secret | DB sızıntısı, tarayıcıya sızma, log'a düşme | AES-256-GCM ile şifreli `_enc` kolonlar. API yanıtında asla dönmez, yalnızca `token_last4` döner. Log redaction uygulanır. Rotasyon: anahtar sürüm byte'ı. |
 | Müşteri verisi (telefon, mesaj içeriği) | Yetkisiz erişim, log sızıntısı | RBAC kullanılır, Agent yalnızca atanmış konuşmaları görür (ayar). Mesaj gövdesi ve telefon numarası log'lara yazılmaz. Contact silme hard delete'tir. |
 | Panel hesapları | Brute force, credential stuffing, oturum çalınması | Argon2id hash. E-posta+IP ve IP bazında Redis rate limit uygulanır. 10 başarısız denemede hesap 15 dk kilitlenir. TOTP 2FA, Owner/Admin için zorunlu yapılabilir (ayar). Opak token HttpOnly `__Host-` cookie'de tutulur, Go tarafında yalnızca BFF'den kabul edilir. |
 | Mesaj gönderim kapasitesi | Kötüye kullanım, spam, numaranın banlanması | Opt-out kişilere gönderim sistem seviyesinde engellenir. 24h pencere zorunludur. Kalite düşüşünde (RED) kampanyalar otomatik duraklatılır. API rate limit uygulanır. |
-| Webhook endpoint'i | Sahte event enjeksiyonu, replay | `X-Hub-Signature-256` ham body üzerinde sabit zamanlı karşılaştırmayla doğrulanır. Verify'da `hub.verify_token` kontrol edilir (F4). Body hash ile dedupe yapılır. Body boyutu sınırlıdır. |
-| Sunucu iç ağı | SSRF (otomasyon HTTP aksiyonu, giden webhook — F20) | `netguard` HTTP client'ı DNS çözümlemesinden **sonra** IP kontrolü yapar. Loopback, link-local, RFC1918, CGNAT, metadata (169.254.169.254), IPv6 ULA ve Docker ağları reddedilir. Redirect'ler yeniden kontrol edilir, yalnızca http/https kabul edilir. Timeout 10 sn, yanıt boyutu sınırlıdır. İç hedefler için açık allowlist (`OUTBOUND_HTTP_ALLOWLIST`) tanımlanabilir. |
+| Webhook endpoint'i | Sahte event enjeksiyonu, replay | `X-Hub-Signature-256` ham body üzerinde sabit zamanlı karşılaştırmayla doğrulanır. Verify'da `hub.verify_token` kontrol edilir. Body hash ile dedupe yapılır. Body boyutu sınırlıdır. |
+| Sunucu iç ağı | SSRF (otomasyon HTTP aksiyonu, giden webhook) | `netguard` HTTP client'ı DNS çözümlemesinden **sonra** IP kontrolü yapar. Loopback, link-local, RFC1918, CGNAT, metadata (169.254.169.254), IPv6 ULA ve Docker ağları reddedilir. Redirect'ler yeniden kontrol edilir, yalnızca http/https kabul edilir. Timeout 10 sn, yanıt boyutu sınırlıdır. İç hedefler için açık allowlist (`OUTBOUND_HTTP_ALLOWLIST`) tanımlanabilir. |
 | API key'ler | Sızma | `msk_live_` + 32 byte rastgele değer kullanılır, SHA-256 hash olarak saklanır. Değer tek seferlik gösterilir. Scope'lar ve opsiyonel bitiş tarihi desteklenir. Yalnızca `Authorization` header'ı ile kabul edilir, query parametresi reddedilir. `last_used_at` takip edilir. |
 | Dosya yükleme | Zararlı dosya, zip bomb, CSV injection | Boyut sınırı (import 50 MB, medya Meta limitleri), uzantı ve magic-byte kontrolü yapılır. XLSX streaming okunur, sıkıştırılmış boyut ve oran sınırı uygulanır. CSV export'ta `= + - @` ile başlayan hücreler `'` ile kaçırılır (formula injection). Medya, Content-Type'ı zorlanmış ve `Content-Disposition: attachment` başlıklı yetkili bir endpoint'ten servis edilir. |
-| Yetki yükseltme | IDOR (ZeroMsg F7) | Her ID girdisi (grup, tag, template, numara) servis katmanında var olma ve izin açısından doğrulanır. Agent kapsamı (atanmış konuşmalar) sorgu seviyesinde uygulanır. |
-| Tedarik zinciri | Kötü niyetli bağımlılık | Bağımlılıklar sabitlenir ve lockfile CI'da doğrulanır (`npm ci` zorunlu, F16). `govulncheck` ve `npm audit` CI'da çalışır. Docker imajları digest ile sabitlenir. Dependabot/Renovate kullanılır. |
+| Yetki yükseltme | IDOR | Her ID girdisi (grup, tag, template, numara) servis katmanında var olma ve izin açısından doğrulanır. Agent kapsamı (atanmış konuşmalar) sorgu seviyesinde uygulanır. |
+| Tedarik zinciri | Kötü niyetli bağımlılık | Bağımlılıklar sabitlenir ve lockfile CI'da doğrulanır (`npm ci` zorunlu). `govulncheck` ve `npm audit` CI'da çalışır. Docker imajları digest ile sabitlenir. Dependabot/Renovate kullanılır. |
 
 ## 2. Kimlik doğrulama
 
@@ -24,13 +24,13 @@
 - **2FA:** TOTP (RFC 6238, ±1 adım), 10 adet tek kullanımlık recovery kodu (hash'li). Hassas işlemlerde (API key oluşturma, Meta token değiştirme, rol değiştirme, kullanıcı silme) 10 dakika içinde yapılmış yeniden kimlik doğrulama gerekir.
 - **İlk kurulum:**
   - Kullanıcı tablosu boşken API, tek seferlik bir **setup token** üretir ve log'a yazar (`docker compose logs messora-api` içinde `/setup?token=…`). Token'ın hash'i saklanır ve 24 saat geçerlidir. Owner hesabı oluşunca kalıcı olarak geçersizleşir. Alternatif yol: `docker compose exec messora-api messora setup create-owner`.
-  - **Açık kayıt yoktur** (ZeroMsg F14). Yeni kullanıcılar davetle eklenir.
+  - **Açık kayıt yoktur.** Yeni kullanıcılar davetle eklenir.
   - Production'da demo hesabı ve varsayılan parola **hiçbir koşulda** oluşturulmaz. Demo seed'i yalnızca `APP_ENV=development` iken ve açık bir komutla çalışır.
 - **Parola sıfırlama:** Tek kullanımlık, 30 dakika geçerli token kullanılır. Yanıt, e-postanın kayıtlı olup olmadığını belli etmez. SMTP yapılandırılmamışsa özellik kapalıdır ve Owner CLI ile sıfırlama yapabilir.
 
 ## 3. Yetkilendirme
 
-Modül bazında izinler (talimat §10):
+Modül bazında izinler:
 
 ```text
 contacts.read  contacts.create  contacts.update  contacts.delete  contacts.import  contacts.export
@@ -89,7 +89,7 @@ Her kayıtta aktör, IP, user agent, request ID ve değişen alanların eski/yen
 | Opt-out / unsubscribe | Yapılandırılabilir anahtar kelimeler (varsayılan `STOP`, `DUR`, `IPTAL`, `UNSUBSCRIBE`, büyük/küçük harf ve aksan duyarsız) gelirse contact `opted_out` olur. Bu durum opsiyonel onay mesajıyla bildirilebilir. Opt-out butonlu marketing template yanıtları da işlenir. Manuel değişiklik audit'lenir. |
 | Opt-out'a gönderim engeli | Dört katmanda uygulanır: (1) segment/kitle çözümünde varsayılan dışlama, (2) materialize'da `skipped_opted_out`, (3) `message:send` claim'i öncesi son kontrol, (4) API'de marketing template için `422 CONTACT_OPTED_OUT`. Kullanıcı bunu kapatamaz. Yalnızca UTILITY/AUTHENTICATION template'leri için ayarla izin verilebilir; bu ayar varsayılan olarak kapalıdır ve kullanılırsa audit'lenir. |
 | Template zorunluluğu | Pencere dışında yalnızca `APPROVED` template gönderilebilir. Template durumu gönderim anında kontrol edilir (paused/disabled ise kampanya duraklar). |
-| 24 saat penceresi | `conversations.customer_window_expires_at` tek kaynaktır. Serbest metin ve medya mesajları pencere dışında Meta'ya hiç gönderilmez (ZeroMsg F9). |
+| 24 saat penceresi | `conversations.customer_window_expires_at` tek kaynaktır. Serbest metin ve medya mesajları pencere dışında Meta'ya hiç gönderilmez. |
 | Kalite ve limitler | Kalite RED'e düşünce yeni kampanya başlatma engellenir ve çalışan kampanyalar `paused_limit` olur. Bildirim gönderilir. Messaging limit tier'ı kampanya başlatma ekranında gösterilir. |
 | Test ortamı | `APP_ENV=test` veya `MESSAGING_DRY_RUN=true` iken HTTP client gerçek Graph host'una bağlantıyı **kod seviyesinde reddeder**, yalnızca mock base URL'ine izin verilir. CI'da Meta kimlik bilgisi bulunmaz. |
 | Politika güncelliği | Meta'nın güncel mesajlaşma, pricing ve messaging-limit kuralları Phase 3 ve Phase 5 başında resmî dokümandan yeniden doğrulanacak. Graph API sürümü yapılandırılabilir. |
@@ -108,17 +108,3 @@ Her kayıtta aktör, IP, user agent, request ID ve değişen alanların eski/yen
 - Tüm servislerde `no-new-privileges`, gereksiz capability'ler düşürülür.
 - Postgres, Redis ve Centrifugo admin portu host'a publish edilmez. Yalnızca Caddy 80/443 portlarını açar.
 - Redis parola korumalıdır. Centrifugo admin UI varsayılan olarak kapalıdır.
-
-## 9. ZeroMsg'den devralınan ve kapatılan açıklar
-
-| ZeroMsg bulgusu | Messora'daki önlem |
-|---|---|
-| F4 verify token kontrolsüz | §1 webhook satırı |
-| F6 secret'lar düz metin ve tarayıcıda | §1, §7 |
-| F7 IDOR | §1 yetki yükseltme satırı |
-| F9 24h dışında serbest metin | §6 |
-| F14 açık kayıt | §2 ilk kurulum |
-| F15 opt-out yok | §6 |
-| F20 SSRF | §1 sunucu iç ağı satırı |
-| API key query parametresiyle | §1 API key satırı |
-| Giden webhook secret'ı UI'da düz metin | Oluşturmada bir kez gösterilir, sonrasında yalnızca "rotate" seçeneği sunulur |

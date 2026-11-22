@@ -1,14 +1,17 @@
 import type { Metadata } from 'next';
-import { Instrument_Sans } from 'next/font/google';
-import { cookies } from 'next/headers';
+import { Geist, Geist_Mono } from 'next/font/google';
+import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import './globals.css';
 
 // Self-hosted at build time: the browser never contacts Google.
-const instrumentSans = Instrument_Sans({
+const sans = Geist({
     subsets: ['latin', 'latin-ext'],
-    variable: '--font-instrument-sans',
+    variable: '--font-sans',
 });
+const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 export const metadata: Metadata = {
     title: { default: 'Messora', template: '%s · Messora' },
@@ -16,27 +19,22 @@ export const metadata: Metadata = {
     robots: { index: false, follow: false },
 };
 
-// Applies the stored theme before first paint (ported from ZeroMsg's root view).
-const themeScript = `(function(){try{var a=localStorage.getItem('appearance')||'system';var d=a==='dark'||(a==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light';}catch(_){}})();`;
-
-export default async function RootLayout({
+export default function RootLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const appearance = (await cookies()).get('appearance')?.value;
     return (
         <html
             lang="en"
-            className={`${instrumentSans.variable} ${appearance === 'dark' ? 'dark' : ''}`}
+            className={cn(sans.variable, mono.variable, 'font-sans')}
             suppressHydrationWarning
         >
-            <head>
-                <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-            </head>
-            <body className="font-sans antialiased">
-                {children}
-                <Toaster />
+            <body className="antialiased">
+                <ThemeProvider>
+                    <TooltipProvider>{children}</TooltipProvider>
+                    <Toaster richColors position="bottom-right" />
+                </ThemeProvider>
             </body>
         </html>
     );

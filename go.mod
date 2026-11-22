@@ -87,5 +87,5 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-// The ZeroMsg reference checkout (git-ignored) contains unrelated Go code in node_modules.
+// Local-only directory with unrelated Go code; never part of the module.
 ignore ./reference

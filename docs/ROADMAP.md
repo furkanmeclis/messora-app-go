@@ -1,18 +1,18 @@
 # Yol Haritası
 
-> Phase 0 · 2026-11-22 · Her phase sonunda: testler çalıştırılır, dokümanlar güncellenir, `PHASE/COMPLETED/…` raporu verilir ve **sonraki phase için kullanıcı onayı beklenir.**
+> Her phase sonunda testler çalıştırılır ve dokümanlar güncellenir. "Bitti" kriterini karşılamayan iş tamamlanmış sayılmaz.
 
 "Bitti" kriterleri her phase için ölçülebilir tanımlanmıştır. Kriterleri karşılamayan iş tamamlanmış sayılmaz.
 
-## Phase 0 — Kaynak kod analizi ✅ (bu teslim)
-ZeroMsg analizi, özellik matrisi, mimari, DB tasarımı, güvenlik, geçiş planı, yol haritası.
+## Phase 0 — Analiz ve tasarım ✅
+Özellik kapsamı, mimari, DB tasarımı, güvenlik modeli, yol haritası.
 
 ## Phase 1 — Temel altyapı ✅ (2026-11-22)
 - Repo iskeleti, `go.mod` (Go 1.27.4), sabitlenmiş bağımlılıklar, Makefile, `.editorconfig`, `.gitignore`, `.dockerignore`, `LICENSE` (MIT), `NOTICE`, `SECURITY.md` (disclosure), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`.
 - `cmd/messora`: `api | worker | scheduler | migrate | init | version` alt komutları.
 - Config yükleme ve doğrulama, secrets dosyası, slog + redaction, request ID, recover, Prometheus, `/healthz` ve `/readyz`.
 - pgxpool, go-redis, goose (embed) + ilk migration (extension'lar, `settings`, `outbox_events`), sqlc yapılandırması, asynq server/client iskeleti, outbox relay, scheduler leader lock.
-- Next.js 16 iskeleti: ZeroMsg UI bileşenleri, layout ve tema taşınır, boş bir auth ekranı olur.
+- Next.js 16 iskeleti: shadcn/ui bileşenleri, Messora teması, kurulum durumu sayfası.
 - Docker: multi-stage distroless Go imajı, Next standalone imajı, Compose (caddy, web, api, worker, scheduler, init, migrate, postgres, redis, centrifugo) + healthcheck'ler.
 - CI: lint (golangci-lint, eslint), test, `govulncheck`, `npm ci` lockfile kontrolü, gitleaks.
 
@@ -55,29 +55,28 @@ Konuşma listesi (filtre: açık, kapalı, bana atanmış, atanmamış), geçmi�
 **Bitti kriteri:** Agent başka birine atanmış konuşmayı API'den bile okuyamaz. 10k konuşmalık liste < 200 ms (p95) döner. Realtime güncellemeler çalışır.
 
 ## Phase 8 — Otomasyon
-Tetikleyici motoru (5 tetikleyici), aksiyon motoru (otomatik yanıt, template, tag, grup, alan kaydetme, koşul, HTTP/webhook [SSRF korumalı], e-posta, gecikme, atama, kapatma, susturma), worker'da yürütme, döngü ve duplicate koruması, execution log, ZeroMsg v1 import, giden webhook teslimat sistemi (event'ler, retry, log, yeniden gönder).
+Tetikleyici motoru (5 tetikleyici), aksiyon motoru (otomatik yanıt, template, tag, grup, alan kaydetme, koşul, HTTP/webhook [SSRF korumalı], e-posta, gecikme, atama, kapatma, susturma), worker'da yürütme, döngü ve duplicate koruması, execution log, giden webhook teslimat sistemi (event'ler, retry, log, yeniden gönder).
 
-**Bitti kriteri:** Aynı webhook iki kez gelince otomasyon bir kez çalışır. İki otomasyon birbirini tetikleyemez. Gecikme aksiyonu worker restart'ından sağ çıkar. ZeroMsg'den export edilmiş örnek akışlar import edilip aynı sonucu verir.
+**Bitti kriteri:** Aynı webhook iki kez gelince otomasyon bir kez çalışır. İki otomasyon birbirini tetikleyemez. Gecikme aksiyonu worker restart'ından sağ çıkar.
 
-## Phase 9 — Frontend migration (tamamlama)
-Tüm ekranların yeni API'ye bağlanması, Inertia shim'lerinin kaldırılması, contact-groups sayfası (F8), ayar ekranları (users, roles, sessions, channels, api-keys, webhooks, audit), loading/empty/error state'leri, form validasyonları, erişilebilirlik kontrolü.
+## Phase 9 — Frontend tamamlama
+Tüm ekranların tamamlanması: kişi grupları, ayar ekranları (users, roles, sessions, channels, api-keys, webhooks, audit), loading/empty/error state'leri, form validasyonları, erişilebilirlik kontrolü.
 
-**Bitti kriteri:** `@inertiajs/*` bağımlılığı tamamen kalkmıştır. ZeroMsg'deki her ekranın Messora karşılığı vardır (ekran ekran checklist). Playwright smoke testi her route'u gezer.
+**Bitti kriteri:** FEATURE_MATRIX'teki her ekran özelliğinin bir sayfası vardır. Playwright smoke testi her route'u gezer.
 
 ## Phase 10 — Production readiness
 Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrulaması), integration, E2E ve performans paketlerinin tamamı, Compose finalizasyonu (digest pinleri, kaynak limitleri, log rotasyonu), README, deployment, backup/restore (pg_dump + secrets volume + medya, geri yükleme provası), upgrade prosedürü, `FEATURE_MATRIX` test eşlemesi.
 
-**Bitti kriteri:** Talimat §23'teki teslim listesi ve temiz ortamda `git clone → cp .env.example .env → docker compose up -d --build` akışı panelin açıldığı noktaya kadar sorunsuz çalışır. Backup'tan geri yükleme provası belgelenmiştir.
+**Bitti kriteri:** FEATURE_MATRIX'teki tüm v1 özellikleri `Implemented` durumundadır ve temiz ortamda `git clone → cp .env.example .env → docker compose up -d --build` akışı panelin açıldığı noktaya kadar sorunsuz çalışır. Backup'tan geri yükleme provası belgelenmiştir.
 
 ## Sonraki sürümler (v1.x)
 - Passkey (go-webauthn), Embedded Signup
-- ZeroMsg veri taşıma aracı (`MIGRATION_PLAN.md` §5)
 - Maliyet takibi (Meta pricing alanları)
 - i18n (EN + TR)
 - Centrifugo Redis engine (çoklu node), `messages` partition ve arşivleme, `campaign_stats` sharding
 - S3 uyumlu medya depolama
 - Özel rol editörü
-- Google Sheets aksiyonu (ZeroMsg'de placeholder'dı)
+- Google Sheets aksiyonu
 
 ## Riskler
 
@@ -86,6 +85,4 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 | Meta `biz_opaque_callback_data`'yı beklenen şekilde döndürmezse | `unknown` mesajlar otomatik uzlaşmaz | P3'te doğrulanacak. B planı: `unknown` mesajlar operatör kararına kalır; kampanya bitişinde ayrı raporlanır. |
 | Asynq'in 1.0 öncesi olması | API değişikliği | Sürüm sabit, kod `platform/queue` arkasında |
 | Next.js BFF ek karmaşıklık getiriyor | Auth hataları | Yetki tamamen Go'da; Next ↔ Go sözleşme testleri |
-| ZeroMsg UI'ının Inertia bağımlılığı tahminden derin çıkarsa | Phase 9 uzar | Shim yaklaşımı, sayfa sayfa ilerleme |
 | Meta politika ve limit değişiklikleri | Gönderim reddi | Sürüm yapılandırılabilir, her ilgili phase başında doküman kontrolü |
-| ~~Yerel makinede Docker kapalı / Go 1.26.4~~ | — | Çözüldü: Docker çalışıyor. Go 1.27.4 `GOTOOLCHAIN=auto` ile yalnızca bu projede kullanılıyor, sistem Go'su değişmedi. |

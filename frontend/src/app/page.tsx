@@ -14,7 +14,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { StatusBadge } from '@/components/ui/status-badge';
+import { Badge } from '@/components/ui/badge';
 import { ApiError, apiFetch } from '@/lib/server/api';
 import { RefreshButton } from './refresh-button';
 
@@ -134,9 +134,11 @@ export default async function SystemStatusPage() {
                 </div>
                 <div className="flex items-center gap-3">
                     {status && (
-                        <StatusBadge
-                            status={status.healthy ? 'active' : 'failed'}
-                        />
+                        <Badge
+                            variant={status.healthy ? 'default' : 'destructive'}
+                        >
+                            {status.healthy ? 'Healthy' : 'Failing'}
+                        </Badge>
                     )}
                     <RefreshButton />
                 </div>
@@ -173,16 +175,20 @@ export default async function SystemStatusPage() {
                                                 {description}
                                             </CardDescription>
                                         </div>
-                                        <StatusBadge
-                                            status={ok ? 'active' : 'failed'}
-                                        />
+                                        <Badge
+                                            variant={
+                                                ok ? 'default' : 'destructive'
+                                            }
+                                        >
+                                            {ok ? 'Healthy' : 'Failing'}
+                                        </Badge>
                                     </CardHeader>
                                     <CardContent>
                                         <p
                                             className={
                                                 ok
                                                     ? 'text-sm text-muted-foreground'
-                                                    : 'text-sm text-destructive-foreground'
+                                                    : 'text-destructive-foreground text-sm'
                                             }
                                         >
                                             {describe(key, r)}
