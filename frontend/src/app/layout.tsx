@@ -1,18 +1,9 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
 import { headers } from 'next/headers';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
 import './globals.css';
-
-// Self-hosted at build time: the browser never contacts Google.
-const sans = Geist({
-    subsets: ['latin', 'latin-ext'],
-    variable: '--font-sans',
-});
-const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 // Every page is rendered per request: pages depend on the session, and the
 // CSP nonce changes on each response.
@@ -33,7 +24,7 @@ export default async function RootLayout({
     return (
         <html
             lang="en"
-            className={cn(sans.variable, mono.variable, 'font-sans')}
+            className="font-sans"
             suppressHydrationWarning
         >
             <body className="antialiased">
