@@ -79,7 +79,10 @@ config-scan: ## Scan Dockerfiles and Compose for misconfigurations
 
 .PHONY: lint
 lint: ## Run golangci-lint (pinned, in Docker)
-	docker run --rm -v "$(CURDIR)":/src -v "$$(go env GOMODCACHE)":/go/pkg/mod -w /src -e GOTOOLCHAIN=auto -e GOFLAGS=-buildvcs=false $(GOLANGCI_IMAGE) golangci-lint run ./...
+	@# Runs as the host user so the shared module cache never gets root-owned files.
+	docker run --rm -u "$$(id -u):$$(id -g)" -v "$(CURDIR)":/src -v "$$(go env GOMODCACHE)":/go/pkg/mod -w /src \
+	  -e HOME=/tmp -e GOPATH=/tmp/gopath -e GOMODCACHE=/go/pkg/mod -e GOCACHE=/tmp/gocache -e GOLANGCI_LINT_CACHE=/tmp/lintcache -e GOTOOLCHAIN=auto -e GOFLAGS=-buildvcs=false \
+	  $(GOLANGCI_IMAGE) golangci-lint run ./...
 
 .PHONY: vuln
 vuln: ## Scan Go dependencies for known vulnerabilities
