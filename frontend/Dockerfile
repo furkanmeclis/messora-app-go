@@ -13,12 +13,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:26-slim AS run
+# Runtime: distroless Node (no shell, no npm, non-root UID 65532).
+FROM gcr.io/distroless/nodejs26-debian13:nonroot AS run
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
-COPY --from=build --chown=node:node /app/.next/standalone ./
-COPY --from=build --chown=node:node /app/.next/static ./.next/static
-COPY --from=build --chown=node:node /app/public ./public
-USER node
+COPY --from=build --chown=65532:65532 /app/.next/standalone ./
+COPY --from=build --chown=65532:65532 /app/.next/static ./.next/static
+COPY --from=build --chown=65532:65532 /app/public ./public
+USER 65532:65532
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["server.js"]

@@ -51,7 +51,10 @@ fix(worker): prevent duplicate message dispatch
 docs(deployment): document docker compose setup
 ```
 
-Before opening a PR run `make check`. Describe what changed, why, and how you
+Before opening a PR run `make check` (lint, unit tests, vulnerability, license,
+migration, Dockerfile and workflow checks) and, if you touched persistence or
+queues, `make cover`. CI additionally builds and scans the images and runs the
+whole Docker Compose stack end to end (`scripts/stack-smoke.sh`). Describe what changed, why, and how you
 tested it. Keep PRs focused; open an issue first for large changes.
 
 ## UI components

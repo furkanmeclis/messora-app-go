@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Panel UI rebuilt on shadcn/ui (radix-nova) with Messora's own design tokens.
+- Web image runs on distroless Node 26 (no shell or npm; UID 65532).
+
+### Added — CI hardening
+
+- All GitHub Actions pinned to commit SHAs; least-privilege permissions.
+- Coverage gate, `go mod tidy` check, license checks (Go and npm), squawk
+  migration lint, hadolint, actionlint, Trivy image and config scans,
+  gitleaks over the full history, CodeQL (Go, TypeScript, Actions),
+  OpenSSF Scorecard, dependency review and Conventional-Commit PR titles.
+- Compose end-to-end job: smoke test, restart idempotency, worker crash
+  recovery.
+- Dependabot for Go, npm, Docker, Compose and Actions.
+- Tag-triggered release of multi-arch images to GHCR with SBOM, provenance
+  and keyless cosign signatures.
+
 ### Added — Phase 1: foundation
 
 - Single `messora` binary with `api`, `worker`, `scheduler`, `migrate`,

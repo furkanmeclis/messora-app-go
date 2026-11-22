@@ -1,4 +1,8 @@
 -- +goose Up
+-- Fail fast instead of queueing behind long-held locks.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '5min';
+
 CREATE EXTENSION IF NOT EXISTS citext;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
@@ -18,12 +22,17 @@ CREATE TABLE outbox_events (
     payload      jsonb NOT NULL DEFAULT '{}'::jsonb,
     available_at timestamptz NOT NULL DEFAULT now(),
     published_at timestamptz,
-    attempts     integer NOT NULL DEFAULT 0,
+    -- squawk-ignore prefer-bigint-over-int
+    attempts     integer NOT NULL DEFAULT 0, -- retry counter, never near 2^31
     last_error   text,
     created_at   timestamptz NOT NULL DEFAULT now()
 );
 
+-- The table was created above and is still empty, so a plain index is safe.
+-- squawk-ignore require-concurrent-index-creation
 CREATE INDEX outbox_events_unpublished_idx ON outbox_events (available_at, id) WHERE published_at IS NULL;
+-- The table was created above and is still empty, so a plain index is safe.
+-- squawk-ignore require-concurrent-index-creation
 CREATE INDEX outbox_events_published_at_idx ON outbox_events (published_at) WHERE published_at IS NOT NULL;
 
 -- +goose StatementBegin
@@ -42,8 +51,12 @@ CREATE TRIGGER outbox_events_notify
     FOR EACH STATEMENT EXECUTE FUNCTION outbox_notify();
 
 -- +goose Down
+-- Down migrations intentionally drop what Up created.
 DROP TRIGGER IF EXISTS outbox_events_notify ON outbox_events;
+-- squawk-ignore ban-drop-function
 DROP FUNCTION IF EXISTS outbox_notify();
+-- squawk-ignore ban-drop-table
 DROP TABLE IF EXISTS outbox_events;
+-- squawk-ignore ban-drop-table
 DROP TABLE IF EXISTS settings;
 -- Extensions are left in place: other objects may depend on them.

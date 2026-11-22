@@ -1,0 +1,5 @@
+# Migration safety lint (https://squawkhq.com). goose runs every migration in
+# a transaction, so partially applied migrations roll back on their own.
+excluded_rules = ["prefer-robust-stmts"]
+pg_version = "18.0"
+assume_in_transaction = true

@@ -7,6 +7,15 @@ GOLANGCI_IMAGE  := golangci/golangci-lint:v2.15.0
 SQLC_IMAGE      := sqlc/sqlc:1.31.1
 GITLEAKS_IMAGE  := zricethezav/gitleaks:v8.30.1
 GOVULNCHECK     := golang.org/x/vuln/cmd/govulncheck@v1.10.0
+GO_LICENSES     := github.com/google/go-licenses/v2@v2.0.1
+HADOLINT_IMAGE  := hadolint/hadolint:v2.15.1
+ACTIONLINT_IMAGE:= rhysd/actionlint:1.7.12
+TRIVY_IMAGE     := aquasec/trivy:0.76.2
+SQUAWK          := squawk-cli@2.73.0
+NPM_LICENSES    := license-checker-rseidelsohn@5.0.1
+# Minimum total statement coverage (unit + integration). Raised every phase.
+COVERAGE_MIN    ?= 50
+NPM_ALLOWED_LICENSES := MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC-BY-4.0;BlueOak-1.0.0
 VERSION         ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 .DEFAULT_GOAL := help
@@ -27,6 +36,46 @@ test: ## Run unit tests
 .PHONY: test-integration
 test-integration: ## Run unit + integration tests against real PostgreSQL/Redis containers (needs Docker)
 	go test -race -count=1 -tags=integration -timeout 15m $(GO_PKGS)
+
+.PHONY: cover
+cover: ## Integration tests with race detector + coverage gate (COVERAGE_MIN)
+	go test -race -count=1 -tags=integration -timeout 15m -coverpkg=./internal/... -coverprofile=coverage.out $(GO_PKGS)
+	@total=$$(go tool cover -func=coverage.out | awk '/^total:/{sub("%","",$$3); print $$3}'); \
+	echo "total coverage: $$total% (minimum $(COVERAGE_MIN)%)"; \
+	awk -v t="$$total" -v m="$(COVERAGE_MIN)" 'BEGIN{exit (t+0 < m+0)}' || { echo "coverage below minimum"; exit 1; }
+
+.PHONY: tidy-check
+tidy-check: ## Fail if go.mod/go.sum are not tidy
+	go mod tidy -diff
+
+.PHONY: licenses
+licenses: ## Fail on dependencies with forbidden or restricted licenses
+	go run $(GO_LICENSES) check ./cmd/... ./internal/... --disallowed_types=forbidden,restricted
+	cd frontend && npx -y $(NPM_LICENSES) --production --excludePrivatePackages \
+	  --excludePackagesStartingWith "@img/sharp-libvips" --onlyAllow "$(NPM_ALLOWED_LICENSES)" >/dev/null
+
+.PHONY: migrations-lint
+migrations-lint: ## Lint SQL migrations for unsafe operations (squawk)
+	npx -y $(SQUAWK) migrations/*.sql
+
+.PHONY: docker-lint
+docker-lint: ## Lint Dockerfiles (hadolint)
+	@for f in Dockerfile frontend/Dockerfile; do echo "hadolint $$f"; docker run --rm -i $(HADOLINT_IMAGE) hadolint --failure-threshold warning - < $$f || exit 1; done
+
+.PHONY: actions-lint
+actions-lint: ## Lint GitHub Actions workflows (actionlint)
+	docker run --rm -v "$(CURDIR)":/repo -w /repo $(ACTIONLINT_IMAGE) -color
+
+.PHONY: image-scan
+image-scan: ## Scan built images for HIGH/CRITICAL vulnerabilities with a fix available
+	@for img in messora/messora:$${MESSORA_VERSION:-dev} messora/messora-web:$${MESSORA_VERSION:-dev}; do \
+	  echo "trivy $$img"; docker run --rm -v /var/run/docker.sock:/var/run/docker.sock $(TRIVY_IMAGE) image --quiet --scanners vuln \
+	    --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 $$img || exit 1; done
+
+.PHONY: config-scan
+config-scan: ## Scan Dockerfiles and Compose for misconfigurations
+	docker run --rm -v "$(CURDIR)":/src $(TRIVY_IMAGE) config --quiet --severity HIGH,CRITICAL --exit-code 1 \
+	  --skip-dirs /src/reference --skip-dirs /src/frontend/node_modules /src
 
 .PHONY: lint
 lint: ## Run golangci-lint (pinned, in Docker)
@@ -64,7 +113,7 @@ secrets-scan: ## Scan the working tree for committed secrets
 	docker run --rm -v "$(CURDIR)":/repo -w /repo $(GITLEAKS_IMAGE) dir . --no-banner --redact -c /repo/.gitleaks.toml
 
 .PHONY: check
-check: lint test web-lint vuln secrets-scan ## Everything CI runs except integration tests
+check: tidy-check lint test web-lint vuln licenses migrations-lint docker-lint actions-lint secrets-scan sqlc-check ## Fast local gate (no containers started)
 
 ## ── Stack ────────────────────────────────────────────────────────────────────
 .PHONY: up down logs ps

@@ -51,15 +51,15 @@ var managed = map[string]generator{
 func ManagedKeys() []string { return slices.Sorted(maps.Keys(managed)) }
 
 // Owners are the UIDs/GIDs of the containers reading each file. Defaults match
-// the pinned images: distroless nonroot 65532, node 1000, postgres 999,
-// redis 999, centrifugo 1000.
+// the pinned images: distroless nonroot 65532 (api/worker/scheduler and the
+// distroless Node web image), postgres 999, redis 999, centrifugo 1000.
 type Owners struct {
 	App, Web, Postgres, Redis, Centrifugo int
 }
 
 // DefaultOwners returns the UIDs of the pinned images.
 func DefaultOwners() Owners {
-	return Owners{App: 65532, Web: 1000, Postgres: 999, Redis: 999, Centrifugo: 1000}
+	return Owners{App: 65532, Web: 65532, Postgres: 999, Redis: 999, Centrifugo: 1000}
 }
 
 // Options configures Run.
