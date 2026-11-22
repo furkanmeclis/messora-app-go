@@ -10,6 +10,9 @@ import { readFileSync } from 'node:fs';
 export type ServerConfig = {
     apiInternalUrl: string;
     bffSharedSecret: string;
+    publicAppUrl: string;
+    /** HTTPS deployments get `__Host-` prefixed, Secure cookies. */
+    secureCookies: boolean;
 };
 
 let cached: ServerConfig | undefined;
@@ -61,11 +64,17 @@ export function serverConfig(): ServerConfig {
             'BFF_SHARED_SECRET is missing or shorter than 32 characters',
         );
     }
+    const publicAppUrl = (pick('PUBLIC_APP_URL') || 'http://localhost').replace(
+        /\/+$/,
+        '',
+    );
     cached = {
         apiInternalUrl: (
             pick('MESSORA_API_INTERNAL_URL') || 'http://messora-api:8080'
         ).replace(/\/+$/, ''),
         bffSharedSecret,
+        publicAppUrl,
+        secureCookies: publicAppUrl.startsWith('https://'),
     };
     return cached;
 }

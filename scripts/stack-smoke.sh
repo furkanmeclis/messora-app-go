@@ -7,12 +7,19 @@ BASE="${1:-http://localhost}"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 
-echo "→ panel responds"
-[ "$(code "$BASE/")" = 200 ] || fail "panel did not return 200"
+echo "→ panel responds (anonymous visitors land on setup or sign-in)"
+final=$(curl -s -o /dev/null -L -w '%{http_code} %{url_effective}' "$BASE/")
+case "$final" in
+  "200 "*/login*|"200 "*/setup*) ;;
+  *) fail "unexpected landing page: $final" ;;
+esac
 
-echo "→ panel-only API endpoint rejects external callers"
-[ "$(code "$BASE/api/v1/system/status")" = 403 ] || fail "system status reachable without the BFF secret"
-[ "$(code -H 'X-Messora-BFF: forged' "$BASE/api/v1/system/status")" = 403 ] || fail "forged BFF header accepted"
+echo "→ API rejects callers without credentials"
+[ "$(code "$BASE/api/v1/system/status")" = 401 ] || fail "system status reachable anonymously"
+[ "$(code -X POST -H 'Content-Type: application/json' -d '{"email":"a@b.co","password":"x"}' "$BASE/api/v1/auth/login")" = 403 ] \
+  || fail "panel-only login endpoint reachable from outside"
+[ "$(code -X POST -H 'X-Messora-BFF: forged' -H 'Content-Type: application/json' -d '{"email":"a@b.co","password":"x"}' "$BASE/api/v1/auth/login")" = 403 ] \
+  || fail "forged BFF header accepted"
 
 echo "→ internal endpoints are not routed publicly"
 [ "$(code "$BASE/healthz")" != 200 ] || fail "/healthz exposed through the edge"
@@ -21,16 +28,14 @@ echo "→ internal endpoints are not routed publicly"
 echo "→ unknown API routes use the error envelope"
 curl -s "$BASE/api/v1/does-not-exist" | grep -q '"code":"NOT_FOUND"' || fail "error envelope missing"
 
-echo "→ every component reports healthy (checked from inside the panel container)"
-status=$(docker compose exec -T messora-web /nodejs/bin/node -e '
-const s=require("fs").readFileSync("/run/messora-secrets/secrets.env","utf8").match(/BFF_SHARED_SECRET=(.*)/)[1];
-fetch("http://messora-api:8080/api/v1/system/status",{headers:{"X-Messora-BFF":s}})
-  .then(r=>r.json()).then(j=>{
-    const bad=Object.entries(j.data.components).filter(([,v])=>v.status!=="ok").map(([k,v])=>k+": "+v.error);
-    console.log(bad.length ? "UNHEALTHY "+bad.join("; ") : "ALL_OK "+Object.keys(j.data.components).length);
-  }).catch(e=>console.log("ERROR "+e.message))')
-echo "  $status"
-[[ "$status" == ALL_OK* ]] || fail "unhealthy components"
+echo "→ security headers on the panel"
+headers=$(curl -s -D - -o /dev/null -L "$BASE/login")
+echo "$headers" | grep -qi "content-security-policy: .*nonce-" || fail "CSP with nonce missing"
+echo "$headers" | grep -qi "x-frame-options: DENY" || fail "X-Frame-Options missing"
+
+echo "→ every component reports healthy (internal status endpoint)"
+docker compose exec -T messora-api /usr/local/bin/messora healthcheck http://127.0.0.1:9100/status \
+  || { docker compose exec -T messora-api /usr/local/bin/messora healthcheck http://127.0.0.1:9100/readyz; fail "unhealthy components"; }
 
 echo "→ web container sees only its own secret"
 keys=$(docker compose exec -T messora-web /nodejs/bin/node -e '

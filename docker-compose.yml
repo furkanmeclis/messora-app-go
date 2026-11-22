@@ -207,6 +207,7 @@ services:
     environment:
       MESSORA_API_INTERNAL_URL: http://messora-api:8080
       MESSORA_SECRETS_FILE: /run/messora-secrets/secrets.env
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
     volumes:
       - type: volume
         source: messora-secrets
