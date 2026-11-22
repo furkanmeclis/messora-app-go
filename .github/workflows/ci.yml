@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, unit + integration tests, vulnerabilities)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Unit and integration tests (real PostgreSQL 18 / Redis 8 via testcontainers)
+        run: make test-integration
+      - name: Lint
+        run: make lint
+      - name: Generated sqlc code is up to date
+        run: make sqlc-check
+      - name: Vulnerability scan
+        run: make vuln
+
+  frontend:
+    name: Frontend (lockfile, lint, types, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install (fails if package-lock.json is out of sync)
+        run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - run: npm audit --omit=dev
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: make secrets-scan
+
+  compose:
+    name: Docker Compose smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Start the stack exactly as the README instructs
+        run: |
+          cp .env.example .env
+          docker compose up -d --build --wait --wait-timeout 300
+      - name: Panel and API respond through the edge proxy
+        run: |
+          curl -fsS http://localhost/ >/dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/api/v1/system/status)" = 403
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down -v
