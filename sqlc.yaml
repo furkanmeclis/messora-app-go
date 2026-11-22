@@ -1,0 +1,15 @@
+version: "2"
+# Generate with `make sqlc` (runs the pinned sqlc/sqlc:1.31.1 image).
+# The schema is read directly from the goose migrations.
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: queries/outbox
+    gen:
+      go:
+        package: store
+        out: internal/platform/outbox/store
+        sql_package: pgx/v5
+        emit_interface: true
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
