@@ -14,7 +14,7 @@ export default async function EmailSettingsPage() {
     const me = await requirePermission('settings.read');
     const smtp = (await api<SmtpSettings>('/settings/smtp')).data;
     return (
-        <div className="max-w-3xl">
+        <div className="max-w-5xl">
             <SmtpForm
                 smtp={smtp}
                 readOnly={!can(me, 'settings.update')}

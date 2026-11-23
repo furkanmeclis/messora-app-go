@@ -24,7 +24,6 @@ export default async function AppearancePage() {
             <Section
                 title={t('appearance.logo')}
                 description={t('appearance.logoHint')}
-                className="max-w-3xl"
             >
                 <LogoUploader
                     logo={settings.logo}

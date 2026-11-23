@@ -8,7 +8,9 @@ import { requireMe } from '@/lib/server/auth';
 import { RealtimeProvider } from '@/components/realtime';
 import { ReauthProvider } from '@/components/reauth';
 import { AppSidebar } from './app-sidebar';
-import { PanelHeader } from './panel-header';
+import { api } from '@/lib/server/api';
+import type { Campaign, Conversation } from '@/lib/types';
+import { Topbar, type RunningCampaign } from './topbar';
 import { SetupBanner } from './setup-banner';
 
 export default async function PanelLayout({
@@ -27,6 +29,32 @@ export default async function PanelLayout({
     // getAppearance falls back to defaults).
     const appearance = await getAppearance();
     const isOwner = me.user.role.key === 'owner';
+    const can = (p: string) => me.permissions.includes(p);
+    // Starting values for the live top bar; events keep them current. A
+    // failure only means the bar starts empty.
+    const [unread, running] = me.mfa_required
+        ? [[], []]
+        : await Promise.all([
+              can('conversations.read') || can('conversations.read_all')
+                  ? api<Conversation[]>(
+                        '/conversations?status=open&unread=true&limit=100',
+                    )
+                        .then((r) => r.data.map((c) => c.id))
+                        .catch(() => [] as string[])
+                  : Promise.resolve([] as string[]),
+              can('campaigns.read')
+                  ? api<Campaign[]>('/campaigns?status=running&limit=20')
+                        .then((r) =>
+                            r.data.map((c): RunningCampaign => ({
+                                id: c.id,
+                                name: c.name,
+                                total: Number(c.total_recipients),
+                                counts: c.counts as Record<string, number>,
+                            })),
+                        )
+                        .catch(() => [] as RunningCampaign[])
+                  : Promise.resolve([] as RunningCampaign[]),
+          ]);
     // Channels the role may read; the API checks the same rules again when
     // it issues each subscription token.
     const channels: string[] = [];
@@ -50,10 +78,15 @@ export default async function PanelLayout({
                     restricted={me.mfa_required}
                 />
                 <SidebarInset>
-                    <PanelHeader />
+                    <Topbar
+                        permissions={me.permissions}
+                        restricted={me.mfa_required}
+                        initialUnread={unread}
+                        initialRunning={running}
+                    />
                     <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
                         <ConfirmProvider>
-                            <div className="mx-auto w-full max-w-6xl flex-1 p-4 md:p-6">
+                            <div className="w-full flex-1 p-4 md:p-6 xl:px-8">
                                 {isOwner &&
                                     !appearance.setup_completed &&
                                     !me.mfa_required && (

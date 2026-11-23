@@ -50,7 +50,7 @@ export function SecurityForm({
         });
 
     return (
-        <div className="grid max-w-3xl gap-6">
+        <div className="grid items-start gap-6 xl:grid-cols-2">
             <Section
                 title={t('settings.security.twoFactor')}
                 description={t('settings.security.twoFactorHint')}

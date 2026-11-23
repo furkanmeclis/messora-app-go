@@ -5,6 +5,7 @@ import errors from './errors';
 import nav from './nav';
 import settings from './settings';
 import wizard from './wizard';
+import topbar from './topbar';
 import account from './account';
 import apiKeys from './api-keys';
 import audit from './audit';
@@ -25,6 +26,7 @@ export const en = {
     appearance,
     settings,
     wizard,
+    topbar,
     account,
     apiKeys,
     audit,

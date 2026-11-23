@@ -67,7 +67,7 @@ export function GeneralForm({
         });
 
     return (
-        <div className="grid max-w-3xl gap-6">
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
             <Section
                 title={t('settings.general.organization')}
                 readOnly={readOnly}
