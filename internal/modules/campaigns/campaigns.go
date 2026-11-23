@@ -29,6 +29,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts/segment"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -258,6 +259,9 @@ func (s *Service) transition(ctx context.Context, q *db.Queries, tx pgx.Tx, id u
 	}
 	dj, _ := json.Marshal(detail)
 	if err := q.InsertCampaignEvent(ctx, db.InsertCampaignEventParams{CampaignID: id, Kind: kind, Detail: dj, ActorID: actor}); err != nil {
+		return c, err
+	}
+	if err := webhooks.CampaignFinished(ctx, tx, c); err != nil {
 		return c, err
 	}
 	return c, s.publish(ctx, tx, q, c)

@@ -24,6 +24,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/apiguard"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
@@ -46,6 +47,7 @@ type (
 	campaignHandler = campaigns.Handler
 	realtimeHandler = realtime.Handler
 	inboxHandler    = conversations.Handler
+	webhooksHandler = webhooks.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -61,6 +63,7 @@ type apiServer struct {
 	*campaignHandler
 	*realtimeHandler
 	*inboxHandler
+	*webhooksHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -79,6 +82,7 @@ type services struct {
 	contacts  *contacts.Service
 	campaigns *campaigns.Service
 	inbox     *conversations.Service
+	webhooks  *webhooks.Service
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -111,8 +115,11 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	cts := contacts.New(pool, cfg.MediaDir, log)
 	camp := campaigns.New(pool, cts, log)
 	inbox := conversations.New(pool, msg, media, log)
+	// Outgoing webhooks: https only outside development; private
+	// destinations are always refused (internal/platform/safehttp).
+	hooks := webhooks.New(pool, sealer, webhooks.Options{AllowHTTP: cfg.Env == config.EnvDevelopment, Logger: log})
 	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts,
-		campaigns: camp, inbox: inbox}, nil
+		campaigns: camp, inbox: inbox, webhooks: hooks}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -149,6 +156,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		campaignHandler: campaigns.NewHandler(svc.campaigns, log),
 		realtimeHandler: realtime.NewHandler(rtIssuer.WithConversationAccess(svc.inbox.CanRead), log),
 		inboxHandler:    conversations.NewHandler(svc.inbox, log),
+		webhooksHandler: webhooks.NewHandler(svc.webhooks, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))

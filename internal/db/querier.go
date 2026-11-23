@@ -29,6 +29,8 @@ type Querier interface {
 	// previous attempt died mid-request; it must not be sent again.
 	ClaimMessageForSend(ctx context.Context, id uuid.UUID) (Message, error)
 	ClaimPendingRecipients(ctx context.Context, arg ClaimPendingRecipientsParams) ([]ClaimPendingRecipientsRow, error)
+	// Takes a due delivery, or one whose previous worker vanished mid-request.
+	ClaimWebhookDelivery(ctx context.Context, arg ClaimWebhookDeliveryParams) (WebhookDelivery, error)
 	ClearContactTags(ctx context.Context, contactID uuid.UUID) error
 	ClearDefaultPhoneNumber(ctx context.Context) error
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
@@ -43,6 +45,7 @@ type Querier interface {
 	CountRecentPasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
 	// ── Users ───────────────────────────────────────────────────────────────────
 	CountUsers(ctx context.Context) (int64, error)
+	CountWebhookEndpoints(ctx context.Context) (int64, error)
 	// ── API keys ────────────────────────────────────────────────────────────────
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
 	// ── Invitations ─────────────────────────────────────────────────────────────
@@ -58,6 +61,8 @@ type Querier interface {
 	DeleteContactNote(ctx context.Context, arg DeleteContactNoteParams) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
 	DeleteOldIdempotencyKeys(ctx context.Context) (int64, error)
+	// Retention; deliveries go with their event.
+	DeleteOldOutgoingWebhookEvents(ctx context.Context, arg DeleteOldOutgoingWebhookEventsParams) (int64, error)
 	DeleteOldWebhookEvents(ctx context.Context, before time.Time) (int64, error)
 	// ── Recovery codes ──────────────────────────────────────────────────────────
 	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
@@ -66,12 +71,18 @@ type Querier interface {
 	DeleteTag(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTemplate(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTemplatesNotSynced(ctx context.Context, arg DeleteTemplatesNotSyncedParams) (int64, error)
+	DeleteWebhookEndpoint(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWhatsAppAccount(ctx context.Context, id uuid.UUID) (int64, error)
+	DisableWebhookEndpoint(ctx context.Context, arg DisableWebhookEndpointParams) error
 	DueScheduledCampaigns(ctx context.Context) ([]uuid.UUID, error)
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
+	// One delivery per subscribed active endpoint; running it again for the
+	// same event inserts nothing.
+	FanOutWebhookEvent(ctx context.Context, arg FanOutWebhookEventParams) ([]uuid.UUID, error)
 	FindApprovedTemplate(ctx context.Context, arg FindApprovedTemplateParams) (MessageTemplate, error)
 	FinishContactImport(ctx context.Context, arg FinishContactImportParams) error
+	FinishWebhookDelivery(ctx context.Context, arg FinishWebhookDeliveryParams) (int64, error)
 	GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetActiveSessionByTokenHashRow, error)
 	// Conversations can only be assigned to active users who can read them.
@@ -89,6 +100,7 @@ type Querier interface {
 	GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 	GetMessageByWAMID(ctx context.Context, wamid *string) (Message, error)
 	GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []byte) (GetOpenInvitationByTokenHashRow, error)
+	GetOutgoingWebhookEvent(ctx context.Context, id uuid.UUID) (OutgoingWebhookEvent, error)
 	GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber, error)
 	GetPhoneNumberByMetaID(ctx context.Context, phoneNumberID string) (PhoneNumber, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
@@ -99,6 +111,8 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserRole(ctx context.Context, userID uuid.UUID) (GetUserRoleRow, error)
+	GetWebhookDelivery(ctx context.Context, id uuid.UUID) (WebhookDelivery, error)
+	GetWebhookEndpoint(ctx context.Context, id uuid.UUID) (WebhookEndpoint, error)
 	GetWebhookEvent(ctx context.Context, id uuid.UUID) (WebhookEvent, error)
 	GetWhatsAppAccount(ctx context.Context, id uuid.UUID) (WhatsappAccount, error)
 	GetWhatsAppAccountByWABA(ctx context.Context, wabaID string) (WhatsappAccount, error)
@@ -127,10 +141,13 @@ type Querier interface {
 	InsertMediaFile(ctx context.Context, arg InsertMediaFileParams) (MediaFile, error)
 	// ── Messages ────────────────────────────────────────────────────────────────
 	InsertOutboundMessage(ctx context.Context, arg InsertOutboundMessageParams) (Message, error)
+	InsertOutgoingWebhookEvent(ctx context.Context, arg InsertOutgoingWebhookEventParams) error
 	InsertRecipient(ctx context.Context, arg InsertRecipientParams) (int64, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	InsertSegment(ctx context.Context, arg InsertSegmentParams) (Segment, error)
 	InsertSettingIfAbsent(ctx context.Context, arg InsertSettingIfAbsentParams) (int64, error)
+	InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDeliveryParams) (WebhookDelivery, error)
+	InsertWebhookEndpoint(ctx context.Context, arg InsertWebhookEndpointParams) (WebhookEndpoint, error)
 	// ── Webhook events ──────────────────────────────────────────────────────────
 	// Returns no row when the identical body was already received.
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (uuid.UUID, error)
@@ -170,6 +187,8 @@ type Querier interface {
 	ListThreadMessages(ctx context.Context, arg ListThreadMessagesParams) ([]Message, error)
 	ListUserSessions(ctx context.Context, userID uuid.UUID) ([]UserSession, error)
 	ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error)
+	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]ListWebhookDeliveriesRow, error)
+	ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, error)
 	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	// ── Conversations (inbox) ───────────────────────────────────────────────────
@@ -204,6 +223,8 @@ type Querier interface {
 	RemoveGroupMembers(ctx context.Context, arg RemoveGroupMembersParams) (int64, error)
 	ReplaceRole(ctx context.Context, arg ReplaceRoleParams) error
 	RequestImportCancel(ctx context.Context, id uuid.UUID) (ContactImport, error)
+	// Manual redelivery: a fresh attempt budget, due now.
+	ResetWebhookDelivery(ctx context.Context, id uuid.UUID) (WebhookDelivery, error)
 	RevokeApiKey(ctx context.Context, id uuid.UUID) (string, error)
 	RevokeInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
@@ -219,6 +240,7 @@ type Querier interface {
 	SetMessageMetaStatus(ctx context.Context, arg SetMessageMetaStatusParams) error
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
+	SetWebhookEndpointSecret(ctx context.Context, arg SetWebhookEndpointSecretParams) (WebhookEndpoint, error)
 	// Pending for longer than expected: its send task may have been lost.
 	StalePendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
 	StalePreparingCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
@@ -246,6 +268,7 @@ type Querier interface {
 	UpdateSegment(ctx context.Context, arg UpdateSegmentParams) (Segment, error)
 	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
 	UpdateTemplateStatusByMetaID(ctx context.Context, arg UpdateTemplateStatusByMetaIDParams) (int64, error)
+	UpdateWebhookEndpoint(ctx context.Context, arg UpdateWebhookEndpointParams) (WebhookEndpoint, error)
 	UpdateWhatsAppAccount(ctx context.Context, arg UpdateWhatsAppAccountParams) (WhatsappAccount, error)
 	// ── Contacts ────────────────────────────────────────────────────────────────
 	UpsertContactByPhone(ctx context.Context, arg UpsertContactByPhoneParams) (Contact, error)
@@ -258,6 +281,8 @@ type Querier interface {
 	UpsertTemplate(ctx context.Context, arg UpsertTemplateParams) (MessageTemplate, error)
 	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)
 	UserPermissions(ctx context.Context, userID uuid.UUID) ([]string, error)
+	// Asked by emitters on every domain event; served by a partial GIN index.
+	WebhookTypeSubscribed(ctx context.Context, eventType string) (bool, error)
 }
 
 var _ Querier = (*Queries)(nil)
