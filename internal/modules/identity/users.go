@@ -272,7 +272,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, req api.AcceptInvitation
 		if err != nil {
 			return err
 		}
-		u, err := q.CreateUser(ctx, db.CreateUserParams{Email: inv.Email, Name: strings.TrimSpace(req.Name), PasswordHash: hash, Locale: "en", Timezone: st.DefaultTimezone})
+		u, err := q.CreateUser(ctx, db.CreateUserParams{Email: inv.Email, Name: strings.TrimSpace(req.Name), PasswordHash: hash, Locale: st.DefaultLocale, Timezone: st.DefaultTimezone})
 		if err != nil {
 			if strings.Contains(err.Error(), "users_email_key") {
 				return apperr.Conflict("USER_EXISTS", "An account with this e-mail address already exists")

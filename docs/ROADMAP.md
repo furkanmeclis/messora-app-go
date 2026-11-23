@@ -69,10 +69,40 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** FEATURE_MATRIX'teki tüm v1 özellikleri `Implemented` durumundadır ve temiz ortamda `git clone → cp .env.example .env → docker compose up -d --build` akışı panelin açıldığı noktaya kadar sorunsuz çalışır. Backup'tan geri yükleme provası belgelenmiştir.
 
+## Phase 11 — Ayar katmanı ve kurulum sihirbazı
+- Kurulumla yönetilen ayarlar veritabanında tutulur, `.env` her zaman önceliklidir: `.env`'de tanımlı bir değer panelde "ortam değişkeniyle yönetiliyor" olarak kilitli görünür.
+- SMTP ayarları (şifre AES-GCM ile şifreli) + test e-postası; marka (organizasyon adı, logo); varsayılan dil, saat dilimi, tarih ve saat biçimi; tema.
+- 2FA zorunluluğu organizasyon ayarıdır; varsayılan olarak hiçbir rol için zorunlu değildir, sahip ve adminler açar.
+- Web kurulum sihirbazı (sahip hesabı oluşturulduktan sonra): organizasyon ve logo → dil → saat dilimi ve tarih biçimi → tema → SMTP → Meta hesabı → 2FA politikası → ekip daveti → bitiş. Her adım atlanabilir ve sonradan Settings'ten değiştirilebilir; sihirbaz kaldığı adımdan devam eder.
+
+**Bitti kriteri:** Temiz kurulumda sihirbaz baştan sona tarayıcıda tamamlanır (E2E). `.env`'de tanımlı SMTP değeri panelden değiştirilemez ve kilitli görünür. SMTP şifresi veritabanında düz metin bulunmaz.
+
+## Phase 12 — Tasarım sistemi ve tema motoru
+- Messora'ya özgü görsel dil; tarayıcının yerel (native) kontrolleri kullanılmaz: select, checkbox, radio, tarih/saat seçici, dosya seçici, renk seçici, onay pencereleri özel bileşenlerdir.
+- Tema motoru: hazır temalar (açık/koyu) + tam özelleştirme (renkler, yüzeyler, köşe yuvarlaklığı, yazı tipi, yoğunluk), canlı önizleme, okunabilirlik (kontrast) uyarısı. Sadece sahip değiştirir.
+- Yükleme, boş ve hata durumlarında tutarlı hareket ve geçişler.
+
+**Bitti kriteri:** Kaynakta `<select>`, `type="date|time|color|file|checkbox|radio"`, `window.confirm/alert` kalmaz (lint kuralı). Tema değişikliği yeniden yüklemeden uygulanır ve sunucu tarafında ilk boyamada doğru gelir (titreme yok).
+
+## Phase 13 — Türkçe ve İngilizce
+- Bütün arayüz metinleri sözlükten gelir (TR + EN). Kullanıcı kendi dilini seçer; varsayılan organizasyon ayarıdır. Sunucu hata mesajları koddan çevrilir.
+
+**Bitti kriteri:** Sözlükte eksik anahtar kalmaz (test). Playwright smoke testi her route'u iki dilde gezer.
+
+## Phase 14 — İş akışı tuvali (n8n tarzı)
+- Otomasyon editörü sürükle-bırak düğüm tuvaline dönüşür: tetikleyici, koşul (evet/hayır dalları), bekleme, mesaj/şablon, HTTP, etiket, grup, alan, atama, e-posta düğümleri oklarla bağlanır; yakınlaştırma, mini harita, otomatik yerleşim, geri al/yinele.
+- Graf mevcut motorun programına derlenir (döngü yasak, tek tetikleyici). Mevcut otomasyonlar tuvale otomatik çevrilir. Çalıştırma geçmişi tuvalde hangi düğümden geçtiğini gösterir.
+
+**Bitti kriteri:** Graf → program derleyicisi için tablo ve fuzz testleri; eski otomasyonların dönüşümü kayıpsızdır; E2E: tuvalde dallı akış kurulur, kaydedilir, tetiklenir.
+
+## Phase 15 — Masaüstü modu
+- F11 (tarayıcı tam ekranı) veya menüden: masaüstü, görev çubuğu, uygulama ikonları; bölümler taşınabilir, boyutlandırılabilir, küçültülüp büyütülebilir pencerelerde açılır; birden çok pencere aynı anda açık kalır. Pencere düzeni kullanıcı başına hatırlanır. Tam ekrandan çıkınca normal panele dönülür.
+
+**Bitti kriteri:** Her bölüm bir pencerede çalışır (E2E); klavye ile pencere değiştirme; mobilde masaüstü modu kapalıdır.
+
 ## Sonraki sürümler (v1.x)
 - Passkey (go-webauthn), Embedded Signup
 - Maliyet takibi (Meta pricing alanları)
-- i18n (EN + TR)
 - Centrifugo Redis engine (çoklu node), `messages` partition ve arşivleme, `campaign_stats` sharding
 - S3 uyumlu medya depolama
 - Özel rol editörü

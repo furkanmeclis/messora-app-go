@@ -204,7 +204,7 @@ func (h *harness) expect(r resp, status int, code string) {
 
 const ownerPassword = "Horse-battery-staple-42" // gitleaks:allow (test fixture)
 
-// setupOwner completes setup and enrols TOTP (owners must use 2FA by default).
+// setupOwner completes setup and enrols TOTP.
 func (h *harness) setupOwner() (token, totpSecret string) {
 	h.t.Helper()
 	setupTok, err := h.svc.identity.EnsureSetupToken(context.Background(), false)
@@ -344,6 +344,10 @@ func TestLoginLockoutAndMFA(t *testing.T) {
 
 func TestMandatoryMFABlocksEverythingElse(t *testing.T) {
 	h := newHarness(t)
+	// The policy comes from the environment here, which also locks it.
+	if err := h.svc.settings.SetOverrides(map[string]string{"mfa_required_roles": "owner,admin"}); err != nil {
+		t.Fatal(err)
+	}
 	setupTok, _ := h.svc.identity.EnsureSetupToken(context.Background(), false)
 	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": setupTok, "name": "O", "email": "o@example.com", "password": ownerPassword}})
 	token := r.data()["session_token"].(string)
@@ -401,7 +405,9 @@ func TestInvitationsRolesAndLastOwner(t *testing.T) {
 			ownerID = m["id"].(string)
 		}
 	}
-	// The admin must enrol 2FA before using admin features (policy).
+	// Once the policy requires it, the admin must enrol 2FA before using
+	// admin features.
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"mfa_required_roles": []string{"owner", "admin"}}}), 200, "")
 	h.expect(h.do(call{method: "GET", path: "/api/v1/users", token: agent}), 403, "MFA_SETUP_REQUIRED")
 	h.svc.settings.Invalidate()
 	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"mfa_required_roles": []string{"owner"}}}), 200, "")

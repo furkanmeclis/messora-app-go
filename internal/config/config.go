@@ -79,6 +79,21 @@ type Config struct {
 
 	// MediaDir stores downloaded WhatsApp media (a volume in Compose).
 	MediaDir string
+
+	// Workspace holds workspace settings set by environment variables
+	// (APP_ORGANIZATION_NAME …), keyed by setting name. They win over the
+	// values chosen in the panel, which shows them as locked.
+	Workspace map[string]string
+}
+
+// WorkspaceEnv maps workspace setting names to their environment variables.
+var WorkspaceEnv = map[string]string{
+	"organization_name":  "APP_ORGANIZATION_NAME",
+	"default_locale":     "APP_DEFAULT_LOCALE",
+	"default_timezone":   "APP_DEFAULT_TIMEZONE",
+	"date_format":        "APP_DATE_FORMAT",
+	"time_format":        "APP_TIME_FORMAT",
+	"mfa_required_roles": "APP_MFA_REQUIRED_ROLES",
 }
 
 // MetaConfig configures the WhatsApp Cloud API integration. Account
@@ -223,7 +238,13 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 			AccessToken:  Secret(l.str("META_ACCESS_TOKEN", "")),
 			WABAID:       l.str("META_WABA_ID", ""),
 		},
-		MediaDir: l.str("MEDIA_DIR", "/var/lib/messora/media"),
+		MediaDir:  l.str("MEDIA_DIR", "/var/lib/messora/media"),
+		Workspace: map[string]string{},
+	}
+	for name, env := range WorkspaceEnv {
+		if v := strings.TrimSpace(l.str(env, "")); v != "" {
+			cfg.Workspace[name] = v
+		}
 	}
 	if cfg.Env == EnvTest {
 		// Tests must never reach Meta, whatever the environment says.

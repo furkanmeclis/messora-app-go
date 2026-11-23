@@ -128,9 +128,11 @@ func (s *Service) CompleteSetup(ctx context.Context, req api.CompleteSetupReques
 		if err := q.DeleteSetting(ctx, setupTokenKey); err != nil {
 			return err
 		}
-		st := settings.Defaults()
-		tz := st.DefaultTimezone
-		u, err := q.CreateUser(ctx, db.CreateUserParams{Email: email, Name: strings.TrimSpace(req.Name), PasswordHash: hash, Locale: "en", Timezone: tz})
+		st, err := s.settings.Get(ctx)
+		if err != nil {
+			st = settings.Defaults()
+		}
+		u, err := q.CreateUser(ctx, db.CreateUserParams{Email: email, Name: strings.TrimSpace(req.Name), PasswordHash: hash, Locale: st.DefaultLocale, Timezone: st.DefaultTimezone})
 		if err != nil {
 			return err
 		}

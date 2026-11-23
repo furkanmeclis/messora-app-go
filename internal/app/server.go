@@ -79,6 +79,7 @@ type services struct {
 	cfg        *config.Config
 	identity   *identity.Service
 	settings   *settings.Store
+	mail       *settings.Mail // nil when a test injects its own mailer
 	queries    *db.Queries
 	channels   *channels.Service
 	messaging  *messaging.Service
@@ -90,17 +91,12 @@ type services struct {
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
-	mail, err := mailer.New(mailer.Config{
-		Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username,
-		Password: cfg.SMTP.Password.Reveal(), From: cfg.SMTP.From, TLS: cfg.SMTP.TLS,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return newServicesWith(cfg, pool, rdb, log, mail, crypto.DefaultArgon2)
+	return newServicesWith(cfg, pool, rdb, log, nil, crypto.DefaultArgon2)
 }
 
 // newServicesWith lets tests inject a mailer and cheaper hashing parameters.
+// A nil mailer uses SMTP_* from the environment or, without SMTP_HOST, the
+// configuration chosen in the panel.
 func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger, mail mailer.Sender, argon crypto.Argon2Params) (*services, error) {
 	sealer, err := crypto.NewSealer(cfg.EncryptionKey, nil)
 	if err != nil {
@@ -108,6 +104,20 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	}
 	q := db.New(pool)
 	st := settings.NewStore(q, 15*time.Second)
+	if err := st.SetOverrides(cfg.Workspace); err != nil {
+		return nil, err
+	}
+	var mailSettings *settings.Mail
+	if mail == nil {
+		mailSettings, err = settings.NewMail(q, sealer, mailer.Config{
+			Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username,
+			Password: cfg.SMTP.Password.Reveal(), From: cfg.SMTP.From, TLS: cfg.SMTP.TLS,
+		})
+		if err != nil {
+			return nil, err
+		}
+		mail = mailSettings
+	}
 	idsvc := identity.New(pool, rdb, sealer, st, mail, identity.Options{PublicAppURL: cfg.PublicAppURL, Logger: log, Argon2: argon})
 	wa, err := whatsapp.New(whatsapp.Options{BaseURL: cfg.Meta.GraphBaseURL, Version: cfg.Meta.GraphVersion, DryRun: cfg.Meta.DryRun})
 	if err != nil {
@@ -123,7 +133,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// Outgoing webhooks: https only outside development; private
 	// destinations are always refused (internal/platform/safehttp).
 	hooks := webhooks.New(pool, sealer, webhooks.Options{AllowHTTP: cfg.Env == config.EnvDevelopment, Logger: log})
-	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts,
+	return &services{cfg: cfg, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, inbox: inbox, webhooks: hooks,
 		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
 }
@@ -153,7 +163,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	}
 	srv := apiServer{
 		identityHandler:   identity.NewHandler(svc.identity, log),
-		settingsHandler:   settings.NewHandler(pool, svc.settings, log),
+		settingsHandler:   settings.NewHandler(pool, svc.settings, svc.mail, svc.cfg.MediaDir, log),
 		auditHandler:      audit.NewHandler(svc.queries, log),
 		systemHandler:     sys,
 		channelsHandler:   channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),

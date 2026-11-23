@@ -435,6 +435,99 @@ export interface paths {
         patch: operations['updateSettings'];
         trace?: never;
     };
+    '/appearance': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Look and regional defaults for every page, including sign-in */
+        get: operations['getAppearance'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/appearance/logo': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The organisation logo */
+        get: operations['getLogo'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/settings/logo': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the organisation logo
+         * @description Send the raw PNG, JPEG, WebP or SVG file (at most 2 MB) with its Content-Type.
+         */
+        put: operations['uploadLogo'];
+        post?: never;
+        /** Remove the organisation logo */
+        delete: operations['deleteLogo'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/settings/smtp': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Outgoing e-mail configuration (never the password) */
+        get: operations['getSmtpSettings'];
+        /**
+         * Change the outgoing e-mail configuration
+         * @description Refused with SMTP_MANAGED_BY_ENV while SMTP_HOST is set. An empty host turns e-mail off.
+         */
+        put: operations['updateSmtpSettings'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/settings/smtp/test': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test e-mail with the saved configuration, or with an unsaved one */
+        post: operations['testSmtpSettings'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/audit-logs': {
         parameters: {
             query?: never;
@@ -1836,6 +1929,14 @@ export interface components {
         Settings: {
             organization_name: string;
             default_timezone: string;
+            default_locale: components['schemas']['Locale'];
+            date_format: components['schemas']['DateFormat'];
+            time_format: components['schemas']['TimeFormat'];
+            theme: components['schemas']['Theme'];
+            logo: components['schemas']['LogoInfo'] | null;
+            setup: components['schemas']['SetupProgress'];
+            /** @description Fields set by environment variables; the panel cannot change them. */
+            locked: string[];
             mfa_required_roles: components['schemas']['RoleKey'][];
             session_idle_hours: number;
             session_lifetime_days: number;
@@ -1846,6 +1947,120 @@ export interface components {
             mfa_required_roles?: components['schemas']['RoleKey'][];
             session_idle_hours?: number;
             session_lifetime_days?: number;
+            default_locale?: components['schemas']['Locale'];
+            date_format?: components['schemas']['DateFormat'];
+            time_format?: components['schemas']['TimeFormat'];
+            theme?: components['schemas']['Theme'];
+            setup_steps?: components['schemas']['SetupStep'][];
+            setup_completed?: boolean;
+        };
+        /** @enum {string} */
+        Locale: 'en' | 'tr';
+        /** @enum {string} */
+        DateFormat:
+            | 'dd.MM.yyyy'
+            | 'dd/MM/yyyy'
+            | 'MM/dd/yyyy'
+            | 'yyyy-MM-dd'
+            | 'd MMM yyyy';
+        /** @enum {string} */
+        TimeFormat: '24h' | '12h';
+        /** @enum {string} */
+        SetupStep:
+            | 'organization'
+            | 'language'
+            | 'region'
+            | 'theme'
+            | 'email'
+            | 'whatsapp'
+            | 'security'
+            | 'team';
+        SetupProgress: {
+            completed: boolean;
+            steps: components['schemas']['SetupStep'][];
+        };
+        LogoInfo: {
+            content_type: string;
+            /** @description Changes with every upload (cache key). */
+            version: string;
+        };
+        /** @description Colour overrides on top of the preset, keyed by token (background, primary …). Hex or oklch(). */
+        ThemeColors: {
+            [key: string]: string;
+        };
+        Theme: {
+            /** @enum {string} */
+            preset:
+                | 'messora'
+                | 'midnight'
+                | 'sand'
+                | 'forest'
+                | 'graphite'
+                | 'ocean'
+                | 'rose';
+            /** @enum {string} */
+            mode: 'light' | 'dark' | 'system';
+            light: components['schemas']['ThemeColors'];
+            dark: components['schemas']['ThemeColors'];
+            radius: number;
+            /** @enum {string} */
+            font:
+                | 'geist'
+                | 'inter'
+                | 'manrope'
+                | 'plus-jakarta'
+                | 'ibm-plex'
+                | 'space-grotesk';
+            /** @enum {string} */
+            density: 'compact' | 'comfortable' | 'spacious';
+            /** @enum {string} */
+            wallpaper: 'aurora' | 'dunes' | 'grid' | 'mesh' | 'plain' | 'waves';
+        };
+        Appearance: {
+            organization_name: string;
+            default_locale: components['schemas']['Locale'];
+            default_timezone: string;
+            date_format: components['schemas']['DateFormat'];
+            time_format: components['schemas']['TimeFormat'];
+            theme: components['schemas']['Theme'];
+            logo: components['schemas']['LogoInfo'] | null;
+            setup_completed: boolean;
+        };
+        AppearanceResponse: {
+            data: components['schemas']['Appearance'];
+            meta: components['schemas']['Meta'];
+        };
+        /** @enum {string} */
+        SmtpTls: 'starttls' | 'tls' | 'none';
+        SmtpSettings: {
+            host: string;
+            port: number;
+            username: string;
+            from: string;
+            tls: components['schemas']['SmtpTls'];
+            password_set: boolean;
+            /** @description SMTP_HOST is set; the panel cannot change e-mail settings. */
+            managed_by_env: boolean;
+            enabled: boolean;
+        };
+        SmtpSettingsResponse: {
+            data: components['schemas']['SmtpSettings'];
+            meta: components['schemas']['Meta'];
+        };
+        SmtpSettingsInput: {
+            host: string;
+            /** @description 0 picks the default for the TLS mode. */
+            port: number;
+            username: string;
+            /** @description Omit to keep the stored password; empty removes it. */
+            password?: string;
+            from: string;
+            tls: components['schemas']['SmtpTls'];
+        };
+        SmtpTestRequest: {
+            /** Format: email */
+            to: string;
+            config?: components['schemas']['SmtpSettingsInput'];
         };
         AuditActor: {
             /** @enum {string} */
@@ -3714,6 +3929,163 @@ export interface operations {
                 content: {
                     'application/json': components['schemas']['SettingsResponse'];
                 };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getAppearance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Appearance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AppearanceResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logo image (PNG, JPEG, WebP or SVG) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'image/*': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    uploadLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/octet-stream': string;
+            };
+        };
+        responses: {
+            /** @description Updated settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getSmtpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SMTP settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SmtpSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateSmtpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SmtpSettingsInput'];
+            };
+        };
+        responses: {
+            /** @description SMTP settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SmtpSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    testSmtpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SmtpTestRequest'];
+            };
+        };
+        responses: {
+            /** @description Sent */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components['responses']['Error'];
         };
