@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/mail"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -144,7 +147,7 @@ func (s *Service) Create(ctx context.Context, phone string, f Fields, source str
 	}
 	attrs, _ := json.Marshal(nonNil(f.Attributes))
 	var c db.Contact
-	err := s.tx(ctx, func(q *db.Queries) error {
+	err := s.txx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 		var err error
 		c, err = q.InsertContact(ctx, db.InsertContactParams{PhoneE164: e, Name: name, Email: nullIfEmpty(f.Email),
 			Var1: nullIfEmpty(f.Vars[0]), Var2: nullIfEmpty(f.Vars[1]), Var3: nullIfEmpty(f.Vars[2]), Var4: nullIfEmpty(f.Vars[3]),
@@ -155,7 +158,7 @@ func (s *Service) Create(ctx context.Context, phone string, f Fields, source str
 		if err != nil {
 			return err
 		}
-		if err := setTagsAndGroups(ctx, q, c.ID, f); err != nil {
+		if err := setTagsAndGroups(ctx, tx, q, c.ID, f); err != nil {
 			return err
 		}
 		return audit.Record(ctx, q, audit.Entry{Action: "contact.create", EntityType: "contact", EntityID: &c.ID})
@@ -179,7 +182,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, f Fields) (db.Contac
 		p.Attributes, _ = json.Marshal(f.Attributes)
 	}
 	var c db.Contact
-	err := s.tx(ctx, func(q *db.Queries) error {
+	err := s.txx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 		var err error
 		c, err = q.UpdateContact(ctx, p)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -188,7 +191,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, f Fields) (db.Contac
 		if err != nil {
 			return err
 		}
-		if err := setTagsAndGroups(ctx, q, id, f); err != nil {
+		if err := setTagsAndGroups(ctx, tx, q, id, f); err != nil {
 			return err
 		}
 		return audit.Record(ctx, q, audit.Entry{Action: "contact.update", EntityType: "contact", EntityID: &id})
@@ -196,8 +199,16 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, f Fields) (db.Contac
 	return c, err
 }
 
-func setTagsAndGroups(ctx context.Context, q *db.Queries, id uuid.UUID, f Fields) error {
+func setTagsAndGroups(ctx context.Context, tx pgx.Tx, q *db.Queries, id uuid.UUID, f Fields) error {
 	if f.Tags != nil {
+		before, err := q.ContactTags(ctx, id)
+		if err != nil {
+			return err
+		}
+		had := map[uuid.UUID]bool{}
+		for _, t := range before {
+			had[t.ID] = true
+		}
 		if err := q.ClearContactTags(ctx, id); err != nil {
 			return err
 		}
@@ -208,6 +219,15 @@ func setTagsAndGroups(ctx context.Context, q *db.Queries, id uuid.UUID, f Fields
 			}
 			if err := q.AddContactTag(ctx, db.AddContactTagParams{ContactID: id, TagID: t.ID}); err != nil {
 				return err
+			}
+			if !had[t.ID] {
+				had[t.ID] = true
+				// The key includes the time: removing and adding a tag again
+				// is a new event.
+				if err := trigger.Emit(ctx, tx, q, trigger.Event{Type: trigger.TagAdded, Key: fmt.Sprintf("tag:%s:%s:%d", id, t.ID, time.Now().UnixNano()),
+					ContactID: id, Tag: t.Name}); err != nil {
+					return err
+				}
 			}
 		}
 	}

@@ -13,6 +13,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
@@ -81,6 +83,7 @@ func RunWorker(ctx context.Context) error {
 	svc.messaging.SetThrottle(messaging.NewThrottle(rdb, 80))
 	registerMessaging(mux, svc.messaging)
 	registerCampaigns(mux, svc.campaigns, svc.messaging, log)
+	registerAutomations(mux, svc.automation, log)
 	mux.HandleFunc(contacts.TypeImport, func(ctx context.Context, t *asynq.Task) error {
 		var p struct {
 			ImportID uuid.UUID `json:"import_id"`
@@ -204,6 +207,42 @@ func registerCampaigns(mux *asynq.ServeMux, c *campaigns.Service, m *messaging.S
 		n, err := c.Reap(ctx, m.Send)
 		if n > 0 {
 			log.WarnContext(ctx, "campaign reaper repaired work left by a stopped worker", "items", n)
+		}
+		return err
+	})
+}
+
+// registerAutomations wires the automation engine's task handlers.
+func registerAutomations(mux *asynq.ServeMux, a *automation.Service, log *slog.Logger) {
+	runID := func(t *asynq.Task) (uuid.UUID, error) {
+		var p struct {
+			RunID uuid.UUID `json:"run_id"`
+		}
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return uuid.Nil, fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		return p.RunID, nil
+	}
+	mux.HandleFunc(trigger.TypeEvaluate, func(ctx context.Context, t *asynq.Task) error {
+		var e trigger.Event
+		if err := json.Unmarshal(t.Payload(), &e); err != nil {
+			return fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		return a.Evaluate(ctx, e)
+	})
+	run := func(ctx context.Context, t *asynq.Task) error {
+		id, err := runID(t)
+		if err != nil {
+			return err
+		}
+		return a.Run(ctx, id)
+	}
+	mux.HandleFunc(automation.TypeRun, run)
+	mux.HandleFunc(automation.TypeResume, run)
+	mux.HandleFunc(automation.TypeReaper, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := a.Reap(ctx)
+		if n > 0 {
+			log.WarnContext(ctx, "automation reaper restarted runs", "runs", n)
 		}
 		return err
 	})

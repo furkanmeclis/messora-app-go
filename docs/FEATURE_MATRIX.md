@@ -93,7 +93,7 @@
 | Konuşma kanalı (`conversation:<id>`) agent ataması | 7 | Implemented (agent kendisine atanmış veya atanmamış konuşmalara abone olabilir; tablo + integration testleri) |
 | Inbox: liste, geçmiş, gönderim, medya, okundu | 7 | Implemented (API + panel; görünürlük, 24h ve opt-out kuralları integration testlerinde; 10k konuşma listesi p95 < 200 ms testi; Playwright `frontend/e2e/inbox.spec.ts`, Meta mock'u olmadığı için gelen mesaj ve teslim bilgisi DB'ye yazılarak simüle edilir) |
 | Konuşma atama, kapatma, müşteri paneli | 7 | Implemented (atama ve durum geçmişi, audit; müşteri paneli: consent, etiketler, notlar. Atanacak kullanıcı listesi yalnızca `users.manage` ile gelir, diğerleri kendine/atanmamışa atar) |
-| Otomasyon: tetikleyiciler, aksiyonlar, görsel editör | 8 | Missing |
+| Otomasyon: tetikleyiciler, aksiyonlar, görsel editör | 8 | Implemented (5 tetikleyici, 12 adım; editör paneli Phase 9) |
 | Döngü / duplicate koruması, çalıştırma geçmişi | 8 | Missing |
 | Giden webhook'lar (imzalı, retry, teslimat logu, SSRF korumalı) | 8 | Missing |
 

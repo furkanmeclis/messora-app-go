@@ -132,6 +132,17 @@ func (q *Queries) ClearDefaultPhoneNumber(ctx context.Context) error {
 	return err
 }
 
+const contactHasMessages = `-- name: ContactHasMessages :one
+SELECT EXISTS (SELECT 1 FROM messages WHERE contact_id = $1)
+`
+
+func (q *Queries) ContactHasMessages(ctx context.Context, contactID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, contactHasMessages, contactID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const countMessagesForAccount = `-- name: CountMessagesForAccount :one
 SELECT count(*) FROM messages m JOIN phone_numbers p ON p.id = m.phone_number_id WHERE p.account_id = $1
 `
@@ -230,7 +241,7 @@ func (q *Queries) FindApprovedTemplate(ctx context.Context, arg FindApprovedTemp
 }
 
 const getContact = `-- name: GetContact :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source FROM contacts WHERE id = $1
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until FROM contacts WHERE id = $1
 `
 
 func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (Contact, error) {
@@ -255,6 +266,7 @@ func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 		&i.OptedOutAt,
 		&i.OptOutReason,
 		&i.Source,
+		&i.AutomationsMutedUntil,
 	)
 	return i, err
 }
@@ -1338,7 +1350,7 @@ ON CONFLICT (phone_e164) DO UPDATE SET
     wa_id        = coalesce(excluded.wa_id, contacts.wa_id),
     profile_name = CASE WHEN excluded.profile_name <> '' THEN excluded.profile_name ELSE contacts.profile_name END,
     updated_at   = now()
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until
 `
 
 type UpsertContactByPhoneParams struct {
@@ -1370,6 +1382,7 @@ func (q *Queries) UpsertContactByPhone(ctx context.Context, arg UpsertContactByP
 		&i.OptedOutAt,
 		&i.OptOutReason,
 		&i.Source,
+		&i.AutomationsMutedUntil,
 	)
 	return i, err
 }

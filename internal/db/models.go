@@ -38,6 +38,48 @@ type AuditLog struct {
 	Changes    []byte
 }
 
+type Automation struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	Active      bool
+	TriggerType string
+	Trigger     []byte
+	Steps       []byte
+	Program     []byte
+	Version     int32
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type AutomationRun struct {
+	ID                uuid.UUID
+	AutomationID      uuid.UUID
+	AutomationVersion int32
+	EventKey          string
+	Event             []byte
+	ContactID         *uuid.UUID
+	Status            string
+	Pc                int32
+	StepsExecuted     int32
+	ResumeAt          *time.Time
+	Error             *string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	FinishedAt        *time.Time
+}
+
+type AutomationRunStep struct {
+	ID        uuid.UUID
+	RunID     uuid.UUID
+	Pc        int32
+	Action    string
+	Outcome   string
+	Detail    []byte
+	CreatedAt time.Time
+}
+
 type Campaign struct {
 	ID                uuid.UUID
 	Name              string
@@ -92,24 +134,25 @@ type ConsentEvent struct {
 }
 
 type Contact struct {
-	ID            uuid.UUID
-	PhoneE164     string
-	WaID          *string
-	Name          string
-	ProfileName   string
-	LastInboundAt *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	Email         *string
-	Var1          *string
-	Var2          *string
-	Var3          *string
-	Var4          *string
-	Var5          *string
-	Attributes    []byte
-	OptedOutAt    *time.Time
-	OptOutReason  *string
-	Source        string
+	ID                    uuid.UUID
+	PhoneE164             string
+	WaID                  *string
+	Name                  string
+	ProfileName           string
+	LastInboundAt         *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	Email                 *string
+	Var1                  *string
+	Var2                  *string
+	Var3                  *string
+	Var4                  *string
+	Var5                  *string
+	Attributes            []byte
+	OptedOutAt            *time.Time
+	OptOutReason          *string
+	Source                string
+	AutomationsMutedUntil *time.Time
 }
 
 type ContactGroup struct {

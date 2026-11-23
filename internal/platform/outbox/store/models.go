@@ -37,6 +37,48 @@ type AuditLog struct {
 	Changes    []byte
 }
 
+type Automation struct {
+	ID          pgtype.UUID
+	Name        string
+	Description string
+	Active      bool
+	TriggerType string
+	Trigger     []byte
+	Steps       []byte
+	Program     []byte
+	Version     int32
+	CreatedBy   pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type AutomationRun struct {
+	ID                pgtype.UUID
+	AutomationID      pgtype.UUID
+	AutomationVersion int32
+	EventKey          string
+	Event             []byte
+	ContactID         pgtype.UUID
+	Status            string
+	Pc                int32
+	StepsExecuted     int32
+	ResumeAt          pgtype.Timestamptz
+	Error             *string
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+	FinishedAt        pgtype.Timestamptz
+}
+
+type AutomationRunStep struct {
+	ID        pgtype.UUID
+	RunID     pgtype.UUID
+	Pc        int32
+	Action    string
+	Outcome   string
+	Detail    []byte
+	CreatedAt pgtype.Timestamptz
+}
+
 type Campaign struct {
 	ID                pgtype.UUID
 	Name              string
@@ -91,24 +133,25 @@ type ConsentEvent struct {
 }
 
 type Contact struct {
-	ID            pgtype.UUID
-	PhoneE164     string
-	WaID          *string
-	Name          string
-	ProfileName   string
-	LastInboundAt pgtype.Timestamptz
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	Email         *string
-	Var1          *string
-	Var2          *string
-	Var3          *string
-	Var4          *string
-	Var5          *string
-	Attributes    []byte
-	OptedOutAt    pgtype.Timestamptz
-	OptOutReason  *string
-	Source        string
+	ID                    pgtype.UUID
+	PhoneE164             string
+	WaID                  *string
+	Name                  string
+	ProfileName           string
+	LastInboundAt         pgtype.Timestamptz
+	CreatedAt             pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+	Email                 *string
+	Var1                  *string
+	Var2                  *string
+	Var3                  *string
+	Var4                  *string
+	Var5                  *string
+	Attributes            []byte
+	OptedOutAt            pgtype.Timestamptz
+	OptOutReason          *string
+	Source                string
+	AutomationsMutedUntil pgtype.Timestamptz
 }
 
 type ContactGroup struct {

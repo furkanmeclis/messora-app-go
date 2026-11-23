@@ -139,3 +139,16 @@ func Render(p Params, c db.Contact, name, language string) (whatsapp.Template, s
 	}
 	return t, ""
 }
+
+// FillText substitutes contact placeholders in free text; unknown or empty
+// placeholders become empty strings. Extra values (e.g. {{message}}) are
+// looked up in extra first.
+func FillText(s string, c db.Contact, extra map[string]string) string {
+	return placeholder.ReplaceAllStringFunc(s, func(m string) string {
+		key := placeholder.FindStringSubmatch(m)[1]
+		if v, ok := extra[key]; ok {
+			return v
+		}
+		return value(key, c)
+	})
+}

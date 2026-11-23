@@ -183,6 +183,19 @@ func (in SendInput) build() (whatsapp.Message, string, error) {
 // Queue validates and stores a message, and schedules sending it in the
 // same transaction.
 func (s *Service) Queue(ctx context.Context, in SendInput) (db.Message, error) {
+	var out db.Message
+	err := s.tx(ctx, func(tx pgx.Tx, _ *db.Queries) error {
+		var err error
+		out, err = s.QueueTx(ctx, tx, in)
+		return err
+	})
+	return out, err
+}
+
+// QueueTx is Queue inside the caller's transaction, so callers such as the
+// automation runner can record "message queued" and their own progress
+// atomically.
+func (s *Service) QueueTx(ctx context.Context, tx pgx.Tx, in SendInput) (db.Message, error) {
 	to, ok := NormalizePhone(in.To)
 	if !ok {
 		return db.Message{}, apperr.Validation("to", "Recipient must be a phone number in international format, e.g. +905551112233.")
@@ -217,7 +230,8 @@ func (s *Service) Queue(ctx context.Context, in SendInput) (db.Message, error) {
 		return db.Message{}, err
 	}
 	var out db.Message
-	err = s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+	q := db.New(tx)
+	err = func() error {
 		c, err := q.UpsertContactByPhone(ctx, db.UpsertContactByPhoneParams{PhoneE164: to})
 		if err != nil {
 			return err
@@ -251,7 +265,7 @@ func (s *Service) Queue(ctx context.Context, in SendInput) (db.Message, error) {
 		}
 		_, err = recordNew(ctx, tx, q, out)
 		return err
-	})
+	}()
 	return out, err
 }
 

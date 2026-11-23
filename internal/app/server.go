@@ -15,6 +15,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
@@ -36,16 +37,17 @@ import (
 
 // Aliases give each embedded module handler a distinct field name.
 type (
-	identityHandler = identity.Handler
-	settingsHandler = settings.Handler
-	auditHandler    = audit.Handler
-	systemHandler   = system.Handler
-	channelsHandler = channels.Handler
-	messagesHandler = messaging.Handler
-	contactsHandler = contacts.Handler
-	campaignHandler = campaigns.Handler
-	realtimeHandler = realtime.Handler
-	inboxHandler    = conversations.Handler
+	identityHandler   = identity.Handler
+	settingsHandler   = settings.Handler
+	auditHandler      = audit.Handler
+	systemHandler     = system.Handler
+	channelsHandler   = channels.Handler
+	messagesHandler   = messaging.Handler
+	contactsHandler   = contacts.Handler
+	campaignHandler   = campaigns.Handler
+	automationHandler = automation.Handler
+	realtimeHandler   = realtime.Handler
+	inboxHandler      = conversations.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -59,6 +61,7 @@ type apiServer struct {
 	*messagesHandler
 	*contactsHandler
 	*campaignHandler
+	*automationHandler
 	*realtimeHandler
 	*inboxHandler
 }
@@ -70,15 +73,16 @@ var mfaEnrolmentOps = []string{"getMe", "logout", "reauthenticate", "startTotpSe
 
 // services holds what the API and CLI commands need.
 type services struct {
-	cfg       *config.Config
-	identity  *identity.Service
-	settings  *settings.Store
-	queries   *db.Queries
-	channels  *channels.Service
-	messaging *messaging.Service
-	contacts  *contacts.Service
-	campaigns *campaigns.Service
-	inbox     *conversations.Service
+	cfg        *config.Config
+	identity   *identity.Service
+	settings   *settings.Store
+	queries    *db.Queries
+	channels   *channels.Service
+	messaging  *messaging.Service
+	contacts   *contacts.Service
+	campaigns  *campaigns.Service
+	inbox      *conversations.Service
+	automation *automation.Service
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -112,7 +116,9 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	camp := campaigns.New(pool, cts, log)
 	inbox := conversations.New(pool, msg, media, log)
 	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts,
-		campaigns: camp, inbox: inbox}, nil
+		campaigns: camp, inbox: inbox,
+		// HTTP steps stay disabled until the SSRF-safe client is wired in.
+		automation: automation.New(pool, msg, mail, nil, log)}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -139,16 +145,17 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		return err
 	}
 	srv := apiServer{
-		identityHandler: identity.NewHandler(svc.identity, log),
-		settingsHandler: settings.NewHandler(pool, svc.settings, log),
-		auditHandler:    audit.NewHandler(svc.queries, log),
-		systemHandler:   sys,
-		channelsHandler: channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),
-		messagesHandler: messaging.NewHandler(svc.messaging, log),
-		contactsHandler: contacts.NewHandler(svc.contacts, log),
-		campaignHandler: campaigns.NewHandler(svc.campaigns, log),
-		realtimeHandler: realtime.NewHandler(rtIssuer.WithConversationAccess(svc.inbox.CanRead), log),
-		inboxHandler:    conversations.NewHandler(svc.inbox, log),
+		identityHandler:   identity.NewHandler(svc.identity, log),
+		settingsHandler:   settings.NewHandler(pool, svc.settings, log),
+		auditHandler:      audit.NewHandler(svc.queries, log),
+		systemHandler:     sys,
+		channelsHandler:   channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),
+		messagesHandler:   messaging.NewHandler(svc.messaging, log),
+		contactsHandler:   contacts.NewHandler(svc.contacts, log),
+		campaignHandler:   campaigns.NewHandler(svc.campaigns, log),
+		automationHandler: automation.NewHandler(svc.automation, log),
+		realtimeHandler:   realtime.NewHandler(rtIssuer.WithConversationAccess(svc.inbox.CanRead), log),
+		inboxHandler:      conversations.NewHandler(svc.inbox, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))

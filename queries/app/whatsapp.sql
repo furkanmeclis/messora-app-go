@@ -273,3 +273,6 @@ DELETE FROM message_templates WHERE id = @id;
 -- name: SetMessageMetaStatus :exec
 -- Meta's own state for paced templates (accepted, held_for_quality_assessment, paused).
 UPDATE messages SET meta_status = @meta_status, updated_at = now() WHERE id = @id;
+
+-- name: ContactHasMessages :one
+SELECT EXISTS (SELECT 1 FROM messages WHERE contact_id = @contact_id);

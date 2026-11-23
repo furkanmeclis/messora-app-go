@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 )
@@ -236,6 +237,10 @@ func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.P
 	if m.Context != nil && m.Context.ID != "" {
 		reply = &m.Context.ID
 	}
+	known, err := q.ContactHasMessages(ctx, c.ID)
+	if err != nil {
+		return uuid.Nil, err
+	}
 	row, err := q.InsertInboundMessage(ctx, db.InsertInboundMessageParams{PhoneNumberID: pn.ID, ContactID: c.ID, Wamid: &m.ID,
 		Type: m.Type, Body: m.Body(), Payload: raw, ReplyToWamid: reply, OccurredAt: at})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -244,8 +249,20 @@ func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.P
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if _, err := recordNew(ctx, tx, q, row); err != nil {
+	conv, err := recordNew(ctx, tx, q, row)
+	if err != nil {
 		return uuid.Nil, err
+	}
+	ev := trigger.Event{Type: trigger.MessageReceived, Key: "msg:" + m.ID, ContactID: c.ID, ConversationID: &conv.ID,
+		PhoneNumberID: &pn.ID, MessageID: &row.ID, MessageType: m.Type, Body: row.Body}
+	if err := trigger.Emit(ctx, tx, q, ev); err != nil {
+		return uuid.Nil, err
+	}
+	if !known {
+		ev.Type, ev.Key = trigger.NewContact, "contact:"+c.ID.String()
+		if err := trigger.Emit(ctx, tx, q, ev); err != nil {
+			return uuid.Nil, err
+		}
 	}
 	if opensWindow(m.Type) {
 		if err := q.TouchContactInbound(ctx, db.TouchContactInboundParams{ID: c.ID, At: &at}); err != nil {
@@ -313,6 +330,14 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 	if updated.Status != m.Status {
 		if err := announceStatus(ctx, tx, q, updated); err != nil {
 			return false, err
+		}
+		// Statuses of messages an automation sent never trigger automations.
+		if m.Source != "automation" && (updated.Status == "delivered" || updated.Status == "read" || updated.Status == "failed") {
+			if err := trigger.Emit(ctx, tx, q, trigger.Event{Type: trigger.MessageStatus, Key: "status:" + m.ID.String() + ":" + updated.Status,
+				ContactID: m.ContactID, PhoneNumberID: &m.PhoneNumberID, MessageID: &m.ID, MessageType: m.Type,
+				Status: updated.Status, CampaignID: m.CampaignID}); err != nil {
+				return false, err
+			}
 		}
 	}
 	return true, nil

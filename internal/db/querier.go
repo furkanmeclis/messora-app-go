@@ -13,14 +13,17 @@ import (
 
 type Querier interface {
 	AcceptInvitation(ctx context.Context, id uuid.UUID) (int64, error)
+	ActiveAutomationsFor(ctx context.Context, triggerType string) ([]Automation, error)
 	AddContactTag(ctx context.Context, arg AddContactTagParams) error
 	AddGroupMembers(ctx context.Context, arg AddGroupMembersParams) (int64, error)
+	AdvanceAutomationRun(ctx context.Context, arg AdvanceAutomationRunParams) error
 	// Monotonic status transition from a webhook; see the messages table comment.
 	ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatusParams) (Message, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
 	CampaignMessageStats(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMessageStatsRow, error)
 	CampaignRecipientStats(ctx context.Context, campaignID uuid.UUID) ([]CampaignRecipientStatsRow, error)
 	CancelPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
+	CancelRunsOfAutomation(ctx context.Context, automationID uuid.UUID) (int64, error)
 	CancelUnsentMessages(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	// ── Idempotency ─────────────────────────────────────────────────────────────
 	// Returns inserted=true for a new key; otherwise the stored row.
@@ -34,6 +37,8 @@ type Querier interface {
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	ConsumePasswordReset(ctx context.Context, tokenHash []byte) (uuid.UUID, error)
 	ContactGroupIDs(ctx context.Context, contactID uuid.UUID) ([]uuid.UUID, error)
+	ContactHasMessages(ctx context.Context, contactID uuid.UUID) (bool, error)
+	ContactHasTag(ctx context.Context, arg ContactHasTagParams) (bool, error)
 	ContactTags(ctx context.Context, contactID uuid.UUID) ([]Tag, error)
 	CountActiveOwners(ctx context.Context) (int64, error)
 	CountHeld(ctx context.Context, campaignID *uuid.UUID) (int64, error)
@@ -52,6 +57,7 @@ type Querier interface {
 	// ── Sessions ────────────────────────────────────────────────────────────────
 	CreateSession(ctx context.Context, arg CreateSessionParams) (UserSession, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteAutomation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteCampaign(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteContact(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteContactGroup(ctx context.Context, id uuid.UUID) (int64, error)
@@ -71,11 +77,14 @@ type Querier interface {
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
 	FindApprovedTemplate(ctx context.Context, arg FindApprovedTemplateParams) (MessageTemplate, error)
+	FinishAutomationRun(ctx context.Context, arg FinishAutomationRunParams) error
 	FinishContactImport(ctx context.Context, arg FinishContactImportParams) error
 	GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetActiveSessionByTokenHashRow, error)
 	// Conversations can only be assigned to active users who can read them.
 	GetAssignableUser(ctx context.Context, id uuid.UUID) (GetAssignableUserRow, error)
+	GetAutomation(ctx context.Context, id uuid.UUID) (Automation, error)
+	GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
 	GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 	GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error)
@@ -102,12 +111,17 @@ type Querier interface {
 	GetWebhookEvent(ctx context.Context, id uuid.UUID) (WebhookEvent, error)
 	GetWhatsAppAccount(ctx context.Context, id uuid.UUID) (WhatsappAccount, error)
 	GetWhatsAppAccountByWABA(ctx context.Context, wabaID string) (WhatsappAccount, error)
+	HasActiveAutomation(ctx context.Context, triggerType string) (bool, error)
 	// Called before a campaign message is claimed: a paused campaign holds it,
 	// a cancelled or failed one cancels it.
 	HoldIfCampaignStopped(ctx context.Context, id uuid.UUID) (string, error)
 	// Running campaigns whose dispatcher has not moved for a while.
 	IdleRunningCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
+	InsertAutomation(ctx context.Context, arg InsertAutomationParams) (Automation, error)
+	// No row when this automation already ran for this event.
+	InsertAutomationRun(ctx context.Context, arg InsertAutomationRunParams) (uuid.UUID, error)
+	InsertAutomationRunStep(ctx context.Context, arg InsertAutomationRunStepParams) error
 	InsertCampaign(ctx context.Context, arg InsertCampaignParams) (Campaign, error)
 	InsertCampaignEvent(ctx context.Context, arg InsertCampaignEventParams) error
 	InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (Message, error)
@@ -140,6 +154,9 @@ type Querier interface {
 	ListApiKeys(ctx context.Context) ([]ListApiKeysRow, error)
 	ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
+	ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) ([]AutomationRunStep, error)
+	ListAutomationRuns(ctx context.Context, arg ListAutomationRunsParams) ([]ListAutomationRunsRow, error)
+	ListAutomations(ctx context.Context) ([]ListAutomationsRow, error)
 	ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) ([]CampaignEvent, error)
 	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
 	ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([]ConsentEvent, error)
@@ -171,6 +188,7 @@ type Querier interface {
 	ListUserSessions(ctx context.Context, userID uuid.UUID) ([]UserSession, error)
 	ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error)
 	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
+	LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
 	LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	// ── Conversations (inbox) ───────────────────────────────────────────────────
 	LockConversationByThread(ctx context.Context, arg LockConversationByThreadParams) (Conversation, error)
@@ -190,10 +208,14 @@ type Querier interface {
 	MarkWebhookProcessed(ctx context.Context, id uuid.UUID) error
 	MarkWhatsAppAccountError(ctx context.Context, arg MarkWhatsAppAccountErrorParams) error
 	MarkWhatsAppAccountSynced(ctx context.Context, id uuid.UUID) error
+	MuteContactAutomations(ctx context.Context, arg MuteContactAutomationsParams) error
+	// Waiting runs whose resume task may have been lost.
+	OverdueWaitingRuns(ctx context.Context) ([]uuid.UUID, error)
 	// Counters are absolute (the worker keeps the totals), so a retried batch
 	// cannot double-count. Returns whether a cancel was requested.
 	ProgressContactImport(ctx context.Context, arg ProgressContactImportParams) (bool, error)
 	QueueContactImport(ctx context.Context, arg QueueContactImportParams) (ContactImport, error)
+	RecentRunForContact(ctx context.Context, arg RecentRunForContactParams) (bool, error)
 	// Counts consecutive failures and locks the account for lock_minutes once
 	// max_failures is reached. An expired lock starts a fresh count.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (RecordLoginFailureRow, error)
@@ -201,6 +223,7 @@ type Querier interface {
 	ReleaseHeldMessages(ctx context.Context, campaignID *uuid.UUID) ([]uuid.UUID, error)
 	ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempotencyKeyParams) error
 	ReleaseMessageForRetry(ctx context.Context, arg ReleaseMessageForRetryParams) error
+	RemoveContactTagByName(ctx context.Context, arg RemoveContactTagByNameParams) (int64, error)
 	RemoveGroupMembers(ctx context.Context, arg RemoveGroupMembersParams) (int64, error)
 	ReplaceRole(ctx context.Context, arg ReplaceRoleParams) error
 	RequestImportCancel(ctx context.Context, id uuid.UUID) (ContactImport, error)
@@ -222,6 +245,7 @@ type Querier interface {
 	// Pending for longer than expected: its send task may have been lost.
 	StalePendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
 	StalePreparingCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
+	StaleRunningRuns(ctx context.Context) ([]uuid.UUID, error)
 	StartContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error)
 	// Claimed more than the given age ago and never settled: the worker died.
 	StuckSendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
@@ -237,6 +261,7 @@ type Querier interface {
 	TouchConversation(ctx context.Context, arg TouchConversationParams) (Conversation, error)
 	TouchMessage(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
+	UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error)
 	UpdateCampaignDraft(ctx context.Context, arg UpdateCampaignDraftParams) (Campaign, error)
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
 	UpdateContactGroup(ctx context.Context, arg UpdateContactGroupParams) (ContactGroup, error)
@@ -258,6 +283,7 @@ type Querier interface {
 	UpsertTemplate(ctx context.Context, arg UpsertTemplateParams) (MessageTemplate, error)
 	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)
 	UserPermissions(ctx context.Context, userID uuid.UUID) ([]string, error)
+	WaitAutomationRun(ctx context.Context, arg WaitAutomationRunParams) error
 }
 
 var _ Querier = (*Queries)(nil)

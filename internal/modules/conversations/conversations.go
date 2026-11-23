@@ -25,6 +25,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -236,6 +237,14 @@ func (s *Service) change(ctx context.Context, p *principal.Principal, id uuid.UU
 	}
 	if err := realtime.PublishConversation(ctx, tx, updated); err != nil {
 		return err
+	}
+	if ev.Kind == "closed" {
+		// Closed by a person or an integration (automations close through
+		// their own path and never trigger automations).
+		if err := trigger.Emit(ctx, tx, q, trigger.Event{Type: trigger.ConversationClosed, Key: "closed:" + id.String() + ":" + uuid.Must(uuid.NewV7()).String(),
+			ContactID: updated.ContactID, ConversationID: &id, PhoneNumberID: &updated.PhoneNumberID}); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }

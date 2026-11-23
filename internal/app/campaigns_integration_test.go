@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strconv"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
@@ -62,6 +65,13 @@ func (h *harness) pump(ctx context.Context, workers int) int {
 			err = h.svc.campaigns.Materialize(ctx, id("campaign_id"))
 		case "task:" + campaigns.TypeDispatch:
 			err = h.svc.campaigns.Dispatch(ctx, id("campaign_id"), int32(e.payload["gen"].(float64)))
+		case "task:" + trigger.TypeEvaluate:
+			var ev trigger.Event
+			raw, _ := json.Marshal(e.payload)
+			_ = json.Unmarshal(raw, &ev)
+			err = h.svc.automation.Evaluate(ctx, ev)
+		case "task:" + automation.TypeRun, "task:" + automation.TypeResume:
+			err = h.svc.automation.Run(ctx, id("run_id"))
 		default:
 			return // realtime and other events
 		}

@@ -1386,6 +1386,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/automations': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Automations with run counts */
+        get: operations['listAutomations'];
+        put?: never;
+        /** Create an automation (inactive until enabled) */
+        post: operations['createAutomation'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/automations/{automationId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An automation */
+        get: operations['getAutomation'];
+        put?: never;
+        post?: never;
+        /** Delete an automation and its run history */
+        delete: operations['deleteAutomation'];
+        options?: never;
+        head?: never;
+        /**
+         * Edit or enable/disable an automation
+         * @description Changing the trigger or steps cancels runs that are still in progress.
+         */
+        patch: operations['updateAutomation'];
+        trace?: never;
+    };
+    '/automations/{automationId}/runs': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Execution log, newest first */
+        get: operations['listAutomationRuns'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/automation-runs/{runId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A run with every executed step */
+        get: operations['getAutomationRun'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2529,6 +2603,125 @@ export interface components {
             data: components['schemas']['CampaignRecipient'][];
             meta: components['schemas']['Meta'];
         };
+        /** @enum {string} */
+        AutomationTriggerType:
+            | 'message_received'
+            | 'new_contact'
+            | 'tag_added'
+            | 'message_status'
+            | 'conversation_closed';
+        /** @description Options for the trigger type; see docs/AUTOMATIONS.md. */
+        AutomationTrigger: {
+            /** @enum {string} */
+            match?: 'any' | 'contains' | 'exact' | 'starts_with';
+            keywords?: string[];
+            /** Format: uuid */
+            phone_number_id?: string;
+            tag?: string;
+            /** @enum {string} */
+            status?: 'delivered' | 'read' | 'failed';
+            /** Format: uuid */
+            campaign_id?: string;
+            cooldown_seconds?: number;
+        };
+        /** @description One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field, condition (with if/then/else), http_request, send_email, delay, assign, close_conversation, mute. Text values accept placeholders such as {{name}}, {{first_name}}, {{var1}} and {{message}}. See docs/AUTOMATIONS.md. */
+        AutomationStep: {
+            type: string;
+        } & {
+            [key: string]: unknown;
+        };
+        Automation: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            active: boolean;
+            trigger_type: components['schemas']['AutomationTriggerType'];
+            trigger: components['schemas']['AutomationTrigger'];
+            steps: components['schemas']['AutomationStep'][];
+            version: number;
+            /** Format: int64 */
+            run_count: number;
+            /** Format: date-time */
+            last_run_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateAutomationRequest: {
+            name: string;
+            description?: string;
+            active?: boolean;
+            trigger_type: components['schemas']['AutomationTriggerType'];
+            trigger?: components['schemas']['AutomationTrigger'];
+            steps: components['schemas']['AutomationStep'][];
+        };
+        UpdateAutomationRequest: {
+            name?: string;
+            description?: string;
+            active?: boolean;
+            trigger_type?: components['schemas']['AutomationTriggerType'];
+            trigger?: components['schemas']['AutomationTrigger'];
+            steps?: components['schemas']['AutomationStep'][];
+        };
+        AutomationRunStep: {
+            pc: number;
+            action: string;
+            /** @enum {string} */
+            outcome: 'ok' | 'skipped' | 'failed' | 'waiting';
+            detail: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+        };
+        AutomationRun: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            automation_id: string;
+            /** Format: uuid */
+            contact_id?: string | null;
+            phone?: string;
+            /** @enum {string} */
+            status:
+                | 'queued'
+                | 'running'
+                | 'waiting'
+                | 'completed'
+                | 'failed'
+                | 'cancelled';
+            event: {
+                [key: string]: unknown;
+            };
+            error?: string | null;
+            /** Format: date-time */
+            resume_at?: string | null;
+            steps?: components['schemas']['AutomationRunStep'][];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: date-time */
+            finished_at?: string | null;
+        };
+        AutomationResponse: {
+            data: components['schemas']['Automation'];
+            meta: components['schemas']['Meta'];
+        };
+        AutomationListResponse: {
+            data: components['schemas']['Automation'][];
+            meta: components['schemas']['Meta'];
+        };
+        AutomationRunResponse: {
+            data: components['schemas']['AutomationRun'];
+            meta: components['schemas']['Meta'];
+        };
+        AutomationRunListResponse: {
+            data: components['schemas']['AutomationRun'][];
+            meta: components['schemas']['Meta'];
+        };
     };
     responses: {
         /** @description Error */
@@ -2559,6 +2752,8 @@ export interface components {
         GroupId: string;
         SegmentId: string;
         CampaignId: string;
+        AutomationId: string;
+        RunId: string;
         /** @description Opaque cursor from `meta.next_cursor`. */
         Cursor: string;
         Limit: number;
@@ -5005,6 +5200,173 @@ export interface operations {
                 };
                 content: {
                     'application/octet-stream': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAutomations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Automations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateAutomationRequest'];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                automationId: components['parameters']['AutomationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Automation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                automationId: components['parameters']['AutomationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                automationId: components['parameters']['AutomationId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateAutomationRequest'];
+            };
+        };
+        responses: {
+            /** @description Automation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAutomationRuns: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path: {
+                automationId: components['parameters']['AutomationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Runs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationRunListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getAutomationRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components['parameters']['RunId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationRunResponse'];
                 };
             };
             default: components['responses']['Error'];

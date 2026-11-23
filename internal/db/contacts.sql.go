@@ -196,7 +196,7 @@ func (q *Queries) FinishContactImport(ctx context.Context, arg FinishContactImpo
 }
 
 const getContactByPhone = `-- name: GetContactByPhone :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source FROM contacts WHERE phone_e164 = $1
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until FROM contacts WHERE phone_e164 = $1
 `
 
 func (q *Queries) GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error) {
@@ -221,6 +221,7 @@ func (q *Queries) GetContactByPhone(ctx context.Context, phoneE164 string) (Cont
 		&i.OptedOutAt,
 		&i.OptOutReason,
 		&i.Source,
+		&i.AutomationsMutedUntil,
 	)
 	return i, err
 }
@@ -339,7 +340,7 @@ const insertContact = `-- name: InsertContact :one
 INSERT INTO contacts (phone_e164, name, email, var1, var2, var3, var4, var5, attributes, source)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10)
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until
 `
 
 type InsertContactParams struct {
@@ -390,6 +391,7 @@ func (q *Queries) InsertContact(ctx context.Context, arg InsertContactParams) (C
 		&i.OptedOutAt,
 		&i.OptOutReason,
 		&i.Source,
+		&i.AutomationsMutedUntil,
 	)
 	return i, err
 }
@@ -1035,7 +1037,7 @@ UPDATE contacts SET
     attributes = coalesce($14, attributes),
     updated_at = now()
 WHERE id = $15
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until
 `
 
 type UpdateContactParams struct {
@@ -1094,6 +1096,7 @@ func (q *Queries) UpdateContact(ctx context.Context, arg UpdateContactParams) (C
 		&i.OptedOutAt,
 		&i.OptOutReason,
 		&i.Source,
+		&i.AutomationsMutedUntil,
 	)
 	return i, err
 }

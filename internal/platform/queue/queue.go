@@ -46,6 +46,10 @@ var routes = map[string]string{
 	"campaign:dispatch":       Campaigns,
 	"campaign:start_due":      Default,
 	"campaign:reaper":         Default,
+	"automation:evaluate":     Critical,
+	"automation:run":          Default,
+	"automation:resume":       Default,
+	"automation:reaper":       Default,
 }
 
 // Route returns the queue a task type is routed to.

@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 8: automations
+
+- Automations react to new messages (with keyword matching), new contacts,
+  added tags, delivery statuses and closed conversations with replies,
+  templates, tags, groups, field updates, conditions, HTTP requests, e-mail,
+  delays, assignment, closing and muting. See docs/AUTOMATIONS.md.
+- A run is unique per triggering event, effects of automations never trigger
+  automations, delays are durable across restarts, and every executed step
+  is logged.
+
 ### Added — Phase 5: campaigns
 
 - Campaigns send an approved template to a segment, group, tag or every

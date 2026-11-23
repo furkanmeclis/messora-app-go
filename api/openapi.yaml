@@ -41,6 +41,7 @@ tags:
   - name: contacts
   - name: segments
   - name: campaigns
+  - name: automations
 
 paths:
   /setup/status:
@@ -1807,6 +1808,118 @@ paths:
               schema: { type: string, format: binary }
         default: { $ref: "#/components/responses/Error" }
 
+  # ── Automations (Phase 8) ────────────────────────────────────────────────
+  /automations:
+    get:
+      operationId: listAutomations
+      tags: [automations]
+      summary: Automations with run counts
+      security: [{ session: [automations.read] }, { apiKey: [automations.read] }]
+      responses:
+        "200":
+          description: Automations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAutomation
+      tags: [automations]
+      summary: Create an automation (inactive until enabled)
+      security: [{ session: [automations.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAutomationRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /automations/{automationId}:
+    get:
+      operationId: getAutomation
+      tags: [automations]
+      summary: An automation
+      security: [{ session: [automations.read] }, { apiKey: [automations.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/AutomationId" }
+      responses:
+        "200":
+          description: Automation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateAutomation
+      tags: [automations]
+      summary: Edit or enable/disable an automation
+      description: Changing the trigger or steps cancels runs that are still in progress.
+      security: [{ session: [automations.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/AutomationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAutomationRequest" }
+      responses:
+        "200":
+          description: Automation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteAutomation
+      tags: [automations]
+      summary: Delete an automation and its run history
+      security: [{ session: [automations.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/AutomationId" }
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Error" }
+
+  /automations/{automationId}/runs:
+    get:
+      operationId: listAutomationRuns
+      tags: [automations]
+      summary: Execution log, newest first
+      security: [{ session: [automations.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/AutomationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Runs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationRunListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /automation-runs/{runId}:
+    get:
+      operationId: getAutomationRun
+      tags: [automations]
+      summary: A run with every executed step
+      security: [{ session: [automations.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/RunId" }
+      responses:
+        "200":
+          description: Run
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationRunResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     panel:
@@ -1906,6 +2019,16 @@ components:
       schema: { type: string, format: uuid }
     CampaignId:
       name: campaignId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AutomationId:
+      name: automationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RunId:
+      name: runId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -3327,4 +3450,139 @@ components:
       required: [data, meta]
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/CampaignRecipient" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    # ── Automations (Phase 8) ──────────────────────────────────────────────
+    AutomationTriggerType:
+      type: string
+      enum: [message_received, new_contact, tag_added, message_status, conversation_closed]
+      x-enum-varnames: [TriggerMessageReceived, TriggerNewContact, TriggerTagAdded, TriggerMessageStatus, TriggerConversationClosed]
+
+    AutomationTrigger:
+      type: object
+      additionalProperties: false
+      description: Options for the trigger type; see docs/AUTOMATIONS.md.
+      properties:
+        match: { type: string, enum: [any, contains, exact, starts_with] }
+        keywords:
+          type: array
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 200 }
+        phone_number_id: { type: string, format: uuid }
+        tag: { type: string, maxLength: 60 }
+        status: { type: string, enum: [delivered, read, failed] }
+        campaign_id: { type: string, format: uuid }
+        cooldown_seconds: { type: integer, minimum: 0, maximum: 7776000 }
+
+    AutomationStep:
+      type: object
+      description: >-
+        One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field,
+        condition (with if/then/else), http_request, send_email, delay, assign,
+        close_conversation, mute. Text values accept placeholders such as {{name}},
+        {{first_name}}, {{var1}} and {{message}}. See docs/AUTOMATIONS.md.
+      required: [type]
+      additionalProperties: true
+      properties:
+        type: { type: string }
+
+    Automation:
+      type: object
+      required: [id, name, description, active, trigger_type, trigger, steps, version, run_count, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        active: { type: boolean }
+        trigger_type: { $ref: "#/components/schemas/AutomationTriggerType" }
+        trigger: { $ref: "#/components/schemas/AutomationTrigger" }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationStep" }
+        version: { type: integer }
+        run_count: { type: integer, format: int64 }
+        last_run_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreateAutomationRequest:
+      type: object
+      additionalProperties: false
+      required: [name, trigger_type, steps]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 500 }
+        active: { type: boolean }
+        trigger_type: { $ref: "#/components/schemas/AutomationTriggerType" }
+        trigger: { $ref: "#/components/schemas/AutomationTrigger" }
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: "#/components/schemas/AutomationStep" }
+
+    UpdateAutomationRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 500 }
+        active: { type: boolean }
+        trigger_type: { $ref: "#/components/schemas/AutomationTriggerType" }
+        trigger: { $ref: "#/components/schemas/AutomationTrigger" }
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: "#/components/schemas/AutomationStep" }
+
+    AutomationRunStep:
+      type: object
+      required: [pc, action, outcome, detail, created_at]
+      properties:
+        pc: { type: integer }
+        action: { type: string }
+        outcome: { type: string, enum: [ok, skipped, failed, waiting] }
+        detail: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+
+    AutomationRun:
+      type: object
+      required: [id, automation_id, status, event, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        automation_id: { type: string, format: uuid }
+        contact_id: { type: [string, "null"], format: uuid }
+        phone: { type: string }
+        status: { type: string, enum: [queued, running, waiting, completed, failed, cancelled] }
+        event: { type: object, additionalProperties: true }
+        error: { type: [string, "null"] }
+        resume_at: { type: [string, "null"], format: date-time }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationRunStep" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+
+    AutomationResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Automation" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AutomationListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Automation" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    AutomationRunResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AutomationRun" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AutomationRunListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AutomationRun" } }
         meta: { $ref: "#/components/schemas/Meta" }
