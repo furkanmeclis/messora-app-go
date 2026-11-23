@@ -6,16 +6,31 @@ import { api, ApiError } from './api';
 import { getSessionToken } from './session';
 import type { Me } from '@/lib/types';
 
-const loadMe = cache(async (): Promise<Me> => {
-    if (!(await getSessionToken())) redirect('/login');
+type MeResult =
+    | { me: Me }
+    | { me: null; reason: 'signed-out' }
+    | { me: null; reason: 'invalid' }
+    | { me: null; reason: 'error'; error: unknown };
+
+/** The signed-in user for this request, without redirecting (cached). */
+export const tryMe = cache(async (): Promise<MeResult> => {
+    if (!(await getSessionToken())) return { me: null, reason: 'signed-out' };
     try {
-        return (await api<Me>('/me')).data;
+        return { me: (await api<Me>('/me')).data };
     } catch (err) {
         if (err instanceof ApiError && err.status === 401) {
-            redirect('/logout');
+            return { me: null, reason: 'invalid' };
         }
-        throw err;
+        return { me: null, reason: 'error', error: err };
     }
+});
+
+const loadMe = cache(async (): Promise<Me> => {
+    const r = await tryMe();
+    if (r.me) return r.me;
+    if (r.reason === 'signed-out') redirect('/login');
+    if (r.reason === 'invalid') redirect('/logout');
+    throw r.error;
 });
 
 /**

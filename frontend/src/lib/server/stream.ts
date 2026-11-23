@@ -103,6 +103,7 @@ export async function streamUpload(
     req: NextRequest,
     path: string,
     maxBytes: number,
+    method: 'POST' | 'PUT' = 'POST',
 ): Promise<NextResponse> {
     const fail = (status: number, code: string, message: string) =>
         NextResponse.json(
@@ -134,7 +135,7 @@ export async function streamUpload(
     let res: Response;
     try {
         res = await fetch(`${serverConfig().apiInternalUrl}/api/v1${path}`, {
-            method: 'POST',
+            method,
             headers: h,
             body: req.body,
             cache: 'no-store',

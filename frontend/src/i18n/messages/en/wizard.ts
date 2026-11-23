@@ -1,0 +1,72 @@
+const wizard = {
+    title: 'Set up {organization}',
+    welcome: 'Welcome to Messora',
+    welcomeBody:
+        'A few steps and your workspace is ready. Every step can be skipped and changed later in Settings.',
+    start: 'Start',
+    stepOf: 'Step {current} of {total}',
+    steps: {
+        organization: 'Organisation',
+        language: 'Language',
+        region: 'Date and time',
+        theme: 'Theme',
+        email: 'E-mail',
+        whatsapp: 'WhatsApp',
+        security: 'Security',
+        team: 'Team',
+    },
+    organization: {
+        title: 'Your organisation',
+        body: 'The name and logo appear in the panel and on the sign-in page.',
+    },
+    language: {
+        title: 'Language',
+        body: 'The panel language for you and the default for your team.',
+    },
+    region: {
+        title: 'Date and time',
+        body: 'How dates and times appear across the panel.',
+    },
+    theme: {
+        title: 'Pick a look',
+        body: 'Choose a theme. You can fine-tune every colour later in Settings → Appearance.',
+    },
+    email: {
+        title: 'Outgoing e-mail',
+        body: 'Connect an SMTP server to send invitations and password resets.',
+    },
+    whatsapp: {
+        title: 'Connect WhatsApp',
+        body: 'Add your WhatsApp Business account from Meta. You need the WABA ID and a permanent access token.',
+        connected: '{name} is connected.',
+        openChannels: 'Connect an account',
+        later: 'You can connect accounts at any time from Channels.',
+    },
+    security: {
+        title: 'Two-factor authentication',
+        body: 'Choose which roles must protect their sign-in with an authenticator app.',
+        recommendation: 'Recommended for owners and admins.',
+    },
+    team: {
+        title: 'Invite your team',
+        body: 'Invite people now or later from Users.',
+        email: 'E-mail address',
+        role: 'Role',
+        addAnother: 'Add another person',
+        invite: 'Send invitations',
+        invited: '{count} invitation sent|{count} invitations sent',
+        linkHint:
+            'E-mail is off, so copy each invitation link and send it yourself:',
+    },
+    done: {
+        title: 'All set',
+        body: 'Your workspace is ready. Here is what to do next:',
+        next: {
+            import: 'Import your contacts',
+            template: 'Sync your message templates',
+            automation: 'Create a welcome automation',
+        },
+        open: 'Open the panel',
+    },
+};
+export default wizard;

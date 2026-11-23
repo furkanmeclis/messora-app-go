@@ -9,6 +9,8 @@ const PUBLIC = [
     '/reset-password',
     '/logout',
     '/api/health',
+    // The organisation logo appears on the sign-in page.
+    '/bff/logo',
 ];
 const SESSION_COOKIES = ['__Host-messora_session', 'messora_session'];
 
