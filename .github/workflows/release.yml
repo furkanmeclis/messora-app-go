@@ -103,7 +103,7 @@ jobs:
         if: env.CLOUDFLARE_API_TOKEN != ''
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MESSORA_LICENSE_DIR: ${{ runner.temp }}/messora-license
+          MESSORA_LICENSE_DIR: ${{ runner.temp }}/messora-license-state
           CLOUDFLARE_ACCOUNT_ID: 6bf52c39839fdfa2048a0476e24e817c
           OWNER: ${{ github.repository_owner }}
           VERSION: ${{ inputs.version || github.ref_name }}
