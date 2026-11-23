@@ -1,5 +1,17 @@
+'use client';
+
 import { ExternalLink, Image as ImageIcon, Phone, Reply } from 'lucide-react';
+import { useT } from '@/i18n/client';
 import { fillVariables, parseComponents } from '@/lib/templates';
+
+const FORMATS = { IMAGE: 1, VIDEO: 1, DOCUMENT: 1, LOCATION: 1 } as const;
+const BUTTON_TYPES = {
+    QUICK_REPLY: 1,
+    URL: 1,
+    PHONE_NUMBER: 1,
+    COPY_CODE: 1,
+    OTP: 1,
+} as const;
 
 /**
  * A message bubble showing a template's text parts. Variables stay visible
@@ -14,6 +26,7 @@ export function TemplatePreview({
     values?: { header?: Record<string, string>; body?: Record<string, string> };
     className?: string;
 }) {
+    const t = useT();
     const p = parseComponents(components);
     const header = p.header
         ? fillVariables(p.header, values?.header ?? {})
@@ -27,7 +40,14 @@ export function TemplatePreview({
             {p.headerFormat && p.headerFormat !== 'TEXT' && (
                 <div className="mb-2 flex items-center gap-2 rounded bg-muted p-2 text-xs text-muted-foreground">
                     <ImageIcon className="size-4" />
-                    {p.headerFormat.toLowerCase()} header
+                    {t('templates.preview.header', {
+                        format:
+                            p.headerFormat in FORMATS
+                                ? t(
+                                      `templates.preview.formats.${p.headerFormat as keyof typeof FORMATS}`,
+                                  )
+                                : p.headerFormat.toLowerCase(),
+                    })}
                 </div>
             )}
             {header && (
@@ -36,7 +56,9 @@ export function TemplatePreview({
             {body ? (
                 <p className="break-words whitespace-pre-wrap">{body}</p>
             ) : (
-                <p className="text-muted-foreground italic">No body text</p>
+                <p className="text-muted-foreground italic">
+                    {t('templates.preview.noBody')}
+                </p>
             )}
             {p.footer && (
                 <p className="mt-1 text-xs text-muted-foreground">{p.footer}</p>
@@ -55,7 +77,12 @@ export function TemplatePreview({
                             ) : (
                                 <Reply className="size-3" />
                             )}
-                            {b.text || b.type.toLowerCase()}
+                            {b.text ||
+                                (b.type in BUTTON_TYPES
+                                    ? t(
+                                          `templates.preview.buttonTypes.${b.type as keyof typeof BUTTON_TYPES}`,
+                                      )
+                                    : b.type.toLowerCase())}
                             {b.url && (
                                 <span className="sr-only"> ({b.url})</span>
                             )}

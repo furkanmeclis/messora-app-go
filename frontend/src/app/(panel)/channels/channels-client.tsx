@@ -64,6 +64,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type {
     ActionResult,
     PhoneNumber,
@@ -118,11 +119,11 @@ function ErrorBanner({
 
 const STATUS_BADGE: Record<
     WhatsAppAccount['status'],
-    { label: string; variant: 'secondary' | 'destructive' | 'outline' }
+    'secondary' | 'destructive' | 'outline'
 > = {
-    active: { label: 'Active', variant: 'secondary' },
-    error: { label: 'Error', variant: 'destructive' },
-    disabled: { label: 'Disabled', variant: 'outline' },
+    active: 'secondary',
+    error: 'destructive',
+    disabled: 'outline',
 };
 
 // ── Connect ───────────────────────────────────────────────────────────────
@@ -136,6 +137,7 @@ const CONNECT_FIELDS = [
 ];
 
 export function ConnectAccountDialog() {
+    const t = useT();
     const { guard } = useReauth();
     const [open, setOpen] = useState(false);
     const [idem, setIdem] = useState(newIdempotencyKey);
@@ -172,19 +174,14 @@ export function ConnectAccountDialog() {
         >
             <DialogTrigger asChild>
                 <Button>
-                    <Plus /> Connect account
+                    <Plus /> {t('channels.connect.open')}
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90svh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>
-                        Connect a WhatsApp Business account
-                    </DialogTitle>
+                    <DialogTitle>{t('channels.connect.title')}</DialogTitle>
                     <DialogDescription>
-                        Use a permanent system-user token with the
-                        whatsapp_business_messaging and
-                        whatsapp_business_management permissions. Messora checks
-                        it with Meta before saving anything.
+                        {t('channels.connect.description')}
                     </DialogDescription>
                 </DialogHeader>
                 <form
@@ -195,26 +192,26 @@ export function ConnectAccountDialog() {
                     <ErrorBanner error={error} shown={CONNECT_FIELDS} />
                     <FieldGroup>
                         <TextField
-                            label="Name"
+                            label={t('channels.connect.name')}
                             name="name"
                             required
                             maxLength={120}
-                            placeholder="Main brand"
+                            placeholder={t('channels.connect.namePlaceholder')}
                             error={fe('name')}
                         />
                         <TextField
-                            label="WhatsApp Business Account ID"
+                            label={t('channels.connect.wabaId')}
                             name="waba_id"
                             required
                             inputMode="numeric"
                             pattern="[0-9]{1,32}"
-                            title="Digits only"
+                            title={t('channels.connect.digitsOnly')}
                             autoComplete="off"
                             error={fe('waba_id')}
-                            hint="Digits only, from Meta Business Suite → WhatsApp accounts."
+                            hint={t('channels.connect.wabaIdHint')}
                         />
                         <TextField
-                            label="Access token"
+                            label={t('channels.connect.accessToken')}
                             name="access_token"
                             type="password"
                             required
@@ -222,30 +219,30 @@ export function ConnectAccountDialog() {
                             maxLength={1024}
                             autoComplete="off"
                             error={fe('access_token')}
-                            hint="Stored encrypted; it is never displayed again."
+                            hint={t('channels.connect.accessTokenHint')}
                         />
                         <TextField
-                            label="App ID (optional)"
+                            label={t('channels.connect.appId')}
                             name="app_id"
                             inputMode="numeric"
                             pattern="[0-9]{1,32}"
-                            title="Digits only"
+                            title={t('channels.connect.digitsOnly')}
                             autoComplete="off"
                             error={fe('app_id')}
                         />
                         <TextField
-                            label="App secret (recommended)"
+                            label={t('channels.connect.appSecret')}
                             name="app_secret"
                             type="password"
                             minLength={8}
                             maxLength={256}
                             autoComplete="off"
                             error={fe('app_secret')}
-                            hint="Needed to verify webhook signatures. Without it every webhook from Meta is rejected."
+                            hint={t('channels.connect.appSecretHint')}
                         />
                     </FieldGroup>
                     <Button type="submit" className="w-full" disabled={pending}>
-                        {pending && <Spinner />} Connect
+                        {pending && <Spinner />} {t('channels.connect.submit')}
                     </Button>
                 </form>
             </DialogContent>
@@ -262,6 +259,7 @@ export function AccountList({
     accounts: WhatsAppAccount[];
     manage: boolean;
 }) {
+    const t = useT();
     if (accounts.length === 0) {
         return (
             <Empty className="py-10">
@@ -269,18 +267,18 @@ export function AccountList({
                     <EmptyMedia variant="icon">
                         <Phone />
                     </EmptyMedia>
-                    <EmptyTitle>No WhatsApp account connected</EmptyTitle>
+                    <EmptyTitle>{t('channels.accounts.empty')}</EmptyTitle>
                     <EmptyDescription>
                         {manage
-                            ? 'Connect a WhatsApp Business account to send messages, templates and campaigns.'
-                            : 'Ask an administrator to connect a WhatsApp Business account.'}
+                            ? t('channels.accounts.emptyManage')
+                            : t('channels.accounts.emptyAsk')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
         );
     }
     return (
-        <ul className="divide-y" aria-label="WhatsApp accounts">
+        <ul className="divide-y" aria-label={t('channels.accounts.label')}>
             {accounts.map((a) => (
                 <AccountRow key={a.id} account={a} manage={manage} />
             ))}
@@ -295,17 +293,20 @@ function AccountRow({
     account: WhatsAppAccount;
     manage: boolean;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const { guard } = useReauth();
     const [pending, startTransition] = useTransition();
     const [syncResult, setSyncResult] = useState<string | null>(null);
-    const badge = STATUS_BADGE[a.status];
 
     const sync = () =>
         startTransition(async () => {
             const r = await guard(() => syncAccountAction(a.id));
             if (r.ok) {
-                const text = `Synced ${r.data.phone_numbers} phone number(s) and ${r.data.templates} template(s).`;
+                const text = t('channels.accounts.synced', {
+                    numbers: r.data.phone_numbers,
+                    templates: r.data.templates,
+                });
                 setSyncResult(text);
                 toast.success(text);
             } else {
@@ -334,23 +335,27 @@ function AccountRow({
                 <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{a.name}</span>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <Badge variant={STATUS_BADGE[a.status]}>
+                            {t(`channels.accounts.statuses.${a.status}`)}
+                        </Badge>
                         {!a.app_secret_configured && (
-                            <Badge variant="outline">No app secret</Badge>
+                            <Badge variant="outline">
+                                {t('channels.accounts.noAppSecret')}
+                            </Badge>
                         )}
                     </div>
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 text-sm text-muted-foreground">
-                        <dt>WABA ID</dt>
+                        <dt>{t('channels.accounts.wabaId')}</dt>
                         <dd className="font-mono">{a.waba_id}</dd>
                         {a.app_id && (
                             <>
-                                <dt>App ID</dt>
+                                <dt>{t('channels.accounts.appId')}</dt>
                                 <dd className="font-mono">{a.app_id}</dd>
                             </>
                         )}
-                        <dt>Last synced</dt>
+                        <dt>{t('channels.accounts.lastSynced')}</dt>
                         <dd>{formatDateTime(a.last_synced_at)}</dd>
-                        <dt>Connected</dt>
+                        <dt>{t('channels.accounts.connected')}</dt>
                         <dd>{formatDateTime(a.created_at)}</dd>
                     </dl>
                 </div>
@@ -362,7 +367,8 @@ function AccountRow({
                             disabled={pending || a.status === 'disabled'}
                             onClick={sync}
                         >
-                            {pending ? <Spinner /> : <RefreshCw />} Sync
+                            {pending ? <Spinner /> : <RefreshCw />}{' '}
+                            {t('channels.accounts.sync')}
                         </Button>
                         <CredentialsDialog account={a} />
                         <Button
@@ -371,7 +377,9 @@ function AccountRow({
                             disabled={pending}
                             onClick={toggle}
                         >
-                            {a.status === 'disabled' ? 'Enable' : 'Disable'}
+                            {a.status === 'disabled'
+                                ? t('channels.accounts.enable')
+                                : t('channels.accounts.disable')}
                         </Button>
                         <DisconnectButton account={a} />
                     </div>
@@ -380,13 +388,10 @@ function AccountRow({
             {a.last_error && (
                 <Alert variant="destructive">
                     <AlertTriangle />
-                    <AlertTitle>Last error</AlertTitle>
+                    <AlertTitle>{t('channels.accounts.lastError')}</AlertTitle>
                     <AlertDescription>
                         <p>{a.last_error}</p>
-                        <p>
-                            Sending fails fast until a successful sync or new
-                            credentials.
-                        </p>
+                        <p>{t('channels.accounts.lastErrorHint')}</p>
                     </AlertDescription>
                 </Alert>
             )}
@@ -394,7 +399,7 @@ function AccountRow({
                 <p className="text-sm text-muted-foreground" role="status">
                     {syncResult}{' '}
                     <Link className="underline" href="/templates">
-                        View templates
+                        {t('channels.accounts.viewTemplates')}
                     </Link>
                 </p>
             )}
@@ -403,6 +408,7 @@ function AccountRow({
 }
 
 function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
+    const t = useT();
     const { guard } = useReauth();
     const [open, setOpen] = useState(false);
     const [pending, startTransition] = useTransition();
@@ -447,15 +453,16 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
         >
             <DialogTrigger asChild>
                 <Button size="sm" variant="outline">
-                    <KeyRound /> Edit / rotate
+                    <KeyRound /> {t('channels.edit.open')}
                 </Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Edit {account.name}</DialogTitle>
+                    <DialogTitle>
+                        {t('channels.edit.title', { name: account.name })}
+                    </DialogTitle>
                     <DialogDescription>
-                        Leave a secret empty to keep the current one. A new
-                        token is checked with Meta first.
+                        {t('channels.edit.description')}
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={submit} className="space-y-4">
@@ -465,7 +472,7 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
                     />
                     <FieldGroup>
                         <TextField
-                            label="Name"
+                            label={t('channels.edit.name')}
                             name="name"
                             required
                             maxLength={120}
@@ -474,7 +481,7 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
                             error={fe('name')}
                         />
                         <TextField
-                            label="New access token"
+                            label={t('channels.edit.accessToken')}
                             name="access_token"
                             type="password"
                             minLength={20}
@@ -484,7 +491,7 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
                             error={fe('access_token')}
                         />
                         <TextField
-                            label="New app secret"
+                            label={t('channels.edit.appSecret')}
                             name="app_secret"
                             type="password"
                             minLength={8}
@@ -494,13 +501,13 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
                             error={fe('app_secret')}
                             hint={
                                 account.app_secret_configured
-                                    ? 'An app secret is configured.'
-                                    : 'No app secret yet: webhooks are rejected until you add one.'
+                                    ? t('channels.edit.secretConfigured')
+                                    : t('channels.edit.noSecret')
                             }
                         />
                     </FieldGroup>
                     <Button type="submit" className="w-full" disabled={pending}>
-                        {pending && <Spinner />} Save
+                        {pending && <Spinner />} {t('common.save')}
                     </Button>
                 </form>
             </DialogContent>
@@ -509,6 +516,7 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
 }
 
 function DisconnectButton({ account }: { account: WhatsAppAccount }) {
+    const t = useT();
     const { guard } = useReauth();
     const [open, setOpen] = useState(false);
     const [pending, startTransition] = useTransition();
@@ -554,29 +562,34 @@ function DisconnectButton({ account }: { account: WhatsAppAccount }) {
                 className="text-destructive"
                 onClick={() => setOpen(true)}
             >
-                Disconnect
+                {t('channels.disconnect.open')}
             </Button>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>
                         {blocked
-                            ? 'This account cannot be removed'
-                            : `Disconnect ${account.name}?`}
+                            ? t('channels.disconnect.blockedTitle')
+                            : t('channels.disconnect.title', {
+                                  name: account.name,
+                              })}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                         {blocked
-                            ? `${blocked} Conversations and delivery history refer to its numbers, so it stays; a disabled account sends nothing and can be enabled again later.`
-                            : 'Its phone numbers and templates are removed from Messora. Accounts with message history cannot be removed; disable them instead.'}
+                            ? t('channels.disconnect.blockedDescription', {
+                                  reason: blocked,
+                              })
+                            : t('channels.disconnect.description')}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel disabled={pending}>
-                        Cancel
+                        {t('common.cancel')}
                     </AlertDialogCancel>
                     {blocked ? (
                         account.status !== 'disabled' && (
                             <Button onClick={disable} disabled={pending}>
-                                {pending && <Spinner />} Disable instead
+                                {pending && <Spinner />}{' '}
+                                {t('channels.disconnect.disableInstead')}
                             </Button>
                         )
                     ) : (
@@ -588,7 +601,8 @@ function DisconnectButton({ account }: { account: WhatsAppAccount }) {
                             disabled={pending}
                             variant="destructive"
                         >
-                            {pending && <Spinner />} Disconnect
+                            {pending && <Spinner />}{' '}
+                            {t('channels.disconnect.confirm')}
                         </AlertDialogAction>
                     )}
                 </AlertDialogFooter>
@@ -606,13 +620,13 @@ export function PhoneNumberTable({
     numbers: PhoneNumber[];
     manage: boolean;
 }) {
+    const t = useT();
     const { guard } = useReauth();
     const [pending, startTransition] = useTransition();
     if (numbers.length === 0) {
         return (
             <p className="p-6 text-sm text-muted-foreground">
-                No phone numbers yet. They are imported when an account is
-                connected or synced.
+                {t('channels.numbers.empty')}
             </p>
         );
     }
@@ -620,13 +634,17 @@ export function PhoneNumberTable({
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Number</TableHead>
-                    <TableHead>Verified name</TableHead>
-                    <TableHead>Account</TableHead>
-                    <TableHead>Quality</TableHead>
-                    <TableHead>Messaging limit</TableHead>
+                    <TableHead>{t('channels.numbers.number')}</TableHead>
+                    <TableHead>{t('channels.numbers.verifiedName')}</TableHead>
+                    <TableHead>{t('channels.numbers.account')}</TableHead>
+                    <TableHead>{t('channels.numbers.quality')}</TableHead>
                     <TableHead>
-                        <span className="sr-only">Default</span>
+                        {t('channels.numbers.messagingLimit')}
+                    </TableHead>
+                    <TableHead>
+                        <span className="sr-only">
+                            {t('channels.numbers.default')}
+                        </span>
                     </TableHead>
                 </TableRow>
             </TableHeader>
@@ -647,14 +665,16 @@ export function PhoneNumberTable({
                             {n.messaging_limit || '—'}
                             {n.throughput_level && (
                                 <div className="text-xs text-muted-foreground">
-                                    Throughput: {n.throughput_level}
+                                    {t('channels.numbers.throughput', {
+                                        level: n.throughput_level,
+                                    })}
                                 </div>
                             )}
                         </TableCell>
                         <TableCell className="text-right">
                             {n.is_default ? (
                                 <Badge>
-                                    <Star /> Default
+                                    <Star /> {t('channels.numbers.default')}
                                 </Badge>
                             ) : (
                                 manage && (
@@ -674,7 +694,7 @@ export function PhoneNumberTable({
                                             })
                                         }
                                     >
-                                        Set default
+                                        {t('channels.numbers.setDefault')}
                                     </Button>
                                 )
                             )}
@@ -687,15 +707,24 @@ export function PhoneNumberTable({
 }
 
 function QualityBadge({ rating }: { rating: string }) {
+    const t = useT();
     const r = rating.toUpperCase();
-    if (!r || r === 'UNKNOWN') return <Badge variant="outline">Unknown</Badge>;
+    if (!r || r === 'UNKNOWN')
+        return (
+            <Badge variant="outline">
+                {t('channels.numbers.qualities.unknown')}
+            </Badge>
+        );
     const variant =
         r === 'RED' || r === 'LOW'
             ? 'destructive'
             : r === 'YELLOW' || r === 'MEDIUM'
               ? 'outline'
               : 'secondary';
-    const label = { GREEN: 'High', YELLOW: 'Medium', RED: 'Low' }[r] ?? rating;
+    const key = ({ GREEN: 'high', YELLOW: 'medium', RED: 'low' } as const)[
+        r as 'GREEN' | 'YELLOW' | 'RED'
+    ];
+    const label = key ? t(`channels.numbers.qualities.${key}`) : rating;
     return <Badge variant={variant}>{label}</Badge>;
 }
 
@@ -704,12 +733,15 @@ function QualityBadge({ rating }: { rating: string }) {
 function CopyField({
     id,
     label,
+    copyLabel,
     value,
 }: {
     id: string;
     label: string;
+    copyLabel: string;
     value: string;
 }) {
+    const t = useT();
     return (
         <div className="space-y-1.5">
             <Label htmlFor={id}>{label}</Label>
@@ -724,14 +756,14 @@ function CopyField({
                     type="button"
                     variant="outline"
                     size="icon"
-                    aria-label={`Copy ${label.toLowerCase()}`}
+                    aria-label={copyLabel}
                     onClick={() => {
                         navigator.clipboard.writeText(value).then(
-                            () => toast.success(`${label} copied`),
                             () =>
-                                toast.error(
-                                    'Copying is not allowed here; select the text instead.',
+                                toast.success(
+                                    t('channels.webhook.copied', { label }),
                                 ),
+                            () => toast.error(t('channels.webhook.copyFailed')),
                         );
                     }}
                 >
@@ -743,14 +775,13 @@ function CopyField({
 }
 
 export function WebhookCard({ setup }: { setup: WebhookSetup }) {
+    const t = useT();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Webhook setup</CardTitle>
+                <CardTitle>{t('channels.webhook.title')}</CardTitle>
                 <CardDescription>
-                    Enter these values in the Meta App dashboard under WhatsApp
-                    → Configuration. The callback URL must be reachable over
-                    public HTTPS.
+                    {t('channels.webhook.description')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -760,29 +791,30 @@ export function WebhookCard({ setup }: { setup: WebhookSetup }) {
                         data-testid="signature-warning"
                     >
                         <AlertTriangle />
-                        <AlertTitle>Signature verification is off</AlertTitle>
+                        <AlertTitle>
+                            {t('channels.webhook.signatureOff')}
+                        </AlertTitle>
                         <AlertDescription>
-                            No app secret is configured, so every webhook from
-                            Meta is rejected: no incoming messages and no
-                            delivery updates. Add the app secret to an account
-                            (Edit / rotate) or set META_APP_SECRET.
+                            {t('channels.webhook.signatureOffHint')}
                         </AlertDescription>
                     </Alert>
                 )}
                 <CopyField
                     id="webhook-callback"
-                    label="Callback URL"
+                    label={t('channels.webhook.callbackUrl')}
+                    copyLabel={t('channels.webhook.copyCallbackUrl')}
                     value={setup.callback_url}
                 />
                 <CopyField
                     id="webhook-verify-token"
-                    label="Verify token"
+                    label={t('channels.webhook.verifyToken')}
+                    copyLabel={t('channels.webhook.copyVerifyToken')}
                     value={setup.verify_token}
                 />
                 {setup.fields && setup.fields.length > 0 && (
                     <div className="space-y-1.5">
                         <p className="text-sm font-medium">
-                            Subscribe to these fields
+                            {t('channels.webhook.fields')}
                         </p>
                         <div className="flex flex-wrap gap-1">
                             {setup.fields.map((f) => (

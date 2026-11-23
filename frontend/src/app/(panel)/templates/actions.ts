@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { api } from '@/lib/server/api';
 import { runAction } from '@/lib/server/actions';
 import type { ActionResult, Schemas, Template } from '@/lib/types';
+import { getT } from '@/i18n/server';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -12,12 +13,14 @@ export async function createTemplateAction(
     input: Schemas['CreateTemplateRequest'],
     idempotencyKey: string,
 ): Promise<ActionResult<Template>> {
+    const t = await getT();
     if (!UUID.test(input.account_id)) {
+        const message = t('templates.validation.chooseAccount');
         return {
             ok: false,
             code: 'VALIDATION_ERROR',
-            message: 'Choose an account.',
-            fieldErrors: { account_id: 'Choose an account.' },
+            message,
+            fieldErrors: { account_id: message },
         };
     }
     const res = await runAction(
@@ -30,7 +33,7 @@ export async function createTemplateAction(
                     timeoutMs: 30_000,
                 })
             ).data,
-        'Template submitted for review.',
+        t('templates.create.submitted'),
     );
     revalidatePath('/templates');
     return res;
@@ -38,13 +41,14 @@ export async function createTemplateAction(
 
 export async function deleteTemplateAction(id: string): Promise<ActionResult> {
     if (!UUID.test(id)) throw new Error('invalid id');
+    const t = await getT();
     const res = await runAction(
         () =>
             api(`/templates/${id}`, {
                 method: 'DELETE',
                 timeoutMs: 30_000,
             }).then(() => undefined),
-        'Template deleted.',
+        t('templates.delete.done'),
     );
     revalidatePath('/templates');
     return res;

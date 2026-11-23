@@ -1,6 +1,11 @@
 import type { Messages } from '../en';
 
 const templates: Messages['templates'] = {
+    title: 'Şablonlar',
+    description:
+        "Meta'nın onayladığı mesaj şablonları 24 saatlik pencerenin dışında ve kampanyalarda gönderilebilir.",
+    loading: 'Yükleniyor',
+    syncFromMeta: "Meta'dan eşitle",
     statuses: {
         APPROVED: 'Onaylandı',
         PENDING: 'Onay bekliyor',
@@ -12,6 +17,130 @@ const templates: Messages['templates'] = {
         MARKETING: 'Pazarlama',
         UTILITY: 'Hizmet',
         AUTHENTICATION: 'Kimlik doğrulama',
+    },
+    filters: {
+        account: 'Hesap',
+        allAccounts: 'Tüm hesaplar',
+        status: 'Durum',
+        allStatuses: 'Tüm durumlar',
+        clear: 'Filtreleri temizle',
+    },
+    list: {
+        label: 'Şablonlar',
+        emptyFiltered: 'Bu filtrelere uyan şablon yok',
+        empty: 'Henüz şablon yok',
+        emptyFilteredHint: 'Başka bir hesap veya durum deneyin.',
+        emptyHint:
+            "Buradan yeni bir şablon oluşturun ya da Meta Business Suite'te hazırladıklarınızı içe aktarmak için hesabı eşitleyin.",
+        emptyNoAccounts:
+            'Kanallar sayfasında bir WhatsApp hesabı bağlandığında şablonlar burada görünür.',
+        positional: 'numaralı',
+        named: 'adlandırılmış',
+        rejected: 'Reddedildi: {reason}',
+        synced: 'Son eşitleme {time}',
+        quality: ' · kalite {score}',
+        qualities: {
+            HIGH: 'yüksek',
+            MEDIUM: 'orta',
+            LOW: 'düşük',
+            GREEN: 'yeşil',
+            YELLOW: 'sarı',
+            RED: 'kırmızı',
+        },
+    },
+    delete: {
+        label: '{name} ({language}) şablonunu sil',
+        title: '{name} ({language}) silinsin mi?',
+        description:
+            "Bu dil sürümü Meta'dan da silinir. Onu kullanan kampanyalar artık başlatılamaz ve Meta bu adı 30 gün boyunca yeniden kullanmanıza izin vermez.",
+        done: 'Şablon silindi.',
+    },
+    preview: {
+        title: 'Önizleme',
+        header: '{format} başlığı',
+        formats: {
+            IMAGE: 'Görsel',
+            VIDEO: 'Video',
+            DOCUMENT: 'Belge',
+            LOCATION: 'Konum',
+        },
+        noBody: 'Gövde metni yok',
+        buttonTypes: {
+            QUICK_REPLY: 'hızlı yanıt',
+            URL: 'bağlantı',
+            PHONE_NUMBER: 'telefon numarası',
+            COPY_CODE: 'kodu kopyala',
+            OTP: 'tek kullanımlık kod',
+        },
+    },
+    create: {
+        open: 'Yeni şablon',
+        title: 'Yeni şablon',
+        description:
+            "Şablon incelenmesi için Meta'ya gönderilir; onaylandıktan sonra kullanılabilir.",
+        account: 'Hesap',
+        chooseAccount: 'Bir hesap seçin',
+        name: 'Ad',
+        nameHint: 'Küçük harf, rakam ve alt çizgi.',
+        namePlaceholder: 'siparis_durumu',
+        language: 'Dil',
+        category: 'Kategori',
+        variables: 'Değişkenler',
+        numbered: 'Numaralı: {example}',
+        namedFormat: 'Adlandırılmış: {example}',
+        header: 'Başlık metni (isteğe bağlı)',
+        body: 'Gövde',
+        bodyPlaceholderNamed:
+            'Merhaba {{first_name}}, {{order_id}} numaralı siparişiniz kargoya verildi.',
+        bodyPlaceholderPositional:
+            'Merhaba {{1}}, {{2}} numaralı siparişiniz kargoya verildi.',
+        bodyHintNamed: 'Değişkenleri {{ad}} biçiminde ekleyin.',
+        bodyHintPositional:
+            'Değişkenleri sırayla {{1}}, {{2}} … biçiminde ekleyin.',
+        examples: 'Örnek değerler',
+        examplesHint: 'Meta şablonu bu değerlerle inceler.',
+        exampleHeader: 'Başlık {variable}',
+        exampleBody: 'Gövde {variable}',
+        footer: 'Alt bilgi (isteğe bağlı)',
+        footerPlaceholder: 'Abonelikten çıkmak için DUR yazın',
+        buttons: 'Düğmeler (isteğe bağlı)',
+        buttonType: '{n}. düğme türü',
+        buttonTypes: {
+            QUICK_REPLY: 'Hızlı yanıt',
+            URL: 'Web sitesi',
+            PHONE_NUMBER: 'Arama',
+        },
+        buttonText: '{n}. düğme metni',
+        buttonTextPlaceholder: 'Düğme metni',
+        removeButton: '{n}. düğmeyi kaldır',
+        buttonAddress: '{n}. düğme adresi',
+        buttonPhone: '{n}. düğme telefon numarası',
+        buttonExample: '{n}. düğme örnek adresi',
+        addButton: 'Düğme ekle',
+        submit: 'İncelemeye gönder',
+        submitted: 'Şablon incelemeye gönderildi.',
+    },
+    validation: {
+        chooseAccount: 'Bir hesap seçin.',
+        name: 'Küçük harf, rakam ve alt çizgi kullanın.',
+        language: 'Dil kodu, ör. tr veya en_US.',
+        bodyRequired: 'Gövde metni zorunludur.',
+        max1024: 'En fazla 1024 karakter.',
+        max60: 'En fazla 60 karakter.',
+        headerOneVariable: 'Başlıkta yalnızca bir değişken olabilir.',
+        footerNoVariables: 'Alt bilgi değişken içeremez.',
+        exampleRequired: 'Meta bir örnek değer istiyor.',
+        buttonTextRequired: 'Düğme metni zorunludur.',
+        https: 'https:// ile başlayan bir adres girin.',
+        urlVariable: 'Adresin sonunda yalnızca bir {{1}} olabilir.',
+        urlExample: 'Tam bir örnek adres girin.',
+        phone: 'Uluslararası biçimde telefon numarası girin.',
+        positionalNumbers:
+            'Numaralı değişkenler sayıdır: {variable} yerine {{1}}, {{2}} … kullanın.',
+        positionalOrder:
+            'Değişkenleri boşluk bırakmadan sırayla numaralandırın: {{1}}, {{2}}, {{3}} …',
+        namedChars:
+            'Adlandırılmış değişkenlerde küçük harf, rakam ve alt çizgi kullanılır: {variable} kullanılamaz.',
     },
 };
 export default templates;
