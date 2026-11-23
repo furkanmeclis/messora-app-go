@@ -13,10 +13,28 @@ import './globals.css';
 // CSP nonce changes on each response.
 export const dynamic = 'force-dynamic';
 
+/** A short, stable fingerprint (cache key, not security). */
+function hash(text: string): string {
+    let h = 5381;
+    for (let i = 0; i < text.length; i++)
+        h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-    const { organization_name: org } = await getAppearance();
+    const { organization_name: org, logo, theme } = await getAppearance();
+    // The version changes with the logo or theme, so browsers refetch it.
+    const v = encodeURIComponent(logo?.version ?? hash(JSON.stringify(theme)));
     return {
         title: { default: org, template: `%s · ${org}` },
+        icons: {
+            icon: [
+                {
+                    url: `/bff/favicon?v=${v}`,
+                    type: logo?.content_type ?? 'image/svg+xml',
+                },
+            ],
+        },
         description: 'Self-hosted WhatsApp Business Cloud API platform',
         robots: { index: false, follow: false },
     };

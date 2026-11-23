@@ -11,6 +11,7 @@ const PUBLIC = [
     '/api/health',
     // The organisation logo appears on the sign-in page.
     '/bff/logo',
+    '/bff/favicon',
 ];
 const SESSION_COOKIES = ['__Host-messora_session', 'messora_session'];
 

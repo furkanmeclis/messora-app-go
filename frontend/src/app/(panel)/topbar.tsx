@@ -21,7 +21,6 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import {
     Tooltip,
@@ -258,7 +257,7 @@ export function Topbar({
             className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/75 px-3 backdrop-blur-xl md:px-4"
         >
             <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-1 h-4" />
+            <span aria-hidden className="mr-1 h-5 w-px shrink-0 bg-border" />
             {section && (
                 <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
                     <section.icon className="size-4 shrink-0 text-primary" />
