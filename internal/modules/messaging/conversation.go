@@ -10,6 +10,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 )
 
 // Conversations (the inbox threads) are derived from messages: every message
@@ -79,6 +80,14 @@ func recordNew(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message) (db.
 		if _, err := q.InsertConversationEvent(ctx, db.InsertConversationEventParams{ConversationID: c.ID, Kind: "reopened", ActorType: "system"}); err != nil {
 			return c, err
 		}
+		if err := webhooks.ConversationChanged(ctx, tx, "reopened", c, "system", nil); err != nil {
+			return c, err
+		}
+	}
+	if inbound {
+		if err := webhooks.MessageReceived(ctx, tx, m, c.ID); err != nil {
+			return c, err
+		}
 	}
 	if err := publishMessage(ctx, tx, realtime.TypeMessageCreated, m, &c.ID); err != nil {
 		return c, err
@@ -95,6 +104,9 @@ func announceStatus(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message)
 	case err == nil:
 		conv = &c.ID
 	case !errors.Is(err, pgx.ErrNoRows):
+		return err
+	}
+	if err := webhooks.MessageStatus(ctx, tx, m, conv); err != nil {
 		return err
 	}
 	return publishMessage(ctx, tx, realtime.TypeMessageStatus, m, conv)

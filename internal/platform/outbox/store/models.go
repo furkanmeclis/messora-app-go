@@ -317,6 +317,13 @@ type OutboxEvent struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type OutgoingWebhookEvent struct {
+	ID        pgtype.UUID
+	Type      string
+	Payload   []byte
+	CreatedAt pgtype.Timestamptz
+}
+
 type PasswordResetToken struct {
 	ID        pgtype.UUID
 	UserID    pgtype.UUID
@@ -438,6 +445,38 @@ type UserSession struct {
 	LastSeenAt pgtype.Timestamptz
 	ExpiresAt  pgtype.Timestamptz
 	RevokedAt  pgtype.Timestamptz
+}
+
+type WebhookDelivery struct {
+	ID               pgtype.UUID
+	EventID          pgtype.UUID
+	EndpointID       pgtype.UUID
+	Status           string
+	Attempts         int32
+	NextAttemptAt    pgtype.Timestamptz
+	LockedUntil      pgtype.Timestamptz
+	LastAttemptAt    pgtype.Timestamptz
+	LastStatusCode   *int32
+	LastDurationMs   *int32
+	LastError        *string
+	LastResponseBody *string
+	DeliveredAt      pgtype.Timestamptz
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+}
+
+type WebhookEndpoint struct {
+	ID             pgtype.UUID
+	Url            string
+	Description    string
+	EventTypes     []string
+	Active         bool
+	SecretEnc      []byte
+	SecretLast4    string
+	DisabledReason *string
+	CreatedBy      pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
 }
 
 type WebhookEvent struct {

@@ -9,6 +9,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
@@ -24,6 +25,7 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "campaigns_due", Every: time.Minute, TaskType: campaigns.TypeStartDue},
 		{Name: "campaign_reaper", Every: time.Minute, TaskType: campaigns.TypeReaper},
 		{Name: "automation_reaper", Every: time.Minute, TaskType: automation.TypeReaper},
+		{Name: "webhook_cleanup", Every: 6 * time.Hour, TaskType: webhooks.TypeCleanup},
 	}
 }
 

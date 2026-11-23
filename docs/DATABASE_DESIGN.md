@@ -273,14 +273,22 @@ automation_execution_steps (id uuid PK, execution_id FK CASCADE, node_id text, a
 ## 8. Giden webhook'lar
 
 ```sql
-webhook_endpoints (id uuid PK, url text, secret_enc bytea, events text[], is_active bool, description text, created_by FK, created_at, updated_at)
+webhook_endpoints (id uuid PK, url text, description text, event_types text[], active bool,
+  secret_enc bytea, secret_last4 text, disabled_reason text, created_by FK, created_at, updated_at)
+  GIN INDEX (event_types) WHERE active
+outgoing_webhook_events (id uuid PK, type text, payload jsonb, created_at)   INDEX (created_at)
 webhook_deliveries (
-  id uuid PK, endpoint_id FK CASCADE, event_id uuid, event_type text, payload jsonb,
-  status text CHECK (pending|succeeded|failed|dead), attempts smallint, next_attempt_at,
-  response_status int, response_snippet text, last_error text, delivered_at, created_at,
-  UNIQUE (endpoint_id, event_id)
-)  INDEX (next_attempt_at) WHERE status='pending' ; INDEX (endpoint_id, created_at DESC)
+  id uuid PK, event_id FK CASCADE, endpoint_id FK CASCADE,
+  status text CHECK (pending|delivering|retrying|succeeded|failed), attempts int, next_attempt_at,
+  locked_until, last_attempt_at, last_status_code int, last_duration_ms int, last_error text,
+  last_response_body text, delivered_at, created_at, updated_at,
+  UNIQUE (event_id, endpoint_id)
+)  INDEX (endpoint_id, id DESC)
 ```
+
+- Event, değişikliği yapan transaction'da yazılır (yalnızca aktif bir abone varsa) ve outbox'a `webhook:fanout` task'i bırakır. Fan-out her abone endpoint için bir teslimat satırı açar; `UNIQUE (event_id, endpoint_id)` tekrar eden relay'de çift teslimatı engeller.
+- Retry planı Redis'te değil, `next_attempt_at` ve gecikmeli bir outbox satırında durur. `locked_until`, çalışırken ölen bir worker'ın teslimatını lease süresi sonunda başka worker'ın almasını sağlar.
+- `webhook_deliveries` için ayrı `payload` yok: gövde event'ten okunur, böylece yeniden gönderim aynı event'i (aynı `id`) taşır.
 
 ## 9. Saklama ve temizlik
 
@@ -289,7 +297,7 @@ webhook_deliveries (
 | `whatsapp_webhook_events` (işlenmiş) | 30 gün | `RETENTION_WEBHOOK_EVENTS_DAYS` |
 | `outbox_events` (yayınlanmış) | 7 gün | sabit |
 | `idempotency_keys` | 24 saat | sabit |
-| `webhook_deliveries` | 30 gün | `RETENTION_WEBHOOK_DELIVERIES_DAYS` |
+| `outgoing_webhook_events` + `webhook_deliveries` | 30 gün | sabit (`webhook:cleanup`, 6 saatte bir) |
 | `audit_logs` | süresiz | `RETENTION_AUDIT_DAYS` (0 = süresiz) |
 | `user_sessions` (süresi dolmuş) | 7 gün sonra silinir | sabit |
 | `messages`, `conversations` | süresiz | ileride arşivleme |

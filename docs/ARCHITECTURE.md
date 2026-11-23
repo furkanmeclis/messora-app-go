@@ -268,7 +268,7 @@ worker webhook:process (idempotent):
 |---|---|---|
 | `critical` | 6 | `webhook:process`, `message:send` (inbox/API/otomasyon kaynaklı) |
 | `campaigns` | 3 | `campaign:materialize`, `campaign:dispatch`, `message:send` (kampanya) |
-| `default` | 3 | `automation:run`, `automation:resume`, `webhook:deliver`, `media:download`, `template:sync` |
+| `default` | 3 | `automation:run`, `automation:resume`, `webhook:fanout`, `webhook:deliver`, `webhook:cleanup`, `media:download`, `template:sync` |
 | `bulk` | 1 | `contacts:import`, `contacts:export`, `segment:preview` |
 
 - Inbox yanıtları kampanya trafiğinin arkasında beklemesin diye kampanya mesajları ayrı kuyruğa gider (aynı numara rate limiter'ını paylaşırlar).

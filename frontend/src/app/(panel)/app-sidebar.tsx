@@ -17,6 +17,7 @@ import {
     Sun,
     UserRound,
     Users,
+    Webhook,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -77,6 +78,12 @@ const WORKSPACE: NavItem[] = [
         icon: Settings,
         permission: 'settings.read',
     },
+    {
+        href: '/settings/webhooks',
+        label: 'Webhooks',
+        icon: Webhook,
+        permission: 'webhooks.manage',
+    },
 ];
 
 const ACCOUNT: NavItem[] = [
@@ -112,8 +119,17 @@ export function AppSidebar({
                 (!i.permission || permissions.includes(i.permission)) &&
                 (!restricted || i.href === '/account/security'),
         );
-    const isActive = (href: string) =>
-        href === '/' ? pathname === '/' : pathname.startsWith(href);
+    // The most specific matching item is active (/settings/webhooks is not
+    // also /settings).
+    const matches = (href: string) =>
+        href === '/'
+            ? pathname === '/'
+            : pathname === href || pathname.startsWith(`${href}/`);
+    const activeHref = [...WORKSPACE, ...ACCOUNT]
+        .map((i) => i.href)
+        .filter(matches)
+        .sort((a, b) => b.length - a.length)[0];
+    const isActive = (href: string) => href === activeHref;
 
     const group = (label: string, items: NavItem[]) => {
         const v = visible(items);

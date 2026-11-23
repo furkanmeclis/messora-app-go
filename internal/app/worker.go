@@ -19,6 +19,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
@@ -84,6 +85,7 @@ func RunWorker(ctx context.Context) error {
 	registerMessaging(mux, svc.messaging)
 	registerCampaigns(mux, svc.campaigns, svc.messaging, log)
 	registerAutomations(mux, svc.automation, log)
+	registerWebhooks(mux, svc.webhooks, log)
 	mux.HandleFunc(contacts.TypeImport, func(ctx context.Context, t *asynq.Task) error {
 		var p struct {
 			ImportID uuid.UUID `json:"import_id"`
@@ -207,6 +209,43 @@ func registerCampaigns(mux *asynq.ServeMux, c *campaigns.Service, m *messaging.S
 		n, err := c.Reap(ctx, m.Send)
 		if n > 0 {
 			log.WarnContext(ctx, "campaign reaper repaired work left by a stopped worker", "items", n)
+		}
+		return err
+	})
+}
+
+// registerWebhooks wires outgoing webhook fan-out, delivery and retention.
+func registerWebhooks(mux *asynq.ServeMux, w *webhooks.Service, log *slog.Logger) {
+	idFrom := func(t *asynq.Task, key string) (uuid.UUID, error) {
+		var p map[string]string
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return uuid.Nil, fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		id, err := uuid.Parse(p[key])
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("%w: bad %s", asynq.SkipRetry, key)
+		}
+		return id, nil
+	}
+	mux.HandleFunc(webhooks.TypeFanOut, func(ctx context.Context, t *asynq.Task) error {
+		id, err := idFrom(t, "event_id")
+		if err != nil {
+			return err
+		}
+		_, err = w.FanOut(ctx, id)
+		return err
+	})
+	mux.HandleFunc(webhooks.TypeDeliver, func(ctx context.Context, t *asynq.Task) error {
+		id, err := idFrom(t, "delivery_id")
+		if err != nil {
+			return err
+		}
+		return w.Deliver(ctx, id)
+	})
+	mux.HandleFunc(webhooks.TypeCleanup, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := w.Cleanup(ctx, webhooks.Retention)
+		if n > 0 {
+			log.InfoContext(ctx, "webhook cleanup finished", "events_deleted", n)
 		}
 		return err
 	})

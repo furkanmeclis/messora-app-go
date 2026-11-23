@@ -21,6 +21,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -161,6 +162,9 @@ func (s *Service) Create(ctx context.Context, phone string, f Fields, source str
 		if err := setTagsAndGroups(ctx, tx, q, c.ID, f); err != nil {
 			return err
 		}
+		if err := webhooks.ContactChanged(ctx, tx, webhooks.TypeContactCreated, c.ID); err != nil {
+			return err
+		}
 		return audit.Record(ctx, q, audit.Entry{Action: "contact.create", EntityType: "contact", EntityID: &c.ID})
 	})
 	return c, err
@@ -192,6 +196,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, f Fields) (db.Contac
 			return err
 		}
 		if err := setTagsAndGroups(ctx, tx, q, id, f); err != nil {
+			return err
+		}
+		if err := webhooks.ContactChanged(ctx, tx, webhooks.TypeContactUpdated, id); err != nil {
 			return err
 		}
 		return audit.Record(ctx, q, audit.Entry{Action: "contact.update", EntityType: "contact", EntityID: &id})
@@ -296,8 +303,9 @@ func (s *Service) SetConsent(ctx context.Context, id uuid.UUID, optIn bool, sour
 	if len(note) > 500 {
 		return apperr.Validation("note", "Note is limited to 500 characters.")
 	}
-	return s.tx(ctx, func(q *db.Queries) error {
-		if _, err := q.GetContact(ctx, id); errors.Is(err, pgx.ErrNoRows) {
+	return s.txx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		cur, err := q.GetContact(ctx, id)
+		if errors.Is(err, pgx.ErrNoRows) {
 			return apperr.NotFound("Contact not found.")
 		} else if err != nil {
 			return err
@@ -311,6 +319,15 @@ func (s *Service) SetConsent(ctx context.Context, id uuid.UUID, optIn bool, sour
 		}
 		if err := q.SetContactOptOut(ctx, db.SetContactOptOutParams{ID: id, OptedOut: !optIn, Reason: nullIfEmpty(&note)}); err != nil {
 			return err
+		}
+		if (cur.OptedOutAt != nil) == optIn { // an actual change
+			typ := webhooks.TypeContactOptedOut
+			if optIn {
+				typ = webhooks.TypeContactOptedIn
+			}
+			if err := webhooks.ContactChanged(ctx, tx, typ, id); err != nil {
+				return err
+			}
 		}
 		return audit.Record(ctx, q, audit.Entry{Action: "contact." + kind, EntityType: "contact", EntityID: &id})
 	})

@@ -25,6 +25,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/apiguard"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
@@ -45,9 +46,10 @@ type (
 	messagesHandler   = messaging.Handler
 	contactsHandler   = contacts.Handler
 	campaignHandler   = campaigns.Handler
-	automationHandler = automation.Handler
 	realtimeHandler   = realtime.Handler
 	inboxHandler      = conversations.Handler
+	webhooksHandler   = webhooks.Handler
+	automationHandler = automation.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -61,9 +63,10 @@ type apiServer struct {
 	*messagesHandler
 	*contactsHandler
 	*campaignHandler
-	*automationHandler
 	*realtimeHandler
 	*inboxHandler
+	*webhooksHandler
+	*automationHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -82,6 +85,7 @@ type services struct {
 	contacts   *contacts.Service
 	campaigns  *campaigns.Service
 	inbox      *conversations.Service
+	webhooks   *webhooks.Service
 	automation *automation.Service
 }
 
@@ -115,10 +119,12 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	cts := contacts.New(pool, cfg.MediaDir, log)
 	camp := campaigns.New(pool, cts, log)
 	inbox := conversations.New(pool, msg, media, log)
+	// Outgoing webhooks: https only outside development; private
+	// destinations are always refused (internal/platform/safehttp).
+	hooks := webhooks.New(pool, sealer, webhooks.Options{AllowHTTP: cfg.Env == config.EnvDevelopment, Logger: log})
 	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts,
-		campaigns: camp, inbox: inbox,
-		// HTTP steps stay disabled until the SSRF-safe client is wired in.
-		automation: automation.New(pool, msg, mail, nil, log)}, nil
+		campaigns: camp, inbox: inbox, webhooks: hooks,
+		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -153,9 +159,10 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		messagesHandler:   messaging.NewHandler(svc.messaging, log),
 		contactsHandler:   contacts.NewHandler(svc.contacts, log),
 		campaignHandler:   campaigns.NewHandler(svc.campaigns, log),
-		automationHandler: automation.NewHandler(svc.automation, log),
 		realtimeHandler:   realtime.NewHandler(rtIssuer.WithConversationAccess(svc.inbox.CanRead), log),
 		inboxHandler:      conversations.NewHandler(svc.inbox, log),
+		webhooksHandler:   webhooks.NewHandler(svc.webhooks, log),
+		automationHandler: automation.NewHandler(svc.automation, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
@@ -175,4 +182,10 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 
 func newSystemHandler(pool *pgxpool.Pool, rdb goredis.UniversalClient, insp *asynq.Inspector, cf *centrifugo.Client) *system.Handler {
 	return system.NewHandler(Version, pool, rdb, insp, cf)
+}
+
+// automationHTTP is the client automation HTTP steps use: the same
+// SSRF-safe client as outgoing webhooks (plain http only in development).
+func automationHTTP(cfg *config.Config) automation.Doer {
+	return webhooks.NewClient(cfg.Env == config.EnvDevelopment)
 }

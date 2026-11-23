@@ -28,6 +28,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
@@ -236,6 +237,9 @@ func (s *Service) change(ctx context.Context, p *principal.Principal, id uuid.UU
 		}
 	}
 	if err := realtime.PublishConversation(ctx, tx, updated); err != nil {
+		return err
+	}
+	if err := webhooks.ConversationChanged(ctx, tx, ev.Kind, updated, ev.ActorType, ev.ActorID); err != nil {
 		return err
 	}
 	if ev.Kind == "closed" {

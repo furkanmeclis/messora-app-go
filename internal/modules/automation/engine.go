@@ -23,6 +23,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/safehttp"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -36,9 +37,10 @@ const (
 // maxInstructionsPerRun bounds a run even though programs only jump forward.
 const maxInstructionsPerRun = 500
 
-// Doer sends HTTP requests (an SSRF-safe client in production).
+// Doer sends HTTP requests to user-supplied URLs; production uses the
+// SSRF-safe client from platform/safehttp.
 type Doer interface {
-	Do(*http.Request) (*http.Response, error)
+	Do(*http.Request) (*safehttp.Response, error)
 }
 
 // Service is the automation engine.
@@ -424,10 +426,11 @@ func (s *Service) external(ctx context.Context, st *Step, ev trigger.Event, c db
 		start := time.Now()
 		resp, err := s.http.Do(req)
 		if err != nil {
+			if safehttp.IsBlocked(err) {
+				return stepResult{err: fmt.Errorf("http request refused: the address is not public")}
+			}
 			return stepResult{err: fmt.Errorf("http request: %w", err)}
 		}
-		defer resp.Body.Close()
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 		detail := map[string]any{"status": resp.StatusCode, "duration_ms": time.Since(start).Milliseconds()}
 		if resp.StatusCode >= 400 {
 			return stepResult{err: fmt.Errorf("http request answered %d", resp.StatusCode), detail: detail}
