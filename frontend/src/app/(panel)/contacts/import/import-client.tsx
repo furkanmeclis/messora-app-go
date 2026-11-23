@@ -55,7 +55,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import { cn } from '@/lib/utils';
 import type { ContactImport } from '@/lib/types';
 import {
@@ -348,6 +348,7 @@ export function UploadCard() {
 // ── Recent imports ─────────────────────────────────────────────────────────
 
 export function ImportList({ imports }: { imports: ContactImport[] }) {
+    const formatDateTime = useFormatDateTime();
     if (imports.length === 0) {
         return (
             <Empty className="py-10">
@@ -793,6 +794,7 @@ function ProgressView({
     imp: ContactImport;
     onChange: (i: ContactImport) => void;
 }) {
+    const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     const active = ACTIVE.includes(imp.status);
 

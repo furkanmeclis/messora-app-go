@@ -37,11 +37,12 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { ActionResult, ApiKey, Schemas } from '@/lib/types';
 import { createApiKeyAction, revokeApiKeyAction } from '../actions';
 
 export function ApiKeyTable({ keys }: { keys: ApiKey[] }) {
+    const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     if (keys.length === 0) {
         return (

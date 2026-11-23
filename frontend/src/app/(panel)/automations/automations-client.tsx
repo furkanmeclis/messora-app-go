@@ -34,7 +34,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { Automation } from '@/lib/types';
 import { deleteAutomationAction, setActiveAction } from './actions';
 import { describeTrigger } from './model';
@@ -52,6 +52,7 @@ export function AutomationTable({
     campaigns: Option[];
     canManage: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     const names = {
         phones: new Map(phones.map((p) => [p.id, p.label])),
         campaigns: new Map(campaigns.map((c) => [c.id, c.label])),

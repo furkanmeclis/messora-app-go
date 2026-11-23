@@ -23,7 +23,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { Campaign } from '@/lib/types';
 import { loadCampaignsAction } from './actions';
 import {
@@ -87,6 +87,7 @@ export function CampaignList({
     status: string;
     canCreate: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     const [items, setItems] = useState(initial);
     const [cursor, setCursor] = useState(initialCursor);
     const [pending, startTransition] = useTransition();

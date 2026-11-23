@@ -1,11 +1,18 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
-import { setDisplayPreferences } from '@/lib/format';
+import { createContext, useCallback, useContext, useMemo } from 'react';
+import {
+    defaultPrefs,
+    formatDateTime,
+    prefsFor,
+    type DisplayPrefs,
+} from '@/lib/format';
+
+const Prefs = createContext<DisplayPrefs>(defaultPrefs);
 
 /**
- * Renders the panel once with the fixed server formatting (so hydration
- * matches), then applies the user's time zone and language and re-renders.
+ * Provides the signed-in user's time zone and language. The values come from
+ * the server, so server rendering and hydration produce the same text.
  */
 export function DisplayPreferences({
     timeZone,
@@ -16,11 +23,15 @@ export function DisplayPreferences({
     locale: string;
     children: React.ReactNode;
 }) {
-    const [applied, setApplied] = useState('');
-    useEffect(() => {
-        setDisplayPreferences(timeZone, locale);
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- one re-render after an external (module) update
-        setApplied(`${timeZone}|${locale}`);
-    }, [timeZone, locale]);
-    return <Fragment key={applied}>{children}</Fragment>;
+    const value = useMemo(() => prefsFor(timeZone, locale), [timeZone, locale]);
+    return <Prefs.Provider value={value}>{children}</Prefs.Provider>;
+}
+
+/** formatDateTime bound to the user's display preferences. */
+export function useFormatDateTime() {
+    const prefs = useContext(Prefs);
+    return useCallback(
+        (iso: string | null | undefined) => formatDateTime(iso, prefs),
+        [prefs],
+    );
 }

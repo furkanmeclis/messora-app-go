@@ -18,7 +18,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, prefsFor } from '@/lib/format';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Segment } from '@/lib/types';
@@ -103,7 +103,13 @@ export default async function SegmentsPage() {
                                             )}
                                         </TableCell>
                                         <TableCell className="text-sm text-muted-foreground">
-                                            {formatDateTime(s.updated_at)}
+                                            {formatDateTime(
+                                                s.updated_at,
+                                                prefsFor(
+                                                    me.user.timezone,
+                                                    me.user.locale,
+                                                ),
+                                            )}
                                         </TableCell>
                                         {canContacts && (
                                             <TableCell className="text-right">

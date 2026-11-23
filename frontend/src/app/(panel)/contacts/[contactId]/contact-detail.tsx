@@ -39,7 +39,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { Contact, Note } from '@/lib/types';
 import {
     addContactNoteAction,
@@ -380,6 +380,7 @@ const SOURCE: Record<Contact['source'], string> = {
 };
 
 export function ContactFacts({ contact }: { contact: Contact }) {
+    const formatDateTime = useFormatDateTime();
     return (
         <Card>
             <CardHeader>
@@ -416,6 +417,7 @@ export function ConsentCard({
     contact: Contact;
     canUpdate: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     const router = useRouter();
     const [note, setNote] = useState('');
     const [pending, startTransition] = useTransition();
@@ -507,6 +509,7 @@ export function NotesCard({
     notes: Note[];
     canUpdate: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     const router = useRouter();
     const [body, setBody] = useState('');
     const [pending, startTransition] = useTransition();

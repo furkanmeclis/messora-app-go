@@ -31,7 +31,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { ActionResult, ContactGroup } from '@/lib/types';
 import { deleteGroupAction, saveGroupAction } from '../actions';
 import { ConfirmDelete } from '../confirm-delete';
@@ -136,6 +136,7 @@ export function GroupTable({
     groups: ContactGroup[];
     canManage: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     if (groups.length === 0) {
         return (
             <Empty className="py-12">

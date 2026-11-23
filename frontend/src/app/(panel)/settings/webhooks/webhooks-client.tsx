@@ -78,7 +78,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { ActionResult, Schemas } from '@/lib/types';
 import {
     createWebhookAction,
@@ -586,6 +586,7 @@ function DeliveryItem({
     d: Delivery;
     onChange: (d: Delivery) => void;
 }) {
+    const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     const [open, setOpen] = useState(false);
     return (

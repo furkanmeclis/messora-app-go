@@ -54,7 +54,7 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import { TEMPLATE_STATUSES, variablesOf } from '@/lib/templates';
 import type { ActionResult, Schemas, Template } from '@/lib/types';
 import { createTemplateAction, deleteTemplateAction } from './actions';
@@ -164,6 +164,7 @@ export function TemplateList({
     filtered: boolean;
     hasAccounts: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     if (templates.length === 0) {
         return (
             <Card>

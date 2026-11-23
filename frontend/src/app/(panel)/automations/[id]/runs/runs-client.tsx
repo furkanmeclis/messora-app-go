@@ -31,7 +31,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { AutomationRun, AutomationRunStep } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getRunAction, moreRunsAction } from '../../actions';
@@ -124,6 +124,7 @@ export function RunList({
     initial: AutomationRun[];
     initialCursor?: string;
 }) {
+    const formatDateTime = useFormatDateTime();
     const [more, setMore] = useState<AutomationRun[]>([]);
     const [cursor, setCursor] = useState<string | undefined>(undefined);
     const [loaded, setLoaded] = useState(false);

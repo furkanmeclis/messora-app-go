@@ -37,7 +37,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import { cn } from '@/lib/utils';
 import type { Conversation, InboxMessage, Template } from '@/lib/types';
 import type { ThreadData } from './page';
@@ -398,6 +398,7 @@ function Bubble({
     conversationId: string;
     m: InboxMessage;
 }) {
+    const formatDateTime = useFormatDateTime();
     const out = m.direction === 'outbound';
     return (
         <li
@@ -502,6 +503,7 @@ function ThreadMain({
     canReply: boolean;
     canAssign: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     const c = data.conversation;
     const [older, setOlder] = useState<InboxMessage[]>([]);
     const [olderCursor, setOlderCursor] = useState<string | undefined>();
@@ -840,6 +842,7 @@ function ContactPanel({
     data: ThreadData;
     canNote: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     const { contact, notes, events } = data;
     const [note, setNote] = useState('');
     const [pending, startTransition] = useTransition();

@@ -81,8 +81,10 @@ test.beforeAll(async ({ browser }) => {
     await page.getByLabel('Your name').fill(ADMIN.name);
     await page.getByLabel('Password').fill(ADMIN.password);
     await page.getByRole('button', { name: 'Join' }).click();
-    // Admins must use two-factor authentication.
+    // Admins must use two-factor authentication: any page leads to enrolment.
     await expect(page).toHaveURL(/\/account\/security/);
+    await page.goto('/users');
+    await expect(page).toHaveURL(/\/account\/security\?enroll=1/);
     await page.getByRole('button', { name: 'Set up now' }).click();
     const secret = (await page.locator('code.break-all').innerText()).trim();
     await page.getByLabel('Code from the app').fill(totp(secret));

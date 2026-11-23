@@ -55,7 +55,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { ActionResult, Contact } from '@/lib/types';
 import {
     createContactAction,
@@ -359,6 +359,7 @@ export function ContactTable({
     canUpdate: boolean;
     canCreate: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     const [contacts, setContacts] = useState(initial);
     const [cursor, setCursor] = useState(initialCursor);
     const [selected, setSelected] = useState<Set<string>>(new Set());

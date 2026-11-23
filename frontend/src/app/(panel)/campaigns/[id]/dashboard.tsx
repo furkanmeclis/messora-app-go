@@ -59,7 +59,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import { formatInZone } from '@/lib/timezone';
 import type {
     ActionResult,
@@ -102,6 +102,7 @@ export function CampaignDashboard({
     timezone: string;
     perms: Perms;
 }) {
+    const formatDateTime = useFormatDateTime();
     const router = useRouter();
     const rt = useRealtimeState();
     // Counts and status straight from realtime events, until the next
@@ -515,7 +516,10 @@ const EVENT_LABEL: Record<string, string> = {
     failed: 'Failed',
 };
 
-function describeDetail(d: Record<string, unknown>): string {
+function describeDetail(
+    d: Record<string, unknown>,
+    formatDateTime: (iso: string | null | undefined) => string,
+): string {
     const parts: string[] = [];
     if (typeof d.reason === 'string') parts.push(d.reason);
     if (typeof d.error === 'string') parts.push(d.error);
@@ -525,6 +529,7 @@ function describeDetail(d: Record<string, unknown>): string {
 }
 
 function EventLog({ events }: { events: CampaignEventItem[] }) {
+    const formatDateTime = useFormatDateTime();
     if (events.length === 0) {
         return (
             <p className="text-sm text-muted-foreground">
@@ -535,7 +540,7 @@ function EventLog({ events }: { events: CampaignEventItem[] }) {
     return (
         <ol className="space-y-3" aria-label="Campaign events">
             {events.map((e) => {
-                const detail = describeDetail(e.detail ?? {});
+                const detail = describeDetail(e.detail ?? {}, formatDateTime);
                 return (
                     <li
                         key={e.id}

@@ -63,7 +63,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type {
     ActionResult,
     PhoneNumber,
@@ -295,6 +295,7 @@ function AccountRow({
     account: WhatsAppAccount;
     manage: boolean;
 }) {
+    const formatDateTime = useFormatDateTime();
     const { guard } = useReauth();
     const [pending, startTransition] = useTransition();
     const [syncResult, setSyncResult] = useState<string | null>(null);

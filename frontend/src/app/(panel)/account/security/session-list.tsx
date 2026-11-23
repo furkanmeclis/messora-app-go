@@ -5,11 +5,13 @@ import { Monitor } from 'lucide-react';
 import { notify } from '@/components/notify';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDateTime, describeUserAgent } from '@/lib/format';
+import { describeUserAgent } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { SessionInfo } from '@/lib/types';
 import { revokeOtherSessionsAction, revokeSessionAction } from '../../actions';
 
 export function SessionList({ sessions }: { sessions: SessionInfo[] }) {
+    const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     const others = sessions.filter((s) => !s.current).length;
     return (

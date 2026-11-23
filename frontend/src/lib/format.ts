@@ -1,11 +1,11 @@
-// Dates must render identically on the server and during hydration, so the
-// default is fixed (UTC, British English). After hydration the panel
-// switches to the signed-in user's time zone and language — see
-// DisplayPreferences in components/display-preferences.tsx.
-let prefs = { timeZone: 'UTC', locale: 'en-GB' };
+/** How dates are shown: the signed-in user's zone and language. */
+export type DisplayPrefs = { timeZone: string; locale: string };
 
-/** Applies the user's display preferences (browser only). */
-export function setDisplayPreferences(timeZone: string, locale: string) {
+/** Fixed fallback (also used before a user is known). */
+export const defaultPrefs: DisplayPrefs = { timeZone: 'UTC', locale: 'en-GB' };
+
+/** Display preferences from a profile; unknown zones fall back to UTC. */
+export function prefsFor(timeZone: string, locale: string): DisplayPrefs {
     let tz = 'UTC';
     try {
         new Intl.DateTimeFormat('en', { timeZone }).format();
@@ -13,11 +13,18 @@ export function setDisplayPreferences(timeZone: string, locale: string) {
     } catch {
         // unknown zone: keep UTC
     }
-    prefs = { timeZone: tz, locale: locale === 'tr' ? 'tr-TR' : 'en-GB' };
+    return { timeZone: tz, locale: locale === 'tr' ? 'tr-TR' : 'en-GB' };
 }
 
-/** Date-time in the user's zone, e.g. "22 Nov 2026, 14:05". */
-export function formatDateTime(iso: string | null | undefined): string {
+/**
+ * Date-time, e.g. "22 Nov 2026, 14:05". The zone and locale are explicit so
+ * the server and the browser render the same text (no hydration mismatch).
+ * Client components use useFormatDateTime() from display-preferences.
+ */
+export function formatDateTime(
+    iso: string | null | undefined,
+    prefs: DisplayPrefs = defaultPrefs,
+): string {
     if (!iso) return '—';
     return new Intl.DateTimeFormat(prefs.locale, {
         dateStyle: 'medium',

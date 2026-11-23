@@ -37,7 +37,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type {
     ActionResult,
     Invitation,
@@ -72,6 +72,7 @@ export function UserTable({
     myRank: number;
     roles: RoleOption[];
 }) {
+    const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     const update = (
         id: string,
@@ -305,6 +306,7 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
 }
 
 export function InvitationList({ invitations }: { invitations: Invitation[] }) {
+    const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     return (
         <ul className="divide-y rounded-md border">

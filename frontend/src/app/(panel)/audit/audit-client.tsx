@@ -15,7 +15,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { useFormatDateTime } from '@/components/display-preferences';
 import type { AuditLog } from '@/lib/types';
 import { loadAuditPage } from '../actions';
 
@@ -38,6 +38,7 @@ export function AuditTable({
     initialCursor?: string;
     action?: string;
 }) {
+    const formatDateTime = useFormatDateTime();
     const router = useRouter();
     const [entries, setEntries] = useState(initial);
     const [cursor, setCursor] = useState(initialCursor);
