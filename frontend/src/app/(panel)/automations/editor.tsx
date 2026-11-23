@@ -65,6 +65,16 @@ type Errors = {
 
 const NO_ERRORS: Errors = { steps: {}, other: {} };
 
+const TRIGGER_FIELDS = [
+    'trigger.match',
+    'trigger.keywords',
+    'trigger.phone_number_id',
+    'trigger.tag',
+    'trigger.status',
+    'trigger.campaign_id',
+    'trigger.cooldown_seconds',
+];
+
 export function AutomationEditor({
     automation,
     options,
@@ -131,17 +141,12 @@ export function AutomationEditor({
     const setT = (patch: Partial<TriggerForm>) =>
         setTrigger((t) => ({ ...t, ...patch }));
     const tErr = (f: string) => errors.other[`trigger.${f}`];
+    // Trigger errors no option field shows (e.g. "trigger": invalid).
     const otherTriggerErrors = Object.entries(errors.other)
         .filter(
             ([k]) =>
-                (k === 'trigger' || k.startsWith('trigger')) &&
-                ![
-                    'trigger.match',
-                    'trigger.keywords',
-                    'trigger.tag',
-                    'trigger.status',
-                    'trigger.cooldown_seconds',
-                ].includes(k) &&
+                (k === 'trigger' || k.startsWith('trigger.')) &&
+                !TRIGGER_FIELDS.includes(k) &&
                 !k.startsWith('trigger.keywords.'),
         )
         .map(([, v]) => v);
@@ -186,10 +191,24 @@ export function AutomationEditor({
                     mapped.other['trigger.keywords'] ??= mapped.other[k]!;
                 }
             }
+            // Errors no field shows go to the banner at the top.
+            const shown = (k: string) =>
+                ['name', 'description', 'steps', 'trigger_type'].includes(k) ||
+                k === 'trigger' ||
+                k.startsWith('trigger.');
+            const unshown = Object.entries(mapped.other)
+                .filter(([k]) => !shown(k))
+                .map(([, v]) => v);
             const handled =
-                Object.keys(mapped.steps).length > 0 ||
-                Object.keys(mapped.other).length > 0;
-            setErrors({ ...mapped, message: handled ? undefined : r.message });
+                unshown.length === 0 &&
+                (Object.keys(mapped.steps).length > 0 ||
+                    Object.keys(mapped.other).length > 0);
+            setErrors({
+                ...mapped,
+                message: handled
+                    ? undefined
+                    : [r.message, ...unshown].join(' '),
+            });
             toast.error(
                 handled ? 'Please correct the highlighted fields.' : r.message,
             );

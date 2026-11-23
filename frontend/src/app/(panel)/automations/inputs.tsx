@@ -158,7 +158,7 @@ export function SelectField({
     return (
         <Field data-invalid={error ? true : undefined} className={className}>
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
-            <Select value={value || undefined} onValueChange={onChange}>
+            <Select value={value} onValueChange={onChange}>
                 <SelectTrigger
                     id={id}
                     className="w-full"
