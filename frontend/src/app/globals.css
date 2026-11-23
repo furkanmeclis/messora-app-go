@@ -69,6 +69,11 @@
     --radius: 0.75rem;
 }
 
+/* Inside a desktop-mode window only the page itself is shown. */
+html[data-embedded] [data-chrome] {
+    display: none !important;
+}
+
 @layer base {
     * {
         @apply border-border outline-ring/50;

@@ -14,6 +14,7 @@ import {
     Send,
     Sun,
     Activity,
+    AppWindow,
 } from 'lucide-react';
 import {
     Popover,
@@ -38,6 +39,7 @@ import { activeNav } from '@/lib/navigation';
 import { NUMBER_LOCALE } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { CommandPalette } from './command-palette';
+import { useDesktop } from '@/components/desktop/desktop-context';
 import { campaignSummaryAction } from './topbar-actions';
 
 export type RunningCampaign = {
@@ -144,6 +146,7 @@ export function Topbar({
     const state = useRealtimeState();
     const { resolvedTheme, setTheme } = useTheme();
     const [palette, setPalette] = useState(false);
+    const desktop = useDesktop();
     const [unread, setUnread] = useState(() => new Set(initialUnread));
     const [running, setRunning] = useState(
         () => new Map(initialRunning.map((c) => [c.id, c])),
@@ -250,7 +253,10 @@ export function Topbar({
         'relative flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 outline-none';
 
     return (
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/75 px-3 backdrop-blur-xl md:px-4">
+        <header
+            data-chrome
+            className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/75 px-3 backdrop-blur-xl md:px-4"
+        >
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-1 h-4" />
             {section && (
@@ -517,6 +523,23 @@ export function Topbar({
                     </Popover>
                 )}
 
+                {desktop.available && !restricted && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label={t('desktop.enter')}
+                                onClick={desktop.enter}
+                                className={iconButton}
+                            >
+                                <AppWindow className="size-4" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-64">
+                            {t('desktop.enterHint')}
+                        </TooltipContent>
+                    </Tooltip>
+                )}
                 <button
                     type="button"
                     aria-label={t('topbar.toggleTheme')}

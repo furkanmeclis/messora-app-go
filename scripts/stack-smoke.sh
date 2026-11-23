@@ -37,7 +37,7 @@ curl -s "$BASE/api/v1/does-not-exist" | grep -q '"code":"NOT_FOUND"' || fail "er
 echo "→ security headers on the panel"
 headers=$(curl -s -D - -o /dev/null -L "$BASE/login")
 echo "$headers" | grep -qi "content-security-policy: .*nonce-" || fail "CSP with nonce missing"
-echo "$headers" | grep -qi "x-frame-options: DENY" || fail "X-Frame-Options missing"
+echo "$headers" | grep -qi "x-frame-options: SAMEORIGIN" || fail "X-Frame-Options missing"
 
 echo "→ every component reports healthy (internal status endpoint)"
 docker compose exec -T messora-api /usr/local/bin/messora healthcheck http://127.0.0.1:9100/status \

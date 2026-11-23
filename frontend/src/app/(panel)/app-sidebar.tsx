@@ -124,7 +124,7 @@ export function AppSidebar({
     };
 
     return (
-        <Sidebar collapsible="icon">
+        <Sidebar collapsible="icon" data-chrome>
             <SidebarHeader>
                 <div className="flex items-center gap-2.5 px-1 py-1.5">
                     <OrgMark

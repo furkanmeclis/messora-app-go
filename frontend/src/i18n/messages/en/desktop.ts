@@ -1,0 +1,23 @@
+const desktop = {
+    enter: 'Desktop mode',
+    enterHint: 'Work with several sections side by side in windows. F11 also opens it.',
+    exit: 'Exit desktop mode',
+    start: 'Start',
+    searchApps: 'Search apps…',
+    apps: 'Apps',
+    openWindows: 'Open windows',
+    minimize: 'Minimise',
+    maximize: 'Maximise',
+    restore: 'Restore',
+    close: 'Close',
+    reload: 'Reload',
+    openInPanel: 'Open in the normal panel',
+    newWindow: 'New window',
+    showDesktop: 'Show desktop',
+    closeAll: 'Close all windows',
+    tile: 'Arrange side by side',
+    cascade: 'Cascade',
+    noWindows: 'Double-click an icon to open it in a window.',
+    keyboard: 'Alt+1…9 switch windows · Alt+W close · Alt+M minimise · Alt+↑ maximise',
+};
+export default desktop;

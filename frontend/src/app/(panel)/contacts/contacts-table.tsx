@@ -118,7 +118,11 @@ export function ContactsTable({
                     data-testid="contact-row-name"
                 >
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                        {(/[\p{L}\p{N}]/u.exec(contactName(c, unnamed))?.[0] ?? '#').toLocaleUpperCase()}
+                        {(
+                            /[\p{L}\p{N}]/u.exec(
+                                contactName(c, unnamed),
+                            )?.[0] ?? '#'
+                        ).toLocaleUpperCase()}
                     </span>
                     <div className="min-w-0">
                         <Link

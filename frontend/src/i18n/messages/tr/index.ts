@@ -13,6 +13,7 @@ import wizard from './wizard';
 import topbar from './topbar';
 import shortcuts from './shortcuts';
 import table from './table';
+import desktop from './desktop';
 import account from './account';
 import apiKeys from './api-keys';
 import audit from './audit';
@@ -32,6 +33,7 @@ export const tr: Messages = {
     topbar,
     shortcuts,
     table,
+    desktop,
     account,
     apiKeys,
     audit,
