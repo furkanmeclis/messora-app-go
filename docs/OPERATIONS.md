@@ -165,3 +165,26 @@ limits stay correct and the realtime connection uses `wss://`. Use the same
 `-f` pair for every later `docker compose` command (upgrade, backup scripts
 take `COMPOSE_FILE`), or set `COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml`
 in `.env`. Give each Messora service a memory limit (`MEM_*`) on shared servers.
+
+### With Dokploy (its own domains)
+
+Dokploy injects its Traefik labels and network itself, so do not add
+`docker-compose.proxy.yml` there. Create a Compose service from this
+repository (`docker-compose.yml`) and set, in its environment:
+
+```sh
+PUBLIC_APP_URL=https://messora.example.com
+HTTP_PORT=127.0.0.1:18088      # Caddy listens on loopback only:
+HTTPS_PORT=127.0.0.1:18443     # Traefik keeps ports 80 and 443
+TRUSTED_PROXIES=private_ranges
+# Published images instead of building on the server:
+MESSORA_IMAGE=ghcr.io/<owner>/messora
+MESSORA_WEB_IMAGE=ghcr.io/<owner>/messora-web
+MESSORA_VERSION=0.9.0
+MESSORA_PULL=missing
+MESSORA_INIT_PULL=missing
+```
+
+Use the custom command `compose -p <app> --env-file .env -f ./docker-compose.yml up -d --no-build --remove-orphans`
+and add a domain for service `caddy`, port 80, HTTPS with Let's Encrypt. The
+one-time setup link appears in the `messora-api` logs on the first start.
