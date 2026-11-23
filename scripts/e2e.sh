@@ -28,4 +28,4 @@ SETUP_URL=$(compose exec -T messora-api /usr/local/bin/messora setup token | gre
 echo "setup link obtained"
 
 cd frontend
-E2E_BASE_URL="http://localhost:$PORT" E2E_SETUP_URL="$SETUP_URL" npx playwright test "$@"
+E2E_BASE_URL="http://localhost:$PORT" E2E_SETUP_URL="$SETUP_URL" E2E_PROJECT="$PROJECT" npx playwright test "$@"

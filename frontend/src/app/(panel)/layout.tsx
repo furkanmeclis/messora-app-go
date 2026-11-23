@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { api } from '@/lib/server/api';
 import { requireMe } from '@/lib/server/auth';
 import type { Settings } from '@/lib/types';
+import { RealtimeProvider } from '@/components/realtime';
 import { ReauthProvider } from '@/components/reauth';
 import { AppSidebar } from './app-sidebar';
 import { PanelHeader } from './panel-header';
@@ -29,22 +30,36 @@ export default async function PanelLayout({
             .then((r) => r.data.organization_name)
             .catch(() => organization);
     }
+    // Channels the role may read; the API checks the same rules again when
+    // it issues each subscription token.
+    const channels: string[] = [];
+    if (
+        me.permissions.includes('conversations.read') ||
+        me.permissions.includes('conversations.read_all')
+    ) {
+        channels.push('inbox:all');
+    }
+    if (me.permissions.includes('campaigns.read')) {
+        channels.push('campaign:all');
+    }
     return (
-        <SidebarProvider>
-            <AppSidebar
-                user={me.user}
-                permissions={me.permissions}
-                organization={organization}
-                restricted={me.mfa_required}
-            />
-            <SidebarInset>
-                <PanelHeader />
-                <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
-                    <div className="mx-auto w-full max-w-6xl flex-1 p-4 md:p-6">
-                        {children}
-                    </div>
-                </ReauthProvider>
-            </SidebarInset>
-        </SidebarProvider>
+        <RealtimeProvider channels={channels} enabled={!me.mfa_required}>
+            <SidebarProvider>
+                <AppSidebar
+                    user={me.user}
+                    permissions={me.permissions}
+                    organization={organization}
+                    restricted={me.mfa_required}
+                />
+                <SidebarInset>
+                    <PanelHeader />
+                    <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
+                        <div className="mx-auto w-full max-w-6xl flex-1 p-4 md:p-6">
+                            {children}
+                        </div>
+                    </ReauthProvider>
+                </SidebarInset>
+            </SidebarProvider>
+        </RealtimeProvider>
     );
 }
