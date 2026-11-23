@@ -237,7 +237,7 @@ export function EndpointDialog({ catalogue }: { catalogue: EventInfo[] }) {
             }}
         >
             <DialogTrigger asChild>
-                <Button>
+                <Button shortcut="n">
                     <Plus /> {t('webhooks.add.button')}
                 </Button>
             </DialogTrigger>

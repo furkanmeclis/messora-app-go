@@ -38,7 +38,7 @@ export default async function CampaignsPage({
                 description={t('campaigns.description')}
                 actions={
                     can(me, 'campaigns.create') ? (
-                        <Button asChild>
+                        <Button asChild shortcut="n">
                             <Link href="/campaigns/new">
                                 <Plus /> {t('campaigns.newCampaign')}
                             </Link>

@@ -167,7 +167,7 @@ export function CreateKeyDialog({
             }}
         >
             <DialogTrigger asChild>
-                <Button>
+                <Button shortcut="n">
                     <Plus /> {t('apiKeys.create.button')}
                 </Button>
             </DialogTrigger>

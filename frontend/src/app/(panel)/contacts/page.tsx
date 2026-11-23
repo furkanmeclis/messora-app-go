@@ -62,7 +62,7 @@ export default async function ContactsPage({
                 actions={
                     <div className="flex flex-wrap gap-2">
                         {can(me, 'contacts.import') && (
-                            <Button variant="outline" asChild>
+                            <Button variant="outline" asChild shortcut="i">
                                 <Link href="/contacts/import">
                                     <Upload /> {t('contacts.import')}
                                 </Link>

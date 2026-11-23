@@ -173,7 +173,7 @@ export function ConnectAccountDialog() {
             }}
         >
             <DialogTrigger asChild>
-                <Button>
+                <Button shortcut="n">
                     <Plus /> {t('channels.connect.open')}
                 </Button>
             </DialogTrigger>

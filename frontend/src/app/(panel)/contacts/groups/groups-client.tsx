@@ -56,7 +56,7 @@ export function GroupDialog({ group }: { group?: ContactGroup }) {
                         <Pencil />
                     </Button>
                 ) : (
-                    <Button>
+                    <Button shortcut="n">
                         <FolderPlus /> {t('contacts.groups.new')}
                     </Button>
                 )}

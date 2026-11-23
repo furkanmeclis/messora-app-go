@@ -64,7 +64,7 @@ export default async function TemplatesPage({
                 actions={
                     <div className="flex flex-wrap gap-2">
                         {can(me, 'channels.read') && (
-                            <Button variant="outline" asChild>
+                            <Button variant="outline" asChild shortcut="s">
                                 <Link href="/channels">
                                     <RefreshCw /> {t('templates.syncFromMeta')}
                                 </Link>

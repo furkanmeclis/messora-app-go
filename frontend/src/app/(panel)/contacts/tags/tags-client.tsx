@@ -58,7 +58,7 @@ export function TagDialog({ tag }: { tag?: Tag }) {
                         <Pencil />
                     </Button>
                 ) : (
-                    <Button>
+                    <Button shortcut="n">
                         <Plus /> {t('contacts.tags.new')}
                     </Button>
                 )}

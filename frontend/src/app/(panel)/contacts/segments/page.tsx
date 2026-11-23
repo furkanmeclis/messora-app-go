@@ -46,7 +46,7 @@ export default async function SegmentsPage() {
                 description={t('contacts.segments.description')}
                 actions={
                     canManage && (
-                        <Button asChild>
+                        <Button asChild shortcut="n">
                             <Link href="/contacts/segments/new">
                                 <Plus /> {t('contacts.segments.new')}
                             </Link>

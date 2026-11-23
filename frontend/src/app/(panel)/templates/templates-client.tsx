@@ -658,7 +658,7 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button>
+                <Button shortcut="n">
                     <Plus /> {t('templates.create.open')}
                 </Button>
             </DialogTrigger>

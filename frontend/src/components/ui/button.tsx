@@ -45,21 +45,49 @@ function Button({
     variant = 'default',
     size = 'default',
     asChild = false,
+    shortcut,
+    children,
     ...props
 }: React.ComponentProps<'button'> &
     VariantProps<typeof buttonVariants> & {
         asChild?: boolean;
+        /** A single key that clicks this button (see components/shortcuts). */
+        shortcut?: string;
     }) {
     const Comp = asChild ? Slot.Root : 'button';
+    const hint = shortcut ? (
+        <kbd
+            aria-hidden
+            className="pointer-events-none ml-0.5 hidden h-4.5 min-w-4.5 items-center justify-center rounded border border-current/25 bg-current/10 px-1 text-[10px] leading-none font-medium uppercase opacity-70 sm:inline-flex"
+        >
+            {shortcut}
+        </kbd>
+    ) : null;
 
     return (
         <Comp
             data-slot="button"
             data-variant={variant}
             data-size={size}
+            data-shortcut={shortcut}
+            aria-keyshortcuts={shortcut}
             className={cn(buttonVariants({ variant, size, className }))}
             {...props}
-        />
+        >
+            {!hint ? (
+                children
+            ) : asChild ? (
+                [
+                    <Slot.Slottable key="c">{children}</Slot.Slottable>,
+                    <React.Fragment key="k">{hint}</React.Fragment>,
+                ]
+            ) : (
+                <>
+                    {children}
+                    {hint}
+                </>
+            )}
+        </Comp>
     );
 }
 

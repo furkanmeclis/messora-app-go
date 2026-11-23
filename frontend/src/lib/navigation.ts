@@ -24,6 +24,8 @@ export type NavItem = {
     icon: LucideIcon;
     permission?: string;
     group: 'workspace' | 'administration' | 'account';
+    /** Second key of the "G then …" shortcut. */
+    goKey?: string;
 };
 
 /**
@@ -33,6 +35,7 @@ export type NavItem = {
 export const NAV: NavItem[] = [
     {
         id: 'overview',
+        goKey: 'h',
         href: '/',
         label: 'nav.overview',
         icon: Activity,
@@ -40,6 +43,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'inbox',
+        goKey: 'i',
         href: '/inbox',
         label: 'nav.inbox',
         icon: Inbox,
@@ -48,6 +52,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'contacts',
+        goKey: 'c',
         href: '/contacts',
         label: 'nav.contacts',
         icon: BookUser,
@@ -56,6 +61,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'campaigns',
+        goKey: 'p',
         href: '/campaigns',
         label: 'nav.campaigns',
         icon: Megaphone,
@@ -64,6 +70,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'templates',
+        goKey: 't',
         href: '/templates',
         label: 'nav.templates',
         icon: FileText,
@@ -72,6 +79,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'automations',
+        goKey: 'a',
         href: '/automations',
         label: 'nav.automations',
         icon: Workflow,
@@ -80,6 +88,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'channels',
+        goKey: 'n',
         href: '/channels',
         label: 'nav.channels',
         icon: Phone,
@@ -88,6 +97,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'users',
+        goKey: 'u',
         href: '/users',
         label: 'nav.users',
         icon: Users,
@@ -96,6 +106,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'api-keys',
+        goKey: 'k',
         href: '/api-keys',
         label: 'nav.apiKeys',
         icon: KeyRound,
@@ -104,6 +115,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'webhooks',
+        goKey: 'w',
         href: '/settings/webhooks',
         label: 'nav.webhooks',
         icon: Webhook,
@@ -112,6 +124,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'audit',
+        goKey: 'l',
         href: '/audit',
         label: 'nav.audit',
         icon: ScrollText,
@@ -120,6 +133,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'settings',
+        goKey: 's',
         href: '/settings',
         label: 'nav.settings',
         icon: Settings,
@@ -128,6 +142,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'profile',
+        goKey: 'm',
         href: '/account/profile',
         label: 'nav.profile',
         icon: UserRound,
@@ -135,6 +150,7 @@ export const NAV: NavItem[] = [
     },
     {
         id: 'security',
+        goKey: 'g',
         href: '/account/security',
         label: 'nav.security',
         icon: ShieldCheck,

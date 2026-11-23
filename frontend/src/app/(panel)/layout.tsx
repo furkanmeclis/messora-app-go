@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { ConfirmProvider } from '@/components/confirm';
+import { Shortcuts } from '@/components/shortcuts';
 import { DisplayPreferences } from '@/components/display-preferences';
 import { getAppearance } from '@/lib/server/appearance';
 import { requireMe } from '@/lib/server/auth';
@@ -78,6 +79,10 @@ export default async function PanelLayout({
                     restricted={me.mfa_required}
                 />
                 <SidebarInset>
+                    <Shortcuts
+                        permissions={me.permissions}
+                        restricted={me.mfa_required}
+                    />
                     <Topbar
                         permissions={me.permissions}
                         restricted={me.mfa_required}

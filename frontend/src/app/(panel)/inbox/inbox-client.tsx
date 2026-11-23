@@ -143,6 +143,7 @@ export function InboxFilters({
                     name="q"
                     defaultValue={q}
                     maxLength={100}
+                    data-search
                     placeholder={t('inbox.filters.searchPlaceholder')}
                 />
                 <Button

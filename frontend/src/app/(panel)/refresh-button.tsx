@@ -12,6 +12,7 @@ export function RefreshButton() {
     const [pending, startTransition] = useTransition();
     return (
         <Button
+            shortcut="r"
             variant="outline"
             size="sm"
             disabled={pending}

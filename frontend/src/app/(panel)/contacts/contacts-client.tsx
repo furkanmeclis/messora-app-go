@@ -171,6 +171,7 @@ export function ContactFilters({
                         id="contact-search"
                         type="search"
                         className="pl-8"
+                        data-search
                         placeholder={t('contacts.filters.searchPlaceholder')}
                         maxLength={100}
                         value={q}
@@ -241,7 +242,7 @@ export function ExportMenu({ query }: { query: string }) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" shortcut="e">
                     <Download /> {t('contacts.export')} <ChevronDown />
                 </Button>
             </DropdownMenuTrigger>
@@ -297,7 +298,7 @@ export function NewContactDialog() {
             }}
         >
             <DialogTrigger asChild>
-                <Button>
+                <Button shortcut="n">
                     <UserPlus /> {t('contacts.create.title')}
                 </Button>
             </DialogTrigger>

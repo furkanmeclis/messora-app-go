@@ -220,7 +220,7 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
             }}
         >
             <DialogTrigger asChild>
-                <Button>
+                <Button shortcut="n">
                     <UserPlus /> {t('users.invite.button')}
                 </Button>
             </DialogTrigger>
