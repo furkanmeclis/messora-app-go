@@ -65,7 +65,8 @@ func New() *Server {
 	return s
 }
 
-// Handler exposes the mock for embedding in another server (E2E stack).
+// NewHandler returns the mock as an http.Handler for embedding in another
+// server (E2E stack).
 func NewHandler() (*Server, http.Handler) {
 	s := &Server{numbers: map[string][]whatsapp.PhoneNumber{}, templates: map[string][]whatsapp.TemplateInfo{},
 		media: map[string][]byte{}, mediaType: map[string]string{}, tokens: map[string]bool{}}
@@ -273,6 +274,7 @@ func (s *Server) templatesHandler(w http.ResponseWriter, r *http.Request, waba s
 }
 
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<20)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		graphError(w, http.StatusBadRequest, 131053, "Media upload error")
 		return

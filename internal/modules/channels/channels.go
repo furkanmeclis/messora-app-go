@@ -124,13 +124,15 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 		return db.WhatsappAccount{}, apperr.Conflict("ACCOUNT_EXISTS", "This WhatsApp Business Account or one of its numbers is already connected.")
 	}
 	if err == nil {
-		go s.syncTemplatesDetached(acc.ID)
+		// Import templates in the background; the request does not wait
+		// for (or cancel) it.
+		go s.syncTemplatesDetached(context.WithoutCancel(ctx), acc.ID)
 	}
 	return acc, err
 }
 
-func (s *Service) syncTemplatesDetached(id uuid.UUID) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+func (s *Service) syncTemplatesDetached(parent context.Context, id uuid.UUID) {
+	ctx, cancel := context.WithTimeout(parent, time.Minute)
 	defer cancel()
 	if _, err := s.SyncTemplates(ctx, id); err != nil {
 		s.log.Warn("initial template sync failed", "account_id", id, "error", err)

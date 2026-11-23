@@ -108,7 +108,7 @@ func registerMessaging(mux *asynq.ServeMux, m *messaging.Service) {
 	idFrom := func(t *asynq.Task, key string) (uuid.UUID, error) {
 		var p map[string]string
 		if err := json.Unmarshal(t.Payload(), &p); err != nil {
-			return uuid.Nil, fmt.Errorf("%w: %v", asynq.SkipRetry, err)
+			return uuid.Nil, fmt.Errorf("%w: %w", asynq.SkipRetry, err)
 		}
 		id, err := uuid.Parse(p[key])
 		if err != nil {

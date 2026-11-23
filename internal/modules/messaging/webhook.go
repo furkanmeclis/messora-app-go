@@ -38,8 +38,11 @@ func (s *Service) WebhookHandler(verifyToken string) http.Handler {
 				http.Error(w, "verification failed", http.StatusForbidden)
 				return
 			}
-			w.Header().Set("Content-Type", "text/plain")
-			_, _ = io.WriteString(w, c)
+			// The challenge is echoed only after the verify token matched; as
+			// plain text with nosniff it cannot be interpreted as markup.
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			_, _ = io.WriteString(w, c) //nolint:gosec // G705: see above
 		case http.MethodPost:
 			s.ingest(w, r)
 		default:

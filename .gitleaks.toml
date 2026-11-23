@@ -3,9 +3,15 @@
 useDefault = true
 
 [allowlist]
-description = "Local-only directories (git-ignored)"
+description = "Local-only directories, generated code and test fixtures"
 paths = [
   '''^reference/''',
   '''^frontend/node_modules/''',
   '''^frontend/\.next/''',
+  # oapi-codegen embeds the gzipped spec as base64; random-looking by design.
+  '''^internal/api/api\.gen\.go$''',
+]
+# Passwords used only by the throw-away end-to-end stack.
+regexes = [
+  '''Correct-horse-staple-91''',
 ]
