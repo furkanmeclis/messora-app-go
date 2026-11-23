@@ -18,6 +18,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/conversations"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
@@ -44,6 +45,7 @@ type (
 	contactsHandler = contacts.Handler
 	campaignHandler = campaigns.Handler
 	realtimeHandler = realtime.Handler
+	inboxHandler    = conversations.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -58,6 +60,7 @@ type apiServer struct {
 	*contactsHandler
 	*campaignHandler
 	*realtimeHandler
+	*inboxHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -75,6 +78,7 @@ type services struct {
 	messaging *messaging.Service
 	contacts  *contacts.Service
 	campaigns *campaigns.Service
+	inbox     *conversations.Service
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -102,10 +106,13 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 		return nil, err
 	}
 	ch := channels.New(pool, sealer, wa, cfg.Meta.AppSecret.Reveal(), log)
-	msg := messaging.New(pool, ch, messaging.NewMediaStore(cfg.MediaDir), log)
+	media := messaging.NewMediaStore(cfg.MediaDir)
+	msg := messaging.New(pool, ch, media, log)
 	cts := contacts.New(pool, cfg.MediaDir, log)
 	camp := campaigns.New(pool, cts, log)
-	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts, campaigns: camp}, nil
+	inbox := conversations.New(pool, msg, media, log)
+	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts,
+		campaigns: camp, inbox: inbox}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -140,7 +147,8 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		messagesHandler: messaging.NewHandler(svc.messaging, log),
 		contactsHandler: contacts.NewHandler(svc.contacts, log),
 		campaignHandler: campaigns.NewHandler(svc.campaigns, log),
-		realtimeHandler: realtime.NewHandler(rtIssuer, log),
+		realtimeHandler: realtime.NewHandler(rtIssuer.WithConversationAccess(svc.inbox.CanRead), log),
+		inboxHandler:    conversations.NewHandler(svc.inbox, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))

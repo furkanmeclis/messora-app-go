@@ -601,8 +601,12 @@ func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Camp
 		wm := whatsapp.Message{Type: "template", To: strings.TrimPrefix(ct.PhoneE164, "+"), Template: &tpl}
 		payload, _ := json.Marshal(wm)
 		mid := uuid.Must(uuid.NewV7())
-		if _, err := q.InsertCampaignMessage(ctx, db.InsertCampaignMessageParams{ID: mid, PhoneNumberID: c.PhoneNumberID,
-			ContactID: ct.ID, Body: "[template] " + c.TemplateName, Payload: payload, CampaignID: &c.ID}); err != nil {
+		msg, err := q.InsertCampaignMessage(ctx, db.InsertCampaignMessageParams{ID: mid, PhoneNumberID: c.PhoneNumberID,
+			ContactID: ct.ID, Body: "[template] " + c.TemplateName, Payload: payload, CampaignID: &c.ID})
+		if err != nil {
+			return n, err
+		}
+		if err := messaging.RecordCampaignMessage(ctx, q, msg); err != nil {
 			return n, err
 		}
 		if err := q.MarkRecipientQueued(ctx, db.MarkRecipientQueuedParams{ID: r.ID, MessageID: &mid}); err != nil {

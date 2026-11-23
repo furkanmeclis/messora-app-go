@@ -258,6 +258,10 @@ func TestCampaignLifecycleAndPersonalisation(t *testing.T) {
 	if h.count("SELECT count(*) FROM outbox_events WHERE topic = 'rt:campaign:' || $1::text", id) == 0 {
 		t.Fatal("no realtime progress published")
 	}
+	// Campaign messages show up in the recipients' inbox threads.
+	if got := h.count("SELECT count(*) FROM conversations cv JOIN messages m ON m.id = cv.last_message_id WHERE m.campaign_id = $1", id); got != 28 {
+		t.Fatalf("conversations with a campaign message: %d", got)
+	}
 	h.expect(h.do(call{method: "DELETE", path: "/api/v1/campaigns/" + id, token: token}), 204, "")
 }
 

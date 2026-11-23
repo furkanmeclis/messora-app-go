@@ -1078,7 +1078,7 @@ export interface paths {
         put?: never;
         /**
          * Token for subscribing to one channel
-         * @description Issued only when the user may read the channel: `inbox:all` needs conversations.read or conversations.read_all, `conversation:<id>` needs conversations.read_all, `campaign:all` and `campaign:<id>` need campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
+         * @description Issued only when the user may read the channel: `inbox:all` needs conversations.read or conversations.read_all, `conversation:<id>` needs conversations.read_all, or conversations.read when the conversation is assigned to the user or to nobody, `campaign:all` and `campaign:<id>` need campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
          */
         post: operations['createRealtimeSubscriptionToken'];
         delete?: never;
@@ -1218,6 +1218,166 @@ export interface paths {
         };
         /** Recipients with their message state */
         get: operations['listCampaignRecipients'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Conversations visible to the caller, most recent activity first */
+        get: operations['listConversations'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A conversation with its contact and 24-hour window */
+        get: operations['getConversation'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/messages': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Message history, newest first */
+        get: operations['listConversationMessages'];
+        put?: never;
+        /**
+         * Send a message in the conversation
+         * @description Queued like POST /messages, from the conversation's number. Free-form messages need an open 24-hour window (422 OUTSIDE_SERVICE_WINDOW otherwise; send an approved template instead); templates are refused to opted-out contacts (422 CONTACT_OPTED_OUT).
+         */
+        post: operations['replyToConversation'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/assignment': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Assign the conversation to a user, or unassign it with null */
+        put: operations['assignConversation'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/close': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close the conversation; the next customer message reopens it */
+        post: operations['closeConversation'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/reopen': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen a closed conversation */
+        post: operations['reopenConversation'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/read': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark the customer's messages as read for the team */
+        post: operations['markConversationRead'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/events': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Assignment and status history, newest first (last 100) */
+        get: operations['listConversationEvents'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/media/{mediaId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a stored media file of a message in the conversation
+         * @description Images, video and audio of common types are served inline, everything else as an attachment; always with X-Content-Type-Options nosniff and a sandboxing Content-Security-Policy. 409 MEDIA_NOT_STORED while the worker has not downloaded the file from Meta yet.
+         */
+        get: operations['downloadConversationMedia'];
         put?: never;
         post?: never;
         delete?: never;
@@ -2063,6 +2223,166 @@ export interface components {
             data: components['schemas']['ContactImport'][];
             meta: components['schemas']['Meta'];
         };
+        ConversationContact: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            name: string;
+            profile_name: string;
+            opted_out: boolean;
+        };
+        ConversationPhoneNumber: {
+            /** Format: uuid */
+            id: string;
+            display_phone_number: string;
+            verified_name: string;
+        };
+        UserRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        ConversationLastMessage: {
+            /** @enum {string} */
+            direction: 'inbound' | 'outbound';
+            type: string;
+            body: string;
+            status: string;
+        };
+        Conversation: {
+            /** Format: uuid */
+            id: string;
+            contact: components['schemas']['ConversationContact'];
+            phone_number: components['schemas']['ConversationPhoneNumber'];
+            /** @enum {string} */
+            status: 'open' | 'closed';
+            assignee: components['schemas']['UserRef'] | null;
+            /** Format: int32 */
+            unread_count: number;
+            /** Format: date-time */
+            last_message_at: string;
+            /**
+             * Format: date-time
+             * @description Last customer message that opened the 24-hour window.
+             */
+            last_inbound_at: string | null;
+            /** @description Free-form messages can be sent now. */
+            window_open: boolean;
+            /** Format: date-time */
+            window_expires_at: string | null;
+            last_message:
+                components['schemas']['ConversationLastMessage'] | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ConversationResponse: {
+            data: components['schemas']['Conversation'];
+            meta: components['schemas']['Meta'];
+        };
+        ConversationListResponse: {
+            data: components['schemas']['Conversation'][];
+            meta: components['schemas']['Meta'];
+        };
+        InboxMedia: {
+            /** Format: uuid */
+            id: string;
+            mime_type: string;
+            filename: string;
+            /** Format: int64 */
+            size_bytes: number | null;
+            /** @enum {string} */
+            status: 'pending' | 'stored' | 'failed';
+        };
+        InboxMessage: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            direction: 'inbound' | 'outbound';
+            type: string;
+            body: string;
+            /** @enum {string} */
+            status:
+                | 'pending'
+                | 'sending'
+                | 'unknown'
+                | 'sent'
+                | 'delivered'
+                | 'read'
+                | 'failed'
+                | 'received';
+            wamid: string | null;
+            reply_to_wamid: string | null;
+            /** @enum {string} */
+            source: 'api' | 'panel' | 'webhook' | 'campaign' | 'automation';
+            error_code: string | null;
+            error_title: string | null;
+            media: components['schemas']['InboxMedia'] | null;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            sent_at: string | null;
+            /** Format: date-time */
+            delivered_at: string | null;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            failed_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InboxMessageResponse: {
+            data: components['schemas']['InboxMessage'];
+            meta: components['schemas']['Meta'];
+        };
+        InboxMessageListResponse: {
+            data: components['schemas']['InboxMessage'][];
+            meta: components['schemas']['Meta'];
+        };
+        ReplyRequest: {
+            /** @enum {string} */
+            type:
+                'text' | 'template' | 'image' | 'video' | 'audio' | 'document';
+            /** @description WhatsApp message ID to quote. */
+            reply_to?: string;
+            text?: {
+                body: string;
+                preview_url?: boolean;
+            };
+            template?: {
+                name: string;
+                language: string;
+                components?: {
+                    [key: string]: unknown;
+                }[];
+            };
+            media?: components['schemas']['MediaRef'];
+        };
+        AssignConversationRequest: {
+            /**
+             * Format: uuid
+             * @description The user to assign; null unassigns.
+             */
+            assignee_id: string | null;
+        };
+        ConversationEvent: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: 'assigned' | 'unassigned' | 'closed' | 'reopened';
+            /** @enum {string} */
+            actor_type: 'user' | 'api_key' | 'system';
+            /** @description The user who acted; null for API keys and automatic reopening. */
+            actor_name: string | null;
+            assignee: components['schemas']['UserRef'] | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ConversationEventListResponse: {
+            data: components['schemas']['ConversationEvent'][];
+            meta: components['schemas']['Meta'];
+        };
         RealtimeSubscriptionRequest: {
             /** @description Channel name, e.g. inbox:all or campaign:<id>. */
             channel: string;
@@ -2230,6 +2550,8 @@ export interface components {
         PhoneNumberId: string;
         TemplateId: string;
         MessageId: string;
+        ConversationId: string;
+        MediaId: string;
         ContactId: string;
         NoteId: string;
         ImportId: string;
@@ -4428,6 +4750,261 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['CampaignRecipientListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listConversations: {
+        parameters: {
+            query?: {
+                status?: 'open' | 'closed';
+                /** @description `me`, `unassigned` or a user ID. */
+                assignee?: string;
+                /** @description Only conversations with unread customer messages. */
+                unread?: boolean;
+                phone_number_id?: string;
+                /** @description Contact name or phone contains */
+                q?: string;
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listConversationMessages: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Messages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['InboxMessageListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    replyToConversation: {
+        parameters: {
+            query?: never;
+            header?: {
+                'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+            };
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['ReplyRequest'];
+            };
+        };
+        responses: {
+            /** @description Queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['InboxMessageResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    assignConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['AssignConversationRequest'];
+            };
+        };
+        responses: {
+            /** @description Conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    closeConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    reopenConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    markConversationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listConversationEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationEventListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    downloadConversationMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+                mediaId: components['parameters']['MediaId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/octet-stream': string;
                 };
             };
             default: components['responses']['Error'];

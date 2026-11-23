@@ -40,7 +40,7 @@ type ErrorEnvelope = { error: ApiErrorBody; meta: { request_id: string } };
 export type ApiResult<T> = { data: T; requestId: string; nextCursor?: string };
 
 type Options = {
-    method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     body?: unknown;
     /** Defaults to the signed-in user's session. */
     auth?: 'session' | 'none';

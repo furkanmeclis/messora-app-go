@@ -68,7 +68,47 @@ updates, so a message whose response was lost still becomes `sent`,
 
 Outside the 24-hour customer service window only approved templates are
 accepted (`422 OUTSIDE_SERVICE_WINDOW`); the window opens with the
-customer's last inbound message.
+customer's last inbound message to the sending number (reactions and system
+notices do not open it).
+
+## Inbox
+
+Messages are grouped into **conversations**, one per customer and business
+number. A conversation is never stored separately from its messages: every
+inbound or outbound message write updates it in the same transaction
+(`internal/modules/messaging/conversation.go`).
+
+- **Window.** `last_inbound_at` is the last window-opening customer message;
+  `window_open` / `window_expires_at` (= `last_inbound_at` + 24 h) tell the
+  panel whether a free-form reply is possible. The same value is what
+  `messaging.Queue` checks for every non-template message, from the inbox
+  and from `POST /messages` alike. Templates are refused to opted-out
+  contacts (`422 CONTACT_OPTED_OUT`).
+- **Visibility.** `conversations.read_all` (owner, admin, manager) sees
+  everything. With only `conversations.read` (agent) a user sees
+  conversations assigned to them or to nobody, on every endpoint: list,
+  detail, history, media, events, mark read, reply and the
+  `conversation:<id>` realtime channel. Anything else answers `404`, the same
+  as a conversation that does not exist. API keys follow the same rule (a key
+  is never an assignee, so `conversations.read` gives the unassigned ones).
+- **Assignment and status** need `conversations.assign`. Assignees must be
+  active users who can read conversations. Closing is a team decision; the
+  next customer message reopens the conversation automatically (recorded as
+  a `reopened` event without an actor). Outbound messages never reopen.
+  Every change is kept in the conversation's history and in the audit log.
+- **Unread** counts customer messages for the whole team and is reset by
+  `POST /conversations/{id}/read` (the panel does it when a conversation is
+  opened).
+- **Media** of inbound messages is downloaded by the worker and served by
+  `GET /conversations/{id}/media/{mediaId}` after the visibility check, with a
+  parsed Content-Type, `inline` disposition only for common image, video and
+  audio types (everything else, including SVG and HTML, is an attachment),
+  `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`.
+  The panel loads files through the `/bff/media/...` route, never directly.
+- **Realtime.** `conversation.updated` (IDs, status, assignee, unread count)
+  goes to `inbox:all` and `conversation:<id>`; message events carry
+  `conversation_id`. Events on `inbox:all` contain identifiers only; the
+  panel re-reads the data through the API with the user's permissions.
 
 ## Media
 

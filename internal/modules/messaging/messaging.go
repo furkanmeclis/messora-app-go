@@ -29,7 +29,6 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
-	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -229,9 +228,17 @@ func (s *Service) Queue(ctx context.Context, in SendInput) (db.Message, error) {
 			return &apperr.Error{Status: 422, Code: "CONTACT_OPTED_OUT",
 				Message: "This contact opted out of messages; only replies inside the 24-hour window are allowed."}
 		}
-		if in.Type != "template" && (c.LastInboundAt == nil || time.Since(*c.LastInboundAt) > ServiceWindow) {
-			return &apperr.Error{Status: 422, Code: "OUTSIDE_SERVICE_WINDOW",
-				Message: "The customer has not written in the last 24 hours; only approved templates can be sent."}
+		if in.Type != "template" {
+			// The window belongs to the thread between this customer and
+			// the sending number (the conversation).
+			open, err := threadWindowOpen(ctx, q, c.ID, pn.ID)
+			if err != nil {
+				return err
+			}
+			if !open {
+				return &apperr.Error{Status: 422, Code: "OUTSIDE_SERVICE_WINDOW",
+					Message: "The customer has not written to this number in the last 24 hours; only approved templates can be sent."}
+			}
 		}
 		out, err = q.InsertOutboundMessage(ctx, db.InsertOutboundMessageParams{ID: uuid.Must(uuid.NewV7()), PhoneNumberID: pn.ID,
 			ContactID: c.ID, Type: in.Type, Body: body, Payload: payload, ReplyToWamid: nonEmpty(in.ReplyTo),
@@ -242,7 +249,8 @@ func (s *Service) Queue(ctx context.Context, in SendInput) (db.Message, error) {
 		if _, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeSend), map[string]string{"message_id": out.ID.String()}, 0); err != nil {
 			return err
 		}
-		return realtime.Publish(ctx, tx, realtime.InboxChannel, realtime.NewMessageEvent(realtime.TypeMessageCreated, out))
+		_, err = recordNew(ctx, tx, q, out)
+		return err
 	})
 	return out, err
 }
@@ -417,7 +425,7 @@ func (s *Service) settle(ctx context.Context, id uuid.UUID, mark func(q *db.Quer
 		if err != nil {
 			return err
 		}
-		return realtime.Publish(ctx, tx, realtime.InboxChannel, realtime.NewMessageEvent(realtime.TypeMessageStatus, m))
+		return announceStatus(ctx, tx, q, m)
 	})
 }
 

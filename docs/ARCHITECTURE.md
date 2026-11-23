@@ -298,13 +298,14 @@ worker webhook:process (idempotent):
 - **Kanallar ve izinler** (`internal/modules/realtime/channels.go`, tek kaynak):
   - `personal:#<user_id>` ve `system:notifications`: connection token'ın `subs` claim'i ile sunucu tarafı abonelik.
   - `inbox:all`: `conversations.read` veya `conversations.read_all`.
-  - `conversation:<id>`: şimdilik `conversations.read_all`. Agent'ın kendisine atanmış konuşmalara aboneliği Phase 7'de atamalarla gelir.
+  - `conversation:<id>`: `conversations.read_all` veya, `conversations.read` ile, kendisine atanmış ya da atanmamış konuşmalar (kontrol `conversations.Service.CanRead`, token verilirken).
   - `campaign:all` ve `campaign:<id>`: `campaigns.read`.
   - Bilinmeyen veya bozuk her kanal `403 CHANNEL_FORBIDDEN`. Centrifugo token'daki `sub` ve `channel`'ı ayrıca doğrular: başka kullanıcının ya da başka kanalın token'ı reddedilir.
 - **Yayınlama:** Üretici, iş değişikliğiyle aynı transaction'da `realtime.Publish(ctx, tx, kanal, event)` çağırır. Bu, `rt:<kanal>` topic'li bir outbox satırıdır. Worker'daki relay `rt:` prefix'ini Centrifugo publish API'sine yönlendirir, idempotency key `outbox:<id>`'dir (tekrar eden publish client'a iki kez ulaşmaz).
 - **Event'ler** sürümlüdür (`{"type": …, "v": 1, …}`) ve yalnızca ID ve durum taşır, mesaj gövdesi taşımaz. Client ayrıntıyı API'den kendi yetkisiyle çeker.
   - `message.created`: gelen mesaj (webhook) veya kuyruğa alınan giden mesaj. `message_id`, `contact_id`, `phone_number_id`, `direction`, `message_type`, `status`, `at`.
   - `message.status`: gönderim sonucu (sent / failed / unknown) veya webhook'tan gelen gerçek bir durum değişikliği. Değişmeyen (eski sıradaki) status yayınlanmaz.
+  - `conversation.updated`: konuşmaya mesaj geldi/gitti, atama, durum veya okunmamış sayısı değişti. `inbox:all` ve `conversation:<id>`'ye yayınlanır. Mesaj event'leri de konuşma kanalına gider ve `conversation_id` taşır.
   - `campaign.updated`: kampanya motoru için tanımlı (`CampaignEvent`), Phase 5 kampanya kodu geldiğinde `campaign:all` ve `campaign:<id>`'ye yayınlanır.
 - Event'ler kalıcı veri değildir. `campaign`, `conversation`, `inbox` ve `system` namespace'lerinde kısa history (50–100 kayıt, 2–5 dk) ve `force_recovery` açıktır.
 - **Frontend:** `RealtimeProvider` (`frontend/src/components/realtime.tsx`) panel layout'unda tek bağlantı açar: `wss://<origin>/connection/websocket` (Caddy `/connection/*` → centrifugo). Token'lar Server Action'larla BFF üzerinden alınır, session token ve secret'lar tarayıcıya ulaşmaz. SDK kopmada backoff ile kendiliğinden yeniden bağlanır. Abonelik `wasRecovering && !recovered` ile gelirse (history dolmuş, Centrifugo yeniden başlamış) sayfa `router.refresh()` ile API'den yeniden çekilir. `<RealtimeRefresh channel types>` sayfalara polling'siz yenileme sağlar. CSP `connect-src` yalnızca aynı origin'in `ws(s)://` adresine izin verir.

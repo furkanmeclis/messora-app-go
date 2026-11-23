@@ -15,6 +15,12 @@ export type Settings = Schemas['Settings'];
 export type AuditLog = Schemas['AuditLog'];
 export type ApiKey = Schemas['ApiKey'];
 export type SystemStatus = Schemas['SystemStatus'];
+export type Conversation = Schemas['Conversation'];
+export type InboxMessage = Schemas['InboxMessage'];
+export type ConversationEvent = Schemas['ConversationEvent'];
+export type Template = Schemas['Template'];
+export type Contact = Schemas['Contact'];
+export type Note = Schemas['Note'];
 
 /** Result of a Server Action: either success data or a displayable error. */
 export type ActionResult<T = undefined> =

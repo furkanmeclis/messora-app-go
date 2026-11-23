@@ -354,7 +354,7 @@ func (q *Queries) InsertCampaignEvent(ctx context.Context, arg InsertCampaignEve
 const insertCampaignMessage = `-- name: InsertCampaignMessage :one
 INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id)
 VALUES ($1, $2, $3, 'outbound', 'template', $4, $5, 'pending', 0, 'campaign', $6)
-RETURNING id
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status
 `
 
 type InsertCampaignMessageParams struct {
@@ -366,7 +366,7 @@ type InsertCampaignMessageParams struct {
 	CampaignID    *uuid.UUID
 }
 
-func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (uuid.UUID, error) {
+func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (Message, error) {
 	row := q.db.QueryRow(ctx, insertCampaignMessage,
 		arg.ID,
 		arg.PhoneNumberID,
@@ -375,9 +375,35 @@ func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignM
 		arg.Payload,
 		arg.CampaignID,
 	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.PhoneNumberID,
+		&i.ContactID,
+		&i.Direction,
+		&i.Wamid,
+		&i.Type,
+		&i.Body,
+		&i.Payload,
+		&i.Status,
+		&i.StatusRank,
+		&i.ReplyToWamid,
+		&i.ErrorCode,
+		&i.ErrorTitle,
+		&i.Attempts,
+		&i.Source,
+		&i.CreatedBy,
+		&i.SentAt,
+		&i.DeliveredAt,
+		&i.ReadAt,
+		&i.FailedAt,
+		&i.OccurredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CampaignID,
+		&i.MetaStatus,
+	)
+	return i, err
 }
 
 const insertRecipient = `-- name: InsertRecipient :execrows

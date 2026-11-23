@@ -8,7 +8,9 @@
 //	personal:#<user_id>    the user's own channel (server-side subscription)
 //	system:notifications   installation-wide notices (server-side subscription)
 //	inbox:all              message activity       conversations.read or conversations.read_all
-//	conversation:<id>      one conversation       conversations.read_all
+//	conversation:<id>      one conversation       conversations.read_all, or conversations.read
+//	                                              when the conversation is visible to the user
+//	                                              (assigned to them or to nobody)
 //	campaign:all           campaign list progress campaigns.read
 //	campaign:<id>          one campaign           campaigns.read
 //
@@ -18,6 +20,7 @@
 package realtime
 
 import (
+	"context"
 	"strings"
 
 	"github.com/google/uuid"
@@ -47,9 +50,19 @@ func ConversationChannel(id uuid.UUID) string { return "conversation:" + id.Stri
 // purpose).
 var ErrChannelForbidden = apperr.Forbidden("CHANNEL_FORBIDDEN", "You are not allowed to subscribe to this channel.")
 
+// ConversationAccess reports whether p, who holds conversations.read but not
+// conversations.read_all, may read conversation id. The conversations module
+// provides it; without one, such users are refused.
+type ConversationAccess func(ctx context.Context, p *principal.Principal, id uuid.UUID) (bool, error)
+
 // Authorize reports whether p may subscribe to channel. Only signed-in panel
 // users can subscribe; API keys never reach the realtime endpoints.
 func Authorize(p *principal.Principal, channel string) error {
+	return AuthorizeContext(context.Background(), p, channel, nil)
+}
+
+// AuthorizeContext is Authorize with a check of per-conversation access.
+func AuthorizeContext(ctx context.Context, p *principal.Principal, channel string, access ConversationAccess) error {
 	if p == nil || p.Kind != principal.KindUser || p.MFAPending {
 		return ErrChannelForbidden
 	}
@@ -66,9 +79,19 @@ func Authorize(p *principal.Principal, channel string) error {
 	case "inbox":
 		allowed = rest == "all" && (p.Has("conversations.read") || p.Has("conversations.read_all"))
 	case "conversation":
-		// Agents (conversations.read) will be allowed the conversations
-		// assigned to them once assignments exist (Phase 7).
-		allowed = isUUID(rest) && p.Has("conversations.read_all")
+		if !isUUID(rest) {
+			break
+		}
+		switch {
+		case p.Has("conversations.read_all"):
+			allowed = true
+		case p.Has("conversations.read") && access != nil:
+			ok, err := access(ctx, p, uuid.MustParse(rest))
+			if err != nil {
+				return err
+			}
+			allowed = ok
+		}
 	case "campaign":
 		allowed = (rest == "all" || isUUID(rest)) && p.Has("campaigns.read")
 	}

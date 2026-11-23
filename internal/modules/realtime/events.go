@@ -27,6 +27,9 @@ const (
 	TypeMessageStatus = "message.status"
 	// TypeCampaignUpdated: a campaign's state or counters changed.
 	TypeCampaignUpdated = "campaign.updated"
+	// TypeConversationUpdated: a conversation got a message, or its
+	// assignee, status or unread count changed.
+	TypeConversationUpdated = "conversation.updated"
 )
 
 // Publish records an event for channel in the caller's transaction; the
@@ -51,12 +54,45 @@ type MessageEvent struct {
 	MessageType   string    `json:"message_type"`
 	Status        string    `json:"status"`
 	At            time.Time `json:"at"`
+	// ConversationID names the inbox thread of the message, when known.
+	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
 }
 
 // NewMessageEvent describes m for an event of type typ.
 func NewMessageEvent(typ string, m db.Message) MessageEvent {
 	return MessageEvent{Type: typ, V: EventVersion, MessageID: m.ID, ContactID: m.ContactID, PhoneNumberID: m.PhoneNumberID,
 		Direction: m.Direction, MessageType: m.Type, Status: m.Status, At: m.UpdatedAt.UTC()}
+}
+
+// ConversationEvent announces a change of a conversation; producers publish
+// it to both InboxChannel and ConversationChannel(id).
+type ConversationEvent struct {
+	Type           string     `json:"type"`
+	V              int        `json:"v"`
+	ConversationID uuid.UUID  `json:"conversation_id"`
+	ContactID      uuid.UUID  `json:"contact_id"`
+	PhoneNumberID  uuid.UUID  `json:"phone_number_id"`
+	Status         string     `json:"status"`
+	AssigneeID     *uuid.UUID `json:"assignee_id"`
+	UnreadCount    int32      `json:"unread_count"`
+	LastMessageAt  time.Time  `json:"last_message_at"`
+	At             time.Time  `json:"at"`
+}
+
+// NewConversationEvent describes c.
+func NewConversationEvent(c db.Conversation) ConversationEvent {
+	return ConversationEvent{Type: TypeConversationUpdated, V: EventVersion, ConversationID: c.ID, ContactID: c.ContactID,
+		PhoneNumberID: c.PhoneNumberID, Status: c.Status, AssigneeID: c.AssigneeID, UnreadCount: c.UnreadCount,
+		LastMessageAt: c.LastMessageAt.UTC(), At: c.UpdatedAt.UTC()}
+}
+
+// PublishConversation announces c on the inbox and on its own channel.
+func PublishConversation(ctx context.Context, tx outbox.DBTX, c db.Conversation) error {
+	ev := NewConversationEvent(c)
+	if err := Publish(ctx, tx, InboxChannel, ev); err != nil {
+		return err
+	}
+	return Publish(ctx, tx, ConversationChannel(c.ID), ev)
 }
 
 // CampaignEvent announces campaign progress; producers publish it to both

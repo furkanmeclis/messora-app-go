@@ -145,6 +145,20 @@ func TestRealtimeTokensAndChannelPermissions(t *testing.T) {
 	h.expect(h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: key, body: map[string]any{"channel": realtime.InboxChannel}}), 403, "FORBIDDEN")
 }
 
+// inboxMessageEvents lists the message events on the inbox channel (the
+// conversation channels and conversation.updated events are checked in
+// inbox_integration_test.go).
+func (h *harness) inboxMessageEvents() []rtEvent {
+	h.t.Helper()
+	var out []rtEvent
+	for _, e := range h.rtEvents() {
+		if t, _ := e.body["type"].(string); e.channel == realtime.InboxChannel && strings.HasPrefix(t, "message.") {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 type recordingPublisher struct {
 	mu     sync.Mutex
 	events []outbox.Event
@@ -164,7 +178,7 @@ func TestMessageActivityIsPublishedThroughTheOutbox(t *testing.T) {
 	// An inbound message announces itself to the inbox in the transaction
 	// that stores it, without its text.
 	h.webhook(whatsapptest.InboundText(testPNID, testCustomer, "wamid.rt-1", "Gizli içerik", "Ali Veli", time.Now()))
-	ev := h.rtEvents()
+	ev := h.inboxMessageEvents()
 	if len(ev) != 1 || ev[0].channel != realtime.InboxChannel || ev[0].body["type"] != realtime.TypeMessageCreated ||
 		ev[0].body["direction"] != "inbound" || ev[0].body["v"] != float64(1) || ev[0].body["message_id"] == nil {
 		t.Fatalf("inbound events %+v", ev)
@@ -175,7 +189,7 @@ func TestMessageActivityIsPublishedThroughTheOutbox(t *testing.T) {
 	}
 	// Meta redelivering the same message publishes nothing new.
 	h.webhook(whatsapptest.InboundText(testPNID, testCustomer, "wamid.rt-1", "Gizli içerik", "Ali Veli", time.Now()))
-	if n := len(h.rtEvents()); n != 1 {
+	if n := len(h.inboxMessageEvents()); n != 1 {
 		t.Fatalf("duplicate delivery published %d events", n)
 	}
 
@@ -192,7 +206,7 @@ func TestMessageActivityIsPublishedThroughTheOutbox(t *testing.T) {
 	h.webhook(whatsapptest.StatusUpdate(testPNID, wamid, "sent", testCustomer, id, time.Now(), 0))
 
 	var got []string
-	for _, e := range h.rtEvents()[1:] {
+	for _, e := range h.inboxMessageEvents()[1:] {
 		if e.body["message_id"] != id || e.channel != realtime.InboxChannel {
 			t.Fatalf("event %+v", e)
 		}
@@ -204,6 +218,7 @@ func TestMessageActivityIsPublishedThroughTheOutbox(t *testing.T) {
 	}
 
 	// The worker's relay routes rt: events to Centrifugo, keyed by channel.
+	all := h.rtEvents()
 	rec := &recordingPublisher{}
 	router := outbox.NewRouter()
 	router.Handle(outbox.TaskTopicPrefix, outbox.PublisherFunc(func(context.Context, outbox.Event) error { return nil }))
@@ -218,11 +233,11 @@ func TestMessageActivityIsPublishedThroughTheOutbox(t *testing.T) {
 			break
 		}
 	}
-	if len(rec.events) != 4 {
-		t.Fatalf("published %d realtime events, want 4", len(rec.events))
+	if len(rec.events) != len(all) || len(all) < 4 {
+		t.Fatalf("published %d realtime events, want %d", len(rec.events), len(all))
 	}
-	for _, e := range rec.events {
-		if e.Topic != realtime.InboxChannel || !json.Valid(e.Payload) {
+	for i, e := range rec.events {
+		if e.Topic != all[i].channel || (e.Topic != realtime.InboxChannel && !strings.HasPrefix(e.Topic, "conversation:")) || !json.Valid(e.Payload) {
 			t.Fatalf("published %q %s", e.Topic, e.Payload)
 		}
 	}

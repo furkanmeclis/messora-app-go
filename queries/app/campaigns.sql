@@ -145,4 +145,4 @@ SELECT id FROM campaigns WHERE status = 'preparing' AND updated_at < now() - mak
 -- name: InsertCampaignMessage :one
 INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id)
 VALUES (@id, @phone_number_id, @contact_id, 'outbound', 'template', @body, @payload, 'pending', 0, 'campaign', @campaign_id)
-RETURNING id;
+RETURNING *;

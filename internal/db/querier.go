@@ -74,11 +74,16 @@ type Querier interface {
 	FinishContactImport(ctx context.Context, arg FinishContactImportParams) error
 	GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetActiveSessionByTokenHashRow, error)
+	// Conversations can only be assigned to active users who can read them.
+	GetAssignableUser(ctx context.Context, id uuid.UUID) (GetAssignableUserRow, error)
 	GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 	GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error)
 	GetContactGroup(ctx context.Context, id uuid.UUID) (ContactGroup, error)
 	GetContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error)
+	GetConversation(ctx context.Context, id uuid.UUID) (Conversation, error)
+	GetConversationByThread(ctx context.Context, arg GetConversationByThreadParams) (Conversation, error)
+	GetConversationRow(ctx context.Context, id uuid.UUID) (GetConversationRowRow, error)
 	GetDefaultPhoneNumber(ctx context.Context) (PhoneNumber, error)
 	GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, error)
 	GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
@@ -105,7 +110,7 @@ type Querier interface {
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
 	InsertCampaign(ctx context.Context, arg InsertCampaignParams) (Campaign, error)
 	InsertCampaignEvent(ctx context.Context, arg InsertCampaignEventParams) error
-	InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (uuid.UUID, error)
+	InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (Message, error)
 	InsertConsentEvent(ctx context.Context, arg InsertConsentEventParams) (ConsentEvent, error)
 	// Contact listing with filters and segments is built in Go (contacts/list.go)
 	// because segment conditions are dynamic; everything else lives here.
@@ -115,6 +120,7 @@ type Querier interface {
 	InsertContactImport(ctx context.Context, arg InsertContactImportParams) (ContactImport, error)
 	// ── Notes ───────────────────────────────────────────────────────────────────
 	InsertContactNote(ctx context.Context, arg InsertContactNoteParams) (ContactNote, error)
+	InsertConversationEvent(ctx context.Context, arg InsertConversationEventParams) (ConversationEvent, error)
 	// Duplicate deliveries of the same wamid insert nothing (no row returned).
 	InsertInboundMessage(ctx context.Context, arg InsertInboundMessageParams) (Message, error)
 	// ── Media ───────────────────────────────────────────────────────────────────
@@ -141,7 +147,12 @@ type Querier interface {
 	ListContactGroups(ctx context.Context) ([]ListContactGroupsRow, error)
 	ListContactImports(ctx context.Context) ([]ContactImport, error)
 	ListContactNotes(ctx context.Context, contactID uuid.UUID) ([]ListContactNotesRow, error)
+	ListConversationEvents(ctx context.Context, arg ListConversationEventsParams) ([]ListConversationEventsRow, error)
+	// see_all is false for users who may only read conversations assigned to
+	// them or to nobody (conversations.read without conversations.read_all).
+	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
 	ListMediaForMessage(ctx context.Context, messageID *uuid.UUID) ([]MediaFile, error)
+	ListMediaForMessages(ctx context.Context, messageIds []uuid.UUID) ([]MediaFile, error)
 	ListMessagesByContact(ctx context.Context, arg ListMessagesByContactParams) ([]Message, error)
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
@@ -155,13 +166,18 @@ type Querier interface {
 	// ── Tags ────────────────────────────────────────────────────────────────────
 	ListTags(ctx context.Context) ([]ListTagsRow, error)
 	ListTemplates(ctx context.Context, arg ListTemplatesParams) ([]ListTemplatesRow, error)
+	// A conversation's messages, newest first, before the cursor message.
+	ListThreadMessages(ctx context.Context, arg ListThreadMessagesParams) ([]Message, error)
 	ListUserSessions(ctx context.Context, userID uuid.UUID) ([]UserSession, error)
 	ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error)
 	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
+	// ── Conversations (inbox) ───────────────────────────────────────────────────
+	LockConversationByThread(ctx context.Context, arg LockConversationByThreadParams) (Conversation, error)
 	// Serializes changes that could remove an owner, so two concurrent
 	// demotions cannot both pass the "at least one owner" check.
 	LockOwnerChanges(ctx context.Context) error
+	MarkConversationRead(ctx context.Context, id uuid.UUID) (Conversation, error)
 	MarkMediaFailed(ctx context.Context, arg MarkMediaFailedParams) error
 	MarkMediaStored(ctx context.Context, arg MarkMediaStoredParams) error
 	MarkMessageAccepted(ctx context.Context, arg MarkMessageAcceptedParams) error
@@ -195,6 +211,8 @@ type Querier interface {
 	// Generic transition guarded by the allowed source states.
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
 	SetContactOptOut(ctx context.Context, arg SetContactOptOutParams) error
+	SetConversationAssignee(ctx context.Context, arg SetConversationAssigneeParams) (Conversation, error)
+	SetConversationStatus(ctx context.Context, arg SetConversationStatusParams) (Conversation, error)
 	SetDefaultPhoneNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	SetMaterializeCursor(ctx context.Context, arg SetMaterializeCursorParams) error
 	// Meta's own state for paced templates (accepted, held_for_quality_assessment, paused).
@@ -212,6 +230,11 @@ type Querier interface {
 	TouchApiKey(ctx context.Context, id uuid.UUID) error
 	TouchCampaign(ctx context.Context, id uuid.UUID) error
 	TouchContactInbound(ctx context.Context, arg TouchContactInboundParams) error
+	// Records a new message in its thread. A customer message (inbound) counts
+	// as unread and reopens a closed conversation; opens_window extends the
+	// 24-hour customer service window. Late (out of order) messages never move
+	// the recency backwards.
+	TouchConversation(ctx context.Context, arg TouchConversationParams) (Conversation, error)
 	TouchMessage(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	UpdateCampaignDraft(ctx context.Context, arg UpdateCampaignDraftParams) (Campaign, error)

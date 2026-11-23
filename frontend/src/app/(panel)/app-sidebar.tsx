@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes';
 import {
     Activity,
     ChevronsUpDown,
+    Inbox,
     KeyRound,
     LogOut,
     Monitor,
@@ -51,6 +52,12 @@ type NavItem = {
 
 const WORKSPACE: NavItem[] = [
     { href: '/', label: 'Overview', icon: Activity },
+    {
+        href: '/inbox',
+        label: 'Inbox',
+        icon: Inbox,
+        permission: 'conversations.read',
+    },
     { href: '/users', label: 'Users', icon: Users, permission: 'users.manage' },
     {
         href: '/api-keys',

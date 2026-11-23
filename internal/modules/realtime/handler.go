@@ -35,7 +35,7 @@ func (h *Handler) CreateRealtimeSubscriptionToken(w http.ResponseWriter, r *http
 		httpx.WriteError(w, r, err, h.log)
 		return
 	}
-	t, err := h.issuer.Subscription(principal.From(r.Context()), req.Channel)
+	t, err := h.issuer.SubscriptionContext(r.Context(), principal.From(r.Context()), req.Channel)
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return

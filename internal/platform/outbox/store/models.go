@@ -168,6 +168,31 @@ type ContactTag struct {
 	CreatedAt pgtype.Timestamptz
 }
 
+type Conversation struct {
+	ID            pgtype.UUID
+	ContactID     pgtype.UUID
+	PhoneNumberID pgtype.UUID
+	Status        string
+	AssigneeID    pgtype.UUID
+	LastMessageID pgtype.UUID
+	LastMessageAt pgtype.Timestamptz
+	LastInboundAt pgtype.Timestamptz
+	UnreadCount   int32
+	ClosedAt      pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
+type ConversationEvent struct {
+	ID             pgtype.UUID
+	ConversationID pgtype.UUID
+	Kind           string
+	ActorType      string
+	ActorID        pgtype.UUID
+	AssigneeID     pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+}
+
 type IdempotencyKey struct {
 	Principal      string
 	Key            string

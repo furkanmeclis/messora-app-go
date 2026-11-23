@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -17,9 +18,17 @@ const TokenTTL = 10 * time.Minute
 // Issuer signs Centrifugo tokens with the HMAC secret shared with Centrifugo
 // (client.token.hmac_secret_key and client.subscription_token.hmac_secret_key).
 type Issuer struct {
-	key token.Key
-	ttl time.Duration
-	now func() time.Time
+	key    token.Key
+	ttl    time.Duration
+	now    func() time.Time
+	access ConversationAccess
+}
+
+// WithConversationAccess makes the issuer grant conversation channels to
+// users who may read only some conversations.
+func (i *Issuer) WithConversationAccess(fn ConversationAccess) *Issuer {
+	i.access = fn
+	return i
 }
 
 // NewIssuer returns an issuer; the secret must not be empty.
@@ -58,7 +67,13 @@ func (i *Issuer) Connection(p *principal.Principal) (Token, error) {
 // Subscription issues a subscription token for channel after checking that
 // p may read it.
 func (i *Issuer) Subscription(p *principal.Principal, channel string) (Token, error) {
-	if err := Authorize(p, channel); err != nil {
+	return i.SubscriptionContext(context.Background(), p, channel)
+}
+
+// SubscriptionContext is Subscription with the request's context, used for
+// the per-conversation access check.
+func (i *Issuer) SubscriptionContext(ctx context.Context, p *principal.Principal, channel string) (Token, error) {
+	if err := AuthorizeContext(ctx, p, channel, i.access); err != nil {
 		return Token{}, err
 	}
 	now := i.now()
