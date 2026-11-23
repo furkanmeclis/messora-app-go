@@ -18,8 +18,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 )
+
+func whatsapptestInbound(from string) []byte {
+	return whatsapptest.InboundText(testPNID, from, "wamid.optout-"+from, "help", "", time.Now())
+}
 
 // raw sends a non-JSON body (file upload) or reads a non-JSON response.
 func (h *harness) raw(method, path, token, contentType string, body io.Reader) (int, []byte, http.Header) {
@@ -384,3 +389,17 @@ func TestLargeImportBoundedMemoryAndCancel(t *testing.T) {
 }
 
 func jsonUnmarshal(b []byte, v any) error { return json.Unmarshal(b, v) }
+
+func TestOptedOutContactsGetNoTemplates(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.connect()
+	r := h.do(call{method: "POST", path: "/api/v1/contacts", token: token, body: map[string]any{"phone": "+" + testCustomer}})
+	h.expect(r, 201, "")
+	h.expect(h.do(call{method: "POST", path: "/api/v1/contacts/" + r.data()["id"].(string) + "/consent", token: token, body: map[string]any{"kind": "opt_out"}}), 200, "")
+	tpl := map[string]any{"to": "+" + testCustomer, "type": "template", "template": map[string]any{"name": "order_update", "language": "en"}}
+	h.expect(h.send(token, tpl), 422, "CONTACT_OPTED_OUT")
+	// The customer writes in: a reply inside the window is still allowed.
+	h.webhook(whatsapptestInbound(testCustomer))
+	h.expect(h.send(token, map[string]any{"to": "+" + testCustomer, "type": "text", "text": map[string]any{"body": "Sure, here you go"}}), 202, "")
+	h.expect(h.send(token, tpl), 422, "CONTACT_OPTED_OUT")
+}

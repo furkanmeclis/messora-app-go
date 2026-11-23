@@ -218,6 +218,12 @@ func (s *Service) Queue(ctx context.Context, in SendInput) (db.Message, error) {
 		if err != nil {
 			return err
 		}
+		// Business-initiated messages respect opt-outs; replies to a customer
+		// who writes in are still allowed inside the service window.
+		if in.Type == "template" && c.OptedOutAt != nil {
+			return &apperr.Error{Status: 422, Code: "CONTACT_OPTED_OUT",
+				Message: "This contact opted out of messages; only replies inside the 24-hour window are allowed."}
+		}
 		if in.Type != "template" && (c.LastInboundAt == nil || time.Since(*c.LastInboundAt) > ServiceWindow) {
 			return &apperr.Error{Status: 422, Code: "OUTSIDE_SERVICE_WINDOW",
 				Message: "The customer has not written in the last 24 hours; only approved templates can be sent."}
