@@ -9,6 +9,8 @@ import {
     BellRing,
     Ellipsis,
     ExternalLink,
+    Mail,
+    Phone,
     FolderMinus,
     FolderPlus,
     Tag as TagIcon,
@@ -208,6 +210,44 @@ export function ContactsTable({
         <DataTable
             storageKey="contacts"
             rowTestId="contact-row"
+            rowMenu={(c) => [
+                [
+                    {
+                        id: 'open',
+                        label: t('contacts.bulk.open'),
+                        icon: ExternalLink,
+                        run: () => router.push(`/contacts/${c.id}`),
+                    },
+                    {
+                        id: 'phone',
+                        label: t('contextMenu.copyPhone'),
+                        icon: Phone,
+                        run: () =>
+                            void navigator.clipboard
+                                .writeText(c.phone)
+                                .then(() =>
+                                    toast.success(t('contextMenu.copied')),
+                                ),
+                    },
+                    ...(c.email
+                        ? [
+                              {
+                                  id: 'email',
+                                  label: t('contextMenu.copyEmail'),
+                                  icon: Mail,
+                                  run: () =>
+                                      void navigator.clipboard
+                                          .writeText(c.email!)
+                                          .then(() =>
+                                              toast.success(
+                                                  t('contextMenu.copied'),
+                                              ),
+                                          ),
+                              },
+                          ]
+                        : []),
+                ],
+            ]}
             rows={contacts}
             rowId={(c) => c.id}
             columns={columns}

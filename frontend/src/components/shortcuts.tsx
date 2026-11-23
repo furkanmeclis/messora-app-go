@@ -127,8 +127,16 @@ export function Shortcuts({
                 target.click();
             }
         };
+        const openHelp = () => {
+            setPage(pageShortcuts());
+            setHelp(true);
+        };
         window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
+        window.addEventListener('messora:shortcuts-open', openHelp);
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            window.removeEventListener('messora:shortcuts-open', openHelp);
+        };
     }, [nav, restricted, router]);
 
     const row = (label: string, keys: React.ReactNode) => (

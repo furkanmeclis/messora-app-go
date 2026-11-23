@@ -5,6 +5,7 @@ import { ConfirmProvider } from '@/components/confirm';
 import { Shortcuts } from '@/components/shortcuts';
 import { Desktop } from '@/components/desktop/desktop';
 import { DesktopProvider } from '@/components/desktop/desktop-context';
+import { ContextMenuProvider } from '@/components/context-menu';
 import { DisplayPreferences } from '@/components/display-preferences';
 import { getAppearance } from '@/lib/server/appearance';
 import { requireMe } from '@/lib/server/auth';
@@ -73,61 +74,64 @@ export default async function PanelLayout({
     return (
         <RealtimeProvider channels={channels} enabled={!me.mfa_required}>
             <DesktopProvider>
-                <SidebarProvider>
-                    <AppSidebar
-                        user={me.user}
-                        permissions={me.permissions}
-                        organization={appearance.organization_name}
-                        logoVersion={appearance.logo?.version}
-                        restricted={me.mfa_required}
-                    />
-                    <SidebarInset>
-                        <Shortcuts
+                <ContextMenuProvider>
+                    <SidebarProvider>
+                        <AppSidebar
+                            user={me.user}
                             permissions={me.permissions}
+                            organization={appearance.organization_name}
+                            logoVersion={appearance.logo?.version}
                             restricted={me.mfa_required}
                         />
-                        <Topbar
-                            permissions={me.permissions}
-                            restricted={me.mfa_required}
-                            initialUnread={unread}
-                            initialRunning={running}
-                        />
-                        <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
-                            <ConfirmProvider>
-                                <div className="w-full flex-1 p-4 md:p-6 xl:px-8">
-                                    {isOwner &&
-                                        !appearance.setup_completed &&
-                                        !me.mfa_required && (
-                                            <SetupBanner
-                                                organization={
-                                                    appearance.organization_name
-                                                }
-                                            />
-                                        )}
-                                    <DisplayPreferences
-                                        timeZone={me.user.timezone}
-                                        locale={me.user.locale}
-                                        dateFormat={appearance.date_format}
-                                        timeFormat={appearance.time_format}
-                                    >
-                                        {children}
-                                        {!me.mfa_required && (
-                                            <Desktop
-                                                permissions={me.permissions}
-                                                wallpaper={
-                                                    appearance.theme.wallpaper
-                                                }
-                                                organization={
-                                                    appearance.organization_name
-                                                }
-                                            />
-                                        )}
-                                    </DisplayPreferences>
-                                </div>
-                            </ConfirmProvider>
-                        </ReauthProvider>
-                    </SidebarInset>
-                </SidebarProvider>
+                        <SidebarInset>
+                            <Shortcuts
+                                permissions={me.permissions}
+                                restricted={me.mfa_required}
+                            />
+                            <Topbar
+                                permissions={me.permissions}
+                                restricted={me.mfa_required}
+                                initialUnread={unread}
+                                initialRunning={running}
+                            />
+                            <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
+                                <ConfirmProvider>
+                                    <div className="w-full flex-1 p-4 md:p-6 xl:px-8">
+                                        {isOwner &&
+                                            !appearance.setup_completed &&
+                                            !me.mfa_required && (
+                                                <SetupBanner
+                                                    organization={
+                                                        appearance.organization_name
+                                                    }
+                                                />
+                                            )}
+                                        <DisplayPreferences
+                                            timeZone={me.user.timezone}
+                                            locale={me.user.locale}
+                                            dateFormat={appearance.date_format}
+                                            timeFormat={appearance.time_format}
+                                        >
+                                            {children}
+                                            {!me.mfa_required && (
+                                                <Desktop
+                                                    permissions={me.permissions}
+                                                    wallpaper={
+                                                        appearance.theme
+                                                            .wallpaper
+                                                    }
+                                                    organization={
+                                                        appearance.organization_name
+                                                    }
+                                                />
+                                            )}
+                                        </DisplayPreferences>
+                                    </div>
+                                </ConfirmProvider>
+                            </ReauthProvider>
+                        </SidebarInset>
+                    </SidebarProvider>
+                </ContextMenuProvider>
             </DesktopProvider>
         </RealtimeProvider>
     );

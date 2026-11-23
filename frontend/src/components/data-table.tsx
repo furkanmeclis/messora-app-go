@@ -44,6 +44,8 @@ import { Segmented } from '@/components/ui/segmented';
 import { useLocale, useT } from '@/i18n/client';
 import { intlLocale } from '@/i18n/config';
 import { cn } from '@/lib/utils';
+import { useContextMenu, type MenuGroup } from '@/components/context-menu';
+import { CheckSquare, Square as SquareIcon } from 'lucide-react';
 
 export type Column<T> = {
     id: string;
@@ -91,6 +93,7 @@ export function DataTable<T>({
     empty,
     storageKey,
     rowTestId,
+    rowMenu,
 }: {
     rows: T[];
     columns: Column<T>[];
@@ -108,6 +111,8 @@ export function DataTable<T>({
     /** Remembers hidden columns and density per browser. */
     storageKey: string;
     rowTestId?: string;
+    /** Extra right-click items for a row. */
+    rowMenu?: (row: T) => MenuGroup[];
 }) {
     const t = useT();
     // The language is fixed per request, so server and browser agree.
@@ -260,6 +265,29 @@ export function DataTable<T>({
         });
         return out;
     }, [page, pages]);
+
+    const bodyMenu = useContextMenu((target) => {
+        const tr = target.closest<HTMLElement>('tr[data-row-index]');
+        if (!tr) return null;
+        const i = Number(tr.dataset.rowIndex);
+        const row = rows[i];
+        if (!row) return null;
+        const groups: MenuGroup[] = [...(rowMenu?.(row) ?? [])];
+        if (selectable) {
+            const on = isSelected(pageIds[i]!);
+            groups.push([
+                {
+                    id: 'select',
+                    label: on
+                        ? t('contextMenu.deselect')
+                        : t('contextMenu.select'),
+                    icon: on ? SquareIcon : CheckSquare,
+                    run: () => toggle(i, false),
+                },
+            ]);
+        }
+        return groups;
+    });
 
     const cellPad = prefs.density === 'compact' ? 'px-3 py-1.5' : 'px-3 py-3';
 
@@ -469,7 +497,7 @@ export function DataTable<T>({
                                 )}
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody {...bodyMenu}>
                             {rows.length === 0 && (
                                 <tr>
                                     <td
@@ -488,6 +516,7 @@ export function DataTable<T>({
                                         key={id}
                                         data-state={on ? 'selected' : undefined}
                                         data-testid={rowTestId}
+                                        data-row-index={i}
                                         onClick={
                                             onRowClick
                                                 ? (e) => {

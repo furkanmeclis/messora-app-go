@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     Copy,
+    Image as ImageIcon,
     ExternalLink,
     LayoutGrid,
     Layers,
@@ -32,9 +33,18 @@ import {
 import { useT } from '@/i18n/client';
 import { activeNav, NAV, visibleNav, type NavItem } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
-import { WALLPAPERS, WALLPAPER_SIZE } from '@/theme/wallpapers';
 import type { Theme } from '@/lib/types';
 import { DESKTOP_KEY_MESSAGE, useDesktop } from './desktop-context';
+import {
+    DESKTOP_OPEN_MESSAGE,
+    useContextMenu,
+} from '@/components/context-menu';
+import {
+    BackgroundDialog,
+    wallpaperStyle,
+    loadWallpaper,
+    type Wallpaper,
+} from './background';
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Win = Rect & {
@@ -94,6 +104,12 @@ export function Desktop({
     const [now, setNow] = useState(() => new Date());
     const [query, setQuery] = useState('');
     const [startOpen, setStartOpen] = useState(false);
+    const [mine, setMine] = useState<Wallpaper>({ kind: 'workspace' });
+    const [bgOpen, setBgOpen] = useState(false);
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- per-browser choice, read after hydration
+        setMine(loadWallpaper());
+    }, []);
 
     // Restore the last layout once (browser storage).
     useEffect(() => {
@@ -134,6 +150,9 @@ export function Desktop({
     }, []);
 
     const open = (app: NavItem, url = app.href) => {
+        openRef(app, url);
+    };
+    function openRef(app: NavItem, url: string) {
         const { w: aw, h: ah } = area();
         const n = wins.length;
         const w = Math.min(1100, Math.round(aw * 0.62));
@@ -153,7 +172,7 @@ export function Desktop({
         };
         setWins((ws) => [...ws, win]);
         setStartOpen(false);
-    };
+    }
     const close = useCallback((id: string) => {
         frames.delete(id);
         setWins((ws) => ws.filter((w) => w.id !== id));
@@ -278,6 +297,25 @@ export function Desktop({
         window.addEventListener('pointerup', up);
     };
 
+    // A page inside a window asks to open a link in another window.
+    useEffect(() => {
+        const onMessage = (e: MessageEvent) => {
+            if (e.origin !== window.location.origin) return;
+            const d = e.data as { type?: string; url?: string };
+            if (
+                d?.type !== DESKTOP_OPEN_MESSAGE ||
+                typeof d.url !== 'string' ||
+                !d.url.startsWith('/') ||
+                d.url.startsWith('//')
+            )
+                return;
+            const app = activeNav(d.url.split('?')[0]!) ?? NAV[0]!;
+            openRef(app, d.url);
+        };
+        window.addEventListener('message', onMessage);
+        return () => window.removeEventListener('message', onMessage);
+    });
+
     // A click inside a window's page focuses that window.
     useEffect(() => {
         const onBlur = () =>
@@ -348,6 +386,111 @@ export function Desktop({
         }
     };
 
+    const menu = useContextMenu((target) => {
+        const appEl = target.closest<HTMLElement>('[data-app-id]');
+        if (appEl) {
+            const app = appOf(appEl.dataset.appId!);
+            if (!app) return null;
+            return [
+                [
+                    {
+                        id: 'open',
+                        label: t('contextMenu.open'),
+                        icon: ExternalLink,
+                        run: () => open(app),
+                    },
+                ],
+            ];
+        }
+        const winEl = target.closest<HTMLElement>('[data-win-id]');
+        if (winEl) {
+            const w = wins.find((x) => x.id === winEl.dataset.winId);
+            if (!w) return null;
+            return [
+                [
+                    {
+                        id: 'min',
+                        label: t('desktop.minimize'),
+                        icon: Minus,
+                        shortcut: 'Alt+M',
+                        run: () => minimize(w.id),
+                    },
+                    {
+                        id: 'max',
+                        label: w.max
+                            ? t('desktop.restore')
+                            : t('desktop.maximize'),
+                        icon: w.max ? Copy : Square,
+                        shortcut: 'Alt+↑',
+                        run: () => toggleMax(w.id),
+                    },
+                    {
+                        id: 'reload',
+                        label: t('desktop.reload'),
+                        icon: RotateCw,
+                        run: () =>
+                            frames.get(w.id)?.contentWindow?.location.reload(),
+                    },
+                    {
+                        id: 'panel',
+                        label: t('desktop.openInPanel'),
+                        icon: ExternalLink,
+                        run: () => {
+                            exit();
+                            router.push(w.url);
+                        },
+                    },
+                ],
+                [
+                    {
+                        id: 'close',
+                        label: t('desktop.close'),
+                        icon: X,
+                        shortcut: 'Alt+W',
+                        danger: true,
+                        run: () => close(w.id),
+                    },
+                ],
+            ];
+        }
+        return [
+            [
+                {
+                    id: 'bg',
+                    label: t('desktop.changeBackground'),
+                    icon: ImageIcon,
+                    run: () => setBgOpen(true),
+                },
+                {
+                    id: 'tile',
+                    label: t('desktop.tile'),
+                    icon: PanelsTopLeft,
+                    run: () => arrange('tile'),
+                },
+                {
+                    id: 'cascade',
+                    label: t('desktop.cascade'),
+                    icon: Layers,
+                    run: () => arrange('cascade'),
+                },
+                {
+                    id: 'show',
+                    label: t('desktop.showDesktop'),
+                    icon: Maximize2,
+                    run: () =>
+                        setWins((ws) => ws.map((w) => ({ ...w, min: true }))),
+                },
+                {
+                    id: 'closeAll',
+                    label: t('desktop.closeAll'),
+                    icon: X,
+                    run: () => setWins([]),
+                },
+            ],
+            [{ id: 'exit', label: t('desktop.exit'), icon: LogOut, run: exit }],
+        ];
+    });
+
     if (!active) return null;
 
     const filtered = apps.filter((a) =>
@@ -370,11 +513,9 @@ export function Desktop({
 
     return (
         <div
-            className="fixed inset-0 z-[60] flex flex-col overflow-hidden text-foreground select-none"
-            style={{
-                background: WALLPAPERS[wallpaper],
-                backgroundSize: WALLPAPER_SIZE[wallpaper],
-            }}
+            {...menu}
+            className="fixed inset-0 z-40 flex flex-col overflow-hidden text-foreground select-none"
+            style={wallpaperStyle(mine, wallpaper)}
             onPointerDown={(e) => {
                 if (e.target === e.currentTarget) setSelected(null);
             }}
@@ -395,6 +536,7 @@ export function Desktop({
                     <button
                         key={a.id}
                         type="button"
+                        data-app-id={a.id}
                         onClick={() => setSelected(a.id)}
                         onDoubleClick={() => open(a)}
                         onKeyDown={(e) => e.key === 'Enter' && open(a)}
@@ -436,6 +578,7 @@ export function Desktop({
                 return (
                     <section
                         key={w.id}
+                        data-win-id={w.id}
                         role="dialog"
                         aria-label={w.title}
                         onPointerDown={() => !isFocused && focus(w.id)}
@@ -557,6 +700,14 @@ export function Desktop({
                 );
             })}
 
+            <BackgroundDialog
+                open={bgOpen}
+                onOpenChange={setBgOpen}
+                value={mine}
+                workspace={wallpaper}
+                onChange={setMine}
+            />
+
             {/* Taskbar */}
             <footer
                 className="absolute inset-x-0 bottom-0 z-[9999] flex items-center gap-2 border-t border-white/10 bg-background/70 px-2 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] backdrop-blur-2xl"
@@ -644,6 +795,17 @@ export function Desktop({
                             </button>
                             <button
                                 type="button"
+                                onClick={() => {
+                                    setStartOpen(false);
+                                    setBgOpen(true);
+                                }}
+                                className="col-span-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent"
+                            >
+                                <ImageIcon className="size-4" />{' '}
+                                {t('desktop.changeBackground')}
+                            </button>
+                            <button
+                                type="button"
                                 onClick={exit}
                                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10"
                             >
@@ -670,6 +832,7 @@ export function Desktop({
                             <button
                                 key={w.id}
                                 type="button"
+                                data-win-id={w.id}
                                 title={`${w.title} (Alt+${i + 1})`}
                                 onClick={() =>
                                     on ? minimize(w.id) : focus(w.id)

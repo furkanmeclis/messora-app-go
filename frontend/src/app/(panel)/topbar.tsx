@@ -168,9 +168,12 @@ export function Topbar({
             }
         };
         window.addEventListener('keydown', onKey);
+        const openPalette = () => setPalette(true);
+        window.addEventListener('messora:palette-open', openPalette);
         const tick = setInterval(() => setNow(Date.now()), 30_000);
         return () => {
             window.removeEventListener('keydown', onKey);
+            window.removeEventListener('messora:palette-open', openPalette);
             clearInterval(tick);
         };
     }, []);
