@@ -58,6 +58,7 @@ import {
     type RuleNode,
     type TreeNode,
 } from './segment-tree';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 type Option = { id: string; name: string };
 
@@ -449,7 +450,7 @@ function PreviewCard({
                             aria-live="polite"
                             data-testid="segment-count"
                         >
-                            {data.count.toLocaleString()}
+                            {data.count.toLocaleString(NUMBER_LOCALE)}
                         </p>
                         {data.sample.length > 0 ? (
                             <ul className="divide-y">

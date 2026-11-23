@@ -31,7 +31,10 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { useFormatDateTime } from '@/components/display-preferences';
+import {
+    useFormatPrecise,
+    useFormatDateTime,
+} from '@/components/display-preferences';
 import type { AutomationRun, AutomationRunStep } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getRunAction, moreRunsAction } from '../../actions';
@@ -104,15 +107,6 @@ function StatusBadge({ status }: { status: AutomationRun['status'] }) {
             {s.label}
         </Badge>
     );
-}
-
-/** Date and time with seconds (step timelines are often seconds apart). */
-function formatPrecise(iso: string | null | undefined): string {
-    if (!iso) return '—';
-    return new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'medium',
-    }).format(new Date(iso));
 }
 
 export function RunList({
@@ -251,6 +245,7 @@ export function RunList({
 }
 
 function RunDetail({ runId }: { runId: string }) {
+    const formatPrecise = useFormatPrecise();
     const [state, setState] = useState<
         | { kind: 'loading' }
         | { kind: 'error'; message: string }
@@ -310,6 +305,7 @@ function RunDetail({ runId }: { runId: string }) {
 }
 
 function RunBody({ run }: { run: AutomationRun }) {
+    const formatPrecise = useFormatPrecise();
     const steps = run.steps ?? [];
     return (
         <>
@@ -370,6 +366,7 @@ function RunBody({ run }: { run: AutomationRun }) {
 }
 
 function TimelineItem({ step }: { step: AutomationRunStep }) {
+    const formatPrecise = useFormatPrecise();
     const o = OUTCOME[step.outcome] ?? OUTCOME.ok;
     const isBranch = step.action === 'branch';
     const detail = { ...step.detail };

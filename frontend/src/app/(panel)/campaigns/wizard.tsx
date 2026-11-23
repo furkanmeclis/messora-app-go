@@ -56,6 +56,7 @@ import {
 } from './actions';
 import { audienceLabel } from './campaign-ui';
 import type { WizardData } from './wizard-data';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
 type AudienceKind = 'segment' | 'group' | 'tag' | 'all';
@@ -1003,7 +1004,7 @@ export function CampaignWizard({
                                         names,
                                     )}
                                     {typeof estimate === 'number' &&
-                                        ` · about ${estimate.toLocaleString()} contacts`}
+                                        ` · about ${estimate.toLocaleString(NUMBER_LOCALE)} contacts`}
                                 </dd>
                             </dl>
 
@@ -1176,7 +1177,7 @@ export function CampaignWizard({
                         <AlertDialogTitle>Start sending now?</AlertDialogTitle>
                         <AlertDialogDescription>
                             {typeof estimate === 'number'
-                                ? `About ${estimate.toLocaleString()} contacts receive “${template?.name}” right away. `
+                                ? `About ${estimate.toLocaleString(NUMBER_LOCALE)} contacts receive “${template?.name}” right away. `
                                 : `Contacts receive “${template?.name}” right away. `}
                             You can pause or cancel while it runs, but messages
                             already sent cannot be recalled.
@@ -1225,7 +1226,7 @@ function EstimateLine({
                     : 'Recipient count unavailable.'
                 : estimate === null
                   ? 'Recipient count unavailable.'
-                  : `About ${estimate.toLocaleString()} contacts${kind === 'all' ? ' (not opted out)' : ''}. Duplicates and opted-out contacts are skipped when the campaign starts.`}
+                  : `About ${estimate.toLocaleString(NUMBER_LOCALE)} contacts${kind === 'all' ? ' (not opted out)' : ''}. Duplicates and opted-out contacts are skipped when the campaign starts.`}
         </p>
     );
 }

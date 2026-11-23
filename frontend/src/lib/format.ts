@@ -33,6 +33,45 @@ export function formatDateTime(
     }).format(new Date(iso));
 }
 
+/** Date and time with seconds (step timelines are often seconds apart). */
+export function formatPrecise(
+    iso: string | null | undefined,
+    prefs: DisplayPrefs = defaultPrefs,
+): string {
+    if (!iso) return '—';
+    return new Intl.DateTimeFormat(prefs.locale, {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+        timeZone: prefs.timeZone,
+    }).format(new Date(iso));
+}
+
+/** Compact list label: the time for today, otherwise day and month. */
+export function formatTimeLabel(
+    iso: string,
+    prefs: DisplayPrefs = defaultPrefs,
+): string {
+    const day = (d: Date) =>
+        new Intl.DateTimeFormat('en-CA', { timeZone: prefs.timeZone }).format(
+            d,
+        );
+    const d = new Date(iso);
+    return day(d) === day(new Date())
+        ? new Intl.DateTimeFormat(prefs.locale, {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: prefs.timeZone,
+          }).format(d)
+        : new Intl.DateTimeFormat(prefs.locale, {
+              day: 'numeric',
+              month: 'short',
+              timeZone: prefs.timeZone,
+          }).format(d);
+}
+
+/** Numbers render the same on the server and in every browser. */
+export const NUMBER_LOCALE = 'en-GB';
+
 /** Rough, privacy-friendly browser/OS label from a user agent. */
 export function describeUserAgent(ua: string | null | undefined): string {
     if (!ua) return 'Unknown device';

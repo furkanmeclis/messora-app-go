@@ -3,12 +3,15 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -452,5 +455,41 @@ func TestChannelPermissionsAndAPIKeySend(t *testing.T) {
 	h.expect(h.do(call{method: "POST", path: "/api/v1/channels/accounts", token: token, body: map[string]any{"name": "dup", "waba_id": testWABA, "access_token": testToken}}), 409, "ACCOUNT_EXISTS")
 	if h.count("SELECT count(*) FROM audit_logs WHERE action LIKE 'channel.%'") < 2 {
 		t.Fatal("channel changes not audited")
+	}
+}
+
+func TestOutboundMediaUpload(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.connect()
+	upload := func(name, ctype string, body []byte) (int, map[string]any) {
+		status, raw, _ := h.raw("POST", "/api/v1/media?filename="+name, token, ctype, bytes.NewReader(body))
+		var out map[string]any
+		_ = json.Unmarshal(raw, &out)
+		return status, out
+	}
+	status, out := upload("price-list.pdf", "application/pdf", []byte("%PDF-1.7 fake"))
+	if status != 201 {
+		t.Fatalf("upload: %d %v", status, out)
+	}
+	id := out["data"].(map[string]any)["id"].(string)
+	if !strings.HasPrefix(id, "media") || out["data"].(map[string]any)["size"] != float64(13) {
+		t.Fatalf("upload result: %v", out)
+	}
+	if status, _ := upload("x.exe", "application/x-msdownload", []byte("MZ")); status != 422 {
+		t.Fatalf("executable accepted: %d", status)
+	}
+	if status, _ := upload("big.png", "image/png", bytes.Repeat([]byte{1}, 5<<20+1)); status != 422 {
+		t.Fatalf("oversized image accepted: %d", status)
+	}
+	// The uploaded file is sent by id inside the customer service window.
+	h.webhook(whatsapptest.InboundText(testPNID, testCustomer, "wamid.media-1", "send the list", "", time.Now()))
+	r := h.send(token, map[string]any{"to": "+" + testCustomer, "type": "document", "media": map[string]any{"id": id, "filename": "price-list.pdf"}})
+	h.expect(r, 202, "")
+	if err := h.deliver(r.data()["id"].(string)); err != nil {
+		t.Fatal(err)
+	}
+	sent := h.meta.Sent()
+	if d := sent[len(sent)-1].Message.Document; d == nil || d.ID != id || d.Filename != "price-list.pdf" {
+		t.Fatalf("document message: %+v", sent[len(sent)-1].Message)
 	}
 }

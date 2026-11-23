@@ -64,6 +64,7 @@ import {
     startImportAction,
 } from '../actions';
 import { TagsInput } from '../tags-input';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -393,14 +394,14 @@ export function ImportList({ imports }: { imports: ContactImport[] }) {
                             <ImportStatus status={i.status} />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                            {i.total_rows.toLocaleString()}
+                            {i.total_rows.toLocaleString(NUMBER_LOCALE)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                            {i.created_count.toLocaleString()} /{' '}
-                            {i.updated_count.toLocaleString()}
+                            {i.created_count.toLocaleString(NUMBER_LOCALE)} /{' '}
+                            {i.updated_count.toLocaleString(NUMBER_LOCALE)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                            {i.failed_count.toLocaleString()}
+                            {i.failed_count.toLocaleString(NUMBER_LOCALE)}
                         </TableCell>
                         <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
                             {formatDateTime(i.created_at)}
@@ -582,7 +583,7 @@ function MappingStep({
                 <CardHeader>
                     <CardTitle>2. Choose what each column is</CardTitle>
                     <CardDescription>
-                        {imp.total_rows.toLocaleString()} row
+                        {imp.total_rows.toLocaleString(NUMBER_LOCALE)} row
                         {imp.total_rows === 1 ? '' : 's'} found. A phone number
                         column is required; everything else is optional.
                     </CardDescription>
@@ -851,8 +852,9 @@ function ProgressView({
                         aria-live="polite"
                         data-testid="import-processed"
                     >
-                        {imp.processed_rows.toLocaleString()} of{' '}
-                        {imp.total_rows.toLocaleString()} rows processed
+                        {imp.processed_rows.toLocaleString(NUMBER_LOCALE)} of{' '}
+                        {imp.total_rows.toLocaleString(NUMBER_LOCALE)} rows
+                        processed
                     </p>
                 </div>
                 <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -865,7 +867,7 @@ function ProgressView({
                                 className="text-2xl font-semibold tabular-nums"
                                 data-testid={`import-${label.toLowerCase()}`}
                             >
-                                {n.toLocaleString()}
+                                {n.toLocaleString(NUMBER_LOCALE)}
                             </dd>
                         </div>
                     ))}

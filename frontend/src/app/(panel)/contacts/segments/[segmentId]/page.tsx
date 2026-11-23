@@ -16,6 +16,7 @@ import type { ContactGroup, Segment, Tag } from '@/lib/types';
 import { PageHeading } from '../../../panel-header';
 import { UUID_RE } from '../../shared';
 import { SegmentBuilder } from '../segment-builder';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 export const metadata: Metadata = { title: 'Segment' };
 
@@ -72,7 +73,7 @@ export default async function SegmentPage({
                 description={
                     count == null
                         ? 'The saved rules are no longer valid; fix them below.'
-                        : `${count.toLocaleString()} contact${count === 1 ? '' : 's'} match right now.`
+                        : `${count.toLocaleString(NUMBER_LOCALE)} contact${count === 1 ? '' : 's'} match right now.`
                 }
             />
             <SegmentBuilder

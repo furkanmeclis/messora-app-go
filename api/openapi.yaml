@@ -795,6 +795,33 @@ paths:
               schema: { $ref: "#/components/schemas/MessageResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /media:
+    post:
+      operationId: uploadMedia
+      tags: [messages]
+      summary: Upload a file to send as an image, video, audio, document or sticker
+      description: >-
+        Send the raw file as the request body with its Content-Type. Meta keeps
+        it for 30 days; use the returned id in a message's media.id. Limits:
+        images 5 MB, video and audio 16 MB, documents 100 MB, stickers 500 KB.
+      security: [{ session: [conversations.reply] }, { session: [messages.send] }, { apiKey: [messages.send] }]
+      x-messora-raw-body: 104857600
+      parameters:
+        - { name: filename, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 240 } }
+        - { name: phone_number_id, in: query, schema: { type: string, format: uuid }, description: "Sender whose account stores the file; defaults to the default number." }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "201":
+          description: Uploaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadedMediaResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /messages/{messageId}:
     get:
       operationId: getMessage
@@ -3910,3 +3937,17 @@ components:
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/WebhookDelivery" } }
         meta: { $ref: "#/components/schemas/Meta" }
+
+    UploadedMedia:
+      type: object
+      required: [id, mime_type, filename, size, expires_at]
+      properties:
+        id: { type: string, description: Meta media ID for media.id in a message. }
+        mime_type: { type: string }
+        filename: { type: string }
+        size: { type: integer, format: int64 }
+        expires_at: { type: string, format: date-time }
+    UploadedMediaResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/UploadedMedia" }, meta: { $ref: "#/components/schemas/Meta" } }

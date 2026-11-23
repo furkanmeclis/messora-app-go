@@ -101,3 +101,13 @@ func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request, id api.Mess
 	}
 	httpx.JSON(w, r, http.StatusOK, out)
 }
+
+// UploadMedia implements api.ServerInterface; the body is the file.
+func (h *Handler) UploadMedia(w http.ResponseWriter, r *http.Request, p api.UploadMediaParams) {
+	m, err := h.svc.Upload(r.Context(), p.PhoneNumberId, p.Filename, r.Header.Get("Content-Type"), r.ContentLength, r.Body)
+	if err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	httpx.JSON(w, r, http.StatusCreated, api.UploadedMedia{Id: m.ID, MimeType: m.MimeType, Filename: m.Filename, Size: m.Size, ExpiresAt: m.ExpiresAt})
+}

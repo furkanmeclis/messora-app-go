@@ -289,27 +289,39 @@ func (c *Client) DeleteTemplate(ctx context.Context, wabaID, token, name, hsmID 
 
 // UploadMedia uploads a file and returns its media ID (valid 30 days).
 func (c *Client) UploadMedia(ctx context.Context, phoneNumberID, token, filename, mimeType string, r io.Reader) (string, error) {
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	_ = w.WriteField("messaging_product", "whatsapp")
-	_ = w.WriteField("type", mimeType)
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, filename))
-	h.Set("Content-Type", mimeType)
-	part, err := w.CreatePart(h)
-	if err != nil {
-		return "", err
-	}
-	if _, err := io.Copy(part, r); err != nil {
-		return "", err
-	}
-	if err := w.Close(); err != nil {
-		return "", err
-	}
+	// Stream the multipart body: files may be up to 100 MB.
+	pr, pw := io.Pipe()
+	w := multipart.NewWriter(pw)
+	go func() {
+		err := func() error {
+			if err := w.WriteField("messaging_product", "whatsapp"); err != nil {
+				return err
+			}
+			if err := w.WriteField("type", mimeType); err != nil {
+				return err
+			}
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, filename))
+			h.Set("Content-Type", mimeType)
+			part, err := w.CreatePart(h)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(part, r); err != nil {
+				return err
+			}
+			return w.Close()
+		}()
+		_ = pw.CloseWithError(err)
+	}()
 	var out struct {
 		ID string `json:"id"`
 	}
-	_, err = c.do(ctx, http.MethodPost, c.endpoint(url.PathEscape(phoneNumberID)+"/media", nil), token, &buf, w.FormDataContentType(), &out)
+	_, err := c.do(ctx, http.MethodPost, c.endpoint(url.PathEscape(phoneNumberID)+"/media", nil), token, pr, w.FormDataContentType(), &out)
+	_ = pr.CloseWithError(io.ErrClosedPipe) // stop the writer if the request ended early
+	if err == nil && out.ID == "" {
+		err = errors.New("whatsapp: upload response without media id")
+	}
 	return out.ID, err
 }
 

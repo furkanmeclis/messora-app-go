@@ -11,12 +11,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
+	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
 // MediaStore keeps media files on a local volume. Keys are relative paths
@@ -115,4 +117,77 @@ func (s *Service) DownloadMedia(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	return s.q.MarkMediaStored(ctx, db.MarkMediaStoredParams{ID: id, StorageKey: &key, SizeBytes: &n})
+}
+
+// Outbound media limits (Meta's Cloud API media reference).
+var uploadLimits = map[string]int64{
+	"image/jpeg": 5 << 20, "image/png": 5 << 20, "image/webp": 500 << 10,
+	"video/mp4": 16 << 20, "video/3gpp": 16 << 20,
+	"audio/aac": 16 << 20, "audio/amr": 16 << 20, "audio/mpeg": 16 << 20, "audio/mp4": 16 << 20, "audio/ogg": 16 << 20,
+	"text/plain": 100 << 20, "application/pdf": 100 << 20,
+	"application/msword": 100 << 20, "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 100 << 20,
+	"application/vnd.ms-excel": 100 << 20, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": 100 << 20,
+	"application/vnd.ms-powerpoint": 100 << 20, "application/vnd.openxmlformats-officedocument.presentationml.presentation": 100 << 20,
+}
+
+// MaxUpload is the largest file Meta accepts (documents).
+const MaxUpload = 100 << 20
+
+// UploadedMedia is a file stored on Meta, usable in messages for 30 days.
+type UploadedMedia struct {
+	ID        string
+	MimeType  string
+	Filename  string
+	Size      int64
+	ExpiresAt time.Time
+}
+
+// Upload sends a file to Meta through the given (or default) number and
+// returns its media ID. The type and size are checked against Meta's limits
+// before anything is sent.
+func (s *Service) Upload(ctx context.Context, phoneNumberID *uuid.UUID, filename, mimeType string, size int64, body io.Reader) (UploadedMedia, error) {
+	mimeType = strings.ToLower(strings.TrimSpace(strings.SplitN(mimeType, ";", 2)[0]))
+	limit, ok := uploadLimits[mimeType]
+	if !ok {
+		return UploadedMedia{}, apperr.Validation("content_type", "WhatsApp does not accept this file type.")
+	}
+	if size > limit {
+		return UploadedMedia{}, apperr.Validation("file", fmt.Sprintf("This file type is limited to %d MB.", limit>>20))
+	}
+	filename = strings.TrimSpace(filepath.Base(filename))
+	if filename == "" || filename == "." || len(filename) > 240 {
+		return UploadedMedia{}, apperr.Validation("filename", "A file name is required.")
+	}
+	pn, err := s.resolveNumber(ctx, phoneNumberID)
+	if err != nil {
+		return UploadedMedia{}, err
+	}
+	sender, err := s.ch.SenderFor(ctx, pn.ID)
+	if err != nil {
+		return UploadedMedia{}, err
+	}
+	counted := &countingReader{r: io.LimitReader(body, limit+1)}
+	id, err := s.ch.Client().UploadMedia(ctx, sender.PhoneNumber.PhoneNumberID, sender.Token, filename, mimeType, counted)
+	if counted.n > limit {
+		return UploadedMedia{}, apperr.Validation("file", fmt.Sprintf("This file type is limited to %d MB.", limit>>20))
+	}
+	if err != nil {
+		var api *whatsapp.APIError
+		if errors.As(err, &api) {
+			return UploadedMedia{}, &apperr.Error{Status: 502, Code: "META_API_ERROR", Message: "Meta rejected the file: " + api.Error()}
+		}
+		return UploadedMedia{}, apperr.Unavailable("META_UNREACHABLE", "Meta's API could not be reached; try again.")
+	}
+	return UploadedMedia{ID: id, MimeType: mimeType, Filename: filename, Size: counted.n, ExpiresAt: time.Now().Add(30 * 24 * time.Hour).UTC()}, nil
+}
+
+type countingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
 }

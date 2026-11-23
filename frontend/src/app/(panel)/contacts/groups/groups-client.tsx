@@ -36,6 +36,7 @@ import type { ActionResult, ContactGroup } from '@/lib/types';
 import { deleteGroupAction, saveGroupAction } from '../actions';
 import { ConfirmDelete } from '../confirm-delete';
 import { useSubmit } from '../use-submit';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 export function GroupDialog({ group }: { group?: ContactGroup }) {
     const [open, setOpen] = useState(false);
@@ -185,7 +186,7 @@ export function GroupTable({
                                 className="hover:underline"
                                 aria-label={`${g.member_count} members of ${g.name}; show them`}
                             >
-                                {g.member_count.toLocaleString()}
+                                {g.member_count.toLocaleString(NUMBER_LOCALE)}
                             </Link>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">

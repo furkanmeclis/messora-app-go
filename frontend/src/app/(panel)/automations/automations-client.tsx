@@ -38,6 +38,7 @@ import { useFormatDateTime } from '@/components/display-preferences';
 import type { Automation } from '@/lib/types';
 import { deleteAutomationAction, setActiveAction } from './actions';
 import { describeTrigger } from './model';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 type Option = { id: string; label: string };
 
@@ -122,7 +123,7 @@ export function AutomationTable({
                             />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                            {a.run_count.toLocaleString()}
+                            {a.run_count.toLocaleString(NUMBER_LOCALE)}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                             {a.last_run_at

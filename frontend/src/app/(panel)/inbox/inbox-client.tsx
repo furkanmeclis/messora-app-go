@@ -37,7 +37,10 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { useFormatDateTime } from '@/components/display-preferences';
+import {
+    useFormatTimeLabel,
+    useFormatDateTime,
+} from '@/components/display-preferences';
 import { cn } from '@/lib/utils';
 import type { Conversation, InboxMessage, Template } from '@/lib/types';
 import type { ThreadData } from './page';
@@ -55,17 +58,6 @@ type UserOption = { id: string; name: string };
 
 function displayName(c: Conversation['contact']): string {
     return c.name || c.profile_name || c.phone;
-}
-
-function timeLabel(iso: string): string {
-    const d = new Date(iso);
-    const today = new Date();
-    return d.toDateString() === today.toDateString()
-        ? d.toLocaleTimeString(undefined, {
-              hour: '2-digit',
-              minute: '2-digit',
-          })
-        : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
 function inboxHref(query: string, extra: Record<string, string>): string {
@@ -189,6 +181,7 @@ export function ConversationList({
     query: string;
     selected?: string;
 }) {
+    const timeLabel = useFormatTimeLabel();
     const [more, setMore] = useState<Conversation[]>([]);
     const [cursor, setCursor] = useState<string | undefined>(undefined);
     const [loaded, setLoaded] = useState(false);

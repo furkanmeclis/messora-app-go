@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import type { CampaignStatus } from '@/lib/types';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 export const CAMPAIGN_STATUSES: CampaignStatus[] = [
     'draft',
@@ -145,8 +146,8 @@ export function CampaignProgress({
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
                 <span>
-                    {s.done.toLocaleString()} / {s.recipients.toLocaleString()}{' '}
-                    processed
+                    {s.done.toLocaleString(NUMBER_LOCALE)} /{' '}
+                    {s.recipients.toLocaleString(NUMBER_LOCALE)} processed
                 </span>
                 <span>{s.percent}%</span>
             </div>

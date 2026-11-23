@@ -36,6 +36,7 @@ import { deleteTagAction, saveTagAction } from '../actions';
 import { ConfirmDelete } from '../confirm-delete';
 import { TAG_COLORS, TagChip } from '../tag-chip';
 import { useSubmit } from '../use-submit';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 export function TagDialog({ tag }: { tag?: Tag }) {
     const [open, setOpen] = useState(false);
@@ -192,7 +193,7 @@ export function TagTable({
                                 className="hover:underline"
                                 aria-label={`${t.contact_count} contacts tagged ${t.name}; show them`}
                             >
-                                {t.contact_count.toLocaleString()}
+                                {t.contact_count.toLocaleString(NUMBER_LOCALE)}
                             </Link>
                         </TableCell>
                         {canManage && (
@@ -201,7 +202,7 @@ export function TagTable({
                                 <ConfirmDelete
                                     label={`Delete tag ${t.name}`}
                                     title={`Delete the tag ${t.name}?`}
-                                    description={`It is removed from ${t.contact_count.toLocaleString()} contact${t.contact_count === 1 ? '' : 's'}. The contacts themselves stay.`}
+                                    description={`It is removed from ${t.contact_count.toLocaleString(NUMBER_LOCALE)} contact${t.contact_count === 1 ? '' : 's'}. The contacts themselves stay.`}
                                     confirm="Delete tag"
                                     action={() => deleteTagAction(t.id)}
                                 />

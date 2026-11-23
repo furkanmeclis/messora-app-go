@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useMemo } from 'react';
 import {
     defaultPrefs,
     formatDateTime,
+    formatPrecise,
+    formatTimeLabel,
     prefsFor,
     type DisplayPrefs,
 } from '@/lib/format';
@@ -34,4 +36,19 @@ export function useFormatDateTime() {
         (iso: string | null | undefined) => formatDateTime(iso, prefs),
         [prefs],
     );
+}
+
+/** formatPrecise bound to the user's display preferences. */
+export function useFormatPrecise() {
+    const prefs = useContext(Prefs);
+    return useCallback(
+        (iso: string | null | undefined) => formatPrecise(iso, prefs),
+        [prefs],
+    );
+}
+
+/** formatTimeLabel bound to the user's display preferences. */
+export function useFormatTimeLabel() {
+    const prefs = useContext(Prefs);
+    return useCallback((iso: string) => formatTimeLabel(iso, prefs), [prefs]);
 }

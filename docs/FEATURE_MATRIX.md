@@ -88,21 +88,21 @@
 | Centrifugo config'i (`messora init`), connection / subscription token endpoint'leri | 6 | Implemented |
 | Kanal izinleri (yetkisiz kanal reddi, gerçek Centrifugo ile test edildi) | 6 | Implemented |
 | Outbox → Centrifugo publish (idempotent), yeni mesaj ve durum event'leri | 6 | Implemented |
-| Frontend Centrifuge client: yeniden bağlanma, recovery, kurtarılamayan kopmada yeniden çekme | 6 | Needs verification (Centrifugo restart E2E senaryosu yazıldı: `frontend/e2e/realtime.spec.ts`; CI'da çalışacak) |
-| Kampanya ilerlemesinin realtime yayını | 6 | Partial (kanal, izin ve `campaign.updated` event'i hazır; kampanya motoru Phase 5 ile bağlanır) |
+| Frontend Centrifuge client: yeniden bağlanma, recovery, kurtarılamayan kopmada yeniden çekme | 6 | Implemented (`frontend/e2e/realtime.spec.ts`: Centrifugo restart sonrası kendiliğinden toparlanır) |
+| Kampanya ilerlemesinin realtime yayını | 6 | Implemented (durum değişimi, dispatcher tikleri ve teslim webhook'ları; webhook kaynaklı yayın kampanya başına 2 sn'de bir) |
 | Konuşma kanalı (`conversation:<id>`) agent ataması | 7 | Implemented (agent kendisine atanmış veya atanmamış konuşmalara abone olabilir; tablo + integration testleri) |
 | Inbox: liste, geçmiş, gönderim, medya, okundu | 7 | Implemented (API + panel; görünürlük, 24h ve opt-out kuralları integration testlerinde; 10k konuşma listesi p95 < 200 ms testi; Playwright `frontend/e2e/inbox.spec.ts`, Meta mock'u olmadığı için gelen mesaj ve teslim bilgisi DB'ye yazılarak simüle edilir) |
 | Konuşma atama, kapatma, müşteri paneli | 7 | Implemented (atama ve durum geçmişi, audit; müşteri paneli: consent, etiketler, notlar. Atanacak kullanıcı listesi yalnızca `users.manage` ile gelir, diğerleri kendine/atanmamışa atar) |
 | Otomasyon: tetikleyiciler, aksiyonlar, görsel editör | 8 | Implemented (5 tetikleyici, 12 adım; editör paneli Phase 9) |
-| Döngü / duplicate koruması, çalıştırma geçmişi | 8 | Missing |
+| Döngü / duplicate koruması, çalıştırma geçmişi | 8 | Implemented (olay başına tek çalışma, otomasyon etkileri tetiklemez, adım günlüğü) |
 | Giden webhook'lar (imzalı, retry, teslimat logu, SSRF korumalı) | 8 | Implemented (API + panel sayfası; event'ler değişiklikle aynı transaction'da outbox üzerinden; HMAC-SHA256 imza, ~24 saatte 10 deneme, 410'da devre dışı, yeniden gönder ve test event'i; `internal/platform/safehttp` hem kayıtta hem bağlantı anında IP denetler. Unit + integration testleri; entegrasyon rehberi `docs/WEBHOOKS.md`) |
 
 ## Operasyon (Phase 10)
 
 | Özellik | Phase | Durum |
 |---|---|---|
-| E2E (Playwright) | 2+ | Partial (kimlik akışları kapsandı; her phase kendi akışlarını ekler) |
-| Yük testleri | 10 | Missing |
-| Backup / restore dokümanı ve provası | 10 | Missing |
+| E2E (Playwright) | 2+ | Implemented (kimlik, kişiler, kampanyalar, inbox, otomasyon, realtime; `routes.spec.ts` her paneli gezer) |
+| Yük testleri | 10 | Implemented (100k alıcılı kampanya: 0 duplicate/0 kayıp; 100k satır import; 10k konuşmalı inbox p95) |
+| Backup / restore dokümanı ve provası | 10 | Implemented (`scripts/backup.sh`, `restore.sh`, CI'da `backup-restore-test.sh`; docs/OPERATIONS.md) |
 | OpenTelemetry tracing | 10 | Missing |
 | i18n (EN + TR) | v1.x | Missing |

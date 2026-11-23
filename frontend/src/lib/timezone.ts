@@ -79,7 +79,7 @@ export function utcToZoned(iso: string | Date, timeZone: string): string {
 /** e.g. "22 Nov 2026, 14:05 (Europe/Istanbul)". */
 export function formatInZone(iso: string | Date, timeZone: string): string {
     try {
-        return `${new Intl.DateTimeFormat(undefined, {
+        return `${new Intl.DateTimeFormat('en-GB', {
             dateStyle: 'medium',
             timeStyle: 'short',
             timeZone,

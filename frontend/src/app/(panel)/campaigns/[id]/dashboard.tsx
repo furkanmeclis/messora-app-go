@@ -79,6 +79,7 @@ import {
     CampaignStatusBadge,
     summarize,
 } from '../campaign-ui';
+import { NUMBER_LOCALE } from '@/lib/format';
 
 type Perms = { edit: boolean; start: boolean; pause: boolean; del: boolean };
 
@@ -332,7 +333,7 @@ function Stat({
                           : ''
                 }`}
             >
-                {value.toLocaleString()}
+                {value.toLocaleString(NUMBER_LOCALE)}
             </dd>
         </div>
     );
