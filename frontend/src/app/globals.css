@@ -70,7 +70,9 @@
 }
 
 /* Inside a desktop-mode window only the page itself is shown. */
-html[data-embedded] [data-chrome] {
+html[data-embedded] [data-chrome],
+html[data-embedded] [data-slot='sidebar-gap'],
+html[data-embedded] [data-slot='sidebar-container'] {
     display: none !important;
 }
 
