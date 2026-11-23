@@ -22,6 +22,7 @@ import {
     UserRound,
     Users,
     Webhook,
+    Workflow,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -86,6 +87,12 @@ const WORKSPACE: NavItem[] = [
         label: 'Channels',
         icon: Phone,
         permission: 'channels.read',
+    },
+    {
+        href: '/automations',
+        label: 'Automations',
+        icon: Workflow,
+        permission: 'automations.read',
     },
     { href: '/users', label: 'Users', icon: Users, permission: 'users.manage' },
     {
