@@ -11,7 +11,9 @@ paths = [
   # oapi-codegen embeds the gzipped spec as base64; random-looking by design.
   '''^internal/api/api\.gen\.go$''',
 ]
-# Passwords used only by the throw-away end-to-end stack.
+# Passwords used only by tests (also present in earlier commits, so the
+# history scan needs them here, not just inline allow comments).
 regexes = [
-  '''Correct-horse-staple-91''',
+  '''Correct-horse-staple-91?''',
+  '''Horse-battery-staple-42''',
 ]
