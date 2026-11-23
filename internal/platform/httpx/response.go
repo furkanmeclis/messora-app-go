@@ -11,6 +11,7 @@ import (
 type Meta struct {
 	RequestID  string `json:"request_id"`
 	NextCursor string `json:"next_cursor,omitempty"`
+	Total      *int64 `json:"total,omitempty"`
 }
 
 // Envelope is the success body: {"data": …, "meta": {…}}.
@@ -60,6 +61,11 @@ func JSON(w http.ResponseWriter, r *http.Request, status int, data any) {
 // JSONPage writes a page of results with the cursor for the next page.
 func JSONPage(w http.ResponseWriter, r *http.Request, status int, data any, nextCursor string) {
 	write(w, status, Envelope{Data: data, Meta: Meta{RequestID: RequestIDFrom(r.Context()), NextCursor: nextCursor}})
+}
+
+// JSONTotal writes one page of a list with the number of matching items.
+func JSONTotal(w http.ResponseWriter, r *http.Request, status int, data any, total int64) {
+	write(w, status, Envelope{Data: data, Meta: Meta{RequestID: RequestIDFrom(r.Context()), Total: &total}})
 }
 
 // Error writes the error envelope. message must be safe to show to clients.

@@ -2,15 +2,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Contact, ContactGroup, Segment, Tag } from '@/lib/types';
 import { PageHeading } from '../panel-header';
+import { ContactsTable } from './contacts-table';
 import {
     ContactFilters,
-    ContactTable,
     ExportMenu,
     NewContactDialog,
 } from './contacts-client';
@@ -44,9 +43,22 @@ export default async function ContactsPage({
     const query = new URLSearchParams();
     for (const [k, v] of Object.entries(filters)) if (v) query.set(k, v);
     const canSegments = can(me, 'segments.read');
+    const SORTS = ['newest', 'oldest', 'name_asc', 'name_desc', 'last_message'];
+    const sort = SORTS.includes(sp.sort ?? '') ? sp.sort! : 'newest';
+    const pageSize = [25, 50, 100, 200].includes(Number(sp.limit))
+        ? Number(sp.limit)
+        : 50;
+    const page = Math.max(
+        1,
+        Math.min(100000, Number.parseInt(sp.page ?? '1', 10) || 1),
+    );
+    const listQuery = new URLSearchParams(query);
+    listQuery.set('page', String(page));
+    listQuery.set('limit', String(pageSize));
+    listQuery.set('sort', sort);
 
     const [list, tags, groups, segments] = await Promise.all([
-        api<Contact[]>(`/contacts?${query}${query.size ? '&' : ''}limit=50`),
+        api<Contact[]>(`/contacts?${listQuery}`),
         api<Tag[]>('/tags').then((r) => r.data),
         api<ContactGroup[]>('/groups').then((r) => r.data),
         canSegments
@@ -86,23 +98,19 @@ export default async function ContactsPage({
                         name: s.name,
                     }))}
                 />
-                <Card>
-                    <CardContent className="p-0">
-                        <ContactTable
-                            key={query.toString()}
-                            initial={list.data}
-                            initialCursor={list.nextCursor}
-                            query={query.toString()}
-                            filtered={query.size > 0}
-                            groups={groups.map((g) => ({
-                                id: g.id,
-                                name: g.name,
-                            }))}
-                            canUpdate={can(me, 'contacts.update')}
-                            canCreate={can(me, 'contacts.create')}
-                        />
-                    </CardContent>
-                </Card>
+                <ContactsTable
+                    contacts={list.data}
+                    total={list.total ?? list.data.length}
+                    page={page}
+                    pageSize={pageSize}
+                    sort={sort}
+                    filters={filters}
+                    filtered={query.size > 0}
+                    tags={tags.map((tag) => ({ id: tag.id, name: tag.name }))}
+                    groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+                    canUpdate={can(me, 'contacts.update')}
+                    canDelete={can(me, 'contacts.delete')}
+                />
             </div>
         </>
     );

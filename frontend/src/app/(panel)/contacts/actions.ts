@@ -12,6 +12,7 @@ import type {
     Note,
     Segment,
     SegmentPreview,
+    Schemas,
     Tag,
 } from '@/lib/types';
 
@@ -378,5 +379,24 @@ export async function cancelImportAction(
         (await getT())('contacts.toast.importCancelled'),
     );
     if (res.ok) revalidatePath('/contacts/import');
+    return res;
+}
+
+export type BulkBody = Schemas['ContactBulkRequest'];
+
+/** Applies one action to the selected contacts (or all matching ones). */
+export async function bulkContactsAction(
+    body: BulkBody,
+): Promise<ActionResult<Schemas['ContactBulkResult']>> {
+    const res = await runAction(
+        async () =>
+            (
+                await api<Schemas['ContactBulkResult']>('/contacts/bulk', {
+                    method: 'POST',
+                    body,
+                })
+            ).data,
+    );
+    revalidatePath('/contacts');
     return res;
 }

@@ -33,11 +33,17 @@ export class ApiError extends Error {
 
 type Envelope<T> = {
     data: T;
-    meta: { request_id: string; next_cursor?: string };
+    meta: { request_id: string; next_cursor?: string; total?: number };
 };
 type ErrorEnvelope = { error: ApiErrorBody; meta: { request_id: string } };
 
-export type ApiResult<T> = { data: T; requestId: string; nextCursor?: string };
+export type ApiResult<T> = {
+    data: T;
+    requestId: string;
+    nextCursor?: string;
+    /** Matching items, for paged lists. */
+    total?: number;
+};
 
 type Options = {
     method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -121,5 +127,6 @@ export async function api<T>(
         data: body.data,
         requestId: body.meta.request_id,
         nextCursor: body.meta.next_cursor,
+        total: body.meta.total,
     };
 }

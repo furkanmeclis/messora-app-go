@@ -1,0 +1,33 @@
+import type { Messages } from '../en';
+
+const table: Messages['table'] = {
+    selectAll: 'Bu sayfadakilerin tümünü seç',
+    selectRow: 'Satırı seç',
+    selected: '{count} seçili',
+    selectedAll: '{count} kaydın tümü seçili',
+    selectAllMatching: 'Eşleşen {count} kaydın tümünü seç',
+    pageSelected: 'Bu sayfadaki {count} kaydın tümü seçili.',
+    allSelected: 'Eşleşen {count} kaydın tümü seçili.',
+    clearSelection: 'Seçimi temizle',
+    rows: '{total} kayıttan {from}–{to}',
+    rowsPerPage: 'Sayfa başına',
+    page: 'Sayfa',
+    of: '/ {count}',
+    first: 'İlk sayfa',
+    previous: 'Önceki sayfa',
+    next: 'Sonraki sayfa',
+    last: 'Son sayfa',
+    columns: 'Sütunlar',
+    density: 'Yoğunluk',
+    compact: 'Sıkı',
+    comfortable: 'Rahat',
+    sortAsc: 'Artan sırala',
+    sortDesc: 'Azalan sırala',
+    actions: 'İşlemler',
+    refresh: 'Yenile',
+    loading: 'Yükleniyor…',
+    bulkDone: '{count} kayıt güncellendi',
+    bulkNothing: 'Değişecek bir şey yok: seçilen kayıtlar zaten bu durumda.',
+    keyboard: 'Aralık seçmek için Shift ile tıklayın · Esc temizler',
+};
+export default table;

@@ -958,6 +958,11 @@ paths:
         - { name: group_id, in: query, schema: { type: string, format: uuid } }
         - { name: segment_id, in: query, schema: { type: string, format: uuid } }
         - { name: opted_out, in: query, schema: { type: boolean } }
+        - { name: sort, in: query, schema: { $ref: "#/components/schemas/ContactSort" } }
+        - name: page
+          in: query
+          description: 1-based page number. With it the list is paged by offset (cursor is ignored) and meta.total is set.
+          schema: { type: integer, minimum: 1, maximum: 100000 }
         - { $ref: "#/components/parameters/Cursor" }
         - { $ref: "#/components/parameters/Limit" }
       responses:
@@ -985,6 +990,29 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ContactResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /contacts/bulk:
+    post:
+      operationId: bulkContacts
+      tags: [contacts]
+      summary: Apply one action to many contacts
+      description: >-
+        Targets either the given ids or every contact matching a filter
+        (optionally minus exclude_ids), up to 200,000 contacts. Tag, group and
+        consent actions need contacts.update; delete needs contacts.delete.
+      security: [{ session: [contacts.update] }, { session: [contacts.delete] }, { apiKey: [contacts.update] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContactBulkRequest" }
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContactBulkResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}:
@@ -2384,6 +2412,7 @@ components:
       properties:
         request_id: { type: string }
         next_cursor: { type: string }
+        total: { type: integer, format: int64, description: "Matching items, for paged lists." }
 
     ErrorDetail:
       type: object
@@ -2861,6 +2890,47 @@ components:
       properties:
         to: { type: string, format: email, maxLength: 320 }
         config: { $ref: "#/components/schemas/SmtpSettingsInput" }
+
+    ContactSort:
+      type: string
+      enum: [newest, oldest, name_asc, name_desc, last_message]
+    ContactFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        q: { type: string, maxLength: 100 }
+        tag_id: { type: string, format: uuid }
+        group_id: { type: string, format: uuid }
+        segment_id: { type: string, format: uuid }
+        opted_out: { type: boolean }
+    ContactBulkRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action: { type: string, enum: [add_tag, remove_tag, add_to_group, remove_from_group, opt_out, opt_in, delete] }
+        ids:
+          type: array
+          maxItems: 1000
+          items: { type: string, format: uuid }
+        filter: { $ref: "#/components/schemas/ContactFilter" }
+        exclude_ids:
+          type: array
+          maxItems: 1000
+          items: { type: string, format: uuid }
+        tag_id: { type: string, format: uuid }
+        tag_name: { type: string, minLength: 1, maxLength: 50, description: "For add_tag: creates the tag when it does not exist." }
+        group_id: { type: string, format: uuid }
+    ContactBulkResult:
+      type: object
+      required: [matched, affected]
+      properties:
+        matched: { type: integer, format: int64, description: Contacts selected. }
+        affected: { type: integer, format: int64, description: Contacts actually changed. }
+    ContactBulkResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/ContactBulkResult" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     AuditActor:
       type: object

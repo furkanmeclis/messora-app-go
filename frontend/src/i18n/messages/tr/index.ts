@@ -12,6 +12,7 @@ import settings from './settings';
 import wizard from './wizard';
 import topbar from './topbar';
 import shortcuts from './shortcuts';
+import table from './table';
 import account from './account';
 import apiKeys from './api-keys';
 import audit from './audit';
@@ -30,6 +31,7 @@ export const tr: Messages = {
     wizard,
     topbar,
     shortcuts,
+    table,
     account,
     apiKeys,
     audit,

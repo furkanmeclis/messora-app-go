@@ -215,14 +215,15 @@ test('contacts are added to a group in bulk', async () => {
 
     await page.goto(`/contacts?q=${encodeURIComponent(PREFIX)}`);
     await expect(page.getByTestId('contact-row')).toHaveCount(3);
-    await page.getByLabel('Select all shown contacts').check();
+    // Bulk action bar: select the page, add everyone to the group.
     await page
-        .getByRole('combobox', {
-            name: 'Group to add the selected contacts to',
-        })
+        .getByRole('checkbox', { name: 'Select all on this page' })
         .click();
-    await page.getByRole('option', { name: `Newsletter ${RUN}` }).click();
+    await expect(page.getByText('3 selected')).toBeVisible();
     await page.getByRole('button', { name: 'Add to group' }).click();
+    await page.getByRole('combobox', { name: 'Group' }).click();
+    await page.getByRole('option', { name: `Newsletter ${RUN}` }).click();
+    await page.getByRole('button', { name: 'Apply' }).click();
     await expect(
         page.getByText(`Added 3 contacts to Newsletter ${RUN}.`),
     ).toBeVisible();

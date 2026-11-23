@@ -100,6 +100,28 @@ func (h *Handler) ListContacts(w http.ResponseWriter, r *http.Request, p api.Lis
 	if p.Limit != nil {
 		limit = *p.Limit
 	}
+	if p.Page != nil || p.Sort != nil {
+		page := 1
+		if p.Page != nil {
+			page = *p.Page
+		}
+		sort := SortNewest
+		if p.Sort != nil {
+			sort = Sort(*p.Sort)
+		}
+		rows, total, err := h.svc.ListPage(r.Context(), f, sort, page, limit)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		out, err := h.page(r, rows)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		httpx.JSONTotal(w, r, http.StatusOK, out, total)
+		return
+	}
 	var before *uuid.UUID
 	if p.Cursor != nil {
 		id, err := uuid.Parse(*p.Cursor)
@@ -208,7 +230,7 @@ func (h *Handler) RecordConsent(w http.ResponseWriter, r *http.Request, id api.C
 	if req.Note != nil {
 		note = *req.Note
 	}
-	if err := h.svc.SetConsent(r.Context(), id, req.Kind == api.OptIn, source, note, &p.ID); err != nil {
+	if err := h.svc.SetConsent(r.Context(), id, req.Kind == api.ConsentRequestKindOptIn, source, note, &p.ID); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -725,4 +747,50 @@ func (h *Handler) PreviewSegment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, r, http.StatusOK, api.SegmentPreview{Count: count, Sample: sample})
+}
+
+// BulkContacts implements api.ServerInterface.
+func (h *Handler) BulkContacts(w http.ResponseWriter, r *http.Request) {
+	var req api.ContactBulkRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	p := principal.From(r.Context())
+	need := "contacts.update"
+	if req.Action == api.ContactBulkRequestActionDelete {
+		need = "contacts.delete"
+	}
+	if !p.Has(need) {
+		h.fail(w, r, apperr.Forbidden("FORBIDDEN", "This action needs the "+need+" permission."))
+		return
+	}
+	br := BulkRequest{Action: BulkAction(req.Action), TagID: req.TagId, GroupID: req.GroupId}
+	if p.Kind == principal.KindUser {
+		br.Actor = &p.ID
+	}
+	if req.Ids != nil {
+		br.IDs = *req.Ids
+	}
+	if req.ExcludeIds != nil {
+		br.Exclude = *req.ExcludeIds
+	}
+	if req.TagName != nil {
+		br.TagName = strings.TrimSpace(*req.TagName)
+	}
+	if req.Filter != nil {
+		fl := req.Filter
+		f, err := h.filter(r, fl.Q, fl.TagId, fl.GroupId, fl.SegmentId, fl.OptedOut)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		br.Filter = &f
+	}
+	res, err := h.svc.Bulk(r.Context(), br)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, api.ContactBulkResult{Matched: res.Matched, Affected: res.Affected})
 }

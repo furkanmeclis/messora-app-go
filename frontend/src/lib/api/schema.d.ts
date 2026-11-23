@@ -837,6 +837,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/contacts/bulk': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply one action to many contacts
+         * @description Targets either the given ids or every contact matching a filter (optionally minus exclude_ids), up to 200,000 contacts. Tag, group and consent actions need contacts.update; delete needs contacts.delete.
+         */
+        post: operations['bulkContacts'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/contacts/{contactId}': {
         parameters: {
             query?: never;
@@ -1717,6 +1737,11 @@ export interface components {
         Meta: {
             request_id: string;
             next_cursor?: string;
+            /**
+             * Format: int64
+             * @description Matching items, for paged lists.
+             */
+            total?: number;
         };
         ErrorDetail: {
             field?: string;
@@ -2061,6 +2086,55 @@ export interface components {
             /** Format: email */
             to: string;
             config?: components['schemas']['SmtpSettingsInput'];
+        };
+        /** @enum {string} */
+        ContactSort:
+            'newest' | 'oldest' | 'name_asc' | 'name_desc' | 'last_message';
+        ContactFilter: {
+            q?: string;
+            /** Format: uuid */
+            tag_id?: string;
+            /** Format: uuid */
+            group_id?: string;
+            /** Format: uuid */
+            segment_id?: string;
+            opted_out?: boolean;
+        };
+        ContactBulkRequest: {
+            /** @enum {string} */
+            action:
+                | 'add_tag'
+                | 'remove_tag'
+                | 'add_to_group'
+                | 'remove_from_group'
+                | 'opt_out'
+                | 'opt_in'
+                | 'delete';
+            ids?: string[];
+            filter?: components['schemas']['ContactFilter'];
+            exclude_ids?: string[];
+            /** Format: uuid */
+            tag_id?: string;
+            /** @description For add_tag: creates the tag when it does not exist. */
+            tag_name?: string;
+            /** Format: uuid */
+            group_id?: string;
+        };
+        ContactBulkResult: {
+            /**
+             * Format: int64
+             * @description Contacts selected.
+             */
+            matched: number;
+            /**
+             * Format: int64
+             * @description Contacts actually changed.
+             */
+            affected: number;
+        };
+        ContactBulkResponse: {
+            data: components['schemas']['ContactBulkResult'];
+            meta: components['schemas']['Meta'];
         };
         AuditActor: {
             /** @enum {string} */
@@ -4594,6 +4668,9 @@ export interface operations {
                 group_id?: string;
                 segment_id?: string;
                 opted_out?: boolean;
+                sort?: components['schemas']['ContactSort'];
+                /** @description 1-based page number. With it the list is paged by offset (cursor is ignored) and meta.total is set. */
+                page?: number;
                 /** @description Opaque cursor from `meta.next_cursor`. */
                 cursor?: components['parameters']['Cursor'];
                 limit?: components['parameters']['Limit'];
@@ -4639,6 +4716,31 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['ContactResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    bulkContacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['ContactBulkRequest'];
+            };
+        };
+        responses: {
+            /** @description Done */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactBulkResponse'];
                 };
             };
             default: components['responses']['Error'];
