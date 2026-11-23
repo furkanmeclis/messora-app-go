@@ -3,13 +3,9 @@
 import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import { FolderPlus, Pencil, UsersRound } from 'lucide-react';
-import {
-    FormStatus,
-    SubmitButton,
-    TextField,
-    fieldError,
-} from '@/components/forms';
+import { FormStatus, TextField, fieldError } from '@/components/forms';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Dialog,
     DialogContent,
@@ -39,6 +35,7 @@ import { formatDateTime } from '@/lib/format';
 import type { ActionResult, ContactGroup } from '@/lib/types';
 import { deleteGroupAction, saveGroupAction } from '../actions';
 import { ConfirmDelete } from '../confirm-delete';
+import { useSubmit } from '../use-submit';
 
 export function GroupDialog({ group }: { group?: ContactGroup }) {
     const [open, setOpen] = useState(false);
@@ -83,16 +80,17 @@ function GroupForm({
     group?: ContactGroup;
     onDone: () => void;
 }) {
-    const [state, action] = useActionState<
+    const [state, action, pending] = useActionState<
         ActionResult<ContactGroup> | null,
         FormData
     >(saveGroupAction.bind(null, group?.id ?? null), null);
+    const submit = useSubmit(action);
     useEffect(() => {
         if (state?.ok) onDone();
     }, [state, onDone]);
     const descError = fieldError(state, 'description');
     return (
-        <form action={action} className="space-y-4">
+        <form onSubmit={submit} className="space-y-4">
             <FormStatus state={state?.ok ? null : state} />
             <FieldGroup>
                 <TextField
@@ -123,9 +121,10 @@ function GroupForm({
                     )}
                 </Field>
             </FieldGroup>
-            <SubmitButton className="w-full">
+            <Button type="submit" className="w-full" disabled={pending}>
+                {pending && <Spinner />}
                 {group ? 'Save group' : 'Create group'}
-            </SubmitButton>
+            </Button>
         </form>
     );
 }

@@ -10,12 +10,7 @@ import {
     useTransition,
 } from 'react';
 import { ChevronDown, Download, Search, UserPlus, Users } from 'lucide-react';
-import {
-    FormStatus,
-    SubmitButton,
-    TextField,
-    fieldError,
-} from '@/components/forms';
+import { FormStatus, TextField, fieldError } from '@/components/forms';
 import { newIdempotencyKey, notify } from '@/components/notify';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -69,6 +64,7 @@ import {
 } from './actions';
 import { contactName } from './shared';
 import { TagChip } from './tag-chip';
+import { useSubmit } from './use-submit';
 
 type Option = { id: string; name: string };
 const ANY = 'any';
@@ -264,11 +260,12 @@ export function NewContactDialog() {
     const router = useRouter();
     const [open, setOpen] = useState(false);
     const [key, setKey] = useState(newIdempotencyKey);
-    const [state, action] = useActionState<
+    const [state, action, pending] = useActionState<
         ActionResult<Contact> | null,
         FormData
     >(createContactAction, null);
 
+    const submit = useSubmit(action);
     useEffect(() => {
         if (state?.ok) router.push(`/contacts/${state.data.id}`);
     }, [state, router]);
@@ -294,7 +291,7 @@ export function NewContactDialog() {
                         page.
                     </DialogDescription>
                 </DialogHeader>
-                <form action={action} className="space-y-4">
+                <form onSubmit={submit} className="space-y-4">
                     <input type="hidden" name="idempotency_key" value={key} />
                     <FormStatus state={state?.ok ? null : state} />
                     <FieldGroup>
@@ -324,7 +321,9 @@ export function NewContactDialog() {
                             error={fieldError(state, 'email')}
                         />
                     </FieldGroup>
-                    <SubmitButton className="w-full">Add contact</SubmitButton>
+                    <Button type="submit" className="w-full" disabled={pending}>
+                        {pending && <Spinner />}Add contact
+                    </Button>
                 </form>
             </DialogContent>
         </Dialog>

@@ -3,13 +3,9 @@
 import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import { Pencil, Plus, Tags } from 'lucide-react';
-import {
-    FormStatus,
-    SubmitButton,
-    TextField,
-    fieldError,
-} from '@/components/forms';
+import { FormStatus, TextField, fieldError } from '@/components/forms';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Dialog,
     DialogContent,
@@ -39,6 +35,7 @@ import type { ActionResult, Tag } from '@/lib/types';
 import { deleteTagAction, saveTagAction } from '../actions';
 import { ConfirmDelete } from '../confirm-delete';
 import { TAG_COLORS, TagChip } from '../tag-chip';
+import { useSubmit } from '../use-submit';
 
 export function TagDialog({ tag }: { tag?: Tag }) {
     const [open, setOpen] = useState(false);
@@ -75,19 +72,20 @@ export function TagDialog({ tag }: { tag?: Tag }) {
 }
 
 function TagForm({ tag, onDone }: { tag?: Tag; onDone: () => void }) {
-    const [state, action] = useActionState<ActionResult<Tag> | null, FormData>(
-        saveTagAction.bind(null, tag?.id ?? null),
-        null,
-    );
+    const [state, action, pending] = useActionState<
+        ActionResult<Tag> | null,
+        FormData
+    >(saveTagAction.bind(null, tag?.id ?? null), null);
     const [color, setColor] = useState(
         tag && tag.color in TAG_COLORS ? tag.color : 'gray',
     );
+    const submit = useSubmit(action);
     useEffect(() => {
         if (state?.ok) onDone();
     }, [state, onDone]);
     const colorError = fieldError(state, 'color');
     return (
-        <form action={action} className="space-y-4">
+        <form onSubmit={submit} className="space-y-4">
             <FormStatus state={state?.ok ? null : state} />
             <FieldGroup>
                 <TextField
@@ -138,9 +136,10 @@ function TagForm({ tag, onDone }: { tag?: Tag; onDone: () => void }) {
                     )}
                 </FieldSet>
             </FieldGroup>
-            <SubmitButton className="w-full">
+            <Button type="submit" className="w-full" disabled={pending}>
+                {pending && <Spinner />}
                 {tag ? 'Save tag' : 'Create tag'}
-            </SubmitButton>
+            </Button>
         </form>
     );
 }
