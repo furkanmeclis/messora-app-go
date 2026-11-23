@@ -141,3 +141,27 @@ revoked token), and disk usage of the Docker data directory.
 | Campaign slower than expected | Meta's throughput error (130429) halves the per-number rate; it recovers automatically. |
 | Panel shows "Live" but nothing updates | Check `docker compose logs centrifugo`; `PUBLIC_APP_URL` must match the URL in the browser exactly. |
 | Lost the owner's second factor | Use a recovery code. If all are lost, another owner can reset it; with a single owner, contact your operator to reset `users.totp_*` in the database. |
+
+## Behind an existing reverse proxy (Traefik, Dokploy)
+
+When another proxy already owns ports 80 and 443 — for example a server
+managed with Dokploy — Messora must not bind them. Use the proxy override:
+
+```sh
+# .env
+PUBLIC_HOST=messora.example.com
+PUBLIC_APP_URL=https://messora.example.com
+PROXY_ROUTER=messora            # unique name on that proxy
+# PROXY_NETWORK=dokploy-network  PROXY_ENTRYPOINT=websecure  PROXY_CERTRESOLVER=letsencrypt
+
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
+```
+
+Caddy then publishes no ports, joins the proxy's network and carries Traefik
+labels; Traefik terminates TLS and forwards to it. Caddy trusts the proxy's
+`X-Forwarded-For` / `X-Forwarded-Proto` only in this mode
+(`TRUSTED_PROXIES=private_ranges`), so client addresses in audit logs and rate
+limits stay correct and the realtime connection uses `wss://`. Use the same
+`-f` pair for every later `docker compose` command (upgrade, backup scripts
+take `COMPOSE_FILE`), or set `COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml`
+in `.env`. Give each Messora service a memory limit (`MEM_*`) on shared servers.

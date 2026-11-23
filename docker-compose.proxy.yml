@@ -1,0 +1,33 @@
+# Run Messora behind an existing reverse proxy that already owns ports 80
+# and 443 (Traefik, Dokploy, Coolify …) instead of Caddy taking them:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d
+#
+# Caddy then opens no host ports; it joins the proxy's Docker network and
+# Traefik routes PUBLIC_HOST to it and terminates TLS. Required in .env:
+#   PUBLIC_HOST=messora.example.com
+#   PUBLIC_APP_URL=https://messora.example.com
+# Optional: PROXY_NETWORK (default dokploy-network), PROXY_ENTRYPOINT
+# (websecure), PROXY_CERTRESOLVER (letsencrypt), PROXY_ROUTER (messora;
+# unique per installation on the same proxy).
+services:
+  caddy:
+    ports: !reset []
+    environment:
+      SITE_ADDRESS: ":80"
+      # Trust the proxy's X-Forwarded-For / X-Forwarded-Proto.
+      TRUSTED_PROXIES: private_ranges
+    networks: [edge, proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.rule=Host(`${PUBLIC_HOST:?set PUBLIC_HOST in .env}`)
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.entrypoints=${PROXY_ENTRYPOINT:-websecure}
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.tls=true
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.tls.certresolver=${PROXY_CERTRESOLVER:-letsencrypt}
+      - traefik.http.services.${PROXY_ROUTER:-messora}.loadbalancer.server.port=80
+
+networks:
+  proxy:
+    name: ${PROXY_NETWORK:-dokploy-network}
+    external: true

@@ -1,8 +1,17 @@
 # Messora edge proxy. SITE_ADDRESS ":80" serves plain HTTP (local use);
 # set it to your domain (e.g. "messora.example.com") for automatic HTTPS,
-# which WhatsApp webhooks require.
+# which WhatsApp webhooks require. Behind Traefik or Dokploy keep ":80" and
+# use docker-compose.proxy.yml (TLS ends at that proxy).
 {
 	admin off
+	servers {
+		# Behind another proxy (Traefik, Dokploy, a load balancer) set
+		# TRUSTED_PROXIES=private_ranges: the client address and the
+		# original scheme (https) are then taken from its headers. The
+		# default trusts no one, so a directly exposed Caddy cannot be fooled.
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+		client_ip_headers X-Forwarded-For
+	}
 }
 
 {$SITE_ADDRESS::80} {
@@ -19,18 +28,25 @@
 	@api path /api/v1/* /webhooks/*
 	handle @api {
 		request_header -X-Messora-BFF
-		reverse_proxy messora-api:8080
+		reverse_proxy messora-api:8080 {
+			# One verified address, never a client-supplied chain.
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# Realtime WebSocket / SSE connections.
 	handle /connection/* {
-		reverse_proxy centrifugo:8000
+		reverse_proxy centrifugo:8000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# Everything else is the panel (Next.js BFF).
 	handle {
 		request_header -X-Messora-BFF
-		reverse_proxy messora-web:3000
+		reverse_proxy messora-web:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	log {
