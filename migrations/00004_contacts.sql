@@ -142,17 +142,27 @@ DROP TABLE IF EXISTS contact_groups;
 DROP TABLE IF EXISTS contact_tags;
 -- squawk-ignore ban-drop-table
 DROP TABLE IF EXISTS tags;
+-- squawk-ignore require-concurrent-index-deletion
 DROP INDEX IF EXISTS contacts_created_idx;
+-- squawk-ignore require-concurrent-index-deletion
 DROP INDEX IF EXISTS contacts_name_trgm_idx;
 -- squawk-ignore ban-drop-column
-ALTER TABLE contacts
-    DROP COLUMN IF EXISTS source,
-    DROP COLUMN IF EXISTS opt_out_reason,
-    DROP COLUMN IF EXISTS opted_out_at,
-    DROP COLUMN IF EXISTS attributes,
-    DROP COLUMN IF EXISTS var5,
-    DROP COLUMN IF EXISTS var4,
-    DROP COLUMN IF EXISTS var3,
-    DROP COLUMN IF EXISTS var2,
-    DROP COLUMN IF EXISTS var1,
-    DROP COLUMN IF EXISTS email;
+ALTER TABLE contacts DROP COLUMN IF EXISTS source;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS opt_out_reason;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS opted_out_at;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS attributes;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS var5;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS var4;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS var3;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS var2;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS var1;
+-- squawk-ignore ban-drop-column
+ALTER TABLE contacts DROP COLUMN IF EXISTS email;
