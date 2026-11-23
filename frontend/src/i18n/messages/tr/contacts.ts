@@ -80,9 +80,11 @@ const contacts: Messages['contacts'] = {
         more: 'Diğer',
         apply: 'Uygula',
         deleteTitle: '{count} kişi silinsin mi?',
-        deleteBody: 'Sohbetleri, mesajları ve notları da silinir. Bu işlem geri alınamaz.',
+        deleteBody:
+            'Sohbetleri, mesajları ve notları da silinir. Bu işlem geri alınamaz.',
         optOutTitle: '{count} kişi abonelikten çıkarılsın mı?',
-        optOutBody: 'Kampanya ve otomatik mesaj almazlar. Her değişiklik bir izin kaydı olarak saklanır.',
+        optOutBody:
+            'Kampanya ve otomatik mesaj almazlar. Her değişiklik bir izin kaydı olarak saklanır.',
         tagged: '{count} kişiye {tag} etiketi eklendi.',
         untagged: '{count} kişiden {tag} etiketi kaldırıldı.',
         removedFromGroup: '{count} kişi {group} grubundan çıkarıldı.',

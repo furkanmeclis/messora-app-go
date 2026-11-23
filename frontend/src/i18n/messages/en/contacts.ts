@@ -79,12 +79,16 @@ const contacts = {
         more: 'More',
         apply: 'Apply',
         deleteTitle: 'Delete {count} contact?|Delete {count} contacts?',
-        deleteBody: 'Their conversations, messages and notes are deleted too. This cannot be undone.',
+        deleteBody:
+            'Their conversations, messages and notes are deleted too. This cannot be undone.',
         optOutTitle: 'Opt out {count} contact?|Opt out {count} contacts?',
-        optOutBody: 'They will not receive campaigns or automated messages. Each change is recorded as a consent event.',
+        optOutBody:
+            'They will not receive campaigns or automated messages. Each change is recorded as a consent event.',
         tagged: 'Tagged {count} contact with {tag}.|Tagged {count} contacts with {tag}.',
-        untagged: 'Removed {tag} from {count} contact.|Removed {tag} from {count} contacts.',
-        removedFromGroup: 'Removed {count} contact from {group}.|Removed {count} contacts from {group}.',
+        untagged:
+            'Removed {tag} from {count} contact.|Removed {tag} from {count} contacts.',
+        removedFromGroup:
+            'Removed {count} contact from {group}.|Removed {count} contacts from {group}.',
         optedOut: '{count} contact opted out.|{count} contacts opted out.',
         optedIn: '{count} contact subscribed.|{count} contacts subscribed.',
         deleted: '{count} contact deleted.|{count} contacts deleted.',

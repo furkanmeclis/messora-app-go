@@ -2,6 +2,7 @@ package contacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -172,7 +173,7 @@ func (s *Service) Bulk(ctx context.Context, req BulkRequest) (BulkResult, error)
 				return apperr.Validation("group_id", "Choose a group.")
 			}
 			if _, err := q.GetContactGroup(ctx, *req.GroupID); err != nil {
-				if err == pgx.ErrNoRows {
+				if errors.Is(err, pgx.ErrNoRows) {
 					return apperr.Validation("group_id", "Unknown group.")
 				}
 				return err
@@ -235,7 +236,7 @@ func (s *Service) Bulk(ctx context.Context, req BulkRequest) (BulkResult, error)
 func (s *Service) bulkTag(ctx context.Context, q *db.Queries, req BulkRequest) (db.Tag, error) {
 	if req.TagID != nil {
 		t, err := q.GetTag(ctx, *req.TagID)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return t, apperr.Validation("tag_id", "Unknown tag.")
 		}
 		return t, err

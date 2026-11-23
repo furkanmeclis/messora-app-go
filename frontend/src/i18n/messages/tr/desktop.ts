@@ -2,7 +2,8 @@ import type { Messages } from '../en';
 
 const desktop: Messages['desktop'] = {
     enter: 'Masaüstü modu',
-    enterHint: 'Birden fazla bölümle pencerelerde yan yana çalışın. Ctrl+Shift+D (⌘⇧D) ile açılıp kapanır.',
+    enterHint:
+        'Birden fazla bölümle pencerelerde yan yana çalışın. Ctrl+Shift+D (⌘⇧D) ile açılıp kapanır.',
     exit: 'Masaüstü modundan çık',
     start: 'Başlat',
     searchApps: 'Uygulama ara…',
@@ -29,6 +30,7 @@ const desktop: Messages['desktop'] = {
     pictureHint: 'JPEG, PNG veya WebP. Büyük resimler küçültülür.',
     fit: 'Yerleşim',
     fits: { cover: 'Doldur', contain: 'Sığdır', center: 'Ortala' },
-    keyboard: 'Alt+1…9 pencere değiştir · Alt+W kapat · Alt+M küçült · Alt+↑ büyüt',
+    keyboard:
+        'Alt+1…9 pencere değiştir · Alt+W kapat · Alt+M küçült · Alt+↑ büyüt',
 };
 export default desktop;

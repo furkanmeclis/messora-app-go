@@ -4,7 +4,8 @@ const pwa = {
     description:
         'Let your team install the panel as an app on computers and phones: its own window and icon, opening straight to the page you choose.',
     enabled: 'Offer installing as an app',
-    enabledHint: 'Browsers show an install option; the panel also offers an “Install app” button.',
+    enabledHint:
+        'Browsers show an install option; the panel also offers an “Install app” button.',
     name: 'App name',
     namePlaceholder: 'Empty: the organisation name',
     shortName: 'Short name',
@@ -13,15 +14,23 @@ const pwa = {
     themeColor: 'Title bar colour',
     backgroundColor: 'Splash screen colour',
     display: 'Window',
-    displays: { standalone: 'App window', fullscreen: 'Full screen', 'minimal-ui': 'Minimal browser bar' },
+    displays: {
+        standalone: 'App window',
+        fullscreen: 'Full screen',
+        'minimal-ui': 'Minimal browser bar',
+    },
     startUrl: 'Opens at',
     icon: 'Icon',
-    icons: { brand: 'Messora mark in the theme colour', logo: 'Organisation logo' },
+    icons: {
+        brand: 'Messora mark in the theme colour',
+        logo: 'Organisation logo',
+    },
     noLogo: 'Upload a logo in Appearance to use it.',
     preview: 'Preview',
     install: 'Install app',
     installed: 'Installed',
-    installHint: 'Your browser decides when installing is possible (HTTPS, not already installed).',
+    installHint:
+        'Your browser decides when installing is possible (HTTPS, not already installed).',
     saved: 'App settings saved',
 };
 export default pwa;
