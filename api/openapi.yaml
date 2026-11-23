@@ -972,19 +972,22 @@ paths:
     get:
       operationId: exportContacts
       tags: [contacts]
-      summary: Download matching contacts as CSV
+      summary: Download matching contacts as CSV or Excel
       security: [{ session: [contacts.export] }, { apiKey: [contacts.export] }]
       parameters:
+        - { name: format, in: query, schema: { type: string, enum: [csv, xlsx], default: csv } }
         - { name: q, in: query, schema: { type: string, maxLength: 100 } }
         - { name: tag_id, in: query, schema: { type: string, format: uuid } }
         - { name: group_id, in: query, schema: { type: string, format: uuid } }
         - { name: segment_id, in: query, schema: { type: string, format: uuid } }
       responses:
         "200":
-          description: CSV file (UTF-8 with header row)
+          description: CSV (UTF-8 with header row) or Excel workbook
           content:
             text/csv:
               schema: { type: string }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
         default: { $ref: "#/components/responses/Error" }
 
   /contact-imports:
@@ -1003,7 +1006,7 @@ paths:
     post:
       operationId: uploadContactImport
       tags: [contacts]
-      summary: Upload a CSV file (up to 50 MB) to import
+      summary: Upload a CSV or Excel (.xlsx) file (up to 50 MB) to import
       description: >-
         Send the raw file as the request body. The response lists the detected
         columns and the first rows so a column mapping can be chosen; nothing is
@@ -1016,6 +1019,8 @@ paths:
         required: true
         content:
           text/csv:
+            schema: { type: string, format: binary }
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
             schema: { type: string, format: binary }
       responses:
         "201":

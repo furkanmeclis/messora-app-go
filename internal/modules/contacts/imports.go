@@ -109,8 +109,10 @@ func newCSVReader(r io.Reader) (*csv.Reader, error) {
 // and a preview. The body is streamed to disk, never held in memory.
 func (s *Service) Upload(ctx context.Context, filename string, body io.Reader, actor *uuid.UUID) (db.ContactImport, error) {
 	filename = filepath.Base(strings.TrimSpace(filename))
-	if !strings.HasSuffix(strings.ToLower(filename), ".csv") && !strings.HasSuffix(strings.ToLower(filename), ".txt") {
-		return db.ContactImport{}, apperr.Validation("filename", "Upload a CSV file (.csv). Excel files can be saved as CSV.")
+	lower := strings.ToLower(filename)
+	isXLSX := strings.HasSuffix(lower, ".xlsx")
+	if !isXLSX && !strings.HasSuffix(lower, ".csv") && !strings.HasSuffix(lower, ".txt") {
+		return db.ContactImport{}, apperr.Validation("filename", "Upload a CSV (.csv) or Excel (.xlsx) file.")
 	}
 	key := newKey("uploads")
 	f, err := s.imp.create(key)
@@ -130,6 +132,10 @@ func (s *Service) Upload(ctx context.Context, filename string, body io.Reader, a
 	}
 	if err == nil && size == 0 {
 		err = apperr.Validation("file", "The file is empty.")
+	}
+	if err == nil && isXLSX {
+		// Imports always run on CSV; workbooks are converted once here.
+		err = s.imp.convertXLSX(key)
 	}
 	if err != nil {
 		s.imp.remove(key)

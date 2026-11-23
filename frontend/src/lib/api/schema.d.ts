@@ -805,7 +805,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Download matching contacts as CSV */
+        /** Download matching contacts as CSV or Excel */
         get: operations['exportContacts'];
         put?: never;
         post?: never;
@@ -826,7 +826,7 @@ export interface paths {
         get: operations['listContactImports'];
         put?: never;
         /**
-         * Upload a CSV file (up to 50 MB) to import
+         * Upload a CSV or Excel (.xlsx) file (up to 50 MB) to import
          * @description Send the raw file as the request body. The response lists the detected columns and the first rows so a column mapping can be chosen; nothing is imported until the import is started.
          */
         post: operations['uploadContactImport'];
@@ -3256,6 +3256,7 @@ export interface operations {
     exportContacts: {
         parameters: {
             query?: {
+                format?: 'csv' | 'xlsx';
                 q?: string;
                 tag_id?: string;
                 group_id?: string;
@@ -3267,13 +3268,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description CSV file (UTF-8 with header row) */
+            /** @description CSV (UTF-8 with header row) or Excel workbook */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     'text/csv': string;
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': string;
                 };
             };
             default: components['responses']['Error'];
@@ -3312,6 +3314,7 @@ export interface operations {
         requestBody: {
             content: {
                 'text/csv': string;
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': string;
             };
         };
         responses: {

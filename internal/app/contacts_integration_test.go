@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/xuri/excelize/v2"
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
@@ -402,4 +403,63 @@ func TestOptedOutContactsGetNoTemplates(t *testing.T) {
 	h.webhook(whatsapptestInbound(testCustomer))
 	h.expect(h.send(token, map[string]any{"to": "+" + testCustomer, "type": "text", "text": map[string]any{"body": "Sure, here you go"}}), 202, "")
 	h.expect(h.send(token, tpl), 422, "CONTACT_OPTED_OUT")
+}
+
+func TestXLSXImportAndExport(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.setupOwner()
+
+	wb := excelize.NewFile()
+	rows := [][]any{{"Phone", "Name", "City"}, {"+905550001111", "Gül", "Izmir"}, {905550002222, "Numeric phone", "Bursa"}, {"bad", "x", "y"}}
+	for i, r := range rows {
+		cell, _ := excelize.CoordinatesToCellName(1, i+1)
+		if err := wb.SetSheetRow("Sheet1", cell, &r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var buf bytes.Buffer
+	if _, err := wb.WriteTo(&buf); err != nil {
+		t.Fatal(err)
+	}
+	status, body, _ := h.raw("POST", "/api/v1/contact-imports?filename=list.xlsx", token,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", &buf)
+	if status != 201 {
+		t.Fatalf("xlsx upload: %d %s", status, body)
+	}
+	var up struct {
+		Data map[string]any `json:"data"`
+	}
+	_ = json.Unmarshal(body, &up)
+	if up.Data["total_rows"] != float64(3) || up.Data["headers"].([]any)[0] != "Phone" {
+		t.Fatalf("xlsx scan: %s", body)
+	}
+	id := up.Data["id"].(string)
+	h.expect(h.do(call{method: "POST", path: "/api/v1/contact-imports/" + id + "/start", token: token,
+		body: map[string]any{"mapping": map[string]string{"phone": "Phone", "name": "Name", "var1": "City"}}}), 202, "")
+	if err := h.svc.contacts.Run(context.Background(), uuid.MustParse(id)); err != nil {
+		t.Fatal(err)
+	}
+	d := h.do(call{method: "GET", path: "/api/v1/contact-imports/" + id, token: token}).data()
+	if d["created_count"] != float64(2) || d["failed_count"] != float64(1) {
+		t.Fatalf("xlsx import: %v", d)
+	}
+
+	// Corrupt workbooks are rejected cleanly.
+	status, _, _ = h.raw("POST", "/api/v1/contact-imports?filename=broken.xlsx", token, "", strings.NewReader("PK\x03\x04 not really"))
+	if status != 422 {
+		t.Fatalf("corrupt workbook: %d", status)
+	}
+
+	status, body, hdr := h.raw("GET", "/api/v1/contact-exports?format=xlsx", token, "", nil)
+	if status != 200 || !strings.Contains(hdr.Get("Content-Type"), "spreadsheetml") {
+		t.Fatalf("xlsx export: %d %s", status, hdr.Get("Content-Type"))
+	}
+	out, err := excelize.OpenReader(bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := out.GetRows("Sheet1")
+	if len(got) != 3 || got[0][0] != "phone" || got[1][0] == "" {
+		t.Fatalf("exported rows: %v", got)
+	}
 }

@@ -296,10 +296,23 @@ func (h *Handler) ExportContacts(w http.ResponseWriter, r *http.Request, p api.E
 		h.fail(w, r, err)
 		return
 	}
-	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="messora-contacts.csv"`)
-	cw := csv.NewWriter(w)
-	_ = cw.Write(ExportColumns)
+	var out rowWriter
+	var xw *xlsxWriter
+	if p.Format != nil && *p.Format == api.Xlsx {
+		if xw, err = newXLSXWriter(h.svc.imp.tmpDir()); err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		out = xw
+		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		w.Header().Set("Content-Disposition", `attachment; filename="messora-contacts.xlsx"`)
+	} else {
+		cw := csv.NewWriter(w)
+		out = csvRowWriter{cw}
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="messora-contacts.csv"`)
+	}
+	_ = out.Write(ExportColumns)
 	var batch []db.Contact
 	flush := func() error {
 		ids := make([]uuid.UUID, len(batch))
@@ -319,14 +332,13 @@ func (h *Handler) ExportContacts(w http.ResponseWriter, r *http.Request, p api.E
 			if c.OptedOutAt != nil {
 				opted = "true"
 			}
-			if err := cw.Write(safeCSV([]string{c.PhoneE164, c.Name, c.ProfileName, s(c.Email), s(c.Var1), s(c.Var2), s(c.Var3), s(c.Var4), s(c.Var5),
+			if err := out.Write(safeCSV([]string{c.PhoneE164, c.Name, c.ProfileName, s(c.Email), s(c.Var1), s(c.Var2), s(c.Var3), s(c.Var4), s(c.Var5),
 				strings.Join(names, ";"), opted, c.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")})); err != nil {
 				return err
 			}
 		}
 		batch = batch[:0]
-		cw.Flush()
-		return cw.Error()
+		return out.Flush()
 	}
 	err = h.svc.Each(r.Context(), f, func(c db.Contact) error {
 		batch = append(batch, c)
@@ -338,6 +350,10 @@ func (h *Handler) ExportContacts(w http.ResponseWriter, r *http.Request, p api.E
 	if err == nil {
 		err = flush()
 	}
+	if err == nil && xw != nil {
+		// A workbook is a zip: it is assembled on disk and sent at the end.
+		err = xw.Finish(w)
+	}
 	if err != nil {
 		// Headers are gone; the truncated file is the signal.
 		h.log.ErrorContext(r.Context(), "contact export aborted", "error", err)
@@ -345,6 +361,16 @@ func (h *Handler) ExportContacts(w http.ResponseWriter, r *http.Request, p api.E
 	}
 	_ = audit.Record(r.Context(), h.svc.q, audit.Entry{Action: "contact.export", EntityType: "contact"})
 }
+
+type rowWriter interface {
+	Write([]string) error
+	Flush() error
+}
+
+type csvRowWriter struct{ w *csv.Writer }
+
+func (c csvRowWriter) Write(r []string) error { return c.w.Write(r) }
+func (c csvRowWriter) Flush() error           { c.w.Flush(); return c.w.Error() }
 
 // safeCSV neutralises spreadsheet formulas (CSV injection).
 func safeCSV(row []string) []string {

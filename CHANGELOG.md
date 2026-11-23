@@ -13,9 +13,9 @@ All notable changes to this project are documented here. The format follows
   opt-in/opt-out history; templates are refused for opted-out contacts.
 - Dynamic segments: a JSON rule tree compiled to parameterised SQL from fixed
   field and operator tables, with live previews and counts.
-- CSV import: streamed upload (50 MB), delimiter and BOM detection, column
+- CSV and Excel (.xlsx) import: streamed upload (50 MB), delimiter and BOM detection, column
   mapping, skip or update for duplicates, per-row error report, progress,
-  cancellation and resume after restarts. Streamed CSV export with spreadsheet
+  cancellation and resume after restarts. Streamed CSV and XLSX export with spreadsheet
   formula neutralisation.
 
 ### Added — Phase 3: WhatsApp Cloud API
