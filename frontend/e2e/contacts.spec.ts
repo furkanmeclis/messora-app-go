@@ -151,11 +151,11 @@ test('a CSV file is imported through the wizard', async () => {
         'not-a-phone,Broken Row,,,',
     ].join('\n');
     await page.locator('input[type="file"]').setInputFiles({
-        name: 'customers.csv',
+        name: `customers-${RUN}.csv`,
         mimeType: 'text/csv',
         buffer: Buffer.from(csv),
     });
-    await expect(page.getByText('customers.csv')).toBeVisible();
+    await expect(page.getByText(`customers-${RUN}.csv`).first()).toBeVisible();
     await page.getByRole('button', { name: 'Upload and continue' }).click();
 
     await expect(page).toHaveURL(/\/contacts\/import\/[0-9a-f-]{36}$/);
@@ -189,10 +189,11 @@ test('a CSV file is imported through the wizard', async () => {
     expect(text).toContain('not-a-phone');
 
     await page.getByRole('link', { name: 'View contacts' }).click();
-    await page.getByLabel('Search', { exact: true }).fill('Ayşe');
+    await page.getByLabel('Search', { exact: true }).fill(PHONE(3));
     await page.getByLabel('Search', { exact: true }).press('Enter');
     await expect(page.getByTestId('contact-row')).toHaveCount(1);
     await expect(page.getByTestId('contact-row')).toContainText('imported');
+    await expect(page.getByTestId('contact-row')).toContainText('Ayşe Kaya');
 });
 
 test('contacts are added to a group in bulk', async () => {
@@ -202,7 +203,7 @@ test('contacts are added to a group in bulk', async () => {
     await dialog.getByLabel('Name', { exact: true }).fill(`Newsletter ${RUN}`);
     await dialog.getByRole('button', { name: 'Create group' }).click();
     await expect(
-        page.getByRole('cell', { name: `Newsletter ${RUN}` }),
+        page.getByRole('cell', { name: `Newsletter ${RUN}`, exact: true }),
     ).toBeVisible();
 
     await page.goto(`/contacts?q=${encodeURIComponent(PREFIX)}`);
@@ -232,15 +233,16 @@ test('a segment shows its live count and is saved', async () => {
     await page.getByRole('link', { name: 'New segment' }).click();
     await page.getByLabel('Name', { exact: true }).fill(`VIP ${RUN}`);
     // The first rule is "Tag has …".
-    await page.getByRole('textbox', { name: 'Value' }).fill('vip');
-    // Narrow it to the contacts of this run.
-    await page.getByRole('button', { name: 'Add rule' }).click();
+    await page.getByLabel('Value', { exact: true }).fill('vip');
+    // Narrow it to the contacts of this run with a nested rule group.
+    await page.getByRole('button', { name: 'Add rule group' }).click();
+    await expect(page.getByTestId('segment-group')).toHaveCount(2);
     const second = page.getByTestId('segment-rule').nth(1);
     await second.getByRole('combobox', { name: 'Field' }).click();
     await page.getByRole('option', { name: 'Phone number' }).click();
     await second.getByRole('combobox', { name: /Condition on/ }).click();
     await page.getByRole('option', { name: 'starts with' }).click();
-    await second.getByRole('textbox', { name: 'Value' }).fill(PREFIX);
+    await second.getByLabel('Value', { exact: true }).fill(PREFIX);
 
     await expect(page.getByTestId('segment-count')).toHaveText('3');
     await page.getByRole('button', { name: 'Save segment' }).click();
