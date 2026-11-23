@@ -6,6 +6,36 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-23
+
+First licensed release. Images are also served from the licence registry
+(log in with the licence key; see docs/LICENSING.md).
+
+### Added — Phase 16: licensing and distribution
+
+- Ed25519-signed licence keys with optional expiry, update window, user and
+  number limits, and online or offline verification. Without a key Messora
+  runs a 14-day trial. Expired or revoked licences get a grace period, then
+  **restricted mode** pauses sending, campaigns and automations; data stays
+  readable and a valid key lifts it at once.
+- Settings → License (owner enters the key; status, limits, installation ID,
+  newest release and whether it is included) and a banner when the licence
+  needs attention.
+- Check-in with the licence gate every 6 hours; signed answers carry
+  revocations and the newest release. `LICENSE_GATE_URL` overrides the gate.
+- `messora-license`, the issuer's CLI: Keychain-held signing keys, a ledger,
+  revocation, encrypted iCloud Drive backup and restore, publishing to the
+  registry. The Cloudflare Worker gate lives in `deployments/license-gate`.
+- Releases are copied into the private R2 registry by the release workflow.
+- Deploying with Dokploy (docs/OPERATIONS.md).
+
+### Fixed
+
+- Every Messora process allocated 64 MiB at start-up for the login
+  timing-equalizer hash; it is now computed on first use. The scheduler
+  idles at about 13 MiB instead of 78 MiB, and no longer gets OOM-killed
+  under its 128 MiB limit.
+
 ## [0.9.0] - 2026-11-23
 
 First published images (ghcr.io/furkanmeclis/messora, ghcr.io/furkanmeclis/messora-web). Feature-complete for v1; not yet validated against the live WhatsApp Cloud API.
