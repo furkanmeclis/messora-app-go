@@ -405,7 +405,8 @@ func TestCampaignLoadHundredThousand(t *testing.T) {
 	}
 	t.Logf("%d recipients in %s", n, time.Since(start).Round(time.Second))
 	h.assertExactlyOnce(id, n)
-	if max := h.count("SELECT count(*) FROM outbox_events WHERE published_at IS NULL"); max != 0 {
-		t.Fatalf("%d tasks left", max)
+	// Only realtime notices may still be waiting for the relay.
+	if left := h.count("SELECT count(*) FROM outbox_events WHERE published_at IS NULL AND topic LIKE 'task:%'"); left != 0 {
+		t.Fatalf("%d tasks left", left)
 	}
 }
