@@ -95,7 +95,7 @@ messora-app-go/
 │   │   ├── redis/
 │   │   ├── queue/               # asynq client/server sarmalayıcı, task tipleri, retry politikası
 │   │   ├── outbox/              # transactional outbox yazıcı + relay
-│   │   ├── centrifugo/          # gocent publish + JWT üretimi
+│   │   ├── centrifugo/          # gocent HTTP API istemcisi (publish, info)
 │   │   ├── crypto/              # AES-256-GCM (anahtar sürümlü), argon2id, token üretimi
 │   │   ├── httpx/               # chi middleware: request id, recover, log, auth, rate limit, idempotency
 │   │   ├── logger/              # slog JSON, hassas alan redaction
@@ -293,16 +293,21 @@ worker webhook:process (idempotent):
 
 ## 12. Gerçek zamanlı (Centrifugo v6)
 
-- Go, gocent v4 HTTP API istemcisiyle publish eder (outbox relay üzerinden).
-- **Kanallar:**
-  - `personal:#<user_id>`: user-limited, token gerektirmez, yalnızca sahibi abone olur.
-  - `campaign:<id>`: subscription token gerekir (`campaigns.read`).
-  - `inbox:all`: `conversations.read`.
-  - `conversation:<id>`: `conversations.read`. Agent rolü yalnızca kendisine atanmış konuşmalara abone olabilir.
-  - `system:notifications`: bağlantı token'ındaki `subs` claim'i ile otomatik abonelik.
-- Abonelik token'ı `POST /api/v1/realtime/subscription-token`'dan alınır ve Go'da izin kontrolünden geçer. Centrifugo'da `allow_subscribe_for_client` **kapalıdır**, token'sız abonelik yoktur.
-- Event'ler kalıcı veri değildir. `campaign` ve `conversation` namespace'lerinde kısa history (`history_size: 50`, `history_ttl: 2m`) ve `force_recovery` açıktır. Kurtarılamayan kopmalarda client API'den güncel durumu yeniden çeker.
-- Event isimleri (`campaign.updated`, `message.sent`, `message.received`, `conversation.updated`, `contact.import.completed`, `system.notification` …). Payload'lar yalnızca ID ve özet içerir; mesaj gövdesi realtime kanaldan gönderilmez, client gerekirse API'den çeker. Bu tercih kopma/kurtarma senaryosunda tutarlılığı korur.
+- Centrifugo config'ini `messora init` üretir (`provision.CentrifugoConfig`): token ve subscription token HMAC secret'ı, `allowed_origins` = `PUBLIC_APP_URL`, kapalı admin UI, namespace'ler. Client publish yoktur; token'sız abonelik yoktur (namespace'lerde `allow_subscribe_for_client` kapalı).
+- **Token'lar:** `POST /api/v1/realtime/connection-token` ve `POST /api/v1/realtime/subscription-token` (yalnızca `session` şeması, API key'ler reddedilir). Go, gocent'in `token` paketiyle HS256 JWT üretir, ömür 10 dakika. SDK süresi dolmadan yenisini ister; devre dışı bırakılan kullanıcı veya geri alınan yetki en geç bu sürede erişimini kaybeder.
+- **Kanallar ve izinler** (`internal/modules/realtime/channels.go`, tek kaynak):
+  - `personal:#<user_id>` ve `system:notifications`: connection token'ın `subs` claim'i ile sunucu tarafı abonelik.
+  - `inbox:all`: `conversations.read` veya `conversations.read_all`.
+  - `conversation:<id>`: şimdilik `conversations.read_all`. Agent'ın kendisine atanmış konuşmalara aboneliği Phase 7'de atamalarla gelir.
+  - `campaign:all` ve `campaign:<id>`: `campaigns.read`.
+  - Bilinmeyen veya bozuk her kanal `403 CHANNEL_FORBIDDEN`. Centrifugo token'daki `sub` ve `channel`'ı ayrıca doğrular: başka kullanıcının ya da başka kanalın token'ı reddedilir.
+- **Yayınlama:** Üretici, iş değişikliğiyle aynı transaction'da `realtime.Publish(ctx, tx, kanal, event)` çağırır. Bu, `rt:<kanal>` topic'li bir outbox satırıdır. Worker'daki relay `rt:` prefix'ini Centrifugo publish API'sine yönlendirir, idempotency key `outbox:<id>`'dir (tekrar eden publish client'a iki kez ulaşmaz).
+- **Event'ler** sürümlüdür (`{"type": …, "v": 1, …}`) ve yalnızca ID ve durum taşır, mesaj gövdesi taşımaz. Client ayrıntıyı API'den kendi yetkisiyle çeker.
+  - `message.created`: gelen mesaj (webhook) veya kuyruğa alınan giden mesaj. `message_id`, `contact_id`, `phone_number_id`, `direction`, `message_type`, `status`, `at`.
+  - `message.status`: gönderim sonucu (sent / failed / unknown) veya webhook'tan gelen gerçek bir durum değişikliği. Değişmeyen (eski sıradaki) status yayınlanmaz.
+  - `campaign.updated`: kampanya motoru için tanımlı (`CampaignEvent`), Phase 5 kampanya kodu geldiğinde `campaign:all` ve `campaign:<id>`'ye yayınlanır.
+- Event'ler kalıcı veri değildir. `campaign`, `conversation`, `inbox` ve `system` namespace'lerinde kısa history (50–100 kayıt, 2–5 dk) ve `force_recovery` açıktır.
+- **Frontend:** `RealtimeProvider` (`frontend/src/components/realtime.tsx`) panel layout'unda tek bağlantı açar: `wss://<origin>/connection/websocket` (Caddy `/connection/*` → centrifugo). Token'lar Server Action'larla BFF üzerinden alınır, session token ve secret'lar tarayıcıya ulaşmaz. SDK kopmada backoff ile kendiliğinden yeniden bağlanır. Abonelik `wasRecovering && !recovered` ile gelirse (history dolmuş, Centrifugo yeniden başlamış) sayfa `router.refresh()` ile API'den yeniden çekilir. `<RealtimeRefresh channel types>` sayfalara polling'siz yenileme sağlar. CSP `connect-src` yalnızca aynı origin'in `ws(s)://` adresine izin verir.
 - Centrifugo memory engine ile tek node çalışır. Çok node gerekirse Redis engine'e geçilir (roadmap).
 
 ## 13. Gözlemlenebilirlik
