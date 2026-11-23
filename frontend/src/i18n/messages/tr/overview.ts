@@ -8,7 +8,7 @@ const overview: Messages['overview'] = {
     refresh: 'Yenile',
     protect: {
         title: 'Hesabınızı koruyun',
-        body: 'Çalınan bir parolanın giriş için yeterli olmaması için iki adımlı doğrulamayı açın.',
+        body: 'Çalınan bir şifrenin giriş için yeterli olmaması için iki adımlı doğrulamayı açın.',
         action: 'Şimdi kur',
     },
     status: {

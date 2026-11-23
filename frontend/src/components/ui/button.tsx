@@ -57,6 +57,7 @@ function Button({
     const Comp = asChild ? Slot.Root : 'button';
     const hint = shortcut ? (
         <kbd
+            lang="en"
             aria-hidden
             className="pointer-events-none ml-0.5 hidden h-4.5 min-w-4.5 items-center justify-center rounded border border-current/25 bg-current/10 px-1 text-[10px] leading-none font-medium uppercase opacity-70 sm:inline-flex"
         >

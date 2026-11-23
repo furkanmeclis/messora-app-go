@@ -2,18 +2,18 @@ import type { Messages } from '../en';
 
 const auth: Messages['auth'] = {
     email: 'E-posta',
-    password: 'Parola',
-    newPassword: 'Yeni parola',
+    password: 'Şifre',
+    newPassword: 'Yeni şifre',
     yourName: 'Adınız',
     passwordHint:
-        'En az 12 karakter. Yaygın parolalardan ve e-posta adresinizden kaçının.',
+        'En az 12 karakter. Yaygın şifrelerden ve e-posta adresinizden kaçının.',
     login: {
         title: 'Giriş yap',
         description: 'Messora’ya tekrar hoş geldiniz.',
         submit: 'Giriş yap',
-        forgot: 'Parolanızı mı unuttunuz?',
+        forgot: 'Şifrenizi mı unuttunuz?',
         passwordChanged:
-            'Parolanız değiştirildi. Yeni parolanızla giriş yapın.',
+            'Şifreniz değiştirildi. Yeni şifrenizle giriş yapın.',
         expired: 'Giriş denemesinin süresi doldu. Lütfen yeniden giriş yapın.',
     },
     verify: {
@@ -46,20 +46,20 @@ const auth: Messages['auth'] = {
         submit: 'Katıl',
     },
     forgot: {
-        metaTitle: 'Parola sıfırlama',
-        title: 'Parolanızı sıfırlayın',
+        metaTitle: 'Şifre sıfırlama',
+        title: 'Şifrenizi sıfırlayın',
         description:
-            'Yeni bir parola belirlemeniz için size e-postayla bir bağlantı göndereceğiz.',
+            'Yeni bir şifre belirlemeniz için size e-postayla bir bağlantı göndereceğiz.',
         submit: 'Sıfırlama bağlantısı gönder',
         noEmail:
             'Bu kurulumda e-posta yapılandırılmamış. Erişiminizi sıfırlaması için bir sahibe ya da yöneticiye başvurun.',
         backToSignIn: 'Girişe dön',
-        sent: 'Bu adrese ait bir hesap varsa parola sıfırlama bağlantısı gönderdik. Gelen kutunuzu kontrol edin.',
+        sent: 'Bu adrese ait bir hesap varsa şifre sıfırlama bağlantısı gönderdik. Gelen kutunuzu kontrol edin.',
     },
     reset: {
-        title: 'Yeni parola belirleyin',
+        title: 'Yeni şifre belirleyin',
         description: 'Tüm cihazlardaki oturumlarınız kapatılacak.',
-        submit: 'Yeni parolayı kaydet',
+        submit: 'Yeni şifreyi kaydet',
     },
 };
 export default auth;
