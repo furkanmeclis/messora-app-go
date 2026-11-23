@@ -440,7 +440,6 @@ func (s *Service) external(ctx context.Context, st *Step, ev trigger.Event, c db
 // evalCondition evaluates a branch condition against the event and contact.
 func (s *Service) evalCondition(ctx context.Context, q *db.Queries, cnd Condition, ev trigger.Event, c db.Contact) (bool, error) {
 	var v string
-	isSet := false
 	switch cnd.Field {
 	case "message.body":
 		v = ev.Body
@@ -489,7 +488,7 @@ func (s *Service) evalCondition(ctx context.Context, q *db.Queries, cnd Conditio
 		}
 		return false, nil
 	}
-	isSet = strings.TrimSpace(v) != ""
+	isSet := strings.TrimSpace(v) != ""
 	lv, lw := strings.ToLower(v), strings.ToLower(cnd.Value)
 	switch cnd.Operator {
 	case "contains":
