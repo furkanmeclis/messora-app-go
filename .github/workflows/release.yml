@@ -2,9 +2,16 @@ name: Release
 
 # Publishes signed multi-arch images to GHCR when a version tag is pushed:
 #   git tag v0.2.0 && git push origin v0.2.0
+# Copy an already published release into the licence registry by hand:
+#   gh workflow run release.yml -f version=0.9.0
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published version to copy into the licence registry (e.g. 0.9.0)
+        required: true
 
 permissions:
   contents: read
@@ -12,6 +19,7 @@ permissions:
 jobs:
   images:
     name: Publish ${{ matrix.image.name }}
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -67,6 +75,7 @@ jobs:
   licensed:
     name: Publish to the licence registry
     needs: images
+    if: ${{ !cancelled() && (needs.images.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -97,9 +106,12 @@ jobs:
           MESSORA_LICENSE_DIR: ${{ runner.temp }}/messora-license
           CLOUDFLARE_ACCOUNT_ID: 6bf52c39839fdfa2048a0476e24e817c
           OWNER: ${{ github.repository_owner }}
+          VERSION: ${{ inputs.version || github.ref_name }}
         run: |
           go build -o "$RUNNER_TEMP/messora-license" ./cmd/messora-license
           "$RUNNER_TEMP/messora-license" cloudflare --account "$CLOUDFLARE_ACCOUNT_ID" \
             --kv e801b85f1fad4304a8274d6c6a759b6b --bucket messora-registry > /dev/null
-          "$RUNNER_TEMP/messora-license" publish "$GITHUB_REF_NAME" --source "ghcr.io/$OWNER" \
-            --notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
+          case "$VERSION" in v*) ;; *) VERSION="v$VERSION" ;; esac
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "bad version: $VERSION"; exit 1; }
+          "$RUNNER_TEMP/messora-license" publish "$VERSION" --source "ghcr.io/$OWNER" \
+            --notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$VERSION"
