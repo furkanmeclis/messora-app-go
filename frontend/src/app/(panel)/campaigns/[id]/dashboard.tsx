@@ -60,6 +60,8 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
+import type { Translate } from '@/i18n/translate';
 import { formatInZone } from '@/lib/timezone';
 import type {
     ActionResult,
@@ -83,9 +85,6 @@ import { NUMBER_LOCALE } from '@/lib/format';
 
 type Perms = { edit: boolean; start: boolean; pause: boolean; del: boolean };
 
-const UNKNOWN_HELP =
-    'Sent to Meta, but the reply was lost (timeout or dropped connection), so it is not known whether Meta accepted it. Messora never re-sends these automatically; Meta’s status webhook reconciles them to sent, delivered or read.';
-
 export function CampaignDashboard({
     campaign,
     events,
@@ -103,6 +102,7 @@ export function CampaignDashboard({
     timezone: string;
     perms: Perms;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const router = useRouter();
     const rt = useRealtimeState();
@@ -160,7 +160,7 @@ export function CampaignDashboard({
                     href="/campaigns"
                     className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                 >
-                    <ArrowLeft className="size-4" /> Campaigns
+                    <ArrowLeft className="size-4" /> {t('nav.campaigns')}
                 </Link>
             </div>
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -176,10 +176,10 @@ export function CampaignDashboard({
                             data-testid="realtime-badge"
                         >
                             {rt === 'connected'
-                                ? 'Live'
+                                ? t('campaigns.dashboard.live')
                                 : rt === 'connecting'
-                                  ? 'Connecting…'
-                                  : 'Offline'}
+                                  ? t('campaigns.dashboard.connecting')
+                                  : t('campaigns.dashboard.offline')}
                         </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -187,8 +187,10 @@ export function CampaignDashboard({
                             {c.template_name} ({c.template_language})
                         </span>
                         {' · '}
-                        {audienceLabel(c.audience)}
-                        {sender ? ` · from ${sender}` : ''}
+                        {audienceLabel(t, c.audience)}
+                        {sender
+                            ? ` · ${t('campaigns.dashboard.from', { sender })}`
+                            : ''}
                     </p>
                 </div>
                 <Controls campaign={c} perms={perms} />
@@ -199,8 +201,8 @@ export function CampaignDashboard({
                     <AlertTriangle />
                     <AlertTitle>
                         {c.status === 'paused'
-                            ? 'Paused automatically'
-                            : 'Last error'}
+                            ? t('campaigns.dashboard.pausedAutomatically')
+                            : t('campaigns.dashboard.lastError')}
                     </AlertTitle>
                     <AlertDescription>{c.last_error}</AlertDescription>
                 </Alert>
@@ -208,53 +210,63 @@ export function CampaignDashboard({
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Progress</CardTitle>
+                    <CardTitle>{t('campaigns.dashboard.progress')}</CardTitle>
                     <CardDescription>
                         {c.status === 'scheduled' && c.scheduled_at
-                            ? `Starts ${formatInZone(c.scheduled_at, timezone)}.`
+                            ? t('campaigns.dashboard.startsAt', {
+                                  date: formatInZone(c.scheduled_at, timezone),
+                              })
                             : notStarted
-                              ? 'Recipients are collected when the campaign starts.'
+                              ? t('campaigns.dashboard.collectedOnStart')
                               : c.finished_at
-                                ? `Finished ${formatDateTime(c.finished_at)}.`
+                                ? t('campaigns.dashboard.finishedAt', {
+                                      date: formatDateTime(c.finished_at),
+                                  })
                                 : c.started_at
-                                  ? `Started ${formatDateTime(c.started_at)}.`
-                                  : 'Collecting recipients…'}
+                                  ? t('campaigns.dashboard.startedAt', {
+                                        date: formatDateTime(c.started_at),
+                                    })
+                                  : t('campaigns.dashboard.collecting')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <CampaignProgress
                         counts={c.counts}
                         total={c.total_recipients}
-                        label="Campaign progress"
+                        label={t('campaigns.dashboard.campaignProgress')}
                     />
                     <dl
                         className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
                         data-testid="campaign-counts"
                     >
-                        <Stat label="Recipients" value={s.recipients} />
-                        <Stat label="Skipped" value={s.skipped} />
-                        <Stat label="Waiting" value={s.waiting} />
-                        <Stat label="Sending" value={s.inFlight} />
-                        <Stat label="Sent" value={s.sent} />
-                        <Stat label="Delivered" value={s.delivered} />
-                        <Stat label="Read" value={s.read} />
-                        <Stat label="Failed" value={s.failed} tone="bad" />
+                        <Stat id="recipients" value={s.recipients} />
+                        <Stat id="skipped" value={s.skipped} />
+                        <Stat id="waiting" value={s.waiting} />
+                        <Stat id="sending" value={s.inFlight} />
+                        <Stat id="sent" value={s.sent} />
+                        <Stat id="delivered" value={s.delivered} />
+                        <Stat id="read" value={s.read} />
+                        <Stat id="failed" value={s.failed} tone="bad" />
                         <Stat
-                            label="Unknown"
+                            id="unknown"
                             value={s.unknown}
                             tone="warn"
-                            help={UNKNOWN_HELP}
+                            help={t('campaigns.dashboard.unknownHelp')}
                         />
                         <Stat
-                            label="Held"
+                            id="held"
                             value={s.held}
-                            help="Claimed while the campaign was paused; sent after resume."
+                            help={t('campaigns.dashboard.heldHelp')}
                         />
-                        <Stat label="Cancelled" value={s.cancelled} />
+                        <Stat id="cancelled" value={s.cancelled} />
                     </dl>
                     <p className="text-xs text-muted-foreground">
-                        Window: {c.window_size || 'automatic'} messages in
-                        flight · created {formatDateTime(c.created_at)}
+                        {t('campaigns.dashboard.window', {
+                            size:
+                                c.window_size ||
+                                t('campaigns.dashboard.automatic'),
+                            date: formatDateTime(c.created_at),
+                        })}
                     </p>
                 </CardContent>
             </Card>
@@ -262,10 +274,11 @@ export function CampaignDashboard({
             <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
                 <Card className="min-w-0">
                     <CardHeader>
-                        <CardTitle>Recipients</CardTitle>
+                        <CardTitle>
+                            {t('campaigns.dashboard.recipients')}
+                        </CardTitle>
                         <CardDescription>
-                            Each contact once; opted-out and duplicate numbers
-                            are skipped.
+                            {t('campaigns.dashboard.recipientsHint')}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -278,7 +291,9 @@ export function CampaignDashboard({
                 </Card>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Event log</CardTitle>
+                        <CardTitle>
+                            {t('campaigns.dashboard.eventLog')}
+                        </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <EventLog events={events} />
@@ -290,21 +305,31 @@ export function CampaignDashboard({
 }
 
 function Stat({
-    label,
+    id,
     value,
     tone,
     help,
 }: {
-    label: string;
+    id:
+        | 'recipients'
+        | 'skipped'
+        | 'waiting'
+        | 'sending'
+        | 'sent'
+        | 'delivered'
+        | 'read'
+        | 'failed'
+        | 'unknown'
+        | 'held'
+        | 'cancelled';
     value: number;
     tone?: 'bad' | 'warn';
     help?: string;
 }) {
+    const t = useT();
+    const label = t(`campaigns.counts.${id}`);
     return (
-        <div
-            className="rounded-lg border p-3"
-            data-testid={`count-${label.toLowerCase()}`}
-        >
+        <div className="rounded-lg border p-3" data-testid={`count-${id}`}>
             <dt className="flex items-center gap-1 text-xs text-muted-foreground">
                 {label}
                 {help && (
@@ -313,7 +338,12 @@ function Stat({
                             <button
                                 type="button"
                                 className="rounded-full text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                                aria-label={`What does “${label}” mean?`}
+                                aria-label={t(
+                                    'campaigns.dashboard.whatDoesMean',
+                                    {
+                                        label,
+                                    },
+                                )}
                             >
                                 <HelpCircle className="size-3.5" />
                             </button>
@@ -360,6 +390,7 @@ function ConfirmButton({
     variant?: 'default' | 'outline';
     run: () => Promise<ActionResult<unknown>>;
 }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const [pending, startTransition] = useTransition();
     return (
@@ -381,7 +412,7 @@ function ConfirmButton({
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel disabled={pending}>
-                        Keep as is
+                        {t('campaigns.dashboard.keepAsIs')}
                     </AlertDialogCancel>
                     <AlertDialogAction
                         variant={destructive ? 'destructive' : 'default'}
@@ -408,6 +439,7 @@ function Controls({
     campaign: Campaign;
     perms: Perms;
 }) {
+    const t = useT();
     const router = useRouter();
     const { guard } = useReauth();
     const editable = c.status === 'draft' || c.status === 'scheduled';
@@ -423,18 +455,18 @@ function Controls({
             {editable && perms.edit && (
                 <Button variant="outline" asChild>
                     <Link href={`/campaigns/${c.id}/edit`}>
-                        <Pencil /> Edit
+                        <Pencil /> {t('common.edit')}
                     </Link>
                 </Button>
             )}
             {editable && perms.start && (
                 <ConfirmButton
                     variant="default"
-                    label="Start now"
+                    label={t('campaigns.dashboard.startNow')}
                     icon={<Play />}
-                    title="Start sending now?"
-                    description="Recipients are collected and messages go out right away. You can pause or cancel while it runs."
-                    confirm="Start now"
+                    title={t('campaigns.dashboard.startTitle')}
+                    description={t('campaigns.dashboard.startDescription')}
+                    confirm={t('campaigns.dashboard.startNow')}
                     run={async () => {
                         const r = await guard(() =>
                             startCampaignAction(
@@ -450,22 +482,22 @@ function Controls({
             )}
             {active && perms.pause && (
                 <ConfirmButton
-                    label="Pause"
+                    label={t('campaigns.dashboard.pause')}
                     icon={<Pause />}
-                    title="Pause this campaign?"
-                    description="No new messages are sent. Messages already handed to Meta still arrive; unsent ones are held until you resume."
-                    confirm="Pause"
+                    title={t('campaigns.dashboard.pauseTitle')}
+                    description={t('campaigns.dashboard.pauseDescription')}
+                    confirm={t('campaigns.dashboard.pause')}
                     run={control('pause')}
                 />
             )}
             {c.status === 'paused' && perms.start && (
                 <ConfirmButton
                     variant="default"
-                    label="Resume"
+                    label={t('campaigns.dashboard.resume')}
                     icon={<Play />}
-                    title="Resume sending?"
-                    description="Held messages are queued again and the remaining recipients are sent to."
-                    confirm="Resume"
+                    title={t('campaigns.dashboard.resumeTitle')}
+                    description={t('campaigns.dashboard.resumeDescription')}
+                    confirm={t('campaigns.dashboard.resume')}
                     run={control('resume')}
                 />
             )}
@@ -475,24 +507,24 @@ function Controls({
                         destructive
                         label={
                             c.status === 'scheduled'
-                                ? 'Cancel schedule'
-                                : 'Cancel'
+                                ? t('campaigns.dashboard.cancelSchedule')
+                                : t('campaigns.dashboard.cancel')
                         }
                         icon={<Square />}
-                        title="Cancel this campaign for good?"
-                        description="Recipients who have not been sent to yet are cancelled. This cannot be undone; messages already sent are not affected."
-                        confirm="Cancel campaign"
+                        title={t('campaigns.dashboard.cancelTitle')}
+                        description={t('campaigns.dashboard.cancelDescription')}
+                        confirm={t('campaigns.dashboard.cancelConfirm')}
                         run={control('cancel')}
                     />
                 )}
             {deletable && perms.del && (
                 <ConfirmButton
                     destructive
-                    label="Delete"
+                    label={t('common.delete')}
                     icon={<Trash2 />}
-                    title="Delete this campaign?"
-                    description="The campaign, its recipients and its event log are removed. Sent messages stay in conversations."
-                    confirm="Delete"
+                    title={t('campaigns.dashboard.deleteTitle')}
+                    description={t('campaigns.dashboard.deleteDescription')}
+                    confirm={t('common.delete')}
                     run={async () => {
                         const r = await guard(() => deleteCampaignAction(c.id));
                         if (r.ok) router.push('/campaigns');
@@ -506,42 +538,59 @@ function Controls({
 
 // ── Event log ──────────────────────────────────────────────────────────────
 
-const EVENT_LABEL: Record<string, string> = {
-    scheduled: 'Scheduled',
-    started: 'Started',
-    paused: 'Paused',
-    auto_paused: 'Paused automatically',
-    resumed: 'Resumed',
-    cancelled: 'Cancelled',
-    completed: 'Completed',
-    failed: 'Failed',
-};
+const EVENT_KINDS = [
+    'scheduled',
+    'started',
+    'paused',
+    'auto_paused',
+    'resumed',
+    'cancelled',
+    'completed',
+    'failed',
+] as const;
+
+function eventLabel(t: Translate, kind: string): string {
+    const k = EVENT_KINDS.find((x) => x === kind);
+    return k ? t(`campaigns.dashboard.events.${k}`) : kind;
+}
 
 function describeDetail(
+    t: Translate,
     d: Record<string, unknown>,
     formatDateTime: (iso: string | null | undefined) => string,
 ): string {
     const parts: string[] = [];
     if (typeof d.reason === 'string') parts.push(d.reason);
     if (typeof d.error === 'string') parts.push(d.error);
-    if (typeof d.at === 'string') parts.push(`for ${formatDateTime(d.at)}`);
-    if (d.scheduled === true) parts.push('on schedule');
+    if (typeof d.at === 'string')
+        parts.push(
+            t('campaigns.dashboard.eventFor', { date: formatDateTime(d.at) }),
+        );
+    if (d.scheduled === true) parts.push(t('campaigns.dashboard.onSchedule'));
     return parts.join(' · ');
 }
 
 function EventLog({ events }: { events: CampaignEventItem[] }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     if (events.length === 0) {
         return (
             <p className="text-sm text-muted-foreground">
-                Nothing has happened yet.
+                {t('campaigns.dashboard.noEvents')}
             </p>
         );
     }
     return (
-        <ol className="space-y-3" aria-label="Campaign events">
+        <ol
+            className="space-y-3"
+            aria-label={t('campaigns.dashboard.campaignEvents')}
+        >
             {events.map((e) => {
-                const detail = describeDetail(e.detail ?? {}, formatDateTime);
+                const detail = describeDetail(
+                    t,
+                    e.detail ?? {},
+                    formatDateTime,
+                );
                 return (
                     <li
                         key={e.id}
@@ -549,11 +598,13 @@ function EventLog({ events }: { events: CampaignEventItem[] }) {
                         data-testid="campaign-event"
                     >
                         <div className="font-medium">
-                            {EVENT_LABEL[e.kind] ?? e.kind}
+                            {eventLabel(t, e.kind)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                             {formatDateTime(e.created_at)} ·{' '}
-                            {e.actor_id ? 'by a user' : 'by Messora'}
+                            {e.actor_id
+                                ? t('campaigns.dashboard.byUser')
+                                : t('campaigns.dashboard.byMessora')}
                         </div>
                         {detail && (
                             <div className="text-xs break-words">{detail}</div>
@@ -568,34 +619,56 @@ function EventLog({ events }: { events: CampaignEventItem[] }) {
 // ── Recipients ─────────────────────────────────────────────────────────────
 
 const ALL = 'all';
-const STATES = [
-    { value: ALL, label: 'All states' },
-    { value: 'pending', label: 'Waiting' },
-    { value: 'queued', label: 'Queued / sent' },
-    { value: 'skipped', label: 'Skipped' },
-    { value: 'cancelled', label: 'Cancelled' },
-];
+const STATES = ['all', 'pending', 'queued', 'skipped', 'cancelled'] as const;
+
+const MESSAGE_STATUSES = [
+    'pending',
+    'sending',
+    'sent',
+    'delivered',
+    'read',
+    'failed',
+    'unknown',
+    'held',
+    'cancelled',
+] as const;
 
 function MessageStatus({ r }: { r: CampaignRecipient }) {
+    const t = useT();
     if (r.state === 'skipped') {
         return (
             <Badge variant="outline">
-                Skipped
-                {r.skip_reason ? `: ${r.skip_reason.replaceAll('_', ' ')}` : ''}
+                {r.skip_reason
+                    ? t('campaigns.dashboard.skippedReason', {
+                          reason: r.skip_reason.replaceAll('_', ' '),
+                      })
+                    : t('campaigns.dashboard.skipped')}
             </Badge>
         );
     }
     if (r.state === 'cancelled')
-        return <Badge variant="outline">Cancelled</Badge>;
-    if (r.state === 'pending') return <Badge variant="outline">Waiting</Badge>;
-    const st = r.message_status ?? 'pending';
+        return (
+            <Badge variant="outline">
+                {t('campaigns.dashboard.cancelled')}
+            </Badge>
+        );
+    if (r.state === 'pending')
+        return (
+            <Badge variant="outline">{t('campaigns.dashboard.waiting')}</Badge>
+        );
+    const st: string = r.message_status ?? 'pending';
+    const known = MESSAGE_STATUSES.find((x) => x === st);
+    const stLabel = known
+        ? t(`campaigns.dashboard.messageStatuses.${known}`)
+        : st;
+    const unknownHelp = t('campaigns.dashboard.unknownHelp');
     const variant =
         st === 'failed'
             ? 'destructive'
             : st === 'read' || st === 'delivered'
               ? 'secondary'
               : 'outline';
-    const badge = <Badge variant={variant}>{st}</Badge>;
+    const badge = <Badge variant={variant}>{stLabel}</Badge>;
     if (st !== 'unknown') return badge;
     return (
         <Tooltip>
@@ -603,12 +676,12 @@ function MessageStatus({ r }: { r: CampaignRecipient }) {
                 <button
                     type="button"
                     className="rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    aria-label={`unknown: ${UNKNOWN_HELP}`}
+                    aria-label={`${stLabel}: ${unknownHelp}`}
                 >
                     {badge}
                 </button>
             </TooltipTrigger>
-            <TooltipContent className="max-w-xs">{UNKNOWN_HELP}</TooltipContent>
+            <TooltipContent className="max-w-xs">{unknownHelp}</TooltipContent>
         </Tooltip>
     );
 }
@@ -622,7 +695,8 @@ function RecipientTable({
     initial: CampaignRecipient[];
     initialCursor?: string;
 }) {
-    const [state, setState] = useState(ALL);
+    const t = useT();
+    const [state, setState] = useState<string>(ALL);
     const [items, setItems] = useState(initial);
     const [cursor, setCursor] = useState(initialCursor);
     const [error, setError] = useState<string | null>(null);
@@ -656,14 +730,14 @@ function RecipientTable({
                 >
                     <SelectTrigger
                         className="w-44"
-                        aria-label="Recipient state"
+                        aria-label={t('campaigns.dashboard.recipientState')}
                     >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {STATES.map((s) => (
-                            <SelectItem key={s.value} value={s.value}>
-                                {s.label}
+                            <SelectItem key={s} value={s}>
+                                {t(`campaigns.dashboard.states.${s}`)}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -674,7 +748,8 @@ function RecipientTable({
                     disabled={pending}
                     onClick={() => load(state)}
                 >
-                    {pending ? <Spinner /> : <RefreshCw />} Refresh
+                    {pending ? <Spinner /> : <RefreshCw />}{' '}
+                    {t('campaigns.dashboard.refresh')}
                 </Button>
             </div>
             {error && (
@@ -685,16 +760,22 @@ function RecipientTable({
             {items.length === 0 ? (
                 <p className="p-6 text-sm text-muted-foreground">
                     {state === ALL
-                        ? 'No recipients yet. They are collected when the campaign starts.'
-                        : 'No recipients in this state.'}
+                        ? t('campaigns.dashboard.noRecipients')
+                        : t('campaigns.dashboard.noRecipientsInState')}
                 </p>
             ) : (
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Phone</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Error</TableHead>
+                            <TableHead>
+                                {t('campaigns.dashboard.phone')}
+                            </TableHead>
+                            <TableHead>
+                                {t('campaigns.dashboard.status')}
+                            </TableHead>
+                            <TableHead>
+                                {t('campaigns.dashboard.error')}
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -732,7 +813,8 @@ function RecipientTable({
                         disabled={pending}
                         onClick={() => load(state, cursor)}
                     >
-                        {pending && <Spinner />} Load more
+                        {pending && <Spinner />}{' '}
+                        {t('campaigns.dashboard.loadMore')}
                     </Button>
                 </div>
             )}

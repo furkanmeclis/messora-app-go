@@ -35,7 +35,11 @@ import {
     FieldLegend,
     FieldSet,
 } from '@/components/ui/field';
+import { DateTimePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
+import { NumberField } from '@/components/ui/number-field';
+import { RadioCard, RadioCards } from '@/components/ui/radio-cards';
+import { Segmented } from '@/components/ui/segmented';
 import {
     Select,
     SelectContent,
@@ -44,6 +48,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { useT } from '@/i18n/client';
+import type { Translate } from '@/i18n/translate';
 import { slotsOf, templateKey } from '@/lib/templates';
 import { formatInZone, utcToZoned, zonedToUtc } from '@/lib/timezone';
 import type { ActionResult, Campaign, Template } from '@/lib/types';
@@ -78,7 +84,21 @@ type State = {
     scheduledAt: string;
 };
 
-const STEPS = ['Basics', 'Template', 'Variables', 'Audience', 'Review'];
+const STEPS = [
+    'basics',
+    'template',
+    'variables',
+    'audience',
+    'review',
+] as const;
+
+const CATEGORIES = ['MARKETING', 'UTILITY', 'AUTHENTICATION'] as const;
+
+/** A template category in the user's language, lower case as in lists. */
+function categoryLabel(t: Translate, category: string): string {
+    const c = CATEGORIES.find((x) => x === category.toUpperCase());
+    return (c ? t(`templates.categories.${c}`) : category).toLowerCase();
+}
 
 const PLACEHOLDERS = [
     'name',
@@ -180,6 +200,7 @@ export function CampaignWizard({
     data: WizardData;
     campaign?: Campaign;
 }) {
+    const t = useT();
     const router = useRouter();
     const { guard } = useReauth();
     const [s, setS] = useState<State>(() =>
@@ -281,46 +302,52 @@ export function CampaignWizard({
     function validateStep(i: number): Record<string, string> {
         const e: Record<string, string> = {};
         if (i === 0) {
-            if (!s.name.trim()) e.name = 'Give the campaign a name.';
+            if (!s.name.trim()) e.name = t('campaigns.wizard.errors.name');
             if (numbers && numbers.length === 0)
-                e.phone_number_id =
-                    'No WhatsApp phone number is connected yet.';
+                e.phone_number_id = t('campaigns.wizard.errors.noNumber');
             else if (numbers && !sender)
-                e.phone_number_id = 'Choose the number that sends.';
+                e.phone_number_id = t('campaigns.wizard.errors.chooseNumber');
         }
         if (i === 1) {
-            if (!template) e.template = 'Choose an approved template.';
+            if (!template)
+                e.template = t('campaigns.wizard.errors.chooseTemplate');
             else if (slots?.mediaHeader)
-                e.template =
-                    'Templates with an image, video or document header cannot be used in campaigns yet.';
+                e.template = t('campaigns.wizard.errors.mediaHeader');
         }
         if (i === 2 && slots) {
+            const required = t('campaigns.wizard.errors.required');
             for (const v of slots.header)
-                if (!s.header[v]?.trim()) e[`header.${v}`] = 'Required.';
+                if (!s.header[v]?.trim()) e[`header.${v}`] = required;
             for (const v of slots.body)
-                if (!s.body[v]?.trim()) e[`body.${v}`] = 'Required.';
+                if (!s.body[v]?.trim()) e[`body.${v}`] = required;
             for (const p of slots.urlButtons)
-                if (!s.buttons[String(p)]?.trim())
-                    e[`button.${p}`] = 'Required.';
-            if (buttonGap)
-                e.buttons =
-                    'This template has a dynamic website button after another button; campaigns can only fill dynamic buttons that come first.';
+                if (!s.buttons[String(p)]?.trim()) e[`button.${p}`] = required;
+            if (buttonGap) e.buttons = t('campaigns.wizard.errors.buttonGap');
         }
         if (i === 3) {
             if (s.audienceKind !== 'all' && !s.audienceId)
-                e.audience = `Choose a ${s.audienceKind}.`;
+                e.audience = t(
+                    s.audienceKind === 'segment'
+                        ? 'campaigns.wizard.errors.chooseSegment'
+                        : s.audienceKind === 'group'
+                          ? 'campaigns.wizard.errors.chooseGroup'
+                          : 'campaigns.wizard.errors.chooseTag',
+                );
         }
         if (i === 4) {
             if (s.windowSize) {
                 const n = Number(s.windowSize);
                 if (!Number.isInteger(n) || n < 0 || n > 10000)
-                    e.window_size = 'A whole number from 0 to 10000.';
+                    e.window_size = t('campaigns.wizard.errors.windowSize');
             }
             if (s.when === 'schedule') {
                 const at = zonedToUtc(s.scheduledAt, data.timezone);
-                if (!at) e.scheduled_at = 'Choose a date and time.';
+                if (!at)
+                    e.scheduled_at = t(
+                        'campaigns.wizard.errors.chooseDateTime',
+                    );
                 else if (!isFuture(at))
-                    e.scheduled_at = 'Choose a time in the future.';
+                    e.scheduled_at = t('campaigns.wizard.errors.futureTime');
             }
         }
         return e;
@@ -418,7 +445,7 @@ export function CampaignWizard({
             setFailure(null);
             const id = await save();
             if (id) {
-                toast.success('Draft saved.');
+                toast.success(t('campaigns.wizard.draftSaved'));
                 router.push(`/campaigns/${id}`);
             }
         });
@@ -444,7 +471,7 @@ export function CampaignWizard({
                 showFailure(r);
                 return;
             }
-            toast.success(r.message ?? 'Campaign started.');
+            toast.success(r.message ?? t('campaigns.actions.started'));
             router.push(`/campaigns/${id}`);
         });
 
@@ -480,10 +507,10 @@ export function CampaignWizard({
 
     return (
         <div className="space-y-6">
-            <nav aria-label="Campaign steps">
+            <nav aria-label={t('campaigns.wizard.campaignSteps')}>
                 <ol className="flex flex-wrap gap-2">
-                    {STEPS.map((label, i) => (
-                        <li key={label}>
+                    {STEPS.map((key, i) => (
+                        <li key={key}>
                             <Button
                                 type="button"
                                 size="sm"
@@ -502,7 +529,7 @@ export function CampaignWizard({
                                         i + 1
                                     )}
                                 </span>
-                                {label}
+                                {t(`campaigns.wizard.steps.${key}`)}
                             </Button>
                         </li>
                     ))}
@@ -516,8 +543,8 @@ export function CampaignWizard({
                         <AlertCircle />
                         <AlertTitle>
                             {failure.code === 'NO_PHONE_NUMBER'
-                                ? 'No phone number connected'
-                                : 'The campaign was not saved'}
+                                ? t('campaigns.wizard.noPhoneNumber')
+                                : t('campaigns.wizard.notSaved')}
                         </AlertTitle>
                         <AlertDescription>
                             <p>{failure.message}</p>
@@ -528,7 +555,7 @@ export function CampaignWizard({
                             ))}
                             {failure.code === 'NO_PHONE_NUMBER' && (
                                 <Link href="/channels" className="underline">
-                                    Open Channels
+                                    {t('campaigns.wizard.openChannels')}
                                 </Link>
                             )}
                         </AlertDescription>
@@ -543,32 +570,29 @@ export function CampaignWizard({
                             tabIndex={-1}
                             className="outline-none"
                         >
-                            {step + 1}. {STEPS[step]}
+                            {step + 1}.{' '}
+                            {t(`campaigns.wizard.steps.${STEPS[step]!}`)}
                         </h2>
                     </CardTitle>
                     <CardDescription>
-                        {
-                            [
-                                'Name the campaign and choose the number it is sent from.',
-                                'Only templates approved by Meta for the sender’s account can be sent.',
-                                'Fill each template variable with contact data or fixed text.',
-                                'Who receives the campaign. Opted-out contacts are always skipped.',
-                                'Check everything, then save as draft, start now or schedule.',
-                            ][step]
-                        }
+                        {t(`campaigns.wizard.stepHints.${STEPS[step]!}`)}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {step === 0 && (
                         <FieldGroup>
                             <Field data-invalid={!!errors.name}>
-                                <FieldLabel htmlFor="cw-name">Name</FieldLabel>
+                                <FieldLabel htmlFor="cw-name">
+                                    {t('campaigns.wizard.name')}
+                                </FieldLabel>
                                 <Input
                                     id="cw-name"
                                     {...aria('name')}
                                     value={s.name}
                                     maxLength={120}
-                                    placeholder="November newsletter"
+                                    placeholder={t(
+                                        'campaigns.wizard.namePlaceholder',
+                                    )}
                                     onChange={(e) =>
                                         set('name', e.target.value)
                                     }
@@ -577,7 +601,7 @@ export function CampaignWizard({
                             </Field>
                             {numbers === null ? (
                                 <p className="text-sm text-muted-foreground">
-                                    The default number sends this campaign.
+                                    {t('campaigns.wizard.defaultSends')}
                                 </p>
                             ) : numbers.length === 0 ? (
                                 <Alert
@@ -586,25 +610,24 @@ export function CampaignWizard({
                                 >
                                     <AlertCircle />
                                     <AlertTitle>
-                                        No phone number connected
+                                        {t('campaigns.wizard.noPhoneNumber')}
                                     </AlertTitle>
                                     <AlertDescription>
                                         <p>
-                                            Connect a WhatsApp Business account
-                                            before creating campaigns.
+                                            {t('campaigns.wizard.connectFirst')}
                                         </p>
                                         <Link
                                             href="/channels"
                                             className="underline"
                                         >
-                                            Open Channels
+                                            {t('campaigns.wizard.openChannels')}
                                         </Link>
                                     </AlertDescription>
                                 </Alert>
                             ) : (
                                 <Field data-invalid={!!errors.phone_number_id}>
                                     <FieldLabel htmlFor="cw-sender">
-                                        Sender
+                                        {t('campaigns.wizard.sender')}
                                     </FieldLabel>
                                     <Select
                                         value={sender?.id ?? ''}
@@ -618,7 +641,11 @@ export function CampaignWizard({
                                             className="w-full"
                                             {...aria('phone_number_id')}
                                         >
-                                            <SelectValue placeholder="Choose a number" />
+                                            <SelectValue
+                                                placeholder={t(
+                                                    'campaigns.wizard.chooseNumber',
+                                                )}
+                                            />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {numbers.map((n) => (
@@ -631,7 +658,9 @@ export function CampaignWizard({
                                                         ? ` · ${n.verified_name}`
                                                         : ''}
                                                     {n.is_default
-                                                        ? ' (default)'
+                                                        ? t(
+                                                              'campaigns.wizard.defaultSuffix',
+                                                          )
                                                         : ''}
                                                 </SelectItem>
                                             ))}
@@ -640,8 +669,15 @@ export function CampaignWizard({
                                     {err('phone_number_id') ?? (
                                         <FieldDescription>
                                             {sender?.messaging_limit
-                                                ? `Messaging limit: ${sender.messaging_limit}.`
-                                                : 'Templates come from this number’s account.'}
+                                                ? t(
+                                                      'campaigns.wizard.messagingLimit',
+                                                      {
+                                                          limit: sender.messaging_limit,
+                                                      },
+                                                  )
+                                                : t(
+                                                      'campaigns.wizard.templatesFromAccount',
+                                                  )}
                                         </FieldDescription>
                                     )}
                                 </Field>
@@ -659,19 +695,20 @@ export function CampaignWizard({
                         <div className="grid gap-6 md:grid-cols-[1fr_18rem]">
                             <Field data-invalid={!!errors.template}>
                                 <FieldLabel htmlFor="cw-template">
-                                    Template
+                                    {t('campaigns.wizard.template')}
                                 </FieldLabel>
                                 {templates.length === 0 ? (
                                     <Alert data-testid="no-templates">
                                         <Info />
                                         <AlertDescription>
-                                            No approved templates for this
-                                            sender.{' '}
+                                            {t('campaigns.wizard.noTemplates')}{' '}
                                             <Link
                                                 href="/templates"
                                                 className="underline"
                                             >
-                                                Manage templates
+                                                {t(
+                                                    'campaigns.wizard.manageTemplates',
+                                                )}
                                             </Link>
                                         </AlertDescription>
                                     </Alert>
@@ -693,16 +730,24 @@ export function CampaignWizard({
                                             className="w-full"
                                             {...aria('template')}
                                         >
-                                            <SelectValue placeholder="Choose a template" />
+                                            <SelectValue
+                                                placeholder={t(
+                                                    'campaigns.wizard.chooseTemplate',
+                                                )}
+                                            />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {templates.map((t) => (
+                                            {templates.map((tpl) => (
                                                 <SelectItem
-                                                    key={t.id}
-                                                    value={templateKey(t)}
+                                                    key={tpl.id}
+                                                    value={templateKey(tpl)}
                                                 >
-                                                    {t.name} ({t.language}) ·{' '}
-                                                    {t.category.toLowerCase()}
+                                                    {tpl.name} ({tpl.language})
+                                                    ·{' '}
+                                                    {categoryLabel(
+                                                        t,
+                                                        tpl.category,
+                                                    )}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -715,7 +760,7 @@ export function CampaignWizard({
                             {template && (
                                 <div className="space-y-2">
                                     <p className="text-sm font-medium">
-                                        Preview
+                                        {t('campaigns.wizard.preview')}
                                     </p>
                                     <TemplatePreview
                                         components={template.components}
@@ -728,7 +773,7 @@ export function CampaignWizard({
                     {step === 2 &&
                         (!slots ? (
                             <p className="text-sm text-muted-foreground">
-                                Choose a template first.
+                                {t('campaigns.wizard.chooseTemplateFirst')}
                             </p>
                         ) : (
                             <div className="grid gap-6 md:grid-cols-[1fr_18rem]">
@@ -738,14 +783,19 @@ export function CampaignWizard({
                                         slots.urlButtons.length ===
                                         0 && (
                                         <p className="text-sm text-muted-foreground">
-                                            This template has no variables.
+                                            {t('campaigns.wizard.noVariables')}
                                         </p>
                                     )}
                                     {slots.header.map((v) => (
                                         <VariableInput
                                             key={`h-${v}`}
                                             id={`header.${v}`}
-                                            label={`Header {{${v}}}`}
+                                            label={t(
+                                                'campaigns.wizard.headerVar',
+                                                {
+                                                    var: v,
+                                                },
+                                            )}
                                             value={s.header[v] ?? ''}
                                             error={
                                                 errors[`header.${v}`] ??
@@ -763,7 +813,12 @@ export function CampaignWizard({
                                         <VariableInput
                                             key={`b-${v}`}
                                             id={`body.${v}`}
-                                            label={`Body {{${v}}}`}
+                                            label={t(
+                                                'campaigns.wizard.bodyVar',
+                                                {
+                                                    var: v,
+                                                },
+                                            )}
                                             value={s.body[v] ?? ''}
                                             error={errors[`body.${v}`]}
                                             onChange={(x) =>
@@ -778,7 +833,12 @@ export function CampaignWizard({
                                         <VariableInput
                                             key={`u-${p}`}
                                             id={`button.${p}`}
-                                            label={`Website button ${p + 1}: end of address`}
+                                            label={t(
+                                                'campaigns.wizard.websiteButton',
+                                                {
+                                                    n: p + 1,
+                                                },
+                                            )}
                                             value={s.buttons[String(p)] ?? ''}
                                             error={errors[`button.${p}`]}
                                             onChange={(x) =>
@@ -800,13 +860,14 @@ export function CampaignWizard({
                                     {usedPlaceholders.length > 0 && (
                                         <FieldSet>
                                             <FieldLegend variant="label">
-                                                Fallbacks
+                                                {t(
+                                                    'campaigns.wizard.fallbacks',
+                                                )}
                                             </FieldLegend>
                                             <FieldDescription>
-                                                Used when a contact has no
-                                                value. Without a fallback such
-                                                contacts are skipped, because
-                                                Meta rejects empty variables.
+                                                {t(
+                                                    'campaigns.wizard.fallbacksHint',
+                                                )}
                                             </FieldDescription>
                                             <div className="grid gap-3 sm:grid-cols-2">
                                                 {usedPlaceholders.map((k) => (
@@ -814,7 +875,12 @@ export function CampaignWizard({
                                                         <FieldLabel
                                                             htmlFor={`cw-fallback-${k}`}
                                                         >
-                                                            {`If {{${k}}} is empty`}
+                                                            {t(
+                                                                'campaigns.wizard.ifEmpty',
+                                                                {
+                                                                    key: k,
+                                                                },
+                                                            )}
                                                         </FieldLabel>
                                                         <Input
                                                             id={`cw-fallback-${k}`}
@@ -823,7 +889,9 @@ export function CampaignWizard({
                                                                 ''
                                                             }
                                                             maxLength={1024}
-                                                            placeholder="Skip the contact"
+                                                            placeholder={t(
+                                                                'campaigns.wizard.skipContact',
+                                                            )}
                                                             onChange={(e) =>
                                                                 set(
                                                                     'fallback',
@@ -845,7 +913,7 @@ export function CampaignWizard({
                                 {template && (
                                     <div className="space-y-2">
                                         <p className="text-sm font-medium">
-                                            Preview
+                                            {t('campaigns.wizard.preview')}
                                         </p>
                                         <TemplatePreview
                                             components={template.components}
@@ -863,50 +931,41 @@ export function CampaignWizard({
                         <FieldGroup>
                             <FieldSet>
                                 <FieldLegend variant="label">
-                                    Send to
+                                    {t('campaigns.wizard.sendTo')}
                                 </FieldLegend>
-                                <div
-                                    role="radiogroup"
-                                    aria-label="Audience type"
-                                    className="flex flex-wrap gap-4"
+                                <RadioCards
+                                    aria-label={t(
+                                        'campaigns.wizard.audienceType',
+                                    )}
+                                    className="grid-cols-2 sm:grid-cols-4"
+                                    value={s.audienceKind}
+                                    onValueChange={(v) =>
+                                        setS((p) => ({
+                                            ...p,
+                                            audienceKind: v as AudienceKind,
+                                            audienceId: '',
+                                        }))
+                                    }
                                 >
                                     {(
                                         [
-                                            [
-                                                'segment',
-                                                'A segment',
-                                                data.segments,
-                                            ],
-                                            ['group', 'A group', data.groups],
-                                            ['tag', 'A tag', data.tags],
-                                            ['all', 'All contacts', []],
+                                            ['segment', data.segments],
+                                            ['group', data.groups],
+                                            ['tag', data.tags],
+                                            ['all', []],
                                         ] as const
-                                    ).map(([kind, label, list]) => (
-                                        <label
+                                    ).map(([kind, list]) => (
+                                        <RadioCard
                                             key={kind}
-                                            className="flex items-center gap-2 text-sm"
+                                            value={kind}
+                                            disabled={list === null}
                                         >
-                                            <input
-                                                type="radio"
-                                                name="audience-kind"
-                                                value={kind}
-                                                checked={
-                                                    s.audienceKind === kind
-                                                }
-                                                disabled={list === null}
-                                                className="size-4 accent-primary"
-                                                onChange={() =>
-                                                    setS((p) => ({
-                                                        ...p,
-                                                        audienceKind: kind,
-                                                        audienceId: '',
-                                                    }))
-                                                }
-                                            />
-                                            {label}
-                                        </label>
+                                            {t(
+                                                `campaigns.wizard.kinds.${kind}`,
+                                            )}
+                                        </RadioCard>
                                     ))}
-                                </div>
+                                </RadioCards>
                             </FieldSet>
                             {s.audienceKind !== 'all' && (
                                 <AudiencePicker
@@ -948,18 +1007,20 @@ export function CampaignWizard({
                     {step === 4 && (
                         <div className="space-y-6">
                             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
-                                <dt className="text-muted-foreground">Name</dt>
+                                <dt className="text-muted-foreground">
+                                    {t('campaigns.wizard.name')}
+                                </dt>
                                 <dd>{s.name}</dd>
                                 <dt className="text-muted-foreground">
-                                    Sender
+                                    {t('campaigns.wizard.sender')}
                                 </dt>
                                 <dd>
                                     {sender
                                         ? `${sender.display_phone_number}${sender.verified_name ? ` · ${sender.verified_name}` : ''}`
-                                        : 'Default number'}
+                                        : t('campaigns.wizard.defaultNumber')}
                                 </dd>
                                 <dt className="text-muted-foreground">
-                                    Template
+                                    {t('campaigns.wizard.template')}
                                 </dt>
                                 <dd className="font-mono">
                                     {template
@@ -969,15 +1030,21 @@ export function CampaignWizard({
                                 {slots &&
                                     [
                                         ...slots.header.map((v) => [
-                                            `Header {{${v}}}`,
+                                            t('campaigns.wizard.headerVar', {
+                                                var: v,
+                                            }),
                                             s.header[v],
                                         ]),
                                         ...slots.body.map((v) => [
-                                            `Body {{${v}}}`,
+                                            t('campaigns.wizard.bodyVar', {
+                                                var: v,
+                                            }),
                                             s.body[v],
                                         ]),
                                         ...slots.urlButtons.map((p) => [
-                                            `Button ${p + 1}`,
+                                            t('campaigns.wizard.button', {
+                                                n: p + 1,
+                                            }),
                                             s.buttons[String(p)],
                                         ]),
                                     ].map(([k, v]) => (
@@ -991,10 +1058,11 @@ export function CampaignWizard({
                                         </div>
                                     ))}
                                 <dt className="text-muted-foreground">
-                                    Audience
+                                    {t('campaigns.wizard.audience')}
                                 </dt>
                                 <dd>
                                     {audienceLabel(
+                                        t,
                                         s.audienceKind === 'all'
                                             ? { all: true }
                                             : {
@@ -1004,39 +1072,54 @@ export function CampaignWizard({
                                         names,
                                     )}
                                     {typeof estimate === 'number' &&
-                                        ` · about ${estimate.toLocaleString(NUMBER_LOCALE)} contacts`}
+                                        t('campaigns.wizard.aboutContacts', {
+                                            count: estimate.toLocaleString(
+                                                NUMBER_LOCALE,
+                                            ),
+                                        })}
                                 </dd>
                             </dl>
 
                             <details className="rounded-lg border p-3">
                                 <summary className="cursor-pointer text-sm font-medium">
-                                    Advanced
+                                    {t('campaigns.wizard.advanced')}
                                 </summary>
                                 <Field
                                     className="mt-3 max-w-xs"
                                     data-invalid={!!errors.window_size}
                                 >
                                     <FieldLabel htmlFor="cw-window">
-                                        Messages in flight
+                                        {t('campaigns.wizard.inFlight')}
                                     </FieldLabel>
-                                    <Input
+                                    <NumberField
                                         id="cw-window"
-                                        type="number"
                                         min={0}
                                         max={10000}
                                         step={1}
-                                        placeholder="Automatic"
-                                        {...aria('window_size')}
-                                        value={s.windowSize}
-                                        onChange={(e) =>
-                                            set('windowSize', e.target.value)
+                                        allowEmpty
+                                        placeholder={t(
+                                            'campaigns.wizard.automatic',
+                                        )}
+                                        aria-invalid={
+                                            errors.window_size
+                                                ? true
+                                                : undefined
+                                        }
+                                        value={
+                                            s.windowSize === ''
+                                                ? null
+                                                : Number(s.windowSize)
+                                        }
+                                        onValueChange={(v) =>
+                                            set(
+                                                'windowSize',
+                                                v === null ? '' : String(v),
+                                            )
                                         }
                                     />
                                     {err('window_size') ?? (
                                         <FieldDescription>
-                                            How many messages may wait for Meta
-                                            at once. Empty or 0 = automatic
-                                            (800).
+                                            {t('campaigns.wizard.inFlightHint')}
                                         </FieldDescription>
                                     )}
                                 </Field>
@@ -1045,67 +1128,69 @@ export function CampaignWizard({
                             {data.canStart ? (
                                 <FieldSet>
                                     <FieldLegend variant="label">
-                                        When
+                                        {t('campaigns.wizard.when')}
                                     </FieldLegend>
-                                    <div
-                                        role="radiogroup"
-                                        aria-label="When"
-                                        className="flex flex-wrap gap-4"
-                                    >
-                                        {(
-                                            [
-                                                ['now', 'Start now'],
-                                                ['schedule', 'Schedule'],
-                                            ] as const
-                                        ).map(([v, label]) => (
-                                            <label
-                                                key={v}
-                                                className="flex items-center gap-2 text-sm"
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="when"
-                                                    value={v}
-                                                    checked={s.when === v}
-                                                    className="size-4 accent-primary"
-                                                    onChange={() =>
-                                                        set('when', v)
-                                                    }
-                                                />
-                                                {label}
-                                            </label>
-                                        ))}
-                                    </div>
+                                    <Segmented
+                                        aria-label={t('campaigns.wizard.when')}
+                                        className="self-start"
+                                        value={s.when}
+                                        onValueChange={(v) => set('when', v)}
+                                        options={[
+                                            {
+                                                value: 'now',
+                                                label: t(
+                                                    'campaigns.wizard.startNow',
+                                                ),
+                                            },
+                                            {
+                                                value: 'schedule',
+                                                label: t(
+                                                    'campaigns.wizard.schedule',
+                                                ),
+                                            },
+                                        ]}
+                                    />
                                     {s.when === 'schedule' && (
                                         <Field
                                             className="max-w-xs"
                                             data-invalid={!!errors.scheduled_at}
                                         >
                                             <FieldLabel htmlFor="cw-at">
-                                                Date and time ({data.timezone})
+                                                {t(
+                                                    'campaigns.wizard.dateTime',
+                                                    {
+                                                        zone: data.timezone,
+                                                    },
+                                                )}
                                             </FieldLabel>
-                                            <Input
+                                            <DateTimePicker
                                                 id="cw-at"
-                                                type="datetime-local"
-                                                {...aria('scheduled_at')}
                                                 value={s.scheduledAt}
-                                                onChange={(e) =>
-                                                    set(
-                                                        'scheduledAt',
-                                                        e.target.value,
-                                                    )
+                                                onValueChange={(v) =>
+                                                    set('scheduledAt', v)
                                                 }
                                             />
                                             {err('scheduled_at') ?? (
                                                 <FieldDescription>
-                                                    Your profile’s time zone.
+                                                    {t(
+                                                        'campaigns.wizard.profileZone',
+                                                    )}
                                                     {(() => {
                                                         const at = zonedToUtc(
                                                             s.scheduledAt,
                                                             data.timezone,
                                                         );
                                                         return at
-                                                            ? ` Starts ${formatInZone(at, Intl.DateTimeFormat().resolvedOptions().timeZone)} for you here.`
+                                                            ? t(
+                                                                  'campaigns.wizard.startsHere',
+                                                                  {
+                                                                      date: formatInZone(
+                                                                          at,
+                                                                          Intl.DateTimeFormat().resolvedOptions()
+                                                                              .timeZone,
+                                                                      ),
+                                                                  },
+                                                              )
                                                             : '';
                                                     })()}
                                                 </FieldDescription>
@@ -1115,8 +1200,7 @@ export function CampaignWizard({
                                 </FieldSet>
                             ) : (
                                 <p className="text-sm text-muted-foreground">
-                                    You can save the draft; someone allowed to
-                                    start campaigns sends it.
+                                    {t('campaigns.wizard.cannotStart')}
                                 </p>
                             )}
                         </div>
@@ -1131,12 +1215,12 @@ export function CampaignWizard({
                     disabled={step === 0 || pending}
                     onClick={() => goTo(step - 1)}
                 >
-                    Back
+                    {t('campaigns.wizard.back')}
                 </Button>
                 <div className="flex flex-wrap gap-2">
                     {step < STEPS.length - 1 ? (
                         <Button type="button" onClick={next} disabled={pending}>
-                            Next
+                            {t('campaigns.wizard.next')}
                         </Button>
                     ) : (
                         <>
@@ -1146,7 +1230,8 @@ export function CampaignWizard({
                                 onClick={saveDraft}
                                 disabled={pending}
                             >
-                                {pending && <Spinner />} Save draft
+                                {pending && <Spinner />}{' '}
+                                {t('campaigns.wizard.saveDraft')}
                             </Button>
                             {data.canStart && (
                                 <Button
@@ -1162,8 +1247,8 @@ export function CampaignWizard({
                                 >
                                     {pending && <Spinner />}
                                     {s.when === 'schedule'
-                                        ? 'Schedule campaign'
-                                        : 'Start campaign'}
+                                        ? t('campaigns.wizard.scheduleCampaign')
+                                        : t('campaigns.wizard.startCampaign')}
                                 </Button>
                             )}
                         </>
@@ -1174,18 +1259,26 @@ export function CampaignWizard({
             <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Start sending now?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {t('campaigns.wizard.confirmTitle')}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
                             {typeof estimate === 'number'
-                                ? `About ${estimate.toLocaleString(NUMBER_LOCALE)} contacts receive “${template?.name}” right away. `
-                                : `Contacts receive “${template?.name}” right away. `}
-                            You can pause or cancel while it runs, but messages
-                            already sent cannot be recalled.
+                                ? t('campaigns.wizard.confirmAbout', {
+                                      count: estimate.toLocaleString(
+                                          NUMBER_LOCALE,
+                                      ),
+                                      template: template?.name ?? '',
+                                  })
+                                : t('campaigns.wizard.confirmContacts', {
+                                      template: template?.name ?? '',
+                                  })}
+                            {t('campaigns.wizard.confirmTail')}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={pending}>
-                            Cancel
+                            {t('campaigns.wizard.cancel')}
                         </AlertDialogCancel>
                         <AlertDialogAction
                             disabled={pending}
@@ -1194,7 +1287,8 @@ export function CampaignWizard({
                                 start();
                             }}
                         >
-                            {pending && <Spinner />} Start now
+                            {pending && <Spinner />}{' '}
+                            {t('campaigns.wizard.startNow')}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -1212,6 +1306,7 @@ function EstimateLine({
     kind: AudienceKind;
     chosen: boolean;
 }) {
+    const t = useT();
     if (!chosen) return null;
     return (
         <p
@@ -1222,11 +1317,16 @@ function EstimateLine({
             <Users className="size-4" />
             {estimate === undefined
                 ? kind === 'segment' || kind === 'all'
-                    ? 'Counting recipients…'
-                    : 'Recipient count unavailable.'
+                    ? t('campaigns.wizard.counting')
+                    : t('campaigns.wizard.countUnavailable')
                 : estimate === null
-                  ? 'Recipient count unavailable.'
-                  : `About ${estimate.toLocaleString(NUMBER_LOCALE)} contacts${kind === 'all' ? ' (not opted out)' : ''}. Duplicates and opted-out contacts are skipped when the campaign starts.`}
+                  ? t('campaigns.wizard.countUnavailable')
+                  : t(
+                        kind === 'all'
+                            ? 'campaigns.wizard.estimateAll'
+                            : 'campaigns.wizard.estimate',
+                        { count: estimate.toLocaleString(NUMBER_LOCALE) },
+                    )}
         </p>
     );
 }
@@ -1244,15 +1344,16 @@ function AudiencePicker({
     error?: string;
     onChange: (v: string) => void;
 }) {
-    const label = { segment: 'Segment', group: 'Group', tag: 'Tag' }[kind];
+    const t = useT();
+    const label = t(`campaigns.wizard.pickers.${kind}`);
     return (
         <Field data-invalid={!!error}>
             <FieldLabel htmlFor="cw-audience">{label}</FieldLabel>
             {options.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                    No {label.toLowerCase()}s yet.{' '}
+                    {t(`campaigns.wizard.none.${kind}`)}{' '}
                     <Link href="/contacts" className="underline">
-                        Manage contacts
+                        {t('campaigns.wizard.manageContacts')}
                     </Link>
                 </p>
             ) : (
@@ -1266,7 +1367,7 @@ function AudiencePicker({
                         }
                     >
                         <SelectValue
-                            placeholder={`Choose a ${label.toLowerCase()}`}
+                            placeholder={t(`campaigns.wizard.choose.${kind}`)}
                         />
                     </SelectTrigger>
                     <SelectContent>
@@ -1305,6 +1406,7 @@ function VariableInput({
     error?: string;
     onChange: (v: string) => void;
 }) {
+    const t = useT();
     const ref = useRef<HTMLInputElement>(null);
     const inputId = `cw-${id}`;
     const insert = (token: string, caretBack = 0) => {
@@ -1327,7 +1429,7 @@ function VariableInput({
                 id={inputId}
                 value={value}
                 maxLength={1024}
-                placeholder="{{first_name}} or fixed text"
+                placeholder={t('campaigns.wizard.variablePlaceholder')}
                 aria-invalid={error ? true : undefined}
                 aria-describedby={`${inputId}-chips${error ? ` ${inputId}-error` : ''}`}
                 onChange={(e) => onChange(e.target.value)}
@@ -1336,7 +1438,7 @@ function VariableInput({
                 id={`${inputId}-chips`}
                 className="flex flex-wrap gap-1"
                 role="group"
-                aria-label={`Insert contact data into ${label}`}
+                aria-label={t('campaigns.wizard.insertInto', { label })}
             >
                 {PLACEHOLDERS.map((p) => (
                     <Badge key={p} asChild variant="outline">
@@ -1353,7 +1455,7 @@ function VariableInput({
                     <button
                         type="button"
                         className="cursor-pointer font-mono hover:bg-muted"
-                        aria-label="Insert a custom attribute, then type its key"
+                        aria-label={t('campaigns.wizard.insertAttribute')}
                         onClick={() => insert('{{attr:}}', 2)}
                     >
                         {'{{attr:key}}'}

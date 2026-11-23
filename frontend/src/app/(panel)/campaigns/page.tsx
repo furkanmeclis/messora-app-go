@@ -6,11 +6,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Campaign } from '@/lib/types';
+import { getT } from '@/i18n/server';
 import { PageHeading } from '../panel-header';
 import { CAMPAIGN_STATUSES } from './campaign-ui';
 import { CampaignList, StatusFilter } from './campaigns-client';
 
-export const metadata: Metadata = { title: 'Campaigns' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('campaigns.title') };
+}
 
 export default async function CampaignsPage({
     searchParams,
@@ -22,18 +26,21 @@ export default async function CampaignsPage({
     const status = CAMPAIGN_STATUSES.find((s) => s === sp.status) ?? '';
     const q = new URLSearchParams({ limit: '25' });
     if (status) q.set('status', status);
-    const list = await api<Campaign[]>(`/campaigns?${q}`);
+    const [list, t] = await Promise.all([
+        api<Campaign[]>(`/campaigns?${q}`),
+        getT(),
+    ]);
 
     return (
         <>
             <PageHeading
-                title="Campaigns"
-                description="Send an approved template to a segment, group or tag at the pace Meta allows."
+                title={t('campaigns.title')}
+                description={t('campaigns.description')}
                 actions={
                     can(me, 'campaigns.create') ? (
                         <Button asChild>
                             <Link href="/campaigns/new">
-                                <Plus /> New campaign
+                                <Plus /> {t('campaigns.newCampaign')}
                             </Link>
                         </Button>
                     ) : undefined
