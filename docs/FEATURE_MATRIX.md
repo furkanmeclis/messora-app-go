@@ -93,8 +93,8 @@
 | Konuşma kanalı (`conversation:<id>`) agent ataması | 7 | Implemented (agent kendisine atanmış veya atanmamış konuşmalara abone olabilir; tablo + integration testleri) |
 | Inbox: liste, geçmiş, gönderim, medya, okundu | 7 | Implemented (API + panel; görünürlük, 24h ve opt-out kuralları integration testlerinde; 10k konuşma listesi p95 < 200 ms testi; Playwright `frontend/e2e/inbox.spec.ts`, Meta mock'u olmadığı için gelen mesaj ve teslim bilgisi DB'ye yazılarak simüle edilir) |
 | Konuşma atama, kapatma, müşteri paneli | 7 | Implemented (atama ve durum geçmişi, audit; müşteri paneli: consent, etiketler, notlar. Atanacak kullanıcı listesi yalnızca `users.manage` ile gelir, diğerleri kendine/atanmamışa atar) |
-| Otomasyon: tetikleyiciler, aksiyonlar, görsel editör | 8 | Implemented (5 tetikleyici, 12 adım; editör paneli Phase 9) |
-| Döngü / duplicate koruması, çalıştırma geçmişi | 8 | Implemented (olay başına tek çalışma, otomasyon etkileri tetiklemez, adım günlüğü) |
+| Otomasyon: tetikleyiciler, aksiyonlar, görsel editör | 8, 14 | Implemented (5 tetikleyici, 12 adım; n8n tarzı düğüm tuvali: palet, denetçi, otomatik yerleşim, geri al/yinele, mini harita — Phase 14) |
+| Döngü / duplicate koruması, çalıştırma geçmişi | 8, 14 | Implemented (olay başına tek çalışma, otomasyon etkileri tetiklemez, adım günlüğü; çalışmanın izlediği yol tuvalde gösterilir) |
 | Giden webhook'lar (imzalı, retry, teslimat logu, SSRF korumalı) | 8 | Implemented (API + panel sayfası; event'ler değişiklikle aynı transaction'da outbox üzerinden; HMAC-SHA256 imza, ~24 saatte 10 deneme, 410'da devre dışı, yeniden gönder ve test event'i; `internal/platform/safehttp` hem kayıtta hem bağlantı anında IP denetler. Unit + integration testleri; entegrasyon rehberi `docs/WEBHOOKS.md`) |
 
 ## Operasyon (Phase 10)

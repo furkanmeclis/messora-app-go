@@ -1,8 +1,9 @@
 # Automations
 
-An automation reacts to one **trigger** with a list of **steps**. Automations
-run in the worker; every run and every executed step is logged
-(`GET /api/v1/automations/{id}/runs`, `GET /api/v1/automation-runs/{runId}`).
+An automation reacts to one **trigger** with a list of **steps**, edited on a
+canvas (see below). Automations run in the worker; every run and every
+executed step is logged (`GET /api/v1/automations/{id}/runs`,
+`GET /api/v1/automation-runs/{runId}`).
 
 ## Triggers
 
@@ -48,6 +49,66 @@ Operators: `contains`, `not_contains`, `equals`, `not_equals`, `starts_with`,
 A step that cannot apply (window closed, contact opted out, missing template
 variable, no conversation) is logged as `skipped` and the run continues. A
 step that errors (HTTP 4xx/5xx, e-mail failure) stops the run as `failed`.
+
+## The canvas editor
+
+The panel edits an automation as a graph of nodes on a canvas (React Flow,
+`frontend/src/app/(panel)/automations/`): a trigger node, one node per step
+(coloured by category: message, contact & inbox, flow, integration) and
+edges drawn by dragging from a node's bottom handle to another node's top
+handle. A palette adds nodes (drag onto the canvas, or click to add after
+the selected node — or at the end of the flow when nothing is selected);
+the inspector on the right edits the selected node, the trigger, or the
+automation's name and status. Zoom controls, a minimap, a "tidy up"
+automatic layout, undo/redo (⌘/Ctrl+Z, ⇧⌘/Ctrl+Shift+Z or Ctrl+Y) and
+Backspace/Delete are available; deleting a step between two nodes connects
+them. Problems show on the nodes (red outline and message) while editing:
+unconnected nodes, missing values, too deep nesting; the API stays the
+authority and its field errors land on the node they concern.
+
+The steps remain the source of truth for the engine, so the canvas graph is
+always a tree that converts to and from them losslessly:
+
+- every node except the trigger has exactly one incoming edge;
+- a plain step has one output (the next step);
+- a condition has three outputs: **yes** (`then`), **no** (`else`) and
+  **then** — the steps that run after either branch (the steps that follow
+  the condition in its list);
+- each output holds at most one edge, and an edge never closes a cycle.
+
+`[A, if C then [B] else [D], E]` is therefore trigger→A, A→C, C-yes→B,
+C-no→D, C-then→E. The editor refuses connections that break these rules.
+
+## Step ids and layout
+
+Every step has an `id` (1–64 letters, digits, `-` or `_`, unique within the
+automation; `trigger` is reserved). It is optional in the API: steps sent
+without one are named by the server (`n` + 12 base-36 characters, the shape
+the canvas generates). Automations saved before ids existed read with ids
+derived from each step's position — `s0`, `s1`, `s1t0` (first then-step of
+the second step), `s1e0` (else) — so they open on the canvas with an
+automatic layout and keep those ids when saved.
+
+`layout` maps node ids (`trigger` for the trigger node) to `{x, y}` canvas
+positions (at most 200, |x|, |y| ≤ 10⁶). Positions of ids that are not
+steps of the automation are dropped on save. Changing only the layout does
+not create a new version and does not cancel runs in progress.
+
+## Run trace
+
+Each compiled instruction keeps the id of the step it comes from
+(`step_id`; the condition for a branch, none for jumps). Whenever a run
+executes an instruction, the engine appends that id to the run's `visited`
+list in the same transaction as the step log entry, so `visited[i]`
+belongs to `steps[i]` of the run detail. Runs of programs compiled before
+ids existed are traced with the positional ids above.
+
+`GET /api/v1/automations/{id}/runs` and `GET /api/v1/automation-runs/{runId}`
+return `visited`. The run history links each traced run to
+`/automations/{id}/runs/{runId}`: a read-only canvas that numbers the nodes
+in execution order, animates the path taken, dims the nodes the run did not
+reach and marks the node where it failed or waits. Runs started before the
+trace existed have an empty `visited` list.
 
 ## Guarantees
 
