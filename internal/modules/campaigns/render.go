@@ -119,6 +119,20 @@ func parameters(raw json.RawMessage, c db.Contact, fallback map[string]string) (
 // result names a placeholder that had no value.
 func Render(p Params, c db.Contact, name, language string) (whatsapp.Template, string) {
 	t := whatsapp.Template{Name: name, Language: whatsapp.TemplateLanguage{Code: language}}
+	if hm := p.HeaderMedia; hm != nil {
+		m := &whatsapp.Media{ID: hm.ID, Link: hm.Link}
+		param := whatsapp.TemplateParameter{Type: hm.Type}
+		switch hm.Type {
+		case "image":
+			param.Image = m
+		case "video":
+			param.Video = m
+		case "document":
+			m.Filename = hm.Filename
+			param.Document = m
+		}
+		t.Components = append(t.Components, whatsapp.TemplateComponent{Type: "header", Parameters: []whatsapp.TemplateParameter{param}})
+	}
 	if ps, miss := parameters(p.Header, c, p.Fallback); miss != "" {
 		return t, miss
 	} else if len(ps) > 0 {

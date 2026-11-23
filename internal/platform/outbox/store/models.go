@@ -80,25 +80,27 @@ type AutomationRunStep struct {
 }
 
 type Campaign struct {
-	ID                pgtype.UUID
-	Name              string
-	Status            string
-	PhoneNumberID     pgtype.UUID
-	TemplateName      string
-	TemplateLanguage  string
-	TemplateParams    []byte
-	Audience          []byte
-	ScheduledAt       pgtype.Timestamptz
-	StartedAt         pgtype.Timestamptz
-	FinishedAt        pgtype.Timestamptz
-	MaterializeCursor pgtype.UUID
-	DispatchGen       int32
-	WindowSize        int32
-	TotalRecipients   int64
-	LastError         *string
-	CreatedBy         pgtype.UUID
-	CreatedAt         pgtype.Timestamptz
-	UpdatedAt         pgtype.Timestamptz
+	ID                  pgtype.UUID
+	Name                string
+	Status              string
+	PhoneNumberID       pgtype.UUID
+	TemplateName        string
+	TemplateLanguage    string
+	TemplateParams      []byte
+	Audience            []byte
+	ScheduledAt         pgtype.Timestamptz
+	StartedAt           pgtype.Timestamptz
+	FinishedAt          pgtype.Timestamptz
+	MaterializeCursor   pgtype.UUID
+	DispatchGen         int32
+	WindowSize          int32
+	TotalRecipients     int64
+	LastError           *string
+	CreatedBy           pgtype.UUID
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+	ProgressPublishedAt pgtype.Timestamptz
+	ProgressDirty       bool
 }
 
 type CampaignEvent struct {

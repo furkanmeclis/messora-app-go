@@ -2645,6 +2645,15 @@ export interface components {
             fallback?: {
                 [key: string]: string;
             };
+            /** @description Media for an image, video or document header (exactly one of id or https link). */
+            header_media?: {
+                /** @enum {string} */
+                type: 'image' | 'video' | 'document';
+                id?: string;
+                /** Format: uri */
+                link?: string;
+                filename?: string;
+            };
         };
         Campaign: {
             /** Format: uuid */

@@ -331,6 +331,11 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 		if err := announceStatus(ctx, tx, q, updated); err != nil {
 			return false, err
 		}
+		if m.CampaignID != nil && s.campaignProgress != nil {
+			if err := s.campaignProgress(ctx, tx, q, *m.CampaignID); err != nil {
+				return false, err
+			}
+		}
 		// Statuses of messages an automation sent never trigger automations.
 		if m.Source != "automation" && (updated.Status == "delivered" || updated.Status == "read" || updated.Status == "failed") {
 			if err := trigger.Emit(ctx, tx, q, trigger.Event{Type: trigger.MessageStatus, Key: "status:" + m.ID.String() + ":" + updated.Status,

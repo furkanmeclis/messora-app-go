@@ -68,3 +68,24 @@ func TestAudienceValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderHeaderMedia(t *testing.T) {
+	c := db.Contact{PhoneE164: "+905551112233", Name: "Ayşe"}
+	tpl, miss := Render(Params{HeaderMedia: &HeaderMedia{Type: "document", Link: "https://example.com/menu.pdf", Filename: "menu.pdf"},
+		Body: json.RawMessage(`["{{first_name}}"]`)}, c, "menu", "tr")
+	if miss != "" || len(tpl.Components) != 2 {
+		t.Fatalf("components: %+v %q", tpl.Components, miss)
+	}
+	h := tpl.Components[0]
+	if h.Type != "header" || h.Parameters[0].Type != "document" || h.Parameters[0].Document.Link != "https://example.com/menu.pdf" || h.Parameters[0].Document.Filename != "menu.pdf" {
+		t.Fatalf("header: %+v", h)
+	}
+	if tpl.Components[1].Parameters[0].Text != "Ayşe" {
+		t.Fatal("body lost")
+	}
+	// Empty button entries mean "no dynamic part" and are skipped.
+	tpl, miss = Render(Params{Buttons: []string{"", "orders/{{phone}}"}}, c, "b", "en")
+	if miss != "" || len(tpl.Components) != 1 || tpl.Components[0].Index != "1" {
+		t.Fatalf("buttons: %+v %q", tpl.Components, miss)
+	}
+}

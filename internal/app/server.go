@@ -118,6 +118,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	msg := messaging.New(pool, ch, media, log)
 	cts := contacts.New(pool, cfg.MediaDir, log)
 	camp := campaigns.New(pool, cts, log)
+	msg.SetCampaignProgress(camp.PublishProgress)
 	inbox := conversations.New(pool, msg, media, log)
 	// Outgoing webhooks: https only outside development; private
 	// destinations are always refused (internal/platform/safehttp).

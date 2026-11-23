@@ -3540,6 +3540,16 @@ components:
           type: object
           maxProperties: 20
           additionalProperties: { type: string, maxLength: 1024 }
+        header_media:
+          type: object
+          additionalProperties: false
+          description: Media for an image, video or document header (exactly one of id or https link).
+          required: [type]
+          properties:
+            type: { type: string, enum: [image, video, document] }
+            id: { type: string, maxLength: 200 }
+            link: { type: string, format: uri, maxLength: 2000 }
+            filename: { type: string, maxLength: 240 }
 
     Campaign:
       type: object

@@ -252,9 +252,27 @@ func TestCampaignLifecycleAndPersonalisation(t *testing.T) {
 	// Webhook statuses flow into campaign counts.
 	var wamid string
 	_ = h.pool.QueryRow(context.Background(), "SELECT wamid FROM messages WHERE campaign_id = $1 LIMIT 1", id).Scan(&wamid)
+	before := h.count("SELECT count(*) FROM outbox_events WHERE topic = 'rt:campaign:' || $1::text", id)
 	h.webhook(whatsapptest.StatusUpdate(testPNID, wamid, "delivered", "x", "", time.Now(), 0))
+	if after := h.count("SELECT count(*) FROM outbox_events WHERE topic = 'rt:campaign:' || $1::text", id); after != before+1 {
+		t.Fatalf("delivery status did not publish campaign progress: %d → %d", before, after)
+	}
+	// A burst within two seconds marks the campaign dirty instead; the
+	// reaper publishes it.
+	var w2 string
+	_ = h.pool.QueryRow(context.Background(), "SELECT wamid FROM messages WHERE campaign_id = $1 AND wamid <> $2 LIMIT 1", id, wamid).Scan(&w2)
+	h.webhook(whatsapptest.StatusUpdate(testPNID, w2, "delivered", "x", "", time.Now(), 0))
+	if h.count("SELECT count(*) FROM campaigns WHERE id = $1 AND progress_dirty", id) != 1 {
+		t.Fatal("throttled progress not marked dirty")
+	}
+	if _, err := h.svc.campaigns.Reap(context.Background(), h.svc.messaging.Send); err != nil {
+		t.Fatal(err)
+	}
+	if h.count("SELECT count(*) FROM campaigns WHERE id = $1 AND progress_dirty", id) != 0 {
+		t.Fatal("reaper did not publish dirty progress")
+	}
 	counts = h.do(call{method: "GET", path: "/api/v1/campaigns/" + id, token: token}).data()["counts"].(map[string]any)
-	if counts["delivered"] != float64(1) {
+	if counts["delivered"] != float64(2) {
 		t.Fatalf("delivered not counted: %v", counts)
 	}
 	r = h.do(call{method: "GET", path: "/api/v1/campaigns/" + id + "/events", token: token})

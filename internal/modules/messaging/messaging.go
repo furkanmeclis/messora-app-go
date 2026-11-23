@@ -50,9 +50,17 @@ const maxSendAttempts = 8
 // SetThrottle enables per-number pacing (nil disables it).
 func (s *Service) SetThrottle(t *Throttle) { s.throttle = t }
 
+// CampaignProgress is told, inside the webhook transaction, that a
+// campaign message changed state (the campaign engine publishes counts).
+type CampaignProgress func(ctx context.Context, tx pgx.Tx, q *db.Queries, campaignID uuid.UUID) error
+
+// SetCampaignProgress registers the campaign progress hook.
+func (s *Service) SetCampaignProgress(f CampaignProgress) { s.campaignProgress = f }
+
 // Service implements messaging.
 type Service struct {
-	throttle *Throttle
+	throttle         *Throttle
+	campaignProgress CampaignProgress
 	pool     *pgxpool.Pool
 	q        *db.Queries
 	ch       *channels.Service

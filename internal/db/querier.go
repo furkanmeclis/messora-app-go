@@ -25,6 +25,9 @@ type Querier interface {
 	CancelPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
 	CancelRunsOfAutomation(ctx context.Context, automationID uuid.UUID) (int64, error)
 	CancelUnsentMessages(ctx context.Context, campaignID *uuid.UUID) (int64, error)
+	// Returns the campaign when its progress may be published now; otherwise
+	// marks it dirty for the reaper and returns no row.
+	ClaimCampaignProgress(ctx context.Context, id uuid.UUID) (ClaimCampaignProgressRow, error)
 	// ── Idempotency ─────────────────────────────────────────────────────────────
 	// Returns inserted=true for a new key; otherwise the stored row.
 	ClaimIdempotencyKey(ctx context.Context, arg ClaimIdempotencyKeyParams) (ClaimIdempotencyKeyRow, error)
@@ -277,6 +280,7 @@ type Querier interface {
 	// Claimed more than the given age ago and never settled: the worker died.
 	StuckSendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
 	TagsForContacts(ctx context.Context, contactIds []uuid.UUID) ([]TagsForContactsRow, error)
+	TakeDirtyCampaigns(ctx context.Context) ([]Campaign, error)
 	// Updates at most once a minute to avoid write amplification under load.
 	TouchApiKey(ctx context.Context, id uuid.UUID) error
 	TouchCampaign(ctx context.Context, id uuid.UUID) error

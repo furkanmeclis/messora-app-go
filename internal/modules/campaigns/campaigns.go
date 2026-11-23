@@ -100,6 +100,17 @@ type Params struct {
 	// Fallback replaces an empty placeholder; without it the recipient is
 	// skipped (Meta rejects empty parameters).
 	Fallback map[string]string `json:"fallback,omitempty"`
+	// HeaderMedia fills an image, video or document header.
+	HeaderMedia *HeaderMedia `json:"header_media,omitempty"`
+}
+
+// HeaderMedia is the media of a template header: an uploaded media ID or a
+// public https link.
+type HeaderMedia struct {
+	Type     string `json:"type"` // image | video | document
+	ID       string `json:"id,omitempty"`
+	Link     string `json:"link,omitempty"`
+	Filename string `json:"filename,omitempty"`
 }
 
 // Input creates or edits a campaign.
@@ -198,6 +209,21 @@ func (s *Service) validate(ctx context.Context, in Input) error {
 			if json.Unmarshal(raw, &list) != nil && json.Unmarshal(raw, &named) != nil {
 				return apperr.Validation("template_params", "Header and body parameters are a list of strings or an object of strings.")
 			}
+		}
+	}
+	if in.Params != nil && in.Params.HeaderMedia != nil {
+		hm := in.Params.HeaderMedia
+		if hm.Type != "image" && hm.Type != "video" && hm.Type != "document" {
+			return apperr.Validation("template_params.header_media.type", "Header media is an image, video or document.")
+		}
+		if (hm.ID == "") == (hm.Link == "") {
+			return apperr.Validation("template_params.header_media", "Give exactly one of id or link.")
+		}
+		if hm.Link != "" && !strings.HasPrefix(hm.Link, "https://") {
+			return apperr.Validation("template_params.header_media.link", "Media links must use https.")
+		}
+		if len(in.Params.Header) > 0 {
+			return apperr.Validation("template_params.header", "A header is either text variables or media, not both.")
 		}
 	}
 	if in.WindowSize != nil && (*in.WindowSize < 0 || *in.WindowSize > 10000) {
@@ -629,6 +655,20 @@ func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Camp
 	return n, nil
 }
 
+// PublishProgress publishes a campaign's counts after a delivery status
+// change, at most every two seconds per campaign; later changes in a quiet
+// period are published by Reap.
+func (s *Service) PublishProgress(ctx context.Context, tx pgx.Tx, q *db.Queries, id uuid.UUID) error {
+	c, err := q.ClaimCampaignProgress(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return s.publish(ctx, tx, q, db.Campaign{ID: c.ID, Status: c.Status})
+}
+
 // StartDue starts scheduled campaigns whose time has come.
 func (s *Service) StartDue(ctx context.Context) (int, error) {
 	n := 0
@@ -696,6 +736,15 @@ func (s *Service) Reap(ctx context.Context, send func(context.Context, uuid.UUID
 				return err
 			}
 			fixed++
+		}
+		dirty, err := q.TakeDirtyCampaigns(ctx)
+		if err != nil {
+			return err
+		}
+		for _, c := range dirty {
+			if err := s.publish(ctx, tx, q, c); err != nil {
+				return err
+			}
 		}
 		prep, err := q.StalePreparingCampaigns(ctx, 300)
 		if err != nil {

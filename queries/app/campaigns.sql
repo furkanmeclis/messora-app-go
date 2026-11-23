@@ -146,3 +146,21 @@ SELECT id FROM campaigns WHERE status = 'preparing' AND updated_at < now() - mak
 INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id)
 VALUES (@id, @phone_number_id, @contact_id, 'outbound', 'template', @body, @payload, 'pending', 0, 'campaign', @campaign_id)
 RETURNING *;
+
+-- name: ClaimCampaignProgress :one
+-- Returns the campaign when its progress may be published now; otherwise
+-- marks it dirty for the reaper and returns no row.
+WITH claim AS (
+    UPDATE campaigns c SET progress_published_at = now(), progress_dirty = false
+    WHERE c.id = @id AND (c.progress_published_at IS NULL OR c.progress_published_at < now() - interval '2 seconds')
+    RETURNING c.*
+), dirty AS (
+    UPDATE campaigns d SET progress_dirty = true
+    WHERE d.id = @id AND NOT EXISTS (SELECT 1 FROM claim)
+)
+SELECT * FROM claim;
+
+-- name: TakeDirtyCampaigns :many
+UPDATE campaigns SET progress_dirty = false, progress_published_at = now()
+WHERE progress_dirty
+RETURNING *;

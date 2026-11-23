@@ -95,6 +95,73 @@ func (q *Queries) CancelUnsentMessages(ctx context.Context, campaignID *uuid.UUI
 	return result.RowsAffected(), nil
 }
 
+const claimCampaignProgress = `-- name: ClaimCampaignProgress :one
+WITH claim AS (
+    UPDATE campaigns c SET progress_published_at = now(), progress_dirty = false
+    WHERE c.id = $1 AND (c.progress_published_at IS NULL OR c.progress_published_at < now() - interval '2 seconds')
+    RETURNING c.id, c.name, c.status, c.phone_number_id, c.template_name, c.template_language, c.template_params, c.audience, c.scheduled_at, c.started_at, c.finished_at, c.materialize_cursor, c.dispatch_gen, c.window_size, c.total_recipients, c.last_error, c.created_by, c.created_at, c.updated_at, c.progress_published_at, c.progress_dirty
+), dirty AS (
+    UPDATE campaigns d SET progress_dirty = true
+    WHERE d.id = $1 AND NOT EXISTS (SELECT 1 FROM claim)
+)
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM claim
+`
+
+type ClaimCampaignProgressRow struct {
+	ID                  uuid.UUID
+	Name                string
+	Status              string
+	PhoneNumberID       uuid.UUID
+	TemplateName        string
+	TemplateLanguage    string
+	TemplateParams      []byte
+	Audience            []byte
+	ScheduledAt         *time.Time
+	StartedAt           *time.Time
+	FinishedAt          *time.Time
+	MaterializeCursor   *uuid.UUID
+	DispatchGen         int32
+	WindowSize          int32
+	TotalRecipients     int64
+	LastError           *string
+	CreatedBy           *uuid.UUID
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	ProgressPublishedAt *time.Time
+	ProgressDirty       bool
+}
+
+// Returns the campaign when its progress may be published now; otherwise
+// marks it dirty for the reaper and returns no row.
+func (q *Queries) ClaimCampaignProgress(ctx context.Context, id uuid.UUID) (ClaimCampaignProgressRow, error) {
+	row := q.db.QueryRow(ctx, claimCampaignProgress, id)
+	var i ClaimCampaignProgressRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Status,
+		&i.PhoneNumberID,
+		&i.TemplateName,
+		&i.TemplateLanguage,
+		&i.TemplateParams,
+		&i.Audience,
+		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.MaterializeCursor,
+		&i.DispatchGen,
+		&i.WindowSize,
+		&i.TotalRecipients,
+		&i.LastError,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
+	)
+	return i, err
+}
+
 const claimPendingRecipients = `-- name: ClaimPendingRecipients :many
 SELECT r.id, r.contact_id, r.phone_e164 FROM campaign_recipients r
 WHERE r.campaign_id = $1 AND r.state = 'pending'
@@ -205,7 +272,7 @@ func (q *Queries) DueScheduledCampaigns(ctx context.Context) ([]uuid.UUID, error
 }
 
 const getCampaign = `-- name: GetCampaign :one
-SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at FROM campaigns WHERE id = $1
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM campaigns WHERE id = $1
 `
 
 func (q *Queries) GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, error) {
@@ -231,6 +298,8 @@ func (q *Queries) GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, erro
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
 	)
 	return i, err
 }
@@ -280,7 +349,7 @@ func (q *Queries) IdleRunningCampaigns(ctx context.Context, olderThanSeconds flo
 const insertCampaign = `-- name: InsertCampaign :one
 INSERT INTO campaigns (name, phone_number_id, template_name, template_language, template_params, audience, window_size, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty
 `
 
 type InsertCampaignParams struct {
@@ -326,6 +395,8 @@ func (q *Queries) InsertCampaign(ctx context.Context, arg InsertCampaignParams) 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
 	)
 	return i, err
 }
@@ -466,7 +537,7 @@ func (q *Queries) ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) 
 }
 
 const listCampaigns = `-- name: ListCampaigns :many
-SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at FROM campaigns
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM campaigns
 WHERE ($1::text IS NULL OR status = $1::text)
   AND ($2::uuid IS NULL OR id < $2::uuid)
 ORDER BY id DESC LIMIT $3
@@ -507,6 +578,8 @@ func (q *Queries) ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProgressPublishedAt,
+			&i.ProgressDirty,
 		); err != nil {
 			return nil, err
 		}
@@ -588,7 +661,7 @@ func (q *Queries) ListRecipients(ctx context.Context, arg ListRecipientsParams) 
 }
 
 const lockCampaign = `-- name: LockCampaign :one
-SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at FROM campaigns WHERE id = $1 FOR UPDATE
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM campaigns WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error) {
@@ -614,6 +687,8 @@ func (q *Queries) LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, err
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
 	)
 	return i, err
 }
@@ -681,7 +756,7 @@ UPDATE campaigns SET status = $1,
     last_error   = CASE WHEN $1::text = 'failed' THEN $3 ELSE last_error END,
     updated_at   = now()
 WHERE id = $4 AND status = ANY($5::text[])
-RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty
 `
 
 type SetCampaignStatusParams struct {
@@ -722,6 +797,8 @@ func (q *Queries) SetCampaignStatus(ctx context.Context, arg SetCampaignStatusPa
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
 	)
 	return i, err
 }
@@ -818,6 +895,54 @@ func (q *Queries) StuckSendingMessages(ctx context.Context, olderThanSeconds flo
 	return items, nil
 }
 
+const takeDirtyCampaigns = `-- name: TakeDirtyCampaigns :many
+UPDATE campaigns SET progress_dirty = false, progress_published_at = now()
+WHERE progress_dirty
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty
+`
+
+func (q *Queries) TakeDirtyCampaigns(ctx context.Context) ([]Campaign, error) {
+	rows, err := q.db.Query(ctx, takeDirtyCampaigns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Campaign{}
+	for rows.Next() {
+		var i Campaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Status,
+			&i.PhoneNumberID,
+			&i.TemplateName,
+			&i.TemplateLanguage,
+			&i.TemplateParams,
+			&i.Audience,
+			&i.ScheduledAt,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.MaterializeCursor,
+			&i.DispatchGen,
+			&i.WindowSize,
+			&i.TotalRecipients,
+			&i.LastError,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProgressPublishedAt,
+			&i.ProgressDirty,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const touchCampaign = `-- name: TouchCampaign :exec
 UPDATE campaigns SET updated_at = now() WHERE id = $1
 `
@@ -847,7 +972,7 @@ UPDATE campaigns SET
     window_size       = coalesce($7, window_size),
     updated_at        = now()
 WHERE id = $8 AND status IN ('draft', 'scheduled')
-RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty
 `
 
 type UpdateCampaignDraftParams struct {
@@ -893,6 +1018,8 @@ func (q *Queries) UpdateCampaignDraft(ctx context.Context, arg UpdateCampaignDra
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
 	)
 	return i, err
 }
