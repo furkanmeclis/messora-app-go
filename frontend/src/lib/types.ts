@@ -31,3 +31,18 @@ export type ActionResult<T = undefined> =
           message: string;
           fieldErrors?: Record<string, string>;
       };
+
+// ── Channels, templates and campaigns ──────────────────────────────────────
+export type WhatsAppAccount = Schemas['WhatsAppAccount'];
+export type PhoneNumber = Schemas['PhoneNumber'];
+export type WebhookSetup = Schemas['WebhookSetup'];
+export type SyncResult = Schemas['SyncResult'];
+export type Campaign = Schemas['Campaign'];
+export type CampaignStatus = Schemas['CampaignStatus'];
+export type CampaignAudience = Schemas['CampaignAudience'];
+export type CampaignParams = Schemas['CampaignParams'];
+export type CampaignEventItem = Schemas['CampaignEventItem'];
+export type CampaignRecipient = Schemas['CampaignRecipient'];
+export type Segment = Schemas['Segment'];
+export type ContactGroup = Schemas['Group'];
+export type Tag = Schemas['Tag'];
