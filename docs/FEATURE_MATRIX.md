@@ -51,7 +51,7 @@
 | Hesap / numara bağlama (şifreli token) | 3 | Implemented (API; panel ekranı Phase 9) |
 | Graph API sürümü yapılandırılabilir (varsayılan v26.0) | 3 | Implemented |
 | Text, template, image, video, document, audio, location, interactive | 3 | Implemented (+ sticker, reaction) |
-| Medya upload / download | 3 | Partial (gelen medya indirilir; giden medya ID/link ile; panelden upload Phase 7) |
+| Medya upload / download | 3 | Partial (gelen medya indirilir ve inbox'tan yetkili indirilir; giden medya ID/link ile; panelden dosya yükleme henüz yok) |
 | Webhook verify + imza doğrulama + önce kaydet | 3 | Implemented |
 | Durum takibi (monoton) + durum geçmişi | 3 | Implemented (zaman damgaları; ayrıntılı event log Phase 5) |
 | Template oluşturma / silme / senkronizasyon | 3 | Implemented (+ durum webhook'u) |
@@ -90,9 +90,9 @@
 | Outbox → Centrifugo publish (idempotent), yeni mesaj ve durum event'leri | 6 | Implemented |
 | Frontend Centrifuge client: yeniden bağlanma, recovery, kurtarılamayan kopmada yeniden çekme | 6 | Needs verification (Centrifugo restart E2E senaryosu yazıldı: `frontend/e2e/realtime.spec.ts`; CI'da çalışacak) |
 | Kampanya ilerlemesinin realtime yayını | 6 | Partial (kanal, izin ve `campaign.updated` event'i hazır; kampanya motoru Phase 5 ile bağlanır) |
-| Konuşma kanalı (`conversation:<id>`) agent ataması | 7 | Partial (şimdilik yalnızca `conversations.read_all`) |
-| Inbox: liste, geçmiş, gönderim, medya, okundu | 7 | Missing |
-| Konuşma atama, kapatma, müşteri paneli | 7 | Missing |
+| Konuşma kanalı (`conversation:<id>`) agent ataması | 7 | Implemented (agent kendisine atanmış veya atanmamış konuşmalara abone olabilir; tablo + integration testleri) |
+| Inbox: liste, geçmiş, gönderim, medya, okundu | 7 | Implemented (API + panel; görünürlük, 24h ve opt-out kuralları integration testlerinde; 10k konuşma listesi p95 < 200 ms testi; Playwright `frontend/e2e/inbox.spec.ts`, Meta mock'u olmadığı için gelen mesaj ve teslim bilgisi DB'ye yazılarak simüle edilir) |
+| Konuşma atama, kapatma, müşteri paneli | 7 | Implemented (atama ve durum geçmişi, audit; müşteri paneli: consent, etiketler, notlar. Atanacak kullanıcı listesi yalnızca `users.manage` ile gelir, diğerleri kendine/atanmamışa atar) |
 | Otomasyon: tetikleyiciler, aksiyonlar, görsel editör | 8 | Missing |
 | Döngü / duplicate koruması, çalıştırma geçmişi | 8 | Missing |
 | Giden webhook'lar (imzalı, retry, teslimat logu, SSRF korumalı) | 8 | Missing |

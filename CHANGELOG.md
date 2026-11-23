@@ -18,6 +18,38 @@ All notable changes to this project are documented here. The format follows
   cancellation and resume after restarts. Streamed CSV and XLSX export with spreadsheet
   formula neutralisation.
 
+### Added — Phase 7: inbox
+
+- Conversations: one per customer and business number, derived from
+  messages and updated in the transaction of every message write (backfilled
+  on upgrade). Status open/closed (a customer message reopens), assignee,
+  team-wide unread count, last activity and the 24-hour window
+  (`window_open`, `window_expires_at`).
+- `/api/v1/conversations` API: list with status, assignee (`me`,
+  `unassigned`, user), unread, number and search filters (keyset paging,
+  10k conversations well under 200 ms), detail with contact summary,
+  message history (newest first, cursor), replies (text, media, template
+  through `messaging.Queue`, same window and opt-out rules), assignment,
+  close/reopen, mark read, assignment and status history, and an
+  authenticated media download (safe Content-Type/Disposition, nosniff,
+  sandbox CSP).
+- Visibility: `conversations.read` alone sees conversations assigned to the
+  user or to nobody, on every endpoint including history and media;
+  invisible conversations answer 404. Agents may subscribe to
+  `conversation:<id>` for conversations visible to them.
+- Realtime `conversation.updated` events on `inbox:all` and
+  `conversation:<id>`; message events also go to the conversation channel
+  and carry `conversation_id`.
+- Panel: Inbox page with filters, conversation list, thread with delivery
+  ticks and media, reply box with the "outside the 24-hour window — send a
+  template" state, assignment, close/reopen, customer panel (consent, tags,
+  notes, history), live updates without polling.
+
+### Changed — Phase 7
+
+- The 24-hour window is checked per conversation (customer and sending
+  number) instead of per contact, also for `POST /api/v1/messages`.
+
 ### Added — Phase 6: real-time
 
 - `POST /api/v1/realtime/connection-token` and
