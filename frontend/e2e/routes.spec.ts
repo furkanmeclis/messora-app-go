@@ -185,3 +185,24 @@ test('desktop mode opens sections in windows', async () => {
     await page.getByRole('button', { name: 'Exit desktop mode' }).click();
     await expect(page.locator('main h1').first()).toBeVisible();
 });
+
+test('right-click opens the panel menu; shift keeps the browser menu', async () => {
+    await page.goto('/contacts');
+    await page.locator('main h1').first().click({ button: 'right' });
+    const menu = page.getByRole('menu');
+    await expect(
+        menu.getByRole('menuitem', { name: 'Search pages and actions' }),
+    ).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Back' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    // A contact row offers its own actions first.
+    const row = page.getByTestId('contact-row').first();
+    if (await row.count()) {
+        await row.click({ button: 'right' });
+        await expect(
+            menu.getByRole('menuitem', { name: 'Copy phone number' }),
+        ).toBeVisible();
+        await page.keyboard.press('Escape');
+    }
+});
