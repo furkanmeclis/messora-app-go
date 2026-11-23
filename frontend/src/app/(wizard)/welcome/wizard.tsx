@@ -141,8 +141,11 @@ export function Wizard({
                     : {},
             );
             if (notify(r)) {
-                router.push('/');
-                router.refresh();
+                // A full load: the new theme applies, and when the policy
+                // now requires two-factor the server redirects straight to
+                // enrolment (a client-side chain of redirects stalls).
+                // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate full load (see above)
+                window.location.assign('/');
             }
         });
 
