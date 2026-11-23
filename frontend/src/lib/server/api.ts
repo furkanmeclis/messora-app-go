@@ -94,7 +94,11 @@ export async function api<T>(
             requestId,
         );
     }
-    if (res.status === 204 || res.status === 202) {
+    // 204 has no body; 202 may (e.g. a queued message or import).
+    if (
+        res.status === 204 ||
+        (res.status === 202 && res.headers.get('content-length') === '0')
+    ) {
         return { data: undefined as T, requestId };
     }
     const body = (await res.json().catch(() => null)) as

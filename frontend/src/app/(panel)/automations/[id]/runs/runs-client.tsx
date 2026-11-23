@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, useTransition } from 'react';
 import { AlertCircle, History } from 'lucide-react';
 import { notify } from '@/components/notify';
@@ -177,7 +178,16 @@ export function RunList({
                                 )}
                             </TableCell>
                             <TableCell className="font-mono text-sm">
-                                {r.phone ?? '—'}
+                                {r.contact_id && r.phone ? (
+                                    <Link
+                                        href={`/contacts/${r.contact_id}`}
+                                        className="underline-offset-4 hover:underline"
+                                    >
+                                        {r.phone}
+                                    </Link>
+                                ) : (
+                                    (r.phone ?? '—')
+                                )}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                                 {formatDateTime(r.created_at)}

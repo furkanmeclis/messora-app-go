@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { api } from '@/lib/server/api';
+import { DisplayPreferences } from '@/components/display-preferences';
 import { requireMe } from '@/lib/server/auth';
 import type { Settings } from '@/lib/types';
 import { RealtimeProvider } from '@/components/realtime';
@@ -55,7 +56,12 @@ export default async function PanelLayout({
                     <PanelHeader />
                     <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
                         <div className="mx-auto w-full max-w-6xl flex-1 p-4 md:p-6">
-                            {children}
+                            <DisplayPreferences
+                                timeZone={me.user.timezone}
+                                locale={me.user.locale}
+                            >
+                                {children}
+                            </DisplayPreferences>
                         </div>
                     </ReauthProvider>
                 </SidebarInset>
