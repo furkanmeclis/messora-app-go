@@ -62,6 +62,7 @@ GROUP BY m.contact_id, m.phone_number_id;
 
 -- +goose Down
 -- Down migrations intentionally drop what Up created.
+-- squawk-ignore require-concurrent-index-deletion
 DROP INDEX IF EXISTS messages_thread_idx;
 -- squawk-ignore ban-drop-table
 DROP TABLE IF EXISTS conversation_events;
