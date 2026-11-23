@@ -528,6 +528,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/license': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The installation's licence and what it allows */
+        get: operations['getLicense'];
+        /** Enter or replace the licence key (owner only) */
+        put: operations['setLicense'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/audit-logs': {
         parameters: {
             query?: never;
@@ -1981,6 +1999,64 @@ export interface components {
             setup_completed?: boolean;
             pwa?: components['schemas']['PwaSettings'];
         };
+        /** @enum {string} */
+        LicenseStatus: 'trial' | 'active' | 'expiring' | 'grace' | 'restricted';
+        LicenseSummary: {
+            status: components['schemas']['LicenseStatus'];
+            /** @description trial_ended, expired, revoked, superseded or check_in_overdue; empty otherwise. */
+            reason: string;
+            /**
+             * Format: date-time
+             * @description When the current status ends.
+             */
+            until: string | null;
+        };
+        LicenseInfo: {
+            status: components['schemas']['LicenseStatus'];
+            reason: string;
+            /** Format: date-time */
+            until: string | null;
+            instance_id: string;
+            /** Format: date-time */
+            installed_at: string;
+            /** Format: date-time */
+            last_check_in_at: string | null;
+            check_in_configured: boolean;
+            /** @description The version this installation runs. */
+            current_version: string;
+            license: {
+                id: string;
+                customer: string;
+                plan: string;
+                /** Format: date-time */
+                issued_at: string;
+                /** Format: date-time */
+                expires_at: string | null;
+                /** Format: date-time */
+                updates_until: string | null;
+                /** @enum {string} */
+                check_in: 'online' | 'offline';
+                /** @description 0 is unlimited. */
+                max_users: number;
+                /** @description 0 is unlimited. */
+                max_phone_numbers: number;
+            } | null;
+            latest_release: {
+                version: string;
+                /** Format: date-time */
+                released_at: string;
+                channel: string;
+                notes?: string;
+                update_allowed: boolean;
+            } | null;
+        };
+        LicenseInfoResponse: {
+            data: components['schemas']['LicenseInfo'];
+            meta: components['schemas']['Meta'];
+        };
+        SetLicenseRequest: {
+            key: string;
+        };
         PwaSettings: {
             /** @description Offer installing the panel as an app. */
             enabled: boolean;
@@ -2068,6 +2144,7 @@ export interface components {
             logo: components['schemas']['LogoInfo'] | null;
             setup_completed: boolean;
             pwa: components['schemas']['PwaSettings'];
+            license: components['schemas']['LicenseSummary'];
         };
         AppearanceResponse: {
             data: components['schemas']['Appearance'];
@@ -4196,6 +4273,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Licence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['LicenseInfoResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    setLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SetLicenseRequest'];
+            };
+        };
+        responses: {
+            /** @description Licence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['LicenseInfoResponse'];
+                };
             };
             default: components['responses']['Error'];
         };

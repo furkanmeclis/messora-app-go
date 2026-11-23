@@ -21,6 +21,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/conversations"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/licensing"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
@@ -31,9 +32,11 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/license"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
+	"github.com/furkanmeclis/messora-app-go/internal/shared/licensegate"
 )
 
 // Aliases give each embedded module handler a distinct field name.
@@ -50,6 +53,7 @@ type (
 	inboxHandler      = conversations.Handler
 	webhooksHandler   = webhooks.Handler
 	automationHandler = automation.Handler
+	licensingHandler  = licensing.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -67,6 +71,7 @@ type apiServer struct {
 	*inboxHandler
 	*webhooksHandler
 	*automationHandler
+	*licensingHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -88,6 +93,7 @@ type services struct {
 	inbox      *conversations.Service
 	webhooks   *webhooks.Service
 	automation *automation.Service
+	licensing  *licensing.Service
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -133,7 +139,11 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// Outgoing webhooks: https only outside development; private
 	// destinations are always refused (internal/platform/safehttp).
 	hooks := webhooks.New(pool, sealer, webhooks.Options{AllowHTTP: cfg.Env == config.EnvDevelopment, Logger: log})
-	return &services{cfg: cfg, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
+	lic := licensing.New(pool, licensing.Options{LicenseKeys: license.LicenseKeys, GateKeys: license.GateKeys,
+		GateURL: cfg.LicenseGateURL, Version: Version, Logger: log})
+	// Restricted mode stops sending everywhere (see internal/shared/licensegate).
+	licensegate.Install(lic.Allowed)
+	return &services{cfg: cfg, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, inbox: inbox, webhooks: hooks,
 		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
 }
@@ -161,9 +171,13 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	if err != nil {
 		return err
 	}
+	lh := licensing.NewHandler(svc.licensing, log)
+	sh := settings.NewHandler(pool, svc.settings, svc.mail, svc.cfg.MediaDir, log)
+	sh.LicenseSummary = lh.Summary
 	srv := apiServer{
+		licensingHandler:  lh,
 		identityHandler:   identity.NewHandler(svc.identity, log),
-		settingsHandler:   settings.NewHandler(pool, svc.settings, svc.mail, svc.cfg.MediaDir, log),
+		settingsHandler:   sh,
 		auditHandler:      audit.NewHandler(svc.queries, log),
 		systemHandler:     sys,
 		channelsHandler:   channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),

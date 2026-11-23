@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
     AppWindow,
+    KeyRound,
     Mail,
     Palette,
     ShieldCheck,
@@ -18,6 +19,7 @@ const ICONS = {
     pwa: AppWindow,
     email: Mail,
     security: ShieldCheck,
+    license: KeyRound,
     webhooks: Webhook,
 } as const;
 

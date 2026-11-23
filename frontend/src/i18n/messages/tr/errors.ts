@@ -44,6 +44,8 @@ const errors: Messages['errors'] = {
     NOT_FOUND: 'Bulunamadı. Silinmiş olabilir.',
     NO_PHONE_NUMBER: 'Önce bir WhatsApp numarası bağlayın.',
     NUMBER_OWNED_ELSEWHERE: 'Bu numara başka bir hesaba ait.',
+    LICENSE_RESTRICTED:
+        'Kısıtlı mod: geçerli bir lisans girilene kadar gönderim, kampanyalar ve otomasyonlar durduruldu.',
     OWNER_ONLY: 'Bunu yalnızca sistem sahibi yapabilir.',
     PAYLOAD_TOO_LARGE: 'Dosya veya istek çok büyük.',
     RATE_LIMITED: 'Çok fazla istek. Biraz bekleyip tekrar deneyin.',

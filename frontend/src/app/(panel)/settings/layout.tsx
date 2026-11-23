@@ -36,6 +36,11 @@ export default async function SettingsLayout({
             label: t('settings.tabs.security'),
             icon: 'security',
         },
+        has('settings.read') && {
+            href: '/settings/license',
+            label: t('license.tab'),
+            icon: 'license',
+        },
         has('webhooks.manage') && {
             href: '/settings/webhooks',
             label: t('settings.tabs.webhooks'),

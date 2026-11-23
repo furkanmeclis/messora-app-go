@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/furkanmeclis/messora-app-go/internal/modules/licensing"
+
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
@@ -26,6 +28,7 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "campaign_reaper", Every: time.Minute, TaskType: campaigns.TypeReaper},
 		{Name: "automation_reaper", Every: time.Minute, TaskType: automation.TypeReaper},
 		{Name: "webhook_cleanup", Every: 6 * time.Hour, TaskType: webhooks.TypeCleanup},
+		{Name: "license_check_in", Every: 6 * time.Hour, TaskType: licensing.TypeCheckIn},
 	}
 }
 

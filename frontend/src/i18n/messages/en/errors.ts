@@ -44,6 +44,8 @@ const errors = {
     NOT_FOUND: 'Not found. It may have been deleted.',
     NO_PHONE_NUMBER: 'Connect a WhatsApp number first.',
     NUMBER_OWNED_ELSEWHERE: 'This number belongs to another account.',
+    LICENSE_RESTRICTED:
+        'Restricted mode: sending, campaigns and automations are paused until a valid licence is entered.',
     OWNER_ONLY: 'Only the owner can do this.',
     PAYLOAD_TOO_LARGE: 'The file or request is too large.',
     RATE_LIMITED: 'Too many requests. Wait a moment and try again.',

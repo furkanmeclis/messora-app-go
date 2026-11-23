@@ -148,6 +148,7 @@ const routes: [string, () => string][] = [
     ['/settings/pwa', () => '/settings/pwa'],
     ['/settings/email', () => '/settings/email'],
     ['/settings/security', () => '/settings/security'],
+    ['/settings/license', () => '/settings/license'],
     ['/settings/webhooks', () => '/settings/webhooks'],
     ['/account/profile', () => '/account/profile'],
     ['/account/security', () => '/account/security'],

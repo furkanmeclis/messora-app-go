@@ -16,6 +16,7 @@ import table from './table';
 import desktop from './desktop';
 import contextMenu from './contextMenu';
 import pwa from './pwa';
+import license from './license';
 import account from './account';
 import apiKeys from './api-keys';
 import audit from './audit';
@@ -38,6 +39,7 @@ export const tr: Messages = {
     desktop,
     contextMenu,
     pwa,
+    license,
     account,
     apiKeys,
     audit,
