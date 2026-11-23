@@ -53,7 +53,11 @@ test.beforeAll(async ({ browser }) => {
          SELECT '${MANAGER.email}', id, sha256(convert_to('${token}', 'UTF8')), now() + interval '1 hour'
          FROM roles WHERE key = 'manager';`);
 
-    context = await browser.newContext();
+    // A desktop-sized window: the canvas sits between the palette and the
+    // inspector, and handles must be on screen to be dragged.
+    context = await browser.newContext({
+        viewport: { width: 1680, height: 1050 },
+    });
     page = await context.newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => {
@@ -168,6 +172,7 @@ test('a manager builds a branched flow on the canvas', async () => {
     // … and is connected by drawing an edge from the condition's "then"
     // output (runs after either branch) to its input.
     const wait = await idOf('delay');
+    await page.getByRole('button', { name: 'Fit to screen' }).click();
     await canvas()
         .locator(
             `.react-flow__node[data-id="${condition}"] .react-flow__handle[data-handleid="next"]`,
