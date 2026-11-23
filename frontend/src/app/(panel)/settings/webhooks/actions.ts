@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { field, runAction } from '@/lib/server/actions';
 import type { ActionResult, Schemas } from '@/lib/types';
@@ -50,7 +51,7 @@ export async function updateWebhookAction(
                 method: 'PATCH',
                 body: endpointBody(form),
             }).then(() => undefined),
-        'Webhook saved.',
+        (await getT())('webhooks.saved'),
     );
     revalidatePath(PAGE);
     return res;
@@ -66,7 +67,7 @@ export async function setWebhookActiveAction(
                 method: 'PATCH',
                 body: { active },
             }).then(() => undefined),
-        active ? 'Webhook enabled.' : 'Webhook disabled.',
+        (await getT())(active ? 'webhooks.enabled' : 'webhooks.disabledToast'),
     );
     revalidatePath(PAGE);
     return res;
@@ -88,7 +89,7 @@ export async function rotateWebhookSecretAction(
 export async function deleteWebhookAction(id: string): Promise<ActionResult> {
     const res = await runAction(
         () => api(path(id), { method: 'DELETE' }).then(() => undefined),
-        'Webhook deleted.',
+        (await getT())('webhooks.deleted'),
     );
     revalidatePath(PAGE);
     return res;
@@ -100,7 +101,7 @@ export async function sendWebhookTestAction(id: string): Promise<ActionResult> {
             api<Delivery>(`${path(id)}/test`, { method: 'POST' }).then(
                 () => undefined,
             ),
-        'Test event queued. It appears in the delivery log in a moment.',
+        (await getT())('webhooks.testQueued'),
     );
 }
 
@@ -121,11 +122,12 @@ export async function loadWebhookDeliveries(
 export async function redeliverWebhookAction(
     id: string,
 ): Promise<ActionResult<Delivery>> {
+    const t = await getT();
     return runAction(async () => {
         const r = await api<Delivery>(
             `/webhook-deliveries/${encodeURIComponent(id)}/redeliver`,
             { method: 'POST' },
         );
         return r.data;
-    }, 'Delivery queued again.');
+    }, t('webhooks.redeliveryQueued'));
 }

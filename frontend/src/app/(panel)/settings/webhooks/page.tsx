@@ -1,24 +1,29 @@
 import type { Metadata } from 'next';
 import { Card, CardContent } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
 import type { Schemas } from '@/lib/types';
 import { PageHeading } from '../../panel-header';
 import { EndpointDialog, EndpointTable } from './webhooks-client';
 
-export const metadata: Metadata = { title: 'Webhooks' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('webhooks.title') };
+}
 
 export default async function WebhooksPage() {
     await requirePermission('webhooks.manage');
-    const [endpoints, catalogue] = await Promise.all([
+    const [endpoints, catalogue, t] = await Promise.all([
         api<Schemas['WebhookEndpoint'][]>('/webhook-endpoints'),
         api<Schemas['WebhookEventTypeInfo'][]>('/webhook-event-types'),
+        getT(),
     ]);
     return (
         <>
             <PageHeading
-                title="Webhooks"
-                description="Messora sends signed HTTPS requests to these URLs when events happen. Verify the Messora-Signature header with the endpoint's secret."
+                title={t('webhooks.title')}
+                description={t('webhooks.description')}
                 actions={<EndpointDialog catalogue={catalogue.data} />}
             />
             <Card>
