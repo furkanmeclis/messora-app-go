@@ -1,6 +1,7 @@
 import type { DeepString } from '../types';
 import appearance from './appearance';
 import auth from './auth';
+import overview from './overview';
 import common from './common';
 import errors from './errors';
 import nav from './nav';
@@ -19,6 +20,7 @@ export const en = {
     settings,
     wizard,
     auth,
+    overview,
 };
 
 export type Messages = DeepString<typeof en>;
