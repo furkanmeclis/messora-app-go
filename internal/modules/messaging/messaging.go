@@ -48,8 +48,12 @@ const ServiceWindow = 24 * time.Hour
 // maxSendAttempts bounds retries of definitely-not-sent messages.
 const maxSendAttempts = 8
 
+// SetThrottle enables per-number pacing (nil disables it).
+func (s *Service) SetThrottle(t *Throttle) { s.throttle = t }
+
 // Service implements messaging.
 type Service struct {
+	throttle *Throttle
 	pool     *pgxpool.Pool
 	q        *db.Queries
 	ch       *channels.Service
@@ -285,6 +289,28 @@ func (e *ErrRetry) Error() string { return fmt.Sprintf("retry in %s: %s", e.Afte
 
 // Send performs one send attempt for a queued message.
 func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
+	// A paused campaign holds its unsent messages; a cancelled one drops them.
+	if st, err := s.q.HoldIfCampaignStopped(ctx, id); err == nil {
+		s.log.DebugContext(ctx, "campaign stopped; message not sent", "message_id", id, "status", st)
+		return nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if s.throttle != nil {
+		cur, err := s.q.GetMessage(ctx, id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if cur.Status == "pending" {
+			if wait := s.throttle.Wait(ctx, cur.PhoneNumberID); wait > 0 {
+				// Not a failed attempt: the queue retries without counting it.
+				return &ErrRetry{After: wait, Reason: "per-number rate limit"}
+			}
+		}
+	}
 	m, err := s.q.ClaimMessageForSend(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		cur, gerr := s.q.GetMessage(ctx, id)
@@ -330,9 +356,20 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 	wm.BizOpaqueCallbackData = m.ID.String()
 
 	res, err := s.ch.Client().SendMessage(ctx, sender.PhoneNumber.PhoneNumberID, sender.Token, wm, int(m.Attempts)-1)
+	if s.throttle != nil {
+		if err == nil {
+			s.throttle.Succeeded(ctx, m.PhoneNumberID)
+		} else if se, ok := whatsapp.AsSendError(err); ok && se.API != nil && (se.API.Code == 130429 || se.API.HTTPStatus == 429) {
+			rate := s.throttle.Backoff(ctx, m.PhoneNumberID)
+			s.log.WarnContext(ctx, "Meta throughput limit; slowing down", "phone_number_id", m.PhoneNumberID, "rate_per_second", rate)
+		}
+	}
 	if err == nil {
 		// Acceptance must be recorded even if the job context is ending.
 		bg := context.WithoutCancel(ctx)
+		if res.Status != "" && res.Status != "accepted" {
+			_ = s.q.SetMessageMetaStatus(bg, db.SetMessageMetaStatusParams{ID: id, MetaStatus: &res.Status})
+		}
 		return s.settle(bg, id, func(q *db.Queries) error {
 			return q.MarkMessageAccepted(bg, db.MarkMessageAcceptedParams{ID: id, Wamid: &res.MessageID})
 		})

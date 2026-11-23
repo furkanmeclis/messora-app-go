@@ -269,3 +269,7 @@ WHERE meta_template_id = @meta_template_id;
 
 -- name: DeleteTemplate :execrows
 DELETE FROM message_templates WHERE id = @id;
+
+-- name: SetMessageMetaStatus :exec
+-- Meta's own state for paced templates (accepted, held_for_quality_assessment, paused).
+UPDATE messages SET meta_status = @meta_status, updated_at = now() WHERE id = @id;

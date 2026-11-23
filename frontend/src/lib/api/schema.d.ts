@@ -1087,6 +1087,145 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/campaigns': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Campaigns, newest first */
+        get: operations['listCampaigns'];
+        put?: never;
+        /** Create a draft campaign */
+        post: operations['createCampaign'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A campaign with live counts */
+        get: operations['getCampaign'];
+        put?: never;
+        post?: never;
+        /** Delete a campaign that is not running or paused */
+        delete: operations['deleteCampaign'];
+        options?: never;
+        head?: never;
+        /** Edit a draft or scheduled campaign */
+        patch: operations['updateCampaign'];
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/start': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start now, or schedule with `scheduled_at` */
+        post: operations['startCampaign'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/pause': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause sending; unsent messages are held */
+        post: operations['pauseCampaign'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/resume': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume a paused campaign */
+        post: operations['resumeCampaign'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/cancel': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop for good; unsent messages are cancelled */
+        post: operations['cancelCampaign'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/events': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lifecycle events (started, paused, resumed, completed …) */
+        get: operations['listCampaignEvents'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/recipients': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recipients with their message state */
+        get: operations['listCampaignRecipients'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1938,6 +2077,138 @@ export interface components {
             data: components['schemas']['RealtimeToken'];
             meta: components['schemas']['Meta'];
         };
+        /** @enum {string} */
+        CampaignStatus:
+            | 'draft'
+            | 'scheduled'
+            | 'preparing'
+            | 'running'
+            | 'paused'
+            | 'completed'
+            | 'cancelled'
+            | 'failed';
+        /** @description Exactly one of the properties. */
+        CampaignAudience: {
+            /** Format: uuid */
+            segment_id?: string;
+            /** Format: uuid */
+            group_id?: string;
+            /** Format: uuid */
+            tag_id?: string;
+            /** @enum {boolean} */
+            all?: true;
+        };
+        /** @description Template variables. Values may contain {{name}}, {{first_name}}, {{phone}}, {{email}}, {{var1}}–{{var5}} and {{attr:<key>}}. Use a list for positional templates and an object for named parameters. */
+        CampaignParams: {
+            header?:
+                | string[]
+                | {
+                      [key: string]: string;
+                  };
+            body?:
+                | string[]
+                | {
+                      [key: string]: string;
+                  };
+            buttons?: string[];
+            fallback?: {
+                [key: string]: string;
+            };
+        };
+        Campaign: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components['schemas']['CampaignStatus'];
+            /** Format: uuid */
+            phone_number_id: string;
+            template_name: string;
+            template_language: string;
+            template_params: components['schemas']['CampaignParams'];
+            audience: components['schemas']['CampaignAudience'];
+            /** @description Messages in flight at once; 0 means automatic. */
+            window_size: number;
+            /** Format: int64 */
+            total_recipients: number;
+            /** @description Recipients by state (recipients_pending, recipients_skipped …) and messages by status (sent, delivered, read, failed, unknown, held …). */
+            counts: {
+                [key: string]: number;
+            };
+            /** Format: date-time */
+            scheduled_at?: string | null;
+            /** Format: date-time */
+            started_at?: string | null;
+            /** Format: date-time */
+            finished_at?: string | null;
+            last_error?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateCampaignRequest: {
+            name: string;
+            /** Format: uuid */
+            phone_number_id?: string;
+            template_name: string;
+            template_language: string;
+            template_params?: components['schemas']['CampaignParams'];
+            audience: components['schemas']['CampaignAudience'];
+            window_size?: number;
+        };
+        UpdateCampaignRequest: {
+            name?: string;
+            /** Format: uuid */
+            phone_number_id?: string;
+            template_name?: string;
+            template_language?: string;
+            template_params?: components['schemas']['CampaignParams'];
+            audience?: components['schemas']['CampaignAudience'];
+            window_size?: number;
+        };
+        CampaignEventItem: {
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            detail: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            actor_id?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CampaignRecipient: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            contact_id?: string | null;
+            phone: string;
+            /** @enum {string} */
+            state: 'pending' | 'queued' | 'skipped' | 'cancelled';
+            skip_reason?: string | null;
+            /** Format: uuid */
+            message_id?: string | null;
+            message_status?: string | null;
+            error_code?: string | null;
+            error_title?: string | null;
+        };
+        CampaignResponse: {
+            data: components['schemas']['Campaign'];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignListResponse: {
+            data: components['schemas']['Campaign'][];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignEventListResponse: {
+            data: components['schemas']['CampaignEventItem'][];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignRecipientListResponse: {
+            data: components['schemas']['CampaignRecipient'][];
+            meta: components['schemas']['Meta'];
+        };
     };
     responses: {
         /** @description Error */
@@ -1965,6 +2236,7 @@ export interface components {
         TagId: string;
         GroupId: string;
         SegmentId: string;
+        CampaignId: string;
         /** @description Opaque cursor from `meta.next_cursor`. */
         Cursor: string;
         Limit: number;
@@ -3880,6 +4152,282 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['RealtimeTokenResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listCampaigns: {
+        parameters: {
+            query?: {
+                status?: components['schemas']['CampaignStatus'];
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Campaigns */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateCampaignRequest'];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Campaign */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateCampaignRequest'];
+            };
+        };
+        responses: {
+            /** @description Campaign */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    startCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+            };
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                'application/json': {
+                    /** Format: date-time */
+                    scheduled_at?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Campaign */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    pauseCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Campaign */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    resumeCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Campaign */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    cancelCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Campaign */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listCampaignEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignEventListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listCampaignRecipients: {
+        parameters: {
+            query?: {
+                state?: 'pending' | 'queued' | 'skipped' | 'cancelled';
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recipients */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignRecipientListResponse'];
                 };
             };
             default: components['responses']['Error'];

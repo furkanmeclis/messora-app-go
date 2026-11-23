@@ -27,7 +27,7 @@ UPDATE messages SET
     error_title  = CASE WHEN $3::text = 'failed' AND status_rank < 4 THEN $6 ELSE error_title END,
     updated_at   = now()
 WHERE id = $7 AND direction = 'outbound'
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status
 `
 
 type ApplyMessageStatusParams struct {
@@ -76,6 +76,8 @@ func (q *Queries) ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatus
 		&i.OccurredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CampaignID,
+		&i.MetaStatus,
 	)
 	return i, err
 }
@@ -83,7 +85,7 @@ func (q *Queries) ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatus
 const claimMessageForSend = `-- name: ClaimMessageForSend :one
 UPDATE messages SET status = 'sending', status_rank = 1, attempts = attempts + 1, updated_at = now()
 WHERE id = $1 AND status = 'pending'
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status
 `
 
 // Only a pending message can be sent. A message left in "sending" means a
@@ -115,6 +117,8 @@ func (q *Queries) ClaimMessageForSend(ctx context.Context, id uuid.UUID) (Messag
 		&i.OccurredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CampaignID,
+		&i.MetaStatus,
 	)
 	return i, err
 }
@@ -305,7 +309,7 @@ func (q *Queries) GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, er
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at FROM messages WHERE id = $1
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status FROM messages WHERE id = $1
 `
 
 func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error) {
@@ -335,12 +339,14 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 		&i.OccurredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CampaignID,
+		&i.MetaStatus,
 	)
 	return i, err
 }
 
 const getMessageByWAMID = `-- name: GetMessageByWAMID :one
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at FROM messages WHERE wamid = $1
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status FROM messages WHERE wamid = $1
 `
 
 func (q *Queries) GetMessageByWAMID(ctx context.Context, wamid *string) (Message, error) {
@@ -370,6 +376,8 @@ func (q *Queries) GetMessageByWAMID(ctx context.Context, wamid *string) (Message
 		&i.OccurredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CampaignID,
+		&i.MetaStatus,
 	)
 	return i, err
 }
@@ -524,7 +532,7 @@ INSERT INTO messages (phone_number_id, contact_id, direction, wamid, type, body,
 VALUES ($1, $2, 'inbound', $3, $4, $5, $6, 'received', 0,
         $7, 'webhook', $8)
 ON CONFLICT (wamid) DO NOTHING
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status
 `
 
 type InsertInboundMessageParams struct {
@@ -575,6 +583,8 @@ func (q *Queries) InsertInboundMessage(ctx context.Context, arg InsertInboundMes
 		&i.OccurredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CampaignID,
+		&i.MetaStatus,
 	)
 	return i, err
 }
@@ -627,7 +637,7 @@ INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, pa
                       reply_to_wamid, source, created_by)
 VALUES ($1, $2, $3, 'outbound', $4, $5, $6, 'pending', 0,
         $7, $8, $9)
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status
 `
 
 type InsertOutboundMessageParams struct {
@@ -680,6 +690,8 @@ func (q *Queries) InsertOutboundMessage(ctx context.Context, arg InsertOutboundM
 		&i.OccurredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CampaignID,
+		&i.MetaStatus,
 	)
 	return i, err
 }
@@ -818,7 +830,7 @@ func (q *Queries) ListMediaForMessage(ctx context.Context, messageID *uuid.UUID)
 }
 
 const listMessagesByContact = `-- name: ListMessagesByContact :many
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at FROM messages
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status FROM messages
 WHERE contact_id = $1 AND ($2::uuid IS NULL OR id < $2::uuid)
 ORDER BY id DESC
 LIMIT $3
@@ -863,6 +875,8 @@ func (q *Queries) ListMessagesByContact(ctx context.Context, arg ListMessagesByC
 			&i.OccurredAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CampaignID,
+			&i.MetaStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -1199,6 +1213,21 @@ func (q *Queries) SetDefaultPhoneNumber(ctx context.Context, id uuid.UUID) (int6
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const setMessageMetaStatus = `-- name: SetMessageMetaStatus :exec
+UPDATE messages SET meta_status = $1, updated_at = now() WHERE id = $2
+`
+
+type SetMessageMetaStatusParams struct {
+	MetaStatus *string
+	ID         uuid.UUID
+}
+
+// Meta's own state for paced templates (accepted, held_for_quality_assessment, paused).
+func (q *Queries) SetMessageMetaStatus(ctx context.Context, arg SetMessageMetaStatusParams) error {
+	_, err := q.db.Exec(ctx, setMessageMetaStatus, arg.MetaStatus, arg.ID)
+	return err
 }
 
 const touchContactInbound = `-- name: TouchContactInbound :exec

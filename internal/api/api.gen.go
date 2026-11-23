@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -36,6 +37,81 @@ func (e AuditActorType) Valid() bool {
 	case AuditActorTypeSystem:
 		return true
 	case AuditActorTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CampaignAudienceAll.
+const (
+	True CampaignAudienceAll = true
+)
+
+// Valid indicates whether the value is a known member of the CampaignAudienceAll enum.
+func (e CampaignAudienceAll) Valid() bool {
+	switch e {
+	case True:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CampaignRecipientState.
+const (
+	CampaignRecipientStateCancelled CampaignRecipientState = "cancelled"
+	CampaignRecipientStatePending   CampaignRecipientState = "pending"
+	CampaignRecipientStateQueued    CampaignRecipientState = "queued"
+	CampaignRecipientStateSkipped   CampaignRecipientState = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the CampaignRecipientState enum.
+func (e CampaignRecipientState) Valid() bool {
+	switch e {
+	case CampaignRecipientStateCancelled:
+		return true
+	case CampaignRecipientStatePending:
+		return true
+	case CampaignRecipientStateQueued:
+		return true
+	case CampaignRecipientStateSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CampaignStatus.
+const (
+	CampaignStatusCancelled CampaignStatus = "cancelled"
+	CampaignStatusCompleted CampaignStatus = "completed"
+	CampaignStatusDraft     CampaignStatus = "draft"
+	CampaignStatusFailed    CampaignStatus = "failed"
+	CampaignStatusPaused    CampaignStatus = "paused"
+	CampaignStatusPreparing CampaignStatus = "preparing"
+	CampaignStatusRunning   CampaignStatus = "running"
+	CampaignStatusScheduled CampaignStatus = "scheduled"
+)
+
+// Valid indicates whether the value is a known member of the CampaignStatus enum.
+func (e CampaignStatus) Valid() bool {
+	switch e {
+	case CampaignStatusCancelled:
+		return true
+	case CampaignStatusCompleted:
+		return true
+	case CampaignStatusDraft:
+		return true
+	case CampaignStatusFailed:
+		return true
+	case CampaignStatusPaused:
+		return true
+	case CampaignStatusPreparing:
+		return true
+	case CampaignStatusRunning:
+		return true
+	case CampaignStatusScheduled:
 		return true
 	default:
 		return false
@@ -456,6 +532,30 @@ func (e WhatsAppAccountStatus) Valid() bool {
 	}
 }
 
+// Defines values for ListCampaignRecipientsParamsState.
+const (
+	ListCampaignRecipientsParamsStateCancelled ListCampaignRecipientsParamsState = "cancelled"
+	ListCampaignRecipientsParamsStatePending   ListCampaignRecipientsParamsState = "pending"
+	ListCampaignRecipientsParamsStateQueued    ListCampaignRecipientsParamsState = "queued"
+	ListCampaignRecipientsParamsStateSkipped   ListCampaignRecipientsParamsState = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the ListCampaignRecipientsParamsState enum.
+func (e ListCampaignRecipientsParamsState) Valid() bool {
+	switch e {
+	case ListCampaignRecipientsParamsStateCancelled:
+		return true
+	case ListCampaignRecipientsParamsStatePending:
+		return true
+	case ListCampaignRecipientsParamsStateQueued:
+		return true
+	case ListCampaignRecipientsParamsStateSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExportContactsParamsFormat.
 const (
 	Csv  ExportContactsParamsFormat = "csv"
@@ -562,6 +662,127 @@ type AuthCapabilitiesResponse struct {
 	Data AuthCapabilities `json:"data"`
 	Meta Meta             `json:"meta"`
 }
+
+// Campaign defines model for Campaign.
+type Campaign struct {
+	// Audience Exactly one of the properties.
+	Audience CampaignAudience `json:"audience"`
+
+	// Counts Recipients by state (recipients_pending, recipients_skipped …) and messages by status (sent, delivered, read, failed, unknown, held …).
+	Counts           map[string]int64   `json:"counts"`
+	CreatedAt        time.Time          `json:"created_at"`
+	FinishedAt       *time.Time         `json:"finished_at"`
+	Id               openapi_types.UUID `json:"id"`
+	LastError        *string            `json:"last_error"`
+	Name             string             `json:"name"`
+	PhoneNumberId    openapi_types.UUID `json:"phone_number_id"`
+	ScheduledAt      *time.Time         `json:"scheduled_at"`
+	StartedAt        *time.Time         `json:"started_at"`
+	Status           CampaignStatus     `json:"status"`
+	TemplateLanguage string             `json:"template_language"`
+	TemplateName     string             `json:"template_name"`
+
+	// TemplateParams Template variables. Values may contain {{name}}, {{first_name}}, {{phone}}, {{email}}, {{var1}}–{{var5}} and {{attr:<key>}}. Use a list for positional templates and an object for named parameters.
+	TemplateParams  CampaignParams `json:"template_params"`
+	TotalRecipients int64          `json:"total_recipients"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+
+	// WindowSize Messages in flight at once; 0 means automatic.
+	WindowSize int `json:"window_size"`
+}
+
+// CampaignAudience Exactly one of the properties.
+type CampaignAudience struct {
+	All       *CampaignAudienceAll `json:"all,omitempty"`
+	GroupId   *openapi_types.UUID  `json:"group_id,omitempty"`
+	SegmentId *openapi_types.UUID  `json:"segment_id,omitempty"`
+	TagId     *openapi_types.UUID  `json:"tag_id,omitempty"`
+}
+
+// CampaignAudienceAll defines model for CampaignAudience.All.
+type CampaignAudienceAll bool
+
+// CampaignEventItem defines model for CampaignEventItem.
+type CampaignEventItem struct {
+	ActorId   *openapi_types.UUID `json:"actor_id"`
+	CreatedAt time.Time           `json:"created_at"`
+	Detail    map[string]any      `json:"detail"`
+	Id        openapi_types.UUID  `json:"id"`
+	Kind      string              `json:"kind"`
+}
+
+// CampaignEventListResponse defines model for CampaignEventListResponse.
+type CampaignEventListResponse struct {
+	Data []CampaignEventItem `json:"data"`
+	Meta Meta                `json:"meta"`
+}
+
+// CampaignListResponse defines model for CampaignListResponse.
+type CampaignListResponse struct {
+	Data []Campaign `json:"data"`
+	Meta Meta       `json:"meta"`
+}
+
+// CampaignParams Template variables. Values may contain {{name}}, {{first_name}}, {{phone}}, {{email}}, {{var1}}–{{var5}} and {{attr:<key>}}. Use a list for positional templates and an object for named parameters.
+type CampaignParams struct {
+	Body     *CampaignParams_Body   `json:"body,omitempty"`
+	Buttons  *[]string              `json:"buttons,omitempty"`
+	Fallback *map[string]string     `json:"fallback,omitempty"`
+	Header   *CampaignParams_Header `json:"header,omitempty"`
+}
+
+// CampaignParamsBody0 defines model for CampaignParams.Body.0.
+type CampaignParamsBody0 = []string
+
+// CampaignParamsBody1 defines model for CampaignParams.Body.1.
+type CampaignParamsBody1 map[string]string
+
+// CampaignParams_Body defines model for CampaignParams.Body.
+type CampaignParams_Body struct {
+	union json.RawMessage
+}
+
+// CampaignParamsHeader0 defines model for CampaignParams.Header.0.
+type CampaignParamsHeader0 = []string
+
+// CampaignParamsHeader1 defines model for CampaignParams.Header.1.
+type CampaignParamsHeader1 map[string]string
+
+// CampaignParams_Header defines model for CampaignParams.Header.
+type CampaignParams_Header struct {
+	union json.RawMessage
+}
+
+// CampaignRecipient defines model for CampaignRecipient.
+type CampaignRecipient struct {
+	ContactId     *openapi_types.UUID    `json:"contact_id"`
+	ErrorCode     *string                `json:"error_code"`
+	ErrorTitle    *string                `json:"error_title"`
+	Id            openapi_types.UUID     `json:"id"`
+	MessageId     *openapi_types.UUID    `json:"message_id"`
+	MessageStatus *string                `json:"message_status"`
+	Phone         string                 `json:"phone"`
+	SkipReason    *string                `json:"skip_reason"`
+	State         CampaignRecipientState `json:"state"`
+}
+
+// CampaignRecipientState defines model for CampaignRecipient.State.
+type CampaignRecipientState string
+
+// CampaignRecipientListResponse defines model for CampaignRecipientListResponse.
+type CampaignRecipientListResponse struct {
+	Data []CampaignRecipient `json:"data"`
+	Meta Meta                `json:"meta"`
+}
+
+// CampaignResponse defines model for CampaignResponse.
+type CampaignResponse struct {
+	Data Campaign `json:"data"`
+	Meta Meta     `json:"meta"`
+}
+
+// CampaignStatus defines model for CampaignStatus.
+type CampaignStatus string
 
 // ChangePasswordRequest defines model for ChangePasswordRequest.
 type ChangePasswordRequest struct {
@@ -722,6 +943,20 @@ type CreateApiKeyRequest struct {
 	ExpiresInDays *int         `json:"expires_in_days,omitempty"`
 	Name          string       `json:"name"`
 	Scopes        []Permission `json:"scopes"`
+}
+
+// CreateCampaignRequest defines model for CreateCampaignRequest.
+type CreateCampaignRequest struct {
+	// Audience Exactly one of the properties.
+	Audience         CampaignAudience    `json:"audience"`
+	Name             string              `json:"name"`
+	PhoneNumberId    *openapi_types.UUID `json:"phone_number_id,omitempty"`
+	TemplateLanguage string              `json:"template_language"`
+	TemplateName     string              `json:"template_name"`
+
+	// TemplateParams Template variables. Values may contain {{name}}, {{first_name}}, {{phone}}, {{email}}, {{var1}}–{{var5}} and {{attr:<key>}}. Use a list for positional templates and an object for named parameters.
+	TemplateParams *CampaignParams `json:"template_params,omitempty"`
+	WindowSize     *int            `json:"window_size,omitempty"`
 }
 
 // CreateContactRequest defines model for CreateContactRequest.
@@ -1376,6 +1611,20 @@ type TotpSetupResponse struct {
 	Meta Meta      `json:"meta"`
 }
 
+// UpdateCampaignRequest defines model for UpdateCampaignRequest.
+type UpdateCampaignRequest struct {
+	// Audience Exactly one of the properties.
+	Audience         *CampaignAudience   `json:"audience,omitempty"`
+	Name             *string             `json:"name,omitempty"`
+	PhoneNumberId    *openapi_types.UUID `json:"phone_number_id,omitempty"`
+	TemplateLanguage *string             `json:"template_language,omitempty"`
+	TemplateName     *string             `json:"template_name,omitempty"`
+
+	// TemplateParams Template variables. Values may contain {{name}}, {{first_name}}, {{phone}}, {{email}}, {{var1}}–{{var5}} and {{attr:<key>}}. Use a list for positional templates and an object for named parameters.
+	TemplateParams *CampaignParams `json:"template_params,omitempty"`
+	WindowSize     *int            `json:"window_size,omitempty"`
+}
+
 // UpdateContactRequest defines model for UpdateContactRequest.
 type UpdateContactRequest struct {
 	Attributes *map[string]string    `json:"attributes,omitempty"`
@@ -1513,6 +1762,9 @@ type AccountId = openapi_types.UUID
 // ApiKeyId defines model for ApiKeyId.
 type ApiKeyId = openapi_types.UUID
 
+// CampaignId defines model for CampaignId.
+type CampaignId = openapi_types.UUID
+
 // ContactId defines model for ContactId.
 type ContactId = openapi_types.UUID
 
@@ -1575,6 +1827,42 @@ type ListAuditLogsParams struct {
 	ActorId    *openapi_types.UUID `form:"actor_id,omitempty" json:"actor_id,omitempty"`
 	EntityType *string             `form:"entity_type,omitempty" json:"entity_type,omitempty"`
 	EntityId   *openapi_types.UUID `form:"entity_id,omitempty" json:"entity_id,omitempty"`
+}
+
+// ListCampaignsParams defines parameters for ListCampaigns.
+type ListCampaignsParams struct {
+	Status *CampaignStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Cursor Opaque cursor from `meta.next_cursor`.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// CreateCampaignParams defines parameters for CreateCampaign.
+type CreateCampaignParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ListCampaignRecipientsParams defines parameters for ListCampaignRecipients.
+type ListCampaignRecipientsParams struct {
+	State *ListCampaignRecipientsParamsState `form:"state,omitempty" json:"state,omitempty"`
+
+	// Cursor Opaque cursor from `meta.next_cursor`.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListCampaignRecipientsParamsState defines parameters for ListCampaignRecipients.
+type ListCampaignRecipientsParamsState string
+
+// StartCampaignJSONBody defines body for StartCampaign for application/json ContentType.
+type StartCampaignJSONBody struct {
+	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
+}
+
+// StartCampaignParams defines parameters for StartCampaign.
+type StartCampaignParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
 // ConnectWhatsAppAccountParams defines parameters for ConnectWhatsAppAccount.
@@ -1668,6 +1956,15 @@ type ResetPasswordJSONRequestBody = ResetPasswordRequest
 // ReauthenticateJSONRequestBody defines body for Reauthenticate for application/json ContentType.
 type ReauthenticateJSONRequestBody = ReauthRequest
 
+// CreateCampaignJSONRequestBody defines body for CreateCampaign for application/json ContentType.
+type CreateCampaignJSONRequestBody = CreateCampaignRequest
+
+// UpdateCampaignJSONRequestBody defines body for UpdateCampaign for application/json ContentType.
+type UpdateCampaignJSONRequestBody = UpdateCampaignRequest
+
+// StartCampaignJSONRequestBody defines body for StartCampaign for application/json ContentType.
+type StartCampaignJSONRequestBody StartCampaignJSONBody
+
 // ConnectWhatsAppAccountJSONRequestBody defines body for ConnectWhatsAppAccount for application/json ContentType.
 type ConnectWhatsAppAccountJSONRequestBody = ConnectWhatsAppAccountRequest
 
@@ -1749,6 +2046,130 @@ type CreateTemplateJSONRequestBody = CreateTemplateRequest
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest
 
+// AsCampaignParamsBody0 returns the union data inside the CampaignParams_Body as a CampaignParamsBody0
+func (t CampaignParams_Body) AsCampaignParamsBody0() (CampaignParamsBody0, error) {
+	var body CampaignParamsBody0
+	err := runtime.JSONUnmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCampaignParamsBody0 overwrites any union data inside the CampaignParams_Body as the provided CampaignParamsBody0
+func (t *CampaignParams_Body) FromCampaignParamsBody0(v CampaignParamsBody0) error {
+	b, err := runtime.JSONMarshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCampaignParamsBody0 performs a merge with any union data inside the CampaignParams_Body, using the provided CampaignParamsBody0
+func (t *CampaignParams_Body) MergeCampaignParamsBody0(v CampaignParamsBody0) error {
+	b, err := runtime.JSONMarshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCampaignParamsBody1 returns the union data inside the CampaignParams_Body as a CampaignParamsBody1
+func (t CampaignParams_Body) AsCampaignParamsBody1() (CampaignParamsBody1, error) {
+	var body CampaignParamsBody1
+	err := runtime.JSONUnmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCampaignParamsBody1 overwrites any union data inside the CampaignParams_Body as the provided CampaignParamsBody1
+func (t *CampaignParams_Body) FromCampaignParamsBody1(v CampaignParamsBody1) error {
+	b, err := runtime.JSONMarshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCampaignParamsBody1 performs a merge with any union data inside the CampaignParams_Body, using the provided CampaignParamsBody1
+func (t *CampaignParams_Body) MergeCampaignParamsBody1(v CampaignParamsBody1) error {
+	b, err := runtime.JSONMarshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CampaignParams_Body) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CampaignParams_Body) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCampaignParamsHeader0 returns the union data inside the CampaignParams_Header as a CampaignParamsHeader0
+func (t CampaignParams_Header) AsCampaignParamsHeader0() (CampaignParamsHeader0, error) {
+	var body CampaignParamsHeader0
+	err := runtime.JSONUnmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCampaignParamsHeader0 overwrites any union data inside the CampaignParams_Header as the provided CampaignParamsHeader0
+func (t *CampaignParams_Header) FromCampaignParamsHeader0(v CampaignParamsHeader0) error {
+	b, err := runtime.JSONMarshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCampaignParamsHeader0 performs a merge with any union data inside the CampaignParams_Header, using the provided CampaignParamsHeader0
+func (t *CampaignParams_Header) MergeCampaignParamsHeader0(v CampaignParamsHeader0) error {
+	b, err := runtime.JSONMarshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCampaignParamsHeader1 returns the union data inside the CampaignParams_Header as a CampaignParamsHeader1
+func (t CampaignParams_Header) AsCampaignParamsHeader1() (CampaignParamsHeader1, error) {
+	var body CampaignParamsHeader1
+	err := runtime.JSONUnmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCampaignParamsHeader1 overwrites any union data inside the CampaignParams_Header as the provided CampaignParamsHeader1
+func (t *CampaignParams_Header) FromCampaignParamsHeader1(v CampaignParamsHeader1) error {
+	b, err := runtime.JSONMarshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCampaignParamsHeader1 performs a merge with any union data inside the CampaignParams_Header, using the provided CampaignParamsHeader1
+func (t *CampaignParams_Header) MergeCampaignParamsHeader1(v CampaignParamsHeader1) error {
+	b, err := runtime.JSONMarshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CampaignParams_Header) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CampaignParams_Header) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// ListApiKeys API keys (secrets are never returned again)
@@ -1787,6 +2208,39 @@ type ServerInterface interface {
 	// Reauthenticate Confirm identity before a sensitive action
 	// (POST /auth/reauth)
 	Reauthenticate(w http.ResponseWriter, r *http.Request)
+	// ListCampaigns Campaigns, newest first
+	// (GET /campaigns)
+	ListCampaigns(w http.ResponseWriter, r *http.Request, params ListCampaignsParams)
+	// CreateCampaign Create a draft campaign
+	// (POST /campaigns)
+	CreateCampaign(w http.ResponseWriter, r *http.Request, params CreateCampaignParams)
+	// DeleteCampaign Delete a campaign that is not running or paused
+	// (DELETE /campaigns/{campaignId})
+	DeleteCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId)
+	// GetCampaign A campaign with live counts
+	// (GET /campaigns/{campaignId})
+	GetCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId)
+	// UpdateCampaign Edit a draft or scheduled campaign
+	// (PATCH /campaigns/{campaignId})
+	UpdateCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId)
+	// CancelCampaign Stop for good; unsent messages are cancelled
+	// (POST /campaigns/{campaignId}/cancel)
+	CancelCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId)
+	// ListCampaignEvents Lifecycle events (started, paused, resumed, completed …)
+	// (GET /campaigns/{campaignId}/events)
+	ListCampaignEvents(w http.ResponseWriter, r *http.Request, campaignId CampaignId)
+	// PauseCampaign Pause sending; unsent messages are held
+	// (POST /campaigns/{campaignId}/pause)
+	PauseCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId)
+	// ListCampaignRecipients Recipients with their message state
+	// (GET /campaigns/{campaignId}/recipients)
+	ListCampaignRecipients(w http.ResponseWriter, r *http.Request, campaignId CampaignId, params ListCampaignRecipientsParams)
+	// ResumeCampaign Resume a paused campaign
+	// (POST /campaigns/{campaignId}/resume)
+	ResumeCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId)
+	// StartCampaign Start now, or schedule with `scheduled_at`
+	// (POST /campaigns/{campaignId}/start)
+	StartCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId, params StartCampaignParams)
 	// ListWhatsAppAccounts Connected WhatsApp Business Accounts (credentials are never returned)
 	// (GET /channels/accounts)
 	ListWhatsAppAccounts(w http.ResponseWriter, r *http.Request)
@@ -2068,6 +2522,72 @@ func (_ Unimplemented) ResetPassword(w http.ResponseWriter, r *http.Request) {
 // Reauthenticate Confirm identity before a sensitive action
 // (POST /auth/reauth)
 func (_ Unimplemented) Reauthenticate(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListCampaigns Campaigns, newest first
+// (GET /campaigns)
+func (_ Unimplemented) ListCampaigns(w http.ResponseWriter, r *http.Request, params ListCampaignsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateCampaign Create a draft campaign
+// (POST /campaigns)
+func (_ Unimplemented) CreateCampaign(w http.ResponseWriter, r *http.Request, params CreateCampaignParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteCampaign Delete a campaign that is not running or paused
+// (DELETE /campaigns/{campaignId})
+func (_ Unimplemented) DeleteCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetCampaign A campaign with live counts
+// (GET /campaigns/{campaignId})
+func (_ Unimplemented) GetCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateCampaign Edit a draft or scheduled campaign
+// (PATCH /campaigns/{campaignId})
+func (_ Unimplemented) UpdateCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CancelCampaign Stop for good; unsent messages are cancelled
+// (POST /campaigns/{campaignId}/cancel)
+func (_ Unimplemented) CancelCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListCampaignEvents Lifecycle events (started, paused, resumed, completed …)
+// (GET /campaigns/{campaignId}/events)
+func (_ Unimplemented) ListCampaignEvents(w http.ResponseWriter, r *http.Request, campaignId CampaignId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PauseCampaign Pause sending; unsent messages are held
+// (POST /campaigns/{campaignId}/pause)
+func (_ Unimplemented) PauseCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListCampaignRecipients Recipients with their message state
+// (GET /campaigns/{campaignId}/recipients)
+func (_ Unimplemented) ListCampaignRecipients(w http.ResponseWriter, r *http.Request, campaignId CampaignId, params ListCampaignRecipientsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ResumeCampaign Resume a paused campaign
+// (POST /campaigns/{campaignId}/resume)
+func (_ Unimplemented) ResumeCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// StartCampaign Start now, or schedule with `scheduled_at`
+// (POST /campaigns/{campaignId}/start)
+func (_ Unimplemented) StartCampaign(w http.ResponseWriter, r *http.Request, campaignId CampaignId, params StartCampaignParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2776,6 +3296,406 @@ func (siw *ServerInterfaceWrapper) Reauthenticate(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.Reauthenticate(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListCampaigns operation middleware
+func (siw *ServerInterfaceWrapper) ListCampaigns(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCampaignsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCampaigns(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateCampaign operation middleware
+func (siw *ServerInterfaceWrapper) CreateCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateCampaignParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCampaign(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCampaign operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCampaign(w, r, campaignId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCampaign operation middleware
+func (siw *ServerInterfaceWrapper) GetCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCampaign(w, r, campaignId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCampaign operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCampaign(w, r, campaignId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelCampaign operation middleware
+func (siw *ServerInterfaceWrapper) CancelCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelCampaign(w, r, campaignId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListCampaignEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListCampaignEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCampaignEvents(w, r, campaignId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PauseCampaign operation middleware
+func (siw *ServerInterfaceWrapper) PauseCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PauseCampaign(w, r, campaignId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListCampaignRecipients operation middleware
+func (siw *ServerInterfaceWrapper) ListCampaignRecipients(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCampaignRecipientsParams
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCampaignRecipients(w, r, campaignId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResumeCampaign operation middleware
+func (siw *ServerInterfaceWrapper) ResumeCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResumeCampaign(w, r, campaignId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartCampaign operation middleware
+func (siw *ServerInterfaceWrapper) StartCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StartCampaignParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartCampaign(w, r, campaignId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4807,6 +5727,39 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/realtime/subscription-token", wrapper.CreateRealtimeSubscriptionToken)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/campaigns", wrapper.ListCampaigns)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/campaigns", wrapper.CreateCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/campaigns/{campaignId}", wrapper.DeleteCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/campaigns/{campaignId}", wrapper.GetCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/campaigns/{campaignId}", wrapper.UpdateCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/campaigns/{campaignId}/start", wrapper.StartCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/campaigns/{campaignId}/pause", wrapper.PauseCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/campaigns/{campaignId}/resume", wrapper.ResumeCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/campaigns/{campaignId}/cancel", wrapper.CancelCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/campaigns/{campaignId}/events", wrapper.ListCampaignEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/campaigns/{campaignId}/recipients", wrapper.ListCampaignRecipients)
+	})
 
 	return r
 }
@@ -4816,185 +5769,206 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"mfbHRZb7h0oRgXI741XmPX55/P8DAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

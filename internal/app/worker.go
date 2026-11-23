@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
@@ -76,7 +78,9 @@ func RunWorker(ctx context.Context) error {
 		return err
 	})
 
+	svc.messaging.SetThrottle(messaging.NewThrottle(rdb, 80))
 	registerMessaging(mux, svc.messaging)
+	registerCampaigns(mux, svc.campaigns, svc.messaging, log)
 	mux.HandleFunc(contacts.TypeImport, func(ctx context.Context, t *asynq.Task) error {
 		var p struct {
 			ImportID uuid.UUID `json:"import_id"`
@@ -162,5 +166,45 @@ func registerMessaging(mux *asynq.ServeMux, m *messaging.Service) {
 			return err
 		}
 		return m.DownloadMedia(ctx, id)
+	})
+}
+
+// registerCampaigns wires the campaign engine's task handlers.
+func registerCampaigns(mux *asynq.ServeMux, c *campaigns.Service, m *messaging.Service, log *slog.Logger) {
+	var p struct {
+		CampaignID uuid.UUID `json:"campaign_id"`
+		Gen        int32     `json:"gen"`
+	}
+	decode := func(t *asynq.Task) error {
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		return nil
+	}
+	mux.HandleFunc(campaigns.TypeMaterialize, func(ctx context.Context, t *asynq.Task) error {
+		if err := decode(t); err != nil {
+			return err
+		}
+		return c.Materialize(ctx, p.CampaignID)
+	})
+	mux.HandleFunc(campaigns.TypeDispatch, func(ctx context.Context, t *asynq.Task) error {
+		if err := decode(t); err != nil {
+			return err
+		}
+		return c.Dispatch(ctx, p.CampaignID, p.Gen)
+	})
+	mux.HandleFunc(campaigns.TypeStartDue, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := c.StartDue(ctx)
+		if n > 0 {
+			log.InfoContext(ctx, "scheduled campaigns started", "count", n)
+		}
+		return err
+	})
+	mux.HandleFunc(campaigns.TypeReaper, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := c.Reap(ctx, m.Send)
+		if n > 0 {
+			log.WarnContext(ctx, "campaign reaper repaired work left by a stopped worker", "items", n)
+		}
+		return err
 	})
 }

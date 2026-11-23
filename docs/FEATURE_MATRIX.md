@@ -74,12 +74,12 @@
 
 | Özellik | Phase | Durum |
 |---|---|---|
-| Draft, planlanmış (timezone), başlat, duraklat, devam, iptal | 5 | Missing |
-| Kitle: segment / grup / yüklenen liste, dedupe | 5 | Missing |
-| Pencereli dispatcher, numara başına rate limit, AIMD | 5 | Missing |
-| Retry, dead letter, belirsiz (`unknown`) durum | 5 | Missing |
-| Opt-out ve 24h kuralları sistem seviyesinde | 5 | Missing |
-| İstatistikler ve event log | 5 | Missing |
+| Draft, planlanmış (timezone), başlat, duraklat, devam, iptal | 5 | Implemented (API; panel ekranları Phase 9) |
+| Kitle: segment / grup / yüklenen liste, dedupe | 5 | Implemented (segment, grup, etiket, tüm kişiler; yüklenen liste = import + grup) |
+| Pencereli dispatcher, numara başına rate limit, AIMD | 5 | Implemented |
+| Retry, dead letter, belirsiz (`unknown`) durum | 5 | Implemented (lease reaper; kill -9 kaos betiği bekliyor) |
+| Opt-out ve 24h kuralları sistem seviyesinde | 5 | Implemented |
+| İstatistikler ve event log | 5 | Implemented (canlı sayılar + realtime yayın) |
 
 ## Gerçek zamanlı, inbox, otomasyon, giden webhook'lar
 

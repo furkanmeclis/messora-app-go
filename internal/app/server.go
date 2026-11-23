@@ -15,6 +15,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
@@ -41,6 +42,7 @@ type (
 	channelsHandler = channels.Handler
 	messagesHandler = messaging.Handler
 	contactsHandler = contacts.Handler
+	campaignHandler = campaigns.Handler
 	realtimeHandler = realtime.Handler
 )
 
@@ -54,6 +56,7 @@ type apiServer struct {
 	*channelsHandler
 	*messagesHandler
 	*contactsHandler
+	*campaignHandler
 	*realtimeHandler
 }
 
@@ -71,6 +74,7 @@ type services struct {
 	channels  *channels.Service
 	messaging *messaging.Service
 	contacts  *contacts.Service
+	campaigns *campaigns.Service
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -100,7 +104,8 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	ch := channels.New(pool, sealer, wa, cfg.Meta.AppSecret.Reveal(), log)
 	msg := messaging.New(pool, ch, messaging.NewMediaStore(cfg.MediaDir), log)
 	cts := contacts.New(pool, cfg.MediaDir, log)
-	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts}, nil
+	camp := campaigns.New(pool, cts, log)
+	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts, campaigns: camp}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -134,6 +139,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		channelsHandler: channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),
 		messagesHandler: messaging.NewHandler(svc.messaging, log),
 		contactsHandler: contacts.NewHandler(svc.contacts, log),
+		campaignHandler: campaigns.NewHandler(svc.campaigns, log),
 		realtimeHandler: realtime.NewHandler(rtIssuer, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.

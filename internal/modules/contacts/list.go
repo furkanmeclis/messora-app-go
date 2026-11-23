@@ -126,6 +126,33 @@ func (s *Service) Each(ctx context.Context, f Filter, fn func(db.Contact) error)
 	}
 }
 
+// Page calls fn for up to limit matching contacts after the cursor id, in
+// id order (resumable keyset iteration for campaign materialisation).
+func (s *Service) Page(ctx context.Context, f Filter, after *uuid.UUID, limit int, fn func(db.Contact)) error {
+	where, args, err := f.where()
+	if err != nil {
+		return err
+	}
+	start := uuid.Nil
+	if after != nil {
+		start = *after
+	}
+	a := append(append([]any{}, args...), start, limit)
+	sql := fmt.Sprintf("SELECT c.* FROM contacts c WHERE %s AND c.id > $%d ORDER BY c.id LIMIT $%d", where, len(args)+1, len(args)+2)
+	rows, err := s.pool.Query(ctx, sql, a...)
+	if err != nil {
+		return err
+	}
+	list, err := pgx.CollectRows(rows, pgx.RowToStructByPos[db.Contact])
+	if err != nil {
+		return err
+	}
+	for _, c := range list {
+		fn(c)
+	}
+	return nil
+}
+
 // TagsFor returns tags for a page of contacts.
 func (s *Service) TagsFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]db.Tag, error) {
 	rows, err := s.q.TagsForContacts(ctx, ids)

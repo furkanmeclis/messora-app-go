@@ -7,6 +7,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
@@ -19,6 +20,8 @@ func PeriodicJobs() []scheduler.Job {
 	return []scheduler.Job{
 		{Name: "outbox_cleanup", Every: time.Hour, TaskType: queue.TypeOutboxCleanup},
 		{Name: "identity_cleanup", Every: time.Hour, TaskType: queue.TypeIdentityCleanup},
+		{Name: "campaigns_due", Every: time.Minute, TaskType: campaigns.TypeStartDue},
+		{Name: "campaign_reaper", Every: time.Minute, TaskType: campaigns.TypeReaper},
 	}
 }
 

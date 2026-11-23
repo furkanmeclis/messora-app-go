@@ -37,6 +37,49 @@ type AuditLog struct {
 	Changes    []byte
 }
 
+type Campaign struct {
+	ID                pgtype.UUID
+	Name              string
+	Status            string
+	PhoneNumberID     pgtype.UUID
+	TemplateName      string
+	TemplateLanguage  string
+	TemplateParams    []byte
+	Audience          []byte
+	ScheduledAt       pgtype.Timestamptz
+	StartedAt         pgtype.Timestamptz
+	FinishedAt        pgtype.Timestamptz
+	MaterializeCursor pgtype.UUID
+	DispatchGen       int32
+	WindowSize        int32
+	TotalRecipients   int64
+	LastError         *string
+	CreatedBy         pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+}
+
+type CampaignEvent struct {
+	ID         pgtype.UUID
+	CampaignID pgtype.UUID
+	Kind       string
+	Detail     []byte
+	ActorID    pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+}
+
+type CampaignRecipient struct {
+	ID         pgtype.UUID
+	CampaignID pgtype.UUID
+	ContactID  pgtype.UUID
+	PhoneE164  string
+	State      string
+	SkipReason *string
+	MessageID  pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
 type ConsentEvent struct {
 	ID        pgtype.UUID
 	ContactID pgtype.UUID
@@ -174,6 +217,8 @@ type Message struct {
 	OccurredAt    pgtype.Timestamptz
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	CampaignID    pgtype.UUID
+	MetaStatus    *string
 }
 
 type MessageTemplate struct {

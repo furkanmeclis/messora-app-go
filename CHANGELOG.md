@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 5: campaigns
+
+- Campaigns send an approved template to a segment, group, tag or every
+  contact, now or at a scheduled time, with per-contact variables
+  (`{{name}}`, `{{var1}}`, `{{attr:…}}` …) and fallbacks; recipients
+  without a value, opted out or deleted are skipped with a reason.
+- Resumable materialisation and a windowed dispatcher keep the queue small
+  (at most the window in flight per campaign); pause holds unsent messages,
+  resume re-queues them, cancel drops them.
+- Per-number GCRA pacing with AIMD: Meta's 130429 halves the rate, success
+  grows it back; deferrals do not count as failed attempts.
+- A reaper repairs work left by a crashed worker: messages stuck in
+  `sending` become `unknown` (never re-sent), lost tasks are re-created and
+  stalled dispatchers restarted. Live counts, an event log and realtime
+  progress on `campaign:<id>`.
+
 ### Added — Phase 4: contacts
 
 - Contacts API with E.164 normalisation, personalisation fields (`var1`–`var5`

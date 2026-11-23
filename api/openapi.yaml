@@ -39,6 +39,7 @@ tags:
   - name: messages
   - name: contacts
   - name: segments
+  - name: campaigns
 
 paths:
   /setup/status:
@@ -1387,6 +1388,198 @@ paths:
               schema: { $ref: "#/components/schemas/RealtimeTokenResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  # ── Campaigns (Phase 5) ──────────────────────────────────────────────────
+  /campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [campaigns]
+      summary: Campaigns, newest first
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/CampaignStatus" } }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Campaigns
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createCampaign
+      tags: [campaigns]
+      summary: Create a draft campaign
+      security: [{ session: [campaigns.create] }, { apiKey: [campaigns.create] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCampaignRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}:
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      summary: A campaign with live counts
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateCampaign
+      tags: [campaigns]
+      summary: Edit a draft or scheduled campaign
+      security: [{ session: [campaigns.create] }, { apiKey: [campaigns.create] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCampaignRequest" }
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteCampaign
+      tags: [campaigns]
+      summary: Delete a campaign that is not running or paused
+      security: [{ session: [campaigns.delete] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/start:
+    post:
+      operationId: startCampaign
+      tags: [campaigns]
+      summary: Start now, or schedule with `scheduled_at`
+      security: [{ session: [campaigns.start] }, { apiKey: [campaigns.start] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                scheduled_at: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/pause:
+    post:
+      operationId: pauseCampaign
+      tags: [campaigns]
+      summary: Pause sending; unsent messages are held
+      security: [{ session: [campaigns.pause] }, { apiKey: [campaigns.pause] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/resume:
+    post:
+      operationId: resumeCampaign
+      tags: [campaigns]
+      summary: Resume a paused campaign
+      security: [{ session: [campaigns.start] }, { apiKey: [campaigns.start] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/cancel:
+    post:
+      operationId: cancelCampaign
+      tags: [campaigns]
+      summary: Stop for good; unsent messages are cancelled
+      security: [{ session: [campaigns.pause] }, { apiKey: [campaigns.pause] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/events:
+    get:
+      operationId: listCampaignEvents
+      tags: [campaigns]
+      summary: Lifecycle events (started, paused, resumed, completed …)
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignEventListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/recipients:
+    get:
+      operationId: listCampaignRecipients
+      tags: [campaigns]
+      summary: Recipients with their message state
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+        - { name: state, in: query, schema: { type: string, enum: [pending, queued, skipped, cancelled] } }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Recipients
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignRecipientListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     panel:
@@ -1471,6 +1664,11 @@ components:
       schema: { type: string, format: uuid }
     SegmentId:
       name: segmentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CampaignId:
+      name: campaignId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -2591,3 +2789,144 @@ components:
       type: object
       required: [data, meta]
       properties: { data: { $ref: "#/components/schemas/RealtimeToken" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    # ── Campaigns (Phase 5) ────────────────────────────────────────────────
+    CampaignStatus:
+      type: string
+      enum: [draft, scheduled, preparing, running, paused, completed, cancelled, failed]
+
+    CampaignAudience:
+      type: object
+      additionalProperties: false
+      description: Exactly one of the properties.
+      minProperties: 1
+      maxProperties: 1
+      properties:
+        segment_id: { type: string, format: uuid }
+        group_id: { type: string, format: uuid }
+        tag_id: { type: string, format: uuid }
+        all: { type: boolean, enum: [true] }
+
+    CampaignParams:
+      type: object
+      additionalProperties: false
+      description: >-
+        Template variables. Values may contain {{name}}, {{first_name}}, {{phone}},
+        {{email}}, {{var1}}–{{var5}} and {{attr:<key>}}. Use a list for positional
+        templates and an object for named parameters.
+      properties:
+        header:
+          oneOf:
+            - { type: array, maxItems: 10, items: { type: string, maxLength: 1024 } }
+            - { type: object, maxProperties: 10, additionalProperties: { type: string, maxLength: 1024 } }
+        body:
+          oneOf:
+            - { type: array, maxItems: 20, items: { type: string, maxLength: 1024 } }
+            - { type: object, maxProperties: 20, additionalProperties: { type: string, maxLength: 1024 } }
+        buttons:
+          type: array
+          maxItems: 10
+          items: { type: string, maxLength: 2000 }
+        fallback:
+          type: object
+          maxProperties: 20
+          additionalProperties: { type: string, maxLength: 1024 }
+
+    Campaign:
+      type: object
+      required: [id, name, status, phone_number_id, template_name, template_language, template_params, audience,
+                 window_size, total_recipients, counts, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/CampaignStatus" }
+        phone_number_id: { type: string, format: uuid }
+        template_name: { type: string }
+        template_language: { type: string }
+        template_params: { $ref: "#/components/schemas/CampaignParams" }
+        audience: { $ref: "#/components/schemas/CampaignAudience" }
+        window_size: { type: integer, description: Messages in flight at once; 0 means automatic. }
+        total_recipients: { type: integer, format: int64 }
+        counts:
+          type: object
+          description: Recipients by state (recipients_pending, recipients_skipped …) and messages by status (sent, delivered, read, failed, unknown, held …).
+          additionalProperties: { type: integer, format: int64 }
+        scheduled_at: { type: [string, "null"], format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        last_error: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreateCampaignRequest:
+      type: object
+      additionalProperties: false
+      required: [name, template_name, template_language, audience]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        phone_number_id: { type: string, format: uuid }
+        template_name: { type: string, minLength: 1, maxLength: 512 }
+        template_language: { type: string, minLength: 2, maxLength: 15 }
+        template_params: { $ref: "#/components/schemas/CampaignParams" }
+        audience: { $ref: "#/components/schemas/CampaignAudience" }
+        window_size: { type: integer, minimum: 0, maximum: 10000 }
+
+    UpdateCampaignRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        phone_number_id: { type: string, format: uuid }
+        template_name: { type: string, minLength: 1, maxLength: 512 }
+        template_language: { type: string, minLength: 2, maxLength: 15 }
+        template_params: { $ref: "#/components/schemas/CampaignParams" }
+        audience: { $ref: "#/components/schemas/CampaignAudience" }
+        window_size: { type: integer, minimum: 0, maximum: 10000 }
+
+    CampaignEventItem:
+      type: object
+      required: [id, kind, detail, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        detail: { type: object, additionalProperties: true }
+        actor_id: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+
+    CampaignRecipient:
+      type: object
+      required: [id, phone, state]
+      properties:
+        id: { type: string, format: uuid }
+        contact_id: { type: [string, "null"], format: uuid }
+        phone: { type: string }
+        state: { type: string, enum: [pending, queued, skipped, cancelled] }
+        skip_reason: { type: [string, "null"] }
+        message_id: { type: [string, "null"], format: uuid }
+        message_status: { type: [string, "null"] }
+        error_code: { type: [string, "null"] }
+        error_title: { type: [string, "null"] }
+
+    CampaignResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Campaign" }, meta: { $ref: "#/components/schemas/Meta" } }
+    CampaignListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Campaign" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    CampaignEventListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CampaignEventItem" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    CampaignRecipientListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CampaignRecipient" } }
+        meta: { $ref: "#/components/schemas/Meta" }
