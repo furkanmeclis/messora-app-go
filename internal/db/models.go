@@ -38,6 +38,16 @@ type AuditLog struct {
 	Changes    []byte
 }
 
+type ConsentEvent struct {
+	ID        uuid.UUID
+	ContactID uuid.UUID
+	Kind      string
+	Source    string
+	Note      string
+	ActorID   *uuid.UUID
+	CreatedAt time.Time
+}
+
 type Contact struct {
 	ID            uuid.UUID
 	PhoneE164     string
@@ -47,6 +57,73 @@ type Contact struct {
 	LastInboundAt *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	Email         *string
+	Var1          *string
+	Var2          *string
+	Var3          *string
+	Var4          *string
+	Var5          *string
+	Attributes    []byte
+	OptedOutAt    *time.Time
+	OptOutReason  *string
+	Source        string
+}
+
+type ContactGroup struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ContactGroupMember struct {
+	GroupID   uuid.UUID
+	ContactID uuid.UUID
+	AddedAt   time.Time
+}
+
+type ContactImport struct {
+	ID              uuid.UUID
+	Filename        string
+	StorageKey      string
+	SizeBytes       int64
+	Status          string
+	Headers         []byte
+	Preview         []byte
+	Mapping         []byte
+	DuplicatePolicy string
+	AddTags         []string
+	GroupID         *uuid.UUID
+	TotalRows       int64
+	ProcessedRows   int64
+	CreatedCount    int64
+	UpdatedCount    int64
+	SkippedCount    int64
+	FailedCount     int64
+	ErrorReportKey  *string
+	LastError       *string
+	CancelRequested bool
+	CreatedBy       *uuid.UUID
+	CreatedAt       time.Time
+	StartedAt       *time.Time
+	FinishedAt      *time.Time
+	UpdatedAt       time.Time
+}
+
+type ContactNote struct {
+	ID        uuid.UUID
+	ContactID uuid.UUID
+	AuthorID  *uuid.UUID
+	Body      string
+	CreatedAt time.Time
+}
+
+type ContactTag struct {
+	ContactID uuid.UUID
+	TagID     uuid.UUID
+	CreatedAt time.Time
 }
 
 type IdempotencyKey struct {
@@ -173,11 +250,28 @@ type RolePermission struct {
 	PermissionKey string
 }
 
+type Segment struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	Definition  []byte
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Setting struct {
 	Key       string
 	Value     []byte
 	UpdatedBy *uuid.UUID
 	UpdatedAt time.Time
+}
+
+type Tag struct {
+	ID        uuid.UUID
+	Name      string
+	Color     string
+	CreatedAt time.Time
 }
 
 type User struct {

@@ -37,6 +37,16 @@ type AuditLog struct {
 	Changes    []byte
 }
 
+type ConsentEvent struct {
+	ID        pgtype.UUID
+	ContactID pgtype.UUID
+	Kind      string
+	Source    string
+	Note      string
+	ActorID   pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+}
+
 type Contact struct {
 	ID            pgtype.UUID
 	PhoneE164     string
@@ -46,6 +56,73 @@ type Contact struct {
 	LastInboundAt pgtype.Timestamptz
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	Email         *string
+	Var1          *string
+	Var2          *string
+	Var3          *string
+	Var4          *string
+	Var5          *string
+	Attributes    []byte
+	OptedOutAt    pgtype.Timestamptz
+	OptOutReason  *string
+	Source        string
+}
+
+type ContactGroup struct {
+	ID          pgtype.UUID
+	Name        string
+	Description string
+	CreatedBy   pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type ContactGroupMember struct {
+	GroupID   pgtype.UUID
+	ContactID pgtype.UUID
+	AddedAt   pgtype.Timestamptz
+}
+
+type ContactImport struct {
+	ID              pgtype.UUID
+	Filename        string
+	StorageKey      string
+	SizeBytes       int64
+	Status          string
+	Headers         []byte
+	Preview         []byte
+	Mapping         []byte
+	DuplicatePolicy string
+	AddTags         []string
+	GroupID         pgtype.UUID
+	TotalRows       int64
+	ProcessedRows   int64
+	CreatedCount    int64
+	UpdatedCount    int64
+	SkippedCount    int64
+	FailedCount     int64
+	ErrorReportKey  *string
+	LastError       *string
+	CancelRequested bool
+	CreatedBy       pgtype.UUID
+	CreatedAt       pgtype.Timestamptz
+	StartedAt       pgtype.Timestamptz
+	FinishedAt      pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+}
+
+type ContactNote struct {
+	ID        pgtype.UUID
+	ContactID pgtype.UUID
+	AuthorID  pgtype.UUID
+	Body      string
+	CreatedAt pgtype.Timestamptz
+}
+
+type ContactTag struct {
+	ContactID pgtype.UUID
+	TagID     pgtype.UUID
+	CreatedAt pgtype.Timestamptz
 }
 
 type IdempotencyKey struct {
@@ -172,11 +249,28 @@ type RolePermission struct {
 	PermissionKey string
 }
 
+type Segment struct {
+	ID          pgtype.UUID
+	Name        string
+	Description string
+	Definition  []byte
+	CreatedBy   pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
 type Setting struct {
 	Key       string
 	Value     []byte
 	UpdatedBy pgtype.UUID
 	UpdatedAt pgtype.Timestamptz
+}
+
+type Tag struct {
+	ID        pgtype.UUID
+	Name      string
+	Color     string
+	CreatedAt pgtype.Timestamptz
 }
 
 type User struct {

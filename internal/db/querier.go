@@ -13,6 +13,8 @@ import (
 
 type Querier interface {
 	AcceptInvitation(ctx context.Context, id uuid.UUID) (int64, error)
+	AddContactTag(ctx context.Context, arg AddContactTagParams) error
+	AddGroupMembers(ctx context.Context, arg AddGroupMembersParams) (int64, error)
 	// Monotonic status transition from a webhook; see the messages table comment.
 	ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatusParams) (Message, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
@@ -22,9 +24,12 @@ type Querier interface {
 	// Only a pending message can be sent. A message left in "sending" means a
 	// previous attempt died mid-request; it must not be sent again.
 	ClaimMessageForSend(ctx context.Context, id uuid.UUID) (Message, error)
+	ClearContactTags(ctx context.Context, contactID uuid.UUID) error
 	ClearDefaultPhoneNumber(ctx context.Context) error
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	ConsumePasswordReset(ctx context.Context, tokenHash []byte) (uuid.UUID, error)
+	ContactGroupIDs(ctx context.Context, contactID uuid.UUID) ([]uuid.UUID, error)
+	ContactTags(ctx context.Context, contactID uuid.UUID) ([]Tag, error)
 	CountActiveOwners(ctx context.Context) (int64, error)
 	CountMessagesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountRecentPasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -39,21 +44,30 @@ type Querier interface {
 	// ── Sessions ────────────────────────────────────────────────────────────────
 	CreateSession(ctx context.Context, arg CreateSessionParams) (UserSession, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteContact(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteContactGroup(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteContactNote(ctx context.Context, arg DeleteContactNoteParams) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
 	DeleteOldIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteOldWebhookEvents(ctx context.Context, before time.Time) (int64, error)
 	// ── Recovery codes ──────────────────────────────────────────────────────────
 	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
+	DeleteSegment(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSetting(ctx context.Context, key string) error
+	DeleteTag(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTemplate(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTemplatesNotSynced(ctx context.Context, arg DeleteTemplatesNotSyncedParams) (int64, error)
 	DeleteWhatsAppAccount(ctx context.Context, id uuid.UUID) (int64, error)
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
 	FindApprovedTemplate(ctx context.Context, arg FindApprovedTemplateParams) (MessageTemplate, error)
+	FinishContactImport(ctx context.Context, arg FinishContactImportParams) error
 	GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetActiveSessionByTokenHashRow, error)
 	GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
+	GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error)
+	GetContactGroup(ctx context.Context, id uuid.UUID) (ContactGroup, error)
+	GetContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error)
 	GetDefaultPhoneNumber(ctx context.Context) (PhoneNumber, error)
 	GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, error)
 	GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
@@ -62,6 +76,7 @@ type Querier interface {
 	GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber, error)
 	GetPhoneNumberByMetaID(ctx context.Context, phoneNumberID string) (PhoneNumber, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
+	GetSegment(ctx context.Context, id uuid.UUID) (Segment, error)
 	GetSetting(ctx context.Context, key string) ([]byte, error)
 	GetTemplate(ctx context.Context, id uuid.UUID) (MessageTemplate, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
@@ -72,6 +87,15 @@ type Querier interface {
 	GetWhatsAppAccount(ctx context.Context, id uuid.UUID) (WhatsappAccount, error)
 	GetWhatsAppAccountByWABA(ctx context.Context, wabaID string) (WhatsappAccount, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
+	InsertConsentEvent(ctx context.Context, arg InsertConsentEventParams) (ConsentEvent, error)
+	// Contact listing with filters and segments is built in Go (contacts/list.go)
+	// because segment conditions are dynamic; everything else lives here.
+	InsertContact(ctx context.Context, arg InsertContactParams) (Contact, error)
+	InsertContactGroup(ctx context.Context, arg InsertContactGroupParams) (ContactGroup, error)
+	// ── Imports ─────────────────────────────────────────────────────────────────
+	InsertContactImport(ctx context.Context, arg InsertContactImportParams) (ContactImport, error)
+	// ── Notes ───────────────────────────────────────────────────────────────────
+	InsertContactNote(ctx context.Context, arg InsertContactNoteParams) (ContactNote, error)
 	// Duplicate deliveries of the same wamid insert nothing (no row returned).
 	InsertInboundMessage(ctx context.Context, arg InsertInboundMessageParams) (Message, error)
 	// ── Media ───────────────────────────────────────────────────────────────────
@@ -79,6 +103,7 @@ type Querier interface {
 	// ── Messages ────────────────────────────────────────────────────────────────
 	InsertOutboundMessage(ctx context.Context, arg InsertOutboundMessageParams) (Message, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
+	InsertSegment(ctx context.Context, arg InsertSegmentParams) (Segment, error)
 	InsertSettingIfAbsent(ctx context.Context, arg InsertSettingIfAbsentParams) (int64, error)
 	// ── Webhook events ──────────────────────────────────────────────────────────
 	// Returns no row when the identical body was already received.
@@ -89,6 +114,11 @@ type Querier interface {
 	ListApiKeys(ctx context.Context) ([]ListApiKeysRow, error)
 	ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
+	ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([]ConsentEvent, error)
+	// ── Groups ──────────────────────────────────────────────────────────────────
+	ListContactGroups(ctx context.Context) ([]ListContactGroupsRow, error)
+	ListContactImports(ctx context.Context) ([]ContactImport, error)
+	ListContactNotes(ctx context.Context, contactID uuid.UUID) ([]ListContactNotesRow, error)
 	ListMediaForMessage(ctx context.Context, messageID *uuid.UUID) ([]MediaFile, error)
 	ListMessagesByContact(ctx context.Context, arg ListMessagesByContactParams) ([]Message, error)
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
@@ -97,6 +127,10 @@ type Querier interface {
 	ListRolePermissions(ctx context.Context) ([]ListRolePermissionsRow, error)
 	// ── Roles ───────────────────────────────────────────────────────────────────
 	ListRoles(ctx context.Context) ([]Role, error)
+	// ── Segments ────────────────────────────────────────────────────────────────
+	ListSegments(ctx context.Context) ([]Segment, error)
+	// ── Tags ────────────────────────────────────────────────────────────────────
+	ListTags(ctx context.Context) ([]ListTagsRow, error)
 	ListTemplates(ctx context.Context, arg ListTemplatesParams) ([]ListTemplatesRow, error)
 	ListUserSessions(ctx context.Context, userID uuid.UUID) ([]UserSession, error)
 	ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error)
@@ -114,27 +148,40 @@ type Querier interface {
 	MarkWebhookProcessed(ctx context.Context, id uuid.UUID) error
 	MarkWhatsAppAccountError(ctx context.Context, arg MarkWhatsAppAccountErrorParams) error
 	MarkWhatsAppAccountSynced(ctx context.Context, id uuid.UUID) error
+	// Counters are absolute (the worker keeps the totals), so a retried batch
+	// cannot double-count. Returns whether a cancel was requested.
+	ProgressContactImport(ctx context.Context, arg ProgressContactImportParams) (bool, error)
+	QueueContactImport(ctx context.Context, arg QueueContactImportParams) (ContactImport, error)
 	// Counts consecutive failures and locks the account for lock_minutes once
 	// max_failures is reached. An expired lock starts a fresh count.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (RecordLoginFailureRow, error)
 	RecordLoginSuccess(ctx context.Context, id uuid.UUID) error
 	ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempotencyKeyParams) error
 	ReleaseMessageForRetry(ctx context.Context, arg ReleaseMessageForRetryParams) error
+	RemoveGroupMembers(ctx context.Context, arg RemoveGroupMembersParams) (int64, error)
 	ReplaceRole(ctx context.Context, arg ReplaceRoleParams) error
+	RequestImportCancel(ctx context.Context, id uuid.UUID) (ContactImport, error)
 	RevokeApiKey(ctx context.Context, id uuid.UUID) (string, error)
 	RevokeInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
+	SetContactOptOut(ctx context.Context, arg SetContactOptOutParams) error
 	SetDefaultPhoneNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
+	StartContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error)
+	TagsForContacts(ctx context.Context, contactIds []uuid.UUID) ([]TagsForContactsRow, error)
 	// Updates at most once a minute to avoid write amplification under load.
 	TouchApiKey(ctx context.Context, id uuid.UUID) error
 	TouchContactInbound(ctx context.Context, arg TouchContactInboundParams) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
+	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
+	UpdateContactGroup(ctx context.Context, arg UpdateContactGroupParams) (ContactGroup, error)
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) error
 	UpdatePhoneNumberLimit(ctx context.Context, arg UpdatePhoneNumberLimitParams) error
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (User, error)
+	UpdateSegment(ctx context.Context, arg UpdateSegmentParams) (Segment, error)
+	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
 	UpdateTemplateStatusByMetaID(ctx context.Context, arg UpdateTemplateStatusByMetaIDParams) (int64, error)
 	UpdateWhatsAppAccount(ctx context.Context, arg UpdateWhatsAppAccountParams) (WhatsappAccount, error)
 	// ── Contacts ────────────────────────────────────────────────────────────────
@@ -142,6 +189,8 @@ type Querier interface {
 	// ── Phone numbers ───────────────────────────────────────────────────────────
 	UpsertPhoneNumber(ctx context.Context, arg UpsertPhoneNumberParams) (PhoneNumber, error)
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
+	// Tags are matched case-insensitively; the first spelling wins.
+	UpsertTag(ctx context.Context, arg UpsertTagParams) (Tag, error)
 	// ── Templates ───────────────────────────────────────────────────────────────
 	UpsertTemplate(ctx context.Context, arg UpsertTemplateParams) (MessageTemplate, error)
 	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)

@@ -226,7 +226,7 @@ func (q *Queries) FindApprovedTemplate(ctx context.Context, arg FindApprovedTemp
 }
 
 const getContact = `-- name: GetContact :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at FROM contacts WHERE id = $1
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source FROM contacts WHERE id = $1
 `
 
 func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (Contact, error) {
@@ -241,6 +241,16 @@ func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 		&i.LastInboundAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Email,
+		&i.Var1,
+		&i.Var2,
+		&i.Var3,
+		&i.Var4,
+		&i.Var5,
+		&i.Attributes,
+		&i.OptedOutAt,
+		&i.OptOutReason,
+		&i.Source,
 	)
 	return i, err
 }
@@ -1299,7 +1309,7 @@ ON CONFLICT (phone_e164) DO UPDATE SET
     wa_id        = coalesce(excluded.wa_id, contacts.wa_id),
     profile_name = CASE WHEN excluded.profile_name <> '' THEN excluded.profile_name ELSE contacts.profile_name END,
     updated_at   = now()
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source
 `
 
 type UpsertContactByPhoneParams struct {
@@ -1321,6 +1331,16 @@ func (q *Queries) UpsertContactByPhone(ctx context.Context, arg UpsertContactByP
 		&i.LastInboundAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Email,
+		&i.Var1,
+		&i.Var2,
+		&i.Var3,
+		&i.Var4,
+		&i.Var5,
+		&i.Attributes,
+		&i.OptedOutAt,
+		&i.OptOutReason,
+		&i.Source,
 	)
 	return i, err
 }
