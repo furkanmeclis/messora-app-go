@@ -89,11 +89,13 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** Sözlükte eksik anahtar kalmaz (test). Playwright smoke testi her route'u iki dilde gezer.
 
-## Phase 14 — İş akışı tuvali (n8n tarzı)
+## Phase 14 — İş akışı tuvali (n8n tarzı) ✅ (2026-11-23)
 - Otomasyon editörü sürükle-bırak düğüm tuvaline dönüşür: tetikleyici, koşul (evet/hayır dalları), bekleme, mesaj/şablon, HTTP, etiket, grup, alan, atama, e-posta düğümleri oklarla bağlanır; yakınlaştırma, mini harita, otomatik yerleşim, geri al/yinele.
 - Graf mevcut motorun programına derlenir (döngü yasak, tek tetikleyici). Mevcut otomasyonlar tuvale otomatik çevrilir. Çalıştırma geçmişi tuvalde hangi düğümden geçtiğini gösterir.
 
 **Bitti kriteri:** Graf → program derleyicisi için tablo ve fuzz testleri; eski otomasyonların dönüşümü kayıpsızdır; E2E: tuvalde dallı akış kurulur, kaydedilir, tetiklenir.
+
+**Durum:** `@xyflow/react` tuvali; adımların kalıcı `id`'si, `layout` (düğüm konumları) ve çalıştırma izi (`visited`) migration 00011 ile. Koşulun üç çıkışı var: evet, hayır ve iki daldan sonra çalışan "sonra"; graf her zaman ağaçtır, adım ağacına kayıpsız çevrilir. Testler: id/derleme tablo testleri, `FuzzStepIDs`, eski otomasyonların konumdan türetilen id'leri ve izleri, dallı akışın API üzerinden tetiklenip izinin doğrulandığı entegrasyon testi, `e2e/automation-canvas.spec.ts` (kur, kaydet, yeniden yükle). Ayrıntılar: [AUTOMATIONS.md](AUTOMATIONS.md).
 
 ## Phase 15 — Masaüstü modu
 - F11 (tarayıcı tam ekranı) veya menüden: masaüstü, görev çubuğu, uygulama ikonları; bölümler taşınabilir, boyutlandırılabilir, küçültülüp büyütülebilir pencerelerde açılır; birden çok pencere aynı anda açık kalır. Pencere düzeni kullanıcı başına hatırlanır. Tam ekrandan çıkınca normal panele dönülür.

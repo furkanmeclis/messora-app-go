@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState, useTransition } from 'react';
-import { AlertCircle, History } from 'lucide-react';
+import { AlertCircle, History, Workflow } from 'lucide-react';
 import { notify } from '@/components/notify';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -35,76 +35,60 @@ import {
     useFormatPrecise,
     useFormatDateTime,
 } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type { AutomationRun, AutomationRunStep } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getRunAction, moreRunsAction } from '../../actions';
-import { formatDuration, stepLabel } from '../../model';
+import { formatDuration, mk, stepLabel } from '../../model';
 
-const STATUS: Record<
-    AutomationRun['status'],
-    { label: string; className: string }
-> = {
-    queued: { label: 'Queued', className: 'bg-muted text-muted-foreground' },
-    running: {
-        label: 'Running',
-        className: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
-    },
-    waiting: {
-        label: 'Waiting',
-        className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-    },
-    completed: {
-        label: 'Completed',
-        className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-    },
-    failed: {
-        label: 'Failed',
-        className: 'bg-destructive/10 text-destructive',
-    },
-    cancelled: {
-        label: 'Cancelled',
-        className: 'bg-muted text-muted-foreground line-through',
-    },
+const STATUS_CLASS: Record<AutomationRun['status'], string> = {
+    queued: 'bg-muted text-muted-foreground',
+    running: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+    waiting: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    completed: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    failed: 'bg-destructive/10 text-destructive',
+    cancelled: 'bg-muted text-muted-foreground line-through',
 };
 
 const OUTCOME: Record<
     AutomationRunStep['outcome'],
-    { label: string; className: string; dot: string }
+    { className: string; dot: string }
 > = {
     ok: {
-        label: 'OK',
         className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
         dot: 'bg-emerald-500',
     },
     skipped: {
-        label: 'Skipped',
         className: 'bg-muted text-muted-foreground',
         dot: 'bg-muted-foreground',
     },
     failed: {
-        label: 'Failed',
         className: 'bg-destructive/10 text-destructive',
         dot: 'bg-destructive',
     },
     waiting: {
-        label: 'Waiting',
         className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
         dot: 'bg-amber-500',
     },
 };
 
-const REASONS: Record<string, string> = {
-    no_conversation: 'The contact has no conversation.',
-    assignee_unavailable: 'The person is not active any more.',
-    email_not_configured: 'E-mail (SMTP) is not configured.',
-    http_not_configured: 'HTTP requests are not configured.',
-};
+const REASONS = [
+    'no_conversation',
+    'assignee_unavailable',
+    'email_not_configured',
+    'http_not_configured',
+];
 
-function StatusBadge({ status }: { status: AutomationRun['status'] }) {
-    const s = STATUS[status] ?? { label: status, className: '' };
+export function StatusBadge({ status }: { status: AutomationRun['status'] }) {
+    const t = useT();
     return (
-        <Badge variant="outline" className={cn('border-0', s.className)}>
-            {s.label}
+        <Badge
+            variant="outline"
+            className={cn('border-0', STATUS_CLASS[status] ?? '')}
+        >
+            {STATUS_CLASS[status]
+                ? t(mk(`automations.runs.status.${status}`))
+                : status}
         </Badge>
     );
 }
@@ -118,6 +102,7 @@ export function RunList({
     initial: AutomationRun[];
     initialCursor?: string;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [more, setMore] = useState<AutomationRun[]>([]);
     const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -136,10 +121,9 @@ export function RunList({
                     <EmptyMedia variant="icon">
                         <History />
                     </EmptyMedia>
-                    <EmptyTitle>No runs yet</EmptyTitle>
+                    <EmptyTitle>{t('automations.runs.emptyTitle')}</EmptyTitle>
                     <EmptyDescription>
-                        Every time the trigger fires for a contact, the run and
-                        each executed step appear here.
+                        {t('automations.runs.emptyDescription')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -151,13 +135,25 @@ export function RunList({
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Started</TableHead>
-                        <TableHead>Finished</TableHead>
-                        <TableHead>Error</TableHead>
                         <TableHead>
-                            <span className="sr-only">Details</span>
+                            {t('automations.runs.columns.status')}
+                        </TableHead>
+                        <TableHead>
+                            {t('automations.runs.columns.contact')}
+                        </TableHead>
+                        <TableHead>
+                            {t('automations.runs.columns.started')}
+                        </TableHead>
+                        <TableHead>
+                            {t('automations.runs.columns.finished')}
+                        </TableHead>
+                        <TableHead>
+                            {t('automations.runs.columns.error')}
+                        </TableHead>
+                        <TableHead>
+                            <span className="sr-only">
+                                {t('automations.runs.details')}
+                            </span>
                         </TableHead>
                     </TableRow>
                 </TableHeader>
@@ -168,7 +164,9 @@ export function RunList({
                                 <StatusBadge status={r.status} />
                                 {r.status === 'waiting' && r.resume_at && (
                                     <div className="mt-1 text-xs text-muted-foreground">
-                                        until {formatDateTime(r.resume_at)}
+                                        {t('automations.runs.until', {
+                                            time: formatDateTime(r.resume_at),
+                                        })}
                                     </div>
                                 )}
                             </TableCell>
@@ -196,14 +194,44 @@ export function RunList({
                                 </span>
                             </TableCell>
                             <TableCell className="text-right">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setOpen(r.id)}
-                                    aria-label={`Details of the run started ${formatDateTime(r.created_at)}`}
-                                >
-                                    Details
-                                </Button>
+                                <div className="flex justify-end gap-1">
+                                    {(r.visited?.length ?? 0) > 0 && (
+                                        <Button
+                                            asChild
+                                            size="icon-sm"
+                                            variant="ghost"
+                                            aria-label={t(
+                                                'automations.runs.viewOnCanvasOf',
+                                                {
+                                                    time: formatDateTime(
+                                                        r.created_at,
+                                                    ),
+                                                },
+                                            )}
+                                        >
+                                            <Link
+                                                href={`/automations/${automationId}/runs/${r.id}`}
+                                            >
+                                                <Workflow />
+                                            </Link>
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setOpen(r.id)}
+                                        aria-label={t(
+                                            'automations.runs.detailsOf',
+                                            {
+                                                time: formatDateTime(
+                                                    r.created_at,
+                                                ),
+                                            },
+                                        )}
+                                    >
+                                        {t('automations.runs.details')}
+                                    </Button>
+                                </div>
                             </TableCell>
                         </TableRow>
                     ))}
@@ -228,7 +256,8 @@ export function RunList({
                             })
                         }
                     >
-                        {pending && <Spinner />} Load more
+                        {pending && <Spinner />}{' '}
+                        {t('automations.runs.loadMore')}
                     </Button>
                 </div>
             )}
@@ -237,14 +266,27 @@ export function RunList({
                 onOpenChange={(o) => !o && setOpen(null)}
             >
                 <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-                    {open && <RunDetail key={open} runId={open} />}
+                    {open && (
+                        <RunDetail
+                            key={open}
+                            runId={open}
+                            automationId={automationId}
+                        />
+                    )}
                 </SheetContent>
             </Sheet>
         </div>
     );
 }
 
-function RunDetail({ runId }: { runId: string }) {
+function RunDetail({
+    runId,
+    automationId,
+}: {
+    runId: string;
+    automationId: string;
+}) {
+    const t = useT();
     const formatPrecise = useFormatPrecise();
     const [state, setState] = useState<
         | { kind: 'loading' }
@@ -265,28 +307,32 @@ function RunDetail({ runId }: { runId: string }) {
                 live &&
                 setState({
                     kind: 'error',
-                    message: 'The run could not be loaded.',
+                    message: t('automations.runs.loadError'),
                 }),
         );
         return () => {
             live = false;
         };
-    }, [runId]);
+    }, [runId, t]);
 
     return (
         <>
             <SheetHeader>
-                <SheetTitle>Run details</SheetTitle>
+                <SheetTitle>{t('automations.runs.detailTitle')}</SheetTitle>
                 <SheetDescription>
                     {state.kind === 'ready'
-                        ? `Started ${formatPrecise(state.run.created_at)}`
-                        : 'Executed steps and their outcome.'}
+                        ? t('automations.runs.startedAt', {
+                              time: formatPrecise(state.run.created_at),
+                          })
+                        : t('automations.runs.detailDescription')}
                 </SheetDescription>
             </SheetHeader>
             <div className="space-y-6 px-4 pb-6">
                 {state.kind === 'loading' && (
                     <div className="space-y-3" aria-busy="true">
-                        <span className="sr-only">Loading run…</span>
+                        <span className="sr-only">
+                            {t('automations.runs.loading')}
+                        </span>
                         <Skeleton className="h-6 w-1/3" />
                         <Skeleton className="h-16 w-full" />
                         <Skeleton className="h-16 w-full" />
@@ -298,60 +344,98 @@ function RunDetail({ runId }: { runId: string }) {
                         <AlertDescription>{state.message}</AlertDescription>
                     </Alert>
                 )}
-                {state.kind === 'ready' && <RunBody run={state.run} />}
+                {state.kind === 'ready' && (
+                    <RunBody run={state.run} automationId={automationId} />
+                )}
             </div>
         </>
     );
 }
 
-function RunBody({ run }: { run: AutomationRun }) {
+/** Status, contact, times and error of a run. */
+export function RunSummary({ run }: { run: AutomationRun }) {
+    const t = useT();
     const formatPrecise = useFormatPrecise();
+    return (
+        <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
+            <dt className="text-muted-foreground">
+                {t('automations.runs.columns.status')}
+            </dt>
+            <dd>
+                <StatusBadge status={run.status} />
+            </dd>
+            {run.phone && (
+                <>
+                    <dt className="text-muted-foreground">
+                        {t('automations.runs.columns.contact')}
+                    </dt>
+                    <dd className="font-mono">{run.phone}</dd>
+                </>
+            )}
+            <dt className="text-muted-foreground">
+                {t('automations.runs.columns.started')}
+            </dt>
+            <dd>{formatPrecise(run.created_at)}</dd>
+            <dt className="text-muted-foreground">
+                {t('automations.runs.columns.finished')}
+            </dt>
+            <dd>{formatPrecise(run.finished_at)}</dd>
+            {run.resume_at && run.status === 'waiting' && (
+                <>
+                    <dt className="text-muted-foreground">
+                        {t('automations.runs.resumes')}
+                    </dt>
+                    <dd>{formatPrecise(run.resume_at)}</dd>
+                </>
+            )}
+            {run.error && (
+                <>
+                    <dt className="text-muted-foreground">
+                        {t('automations.runs.columns.error')}
+                    </dt>
+                    <dd className="break-words text-destructive">
+                        {run.error}
+                    </dd>
+                </>
+            )}
+        </dl>
+    );
+}
+
+function RunBody({
+    run,
+    automationId,
+}: {
+    run: AutomationRun;
+    automationId: string;
+}) {
+    const t = useT();
     const steps = run.steps ?? [];
     return (
         <>
-            <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
-                <dt className="text-muted-foreground">Status</dt>
-                <dd>
-                    <StatusBadge status={run.status} />
-                </dd>
-                {run.phone && (
-                    <>
-                        <dt className="text-muted-foreground">Contact</dt>
-                        <dd className="font-mono">{run.phone}</dd>
-                    </>
-                )}
-                <dt className="text-muted-foreground">Finished</dt>
-                <dd>{formatPrecise(run.finished_at)}</dd>
-                {run.resume_at && run.status === 'waiting' && (
-                    <>
-                        <dt className="text-muted-foreground">Resumes</dt>
-                        <dd>{formatPrecise(run.resume_at)}</dd>
-                    </>
-                )}
-                {run.error && (
-                    <>
-                        <dt className="text-muted-foreground">Error</dt>
-                        <dd className="break-words text-destructive">
-                            {run.error}
-                        </dd>
-                    </>
-                )}
-            </dl>
+            <RunSummary run={run} />
+            {(run.visited?.length ?? 0) > 0 && (
+                <Button asChild variant="outline" size="sm">
+                    <Link href={`/automations/${automationId}/runs/${run.id}`}>
+                        <Workflow /> {t('automations.runs.viewOnCanvas')}
+                    </Link>
+                </Button>
+            )}
 
             <section aria-labelledby="run-event">
                 <h3 id="run-event" className="mb-2 text-sm font-medium">
-                    Triggering event
+                    {t('automations.runs.event')}
                 </h3>
                 <Detail data={run.event} />
             </section>
 
             <section aria-labelledby="run-steps">
                 <h3 id="run-steps" className="mb-2 text-sm font-medium">
-                    Executed steps
+                    {t('automations.runs.executedSteps')}
                 </h3>
                 {steps.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                        No step has run yet.
+                        {t('automations.runs.noStepYet')}
                     </p>
                 ) : (
                     <ol className="relative space-y-4 border-l pl-5">
@@ -365,7 +449,15 @@ function RunBody({ run }: { run: AutomationRun }) {
     );
 }
 
-function TimelineItem({ step }: { step: AutomationRunStep }) {
+/** One executed step of a run, with its outcome and details. */
+export function TimelineItem({
+    step,
+    onSelect,
+}: {
+    step: AutomationRunStep;
+    onSelect?: () => void;
+}) {
+    const t = useT();
     const formatPrecise = useFormatPrecise();
     const o = OUTCOME[step.outcome] ?? OUTCOME.ok;
     const isBranch = step.action === 'branch';
@@ -373,23 +465,29 @@ function TimelineItem({ step }: { step: AutomationRunStep }) {
     let note: string | undefined;
     if (isBranch && typeof detail.result === 'boolean') {
         note = detail.result
-            ? 'Condition was true: continued with the then steps.'
-            : 'Condition was false: continued with the else steps.';
+            ? t('automations.runs.conditionTrue')
+            : t('automations.runs.conditionFalse');
         delete detail.result;
     }
     if (step.action === 'delay' && typeof detail.seconds === 'number') {
-        note = `Waited ${formatDuration(detail.seconds)}.`;
+        note = t(
+            step.outcome === 'waiting'
+                ? 'automations.runs.waiting'
+                : 'automations.runs.waited',
+            { duration: formatDuration(detail.seconds, t) },
+        );
         delete detail.seconds;
     }
     if (typeof detail.reason === 'string') {
         const r = detail.reason;
-        note =
-            REASONS[r] ??
-            (r.startsWith('missing_')
-                ? `A template variable resolved to nothing (${r.slice(8)}).`
-                : undefined);
+        note = REASONS.includes(r)
+            ? t(mk(`automations.runs.reasons.${r}`))
+            : r.startsWith('missing_')
+              ? t('automations.runs.reasons.missing', { name: r.slice(8) })
+              : undefined;
         if (note) delete detail.reason;
     }
+    const label = stepLabel(step.action, t);
     return (
         <li data-testid="run-step">
             <span
@@ -400,14 +498,22 @@ function TimelineItem({ step }: { step: AutomationRunStep }) {
                 aria-hidden
             />
             <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium">
-                    {isBranch ? 'Condition' : stepLabel(step.action)}
-                </span>
+                {onSelect ? (
+                    <button
+                        type="button"
+                        onClick={onSelect}
+                        className="text-sm font-medium underline-offset-4 hover:underline"
+                    >
+                        {label}
+                    </button>
+                ) : (
+                    <span className="text-sm font-medium">{label}</span>
+                )}
                 <Badge
                     variant="outline"
                     className={cn('border-0', o.className)}
                 >
-                    {o.label}
+                    {t(mk(`automations.runs.outcome.${step.outcome}`))}
                 </Badge>
                 <span className="ml-auto text-xs text-muted-foreground">
                     {formatPrecise(step.created_at)}
@@ -430,9 +536,14 @@ function humanize(key: string): string {
 
 /** A JSON object as a readable list of key/value pairs. */
 function Detail({ data }: { data: Record<string, unknown> }) {
+    const t = useT();
     const entries = Object.entries(data ?? {});
     if (entries.length === 0) {
-        return <p className="text-sm text-muted-foreground">No details.</p>;
+        return (
+            <p className="text-sm text-muted-foreground">
+                {t('automations.runs.noDetails')}
+            </p>
+        );
     }
     return (
         <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1 rounded-md bg-muted/50 p-3 text-xs">

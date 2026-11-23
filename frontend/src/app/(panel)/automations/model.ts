@@ -1,13 +1,20 @@
 /**
- * Pure helpers for the automation screens: the editor's step tree, the
- * conversion to and from the API shape, limits, plain-language summaries
- * and durations. Mirrors internal/modules/automation/program.go.
+ * Pure helpers for the automation screens: step and trigger shapes, the
+ * conversion of single steps to and from the API, limits, plain-language
+ * summaries and durations. Mirrors internal/modules/automation/program.go.
+ * The step tree itself lives in graph.ts (the canvas).
  */
+import type { MessageKey, Translate } from '@/i18n/translate';
 import type {
     AutomationStep,
     AutomationTrigger,
     AutomationTriggerType,
 } from '@/lib/types';
+
+/** A message key built at run time (the dictionary has every variant). */
+export function mk(key: string): MessageKey {
+    return key as MessageKey;
+}
 
 // ── Limits (program.go) ────────────────────────────────────────────────────
 
@@ -20,44 +27,21 @@ export const MAX_KEYWORDS = 50;
 
 // ── Triggers ───────────────────────────────────────────────────────────────
 
-export const TRIGGER_TYPES: {
-    value: AutomationTriggerType;
-    label: string;
-    description: string;
-}[] = [
-    {
-        value: 'message_received',
-        label: 'Message received',
-        description: 'A customer message arrives.',
-    },
-    {
-        value: 'new_contact',
-        label: 'New contact',
-        description: 'The first message ever arrives from a contact.',
-    },
-    {
-        value: 'tag_added',
-        label: 'Tag added',
-        description: 'A person or integration adds a tag to a contact.',
-    },
-    {
-        value: 'message_status',
-        label: 'Message status',
-        description: 'An outbound message is delivered, read or fails.',
-    },
-    {
-        value: 'conversation_closed',
-        label: 'Conversation closed',
-        description: 'A person or integration closes a conversation.',
-    },
+export const TRIGGER_TYPES: AutomationTriggerType[] = [
+    'message_received',
+    'new_contact',
+    'tag_added',
+    'message_status',
+    'conversation_closed',
 ];
 
-export const MATCH_MODES = [
-    { value: 'any', label: 'Any message' },
-    { value: 'contains', label: 'Contains a keyword' },
-    { value: 'exact', label: 'Is exactly a keyword' },
-    { value: 'starts_with', label: 'Starts with a keyword' },
-] as const;
+export function triggerLabel(type: string, t: Translate): string {
+    return TRIGGER_TYPES.includes(type as AutomationTriggerType)
+        ? t(mk(`automations.triggers.${type}.label`))
+        : type;
+}
+
+export const MATCH_MODES = ['any', 'contains', 'exact', 'starts_with'] as const;
 
 export const MESSAGE_STATUSES = ['delivered', 'read', 'failed'] as const;
 
@@ -111,14 +95,17 @@ export function triggerToApi(
     return t;
 }
 
-function quoteList(words: string[], joiner: string): string {
+function quoteList(words: string[], t: Translate): string {
     const q = words.map((w) => `'${w}'`);
+    const or = t('automations.summary.or');
     if (q.length <= 3) {
         return q.length <= 1
             ? (q[0] ?? '')
-            : `${q.slice(0, -1).join(', ')} ${joiner} ${q.at(-1)}`;
+            : `${q.slice(0, -1).join(', ')} ${or} ${q.at(-1)}`;
     }
-    return `${q.slice(0, 3).join(', ')} ${joiner} ${q.length - 3} more`;
+    return `${q.slice(0, 3).join(', ')} ${t('automations.summary.orMore', {
+        count: q.length - 3,
+    })}`;
 }
 
 /**
@@ -127,59 +114,62 @@ function quoteList(words: string[], joiner: string): string {
  */
 export function describeTrigger(
     type: AutomationTriggerType,
-    t: AutomationTrigger | undefined,
+    trig: AutomationTrigger | undefined,
+    t: Translate,
     names: {
         phones?: Map<string, string>;
         campaigns?: Map<string, string>;
     } = {},
 ): string {
-    const opts = t ?? {};
+    const opts = trig ?? {};
     let s: string;
     const onNumber = opts.phone_number_id
-        ? ` on ${names.phones?.get(opts.phone_number_id) ?? 'one number'}`
+        ? t('automations.summary.onNumber', {
+              number:
+                  names.phones?.get(opts.phone_number_id) ??
+                  t('automations.summary.oneNumber'),
+          })
         : '';
     switch (type) {
         case 'message_received': {
             const kw = opts.keywords ?? [];
-            const verbs: Record<string, string> = {
-                contains: 'contains',
-                exact: 'is exactly',
-                starts_with: 'starts with',
-            };
-            const verb = verbs[opts.match ?? 'any'];
+            const match = opts.match ?? 'any';
             s =
-                verb && kw.length
-                    ? `When a message ${verb} ${quoteList(kw, 'or')}`
-                    : 'When any message arrives';
+                match !== 'any' && kw.length
+                    ? t(mk(`automations.summary.message.${match}`), {
+                          words: quoteList(kw, t),
+                      })
+                    : t('automations.summary.anyMessage');
             s += onNumber;
             break;
         }
         case 'new_contact':
-            s = `When a new contact writes for the first time${onNumber}`;
+            s = t('automations.summary.newContact') + onNumber;
             break;
         case 'tag_added':
-            s = `When the tag '${opts.tag ?? ''}' is added to a contact`;
+            s = t('automations.summary.tagAdded', { tag: opts.tag ?? '' });
             break;
         case 'message_status': {
             const st = opts.status ?? 'delivered';
-            s =
-                st === 'failed'
-                    ? 'When an outbound message fails'
-                    : `When an outbound message is ${st}`;
+            s = t(mk(`automations.summary.status.${st}`));
             if (opts.campaign_id) {
                 const c = names.campaigns?.get(opts.campaign_id);
-                s += c ? ` in campaign '${c}'` : ' in one campaign';
+                s += c
+                    ? t('automations.summary.inCampaign', { campaign: c })
+                    : t('automations.summary.inOneCampaign');
             }
             break;
         }
         case 'conversation_closed':
-            s = 'When a conversation is closed';
+            s = t('automations.summary.conversationClosed');
             break;
         default:
-            s = `When ${String(type)} happens`;
+            s = t('automations.summary.unknown', { type: String(type) });
     }
     if (opts.cooldown_seconds) {
-        s += ` (at most once per contact every ${formatDuration(opts.cooldown_seconds)})`;
+        s += t('automations.summary.cooldown', {
+            duration: formatDuration(opts.cooldown_seconds, t),
+        });
     }
     return s;
 }
@@ -187,10 +177,10 @@ export function describeTrigger(
 // ── Durations ──────────────────────────────────────────────────────────────
 
 export const DURATION_UNITS = [
-    { value: 'seconds', label: 'seconds', seconds: 1 },
-    { value: 'minutes', label: 'minutes', seconds: 60 },
-    { value: 'hours', label: 'hours', seconds: 3600 },
-    { value: 'days', label: 'days', seconds: 86400 },
+    { value: 'seconds', seconds: 1 },
+    { value: 'minutes', seconds: 60 },
+    { value: 'hours', seconds: 3600 },
+    { value: 'days', seconds: 86400 },
 ] as const;
 
 export type DurationUnit = (typeof DURATION_UNITS)[number]['value'];
@@ -212,11 +202,10 @@ export function unitSeconds(unit: DurationUnit): number {
     return DURATION_UNITS.find((u) => u.value === unit)?.seconds ?? 1;
 }
 
-/** "1 hour", "90 minutes", "2 days". */
-export function formatDuration(seconds: number): string {
+/** "1 hour", "90 minutes", "2 days" (in the user's language). */
+export function formatDuration(seconds: number, t: Translate): string {
     const { amount, unit } = splitDuration(seconds);
-    const singular = unit.slice(0, -1);
-    return `${amount} ${amount === 1 ? singular : unit}`;
+    return t(mk(`automations.duration.${unit}`), { count: amount });
 }
 
 // ── Steps ──────────────────────────────────────────────────────────────────
@@ -236,75 +225,62 @@ export type StepType =
     | 'close_conversation'
     | 'mute';
 
-export const STEP_TYPES: { type: StepType; label: string; hint: string }[] = [
-    {
-        type: 'reply',
-        label: 'Reply',
-        hint: 'Free-form message (only inside the 24-hour window).',
-    },
-    {
-        type: 'send_template',
-        label: 'Send template',
-        hint: 'An approved template message.',
-    },
-    { type: 'add_tag', label: 'Add tag', hint: 'Tag the contact.' },
-    { type: 'remove_tag', label: 'Remove tag', hint: 'Untag the contact.' },
-    {
-        type: 'add_to_group',
-        label: 'Add to group',
-        hint: 'Add the contact to a group.',
-    },
-    {
-        type: 'set_field',
-        label: 'Set field',
-        hint: 'Change name, e-mail or a custom variable.',
-    },
-    {
-        type: 'http_request',
-        label: 'HTTP request',
-        hint: 'Call an https:// endpoint (15 s timeout).',
-    },
-    {
-        type: 'send_email',
-        label: 'Send e-mail',
-        hint: 'Needs SMTP to be configured.',
-    },
-    { type: 'delay', label: 'Wait', hint: 'Pause the run (1 s – 30 days).' },
-    {
-        type: 'assign',
-        label: 'Assign conversation',
-        hint: 'Assign or unassign the conversation.',
-    },
-    {
-        type: 'close_conversation',
-        label: 'Close conversation',
-        hint: 'Close the conversation.',
-    },
-    {
-        type: 'mute',
-        label: 'Mute automations',
-        hint: 'No automation starts for the contact (1 min – 90 days).',
-    },
-    {
-        type: 'condition',
-        label: 'Condition',
-        hint: 'Branch into then / else steps.',
-    },
+/** Colour family of a node on the canvas and in the palette. */
+export type Category = 'trigger' | 'message' | 'data' | 'flow' | 'integration';
+
+export const STEP_TYPES: { type: StepType; category: Category }[] = [
+    { type: 'reply', category: 'message' },
+    { type: 'send_template', category: 'message' },
+    { type: 'add_tag', category: 'data' },
+    { type: 'remove_tag', category: 'data' },
+    { type: 'add_to_group', category: 'data' },
+    { type: 'set_field', category: 'data' },
+    { type: 'assign', category: 'data' },
+    { type: 'close_conversation', category: 'data' },
+    { type: 'condition', category: 'flow' },
+    { type: 'delay', category: 'flow' },
+    { type: 'mute', category: 'flow' },
+    { type: 'http_request', category: 'integration' },
+    { type: 'send_email', category: 'integration' },
 ];
 
-export function stepLabel(type: string): string {
-    return STEP_TYPES.find((s) => s.type === type)?.label ?? type;
+export const CATEGORIES: Exclude<Category, 'trigger'>[] = [
+    'message',
+    'data',
+    'flow',
+    'integration',
+];
+
+const KNOWN = new Set<string>(STEP_TYPES.map((s) => s.type));
+
+export function isKnownStep(type: string): type is StepType {
+    return KNOWN.has(type);
+}
+
+export function stepCategory(type: string): Category {
+    return STEP_TYPES.find((s) => s.type === type)?.category ?? 'integration';
+}
+
+export function stepLabel(type: string, t: Translate): string {
+    if (type === 'branch') return t('automations.steps.condition.label');
+    return isKnownStep(type) ? t(mk(`automations.steps.${type}.label`)) : type;
 }
 
 export const CONTACT_FIELDS = [
-    { value: 'name', label: 'Name' },
-    { value: 'email', label: 'E-mail' },
-    { value: 'var1', label: 'var1' },
-    { value: 'var2', label: 'var2' },
-    { value: 'var3', label: 'var3' },
-    { value: 'var4', label: 'var4' },
-    { value: 'var5', label: 'var5' },
+    'name',
+    'email',
+    'var1',
+    'var2',
+    'var3',
+    'var4',
+    'var5',
 ] as const;
+
+export function contactFieldLabel(f: string, t: Translate): string {
+    if (f === 'name') return t('automations.contactFields.name');
+    if (f === 'email') return t('automations.contactFields.email');
+    return f;
+}
 
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
@@ -312,9 +288,12 @@ export type TemplateVars = string[] | Record<string, string>;
 
 export type HeaderRow = { key: string; name: string; value: string };
 
-/** One step as edited: a stable key plus the API fields. */
+/**
+ * One step as edited on the canvas: its id plus the API fields of its type.
+ * Branches are edges of the canvas, not fields (see graph.ts).
+ */
 export type EditorStep = {
-    key: string;
+    id: string;
     type: string;
     text?: string;
     template?: {
@@ -328,8 +307,6 @@ export type EditorStep = {
     field?: string;
     value?: string;
     if?: { field: string; operator: string; value?: string };
-    then?: EditorStep[];
-    else?: EditorStep[];
     url?: string;
     method?: string;
     headers?: HeaderRow[];
@@ -342,14 +319,25 @@ export type EditorStep = {
     raw?: AutomationStep;
 };
 
-let keySeq = 0;
-/** Key for a step added in the browser (loaded steps use their path). */
-export function newKey(): string {
-    keySeq += 1;
-    return `n${keySeq}`;
+/**
+ * A new step id, the shape the server generates ("n" + 12 base-36
+ * characters); unique enough that two editors never collide.
+ */
+export function newStepId(): string {
+    const digits = '0123456789abcdefghijklmnopqrstuvwxyz';
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    let id = 'n';
+    for (const b of bytes) id += digits[b % digits.length];
+    return id;
 }
 
-const KNOWN = new Set(STEP_TYPES.map((s) => s.type as string));
+let keySeq = 0;
+/** Key for a row added in the browser (e.g. an HTTP header). */
+export function newKey(): string {
+    keySeq += 1;
+    return `k${keySeq}`;
+}
 
 function str(v: unknown): string | undefined {
     return typeof v === 'string' ? v : undefined;
@@ -365,66 +353,57 @@ function vars(v: unknown): TemplateVars | undefined {
     return undefined;
 }
 
-/** Steps as stored to editor steps; keys come from the path (stable SSR). */
-export function stepsFromApi(
-    steps: AutomationStep[] | undefined,
-    prefix = 's',
-): EditorStep[] {
-    return (steps ?? []).map((raw, i) => {
-        const s = raw as Record<string, unknown>;
-        const key = `${prefix}${i}`;
-        const type = String(s.type ?? '');
-        if (!KNOWN.has(type)) return { key, type, raw };
-        const tpl = s.template as Record<string, unknown> | undefined;
-        const cond = s.if as Record<string, unknown> | undefined;
-        const headers = s.headers as Record<string, string> | undefined;
-        return {
-            key,
-            type,
-            text: str(s.text),
-            template: tpl
-                ? {
-                      name: str(tpl.name) ?? '',
-                      language: str(tpl.language) ?? '',
-                      body: vars(tpl.body),
-                      header: vars(tpl.header),
-                  }
-                : undefined,
-            tag: str(s.tag),
-            group_id: str(s.group_id),
-            field: str(s.field),
-            value: str(s.value),
-            if: cond
-                ? {
-                      field: str(cond.field) ?? '',
-                      operator: str(cond.operator) ?? '',
-                      value: str(cond.value) ?? '',
-                  }
-                : undefined,
-            then:
-                type === 'condition'
-                    ? stepsFromApi(s.then as AutomationStep[], `${key}t`)
-                    : undefined,
-            else:
-                type === 'condition'
-                    ? stepsFromApi(s.else as AutomationStep[], `${key}e`)
-                    : undefined,
-            url: str(s.url),
-            method: str(s.method) || undefined,
-            headers: headers
-                ? Object.entries(headers).map(([name, value], j) => ({
-                      key: `${key}h${j}`,
-                      name,
-                      value: String(value),
-                  }))
-                : undefined,
-            body: str(s.body),
-            to: str(s.to),
-            subject: str(s.subject),
-            seconds: typeof s.seconds === 'number' ? s.seconds : undefined,
-            assignee_id: str(s.assignee_id),
-        };
-    });
+/** One step as stored (its own fields; branches are read by graph.ts). */
+export function stepFromApi(raw: AutomationStep, id: string): EditorStep {
+    const s = raw as Record<string, unknown>;
+    const type = String(s.type ?? '');
+    if (!isKnownStep(type)) {
+        const { then: _t, else: _e, ...rest } = s;
+        void _t;
+        void _e;
+        return { id, type, raw: rest as AutomationStep };
+    }
+    const tpl = s.template as Record<string, unknown> | undefined;
+    const cond = s.if as Record<string, unknown> | undefined;
+    const headers = s.headers as Record<string, string> | undefined;
+    return {
+        id,
+        type,
+        text: str(s.text),
+        template: tpl
+            ? {
+                  name: str(tpl.name) ?? '',
+                  language: str(tpl.language) ?? '',
+                  body: vars(tpl.body),
+                  header: vars(tpl.header),
+              }
+            : undefined,
+        tag: str(s.tag),
+        group_id: str(s.group_id),
+        field: str(s.field),
+        value: str(s.value),
+        if: cond
+            ? {
+                  field: str(cond.field) ?? '',
+                  operator: str(cond.operator) ?? '',
+                  value: str(cond.value) ?? '',
+              }
+            : undefined,
+        url: str(s.url),
+        method: str(s.method) || undefined,
+        headers: headers
+            ? Object.entries(headers).map(([name, value], j) => ({
+                  key: `${id}h${j}`,
+                  name,
+                  value: String(value),
+              }))
+            : undefined,
+        body: str(s.body),
+        to: str(s.to),
+        subject: str(s.subject),
+        seconds: typeof s.seconds === 'number' ? s.seconds : undefined,
+        assignee_id: str(s.assignee_id),
+    };
 }
 
 function cleanVars(v: TemplateVars | undefined): TemplateVars | undefined {
@@ -437,110 +416,111 @@ export function operatorNeedsValue(op: string): boolean {
     return !['is_set', 'is_not_set', 'is_true', 'is_false'].includes(op);
 }
 
-/** Editor steps to the API shape, with only the fields of each type. */
-export function stepsToApi(steps: EditorStep[]): AutomationStep[] {
-    return steps.map((s): AutomationStep => {
-        if (s.raw) return s.raw;
-        const type = s.type;
-        switch (type) {
-            case 'reply':
-                return { type, text: s.text ?? '' };
-            case 'send_template': {
-                const t = s.template ?? { name: '', language: '' };
-                const out: Record<string, unknown> = {
-                    name: t.name,
-                    language: t.language,
-                };
-                const body = cleanVars(t.body);
-                const header = cleanVars(t.header);
-                if (body) out.body = body;
-                if (header) out.header = header;
-                return { type, template: out };
-            }
-            case 'add_tag':
-            case 'remove_tag':
-                return { type, tag: (s.tag ?? '').trim() };
-            case 'add_to_group':
-                return s.group_id ? { type, group_id: s.group_id } : { type };
-            case 'set_field':
-                return { type, field: s.field ?? '', value: s.value ?? '' };
-            case 'condition': {
-                const c = s.if ?? { field: '', operator: '' };
-                const out: AutomationStep = {
-                    type,
-                    if: operatorNeedsValue(c.operator)
-                        ? {
-                              field: c.field,
-                              operator: c.operator,
-                              value: c.value ?? '',
-                          }
-                        : { field: c.field, operator: c.operator },
-                };
-                if (s.then?.length) out.then = stepsToApi(s.then);
-                if (s.else?.length) out.else = stepsToApi(s.else);
-                return out;
-            }
-            case 'http_request': {
-                const out: AutomationStep = {
-                    type,
-                    url: (s.url ?? '').trim(),
-                    method: s.method ?? 'POST',
-                };
-                const headers = (s.headers ?? []).filter((h) => h.name.trim());
-                if (headers.length) {
-                    out.headers = Object.fromEntries(
-                        headers.map((h) => [h.name.trim(), h.value]),
-                    );
-                }
-                if (s.body) out.body = s.body;
-                return out;
-            }
-            case 'send_email':
-                return {
-                    type,
-                    to: (s.to ?? '').trim(),
-                    subject: s.subject ?? '',
-                    body: s.body ?? '',
-                };
-            case 'delay':
-            case 'mute':
-                return { type, seconds: s.seconds ?? 0 };
-            case 'assign':
-                return s.assignee_id
-                    ? { type, assignee_id: s.assignee_id }
-                    : { type };
-            default:
-                return { type };
+/**
+ * One editor step to the API shape, with only the fields of its type.
+ * Branches (then / else) are added by graph.ts.
+ */
+export function stepToApi(s: EditorStep): AutomationStep {
+    const id = s.id;
+    if (s.raw) return { ...s.raw, id };
+    const type = s.type;
+    switch (type) {
+        case 'reply':
+            return { id, type, text: s.text ?? '' };
+        case 'send_template': {
+            const tpl = s.template ?? { name: '', language: '' };
+            const out: Record<string, unknown> = {
+                name: tpl.name,
+                language: tpl.language,
+            };
+            const body = cleanVars(tpl.body);
+            const header = cleanVars(tpl.header);
+            if (body) out.body = body;
+            if (header) out.header = header;
+            return { id, type, template: out };
         }
-    });
+        case 'add_tag':
+        case 'remove_tag':
+            return { id, type, tag: (s.tag ?? '').trim() };
+        case 'add_to_group':
+            return s.group_id
+                ? { id, type, group_id: s.group_id }
+                : { id, type };
+        case 'set_field':
+            return { id, type, field: s.field ?? '', value: s.value ?? '' };
+        case 'condition': {
+            const c = s.if ?? { field: '', operator: '' };
+            return {
+                id,
+                type,
+                if: operatorNeedsValue(c.operator)
+                    ? {
+                          field: c.field,
+                          operator: c.operator,
+                          value: c.value ?? '',
+                      }
+                    : { field: c.field, operator: c.operator },
+            };
+        }
+        case 'http_request': {
+            const out: AutomationStep = {
+                id,
+                type,
+                url: (s.url ?? '').trim(),
+                method: s.method ?? 'POST',
+            };
+            const headers = (s.headers ?? []).filter((h) => h.name.trim());
+            if (headers.length) {
+                out.headers = Object.fromEntries(
+                    headers.map((h) => [h.name.trim(), h.value]),
+                );
+            }
+            if (s.body) out.body = s.body;
+            return out;
+        }
+        case 'send_email':
+            return {
+                id,
+                type,
+                to: (s.to ?? '').trim(),
+                subject: s.subject ?? '',
+                body: s.body ?? '',
+            };
+        case 'delay':
+        case 'mute':
+            return { id, type, seconds: s.seconds ?? 0 };
+        case 'assign':
+            return s.assignee_id
+                ? { id, type, assignee_id: s.assignee_id }
+                : { id, type };
+        default:
+            return { id, type };
+    }
 }
 
 /** A new step of the given type with sensible defaults. */
-export function newStep(type: StepType): EditorStep {
-    const key = newKey();
+export function newStep(type: StepType, id = newStepId()): EditorStep {
     switch (type) {
         case 'reply':
-            return { key, type, text: '' };
+            return { id, type, text: '' };
         case 'send_template':
-            return { key, type, template: { name: '', language: '' } };
+            return { id, type, template: { name: '', language: '' } };
         case 'add_tag':
         case 'remove_tag':
-            return { key, type, tag: '' };
+            return { id, type, tag: '' };
         case 'add_to_group':
-            return { key, type, group_id: '' };
+            return { id, type, group_id: '' };
         case 'set_field':
-            return { key, type, field: 'name', value: '' };
+            return { id, type, field: 'name', value: '' };
         case 'condition':
             return {
-                key,
+                id,
                 type,
                 if: { field: 'message.body', operator: 'contains', value: '' },
-                then: [],
-                else: [],
             };
         case 'http_request':
             return {
-                key,
+                id,
                 type,
                 url: 'https://',
                 method: 'POST',
@@ -548,76 +528,157 @@ export function newStep(type: StepType): EditorStep {
                 body: '',
             };
         case 'send_email':
-            return { key, type, to: '', subject: '', body: '' };
+            return { id, type, to: '', subject: '', body: '' };
         case 'delay':
-            return { key, type, seconds: 3600 };
+            return { id, type, seconds: 3600 };
         case 'mute':
-            return { key, type, seconds: 86400 };
+            return { id, type, seconds: 86400 };
         case 'assign':
-            return { key, type, assignee_id: '' };
+            return { id, type, assignee_id: '' };
         default:
-            return { key, type };
+            return { id, type };
     }
 }
 
-/** Deep copy with fresh keys (for "Duplicate"). */
+/** Copy of a step under a new id (for "Duplicate"). */
 export function cloneStep(s: EditorStep): EditorStep {
     return {
-        ...s,
-        key: newKey(),
-        template: s.template ? structuredClone(s.template) : undefined,
-        if: s.if ? { ...s.if } : undefined,
+        ...structuredClone(s),
+        id: newStepId(),
         headers: s.headers?.map((h) => ({ ...h, key: newKey() })),
-        then: s.then?.map(cloneStep),
-        else: s.else?.map(cloneStep),
     };
 }
 
-/** Steps counted like the API does (conditions and nested steps too). */
-export function countSteps(steps: EditorStep[] | undefined): number {
-    return (steps ?? []).reduce(
-        (n, s) => n + 1 + countSteps(s.then) + countSteps(s.else),
-        0,
-    );
+/**
+ * Problems the server would reject, checked in the browser so they show on
+ * the canvas while editing. The server stays authoritative.
+ */
+export function stepProblems(
+    s: EditorStep,
+    t: Translate,
+): { field: string; message: string }[] {
+    const out: { field: string; message: string }[] = [];
+    const add = (field: string, key: MessageKey) =>
+        out.push({ field, message: t(key) });
+    switch (s.type) {
+        case 'reply':
+            if (!s.text?.trim()) add('text', 'automations.problems.text');
+            break;
+        case 'send_template':
+            if (!s.template?.name || !s.template.language) {
+                add('template', 'automations.problems.template');
+            }
+            break;
+        case 'add_tag':
+        case 'remove_tag':
+            if (!s.tag?.trim()) add('tag', 'automations.problems.tag');
+            break;
+        case 'add_to_group':
+            if (!s.group_id) add('group_id', 'automations.problems.group');
+            break;
+        case 'http_request':
+            if (!/^https:\/\/[^/\s]+/i.test((s.url ?? '').trim())) {
+                add('url', 'automations.problems.url');
+            }
+            break;
+        case 'send_email':
+            if (
+                !(s.to ?? '').includes('@') ||
+                !s.subject?.trim() ||
+                !s.body?.trim()
+            ) {
+                add('', 'automations.problems.email');
+            }
+            break;
+        case 'delay': {
+            const v = s.seconds ?? 0;
+            if (!(v >= 1 && v <= MAX_DELAY_SECONDS)) {
+                add('seconds', 'automations.problems.delay');
+            }
+            break;
+        }
+        case 'mute': {
+            const v = s.seconds ?? 0;
+            if (!(v >= MIN_MUTE_SECONDS && v <= MAX_MUTE_SECONDS)) {
+                add('seconds', 'automations.problems.mute');
+            }
+            break;
+        }
+        case 'condition':
+            if (
+                s.if &&
+                operatorNeedsValue(s.if.operator) &&
+                !(s.if.value ?? '').trim()
+            ) {
+                add('if.value', 'automations.problems.conditionValue');
+            }
+            break;
+    }
+    return out;
 }
 
-// ── Tree editing (immutable) ───────────────────────────────────────────────
-
-/** "root" or "<condition key>:then" / "<condition key>:else". */
-export type ListId = string;
-
-export function editList(
-    steps: EditorStep[],
-    list: ListId,
-    fn: (l: EditorStep[]) => EditorStep[],
-): EditorStep[] {
-    if (list === 'root') return fn(steps);
-    const [owner, branch] = list.split(':') as [string, 'then' | 'else'];
-    return steps.map((s) => {
-        if (s.key === owner) return { ...s, [branch]: fn(s[branch] ?? []) };
-        if (s.type !== 'condition') return s;
-        return {
-            ...s,
-            then: s.then && editList(s.then, list, fn),
-            else: s.else && editList(s.else, list, fn),
-        };
-    });
-}
-
-export function editStep(
-    steps: EditorStep[],
-    key: string,
-    fn: (s: EditorStep) => EditorStep,
-): EditorStep[] {
-    return steps.map((s) => {
-        if (s.key === key) return fn(s);
-        if (s.type !== 'condition') return s;
-        return {
-            ...s,
-            then: s.then && editStep(s.then, key, fn),
-            else: s.else && editStep(s.else, key, fn),
-        };
-    });
+/** One line describing what a step does, for its node on the canvas. */
+export function summarizeStep(
+    s: EditorStep,
+    t: Translate,
+    lookup: {
+        groups?: Map<string, string>;
+        users?: Map<string, string>;
+    } = {},
+): string {
+    const q = (v: string | undefined) => (v ? `'${v}'` : '…');
+    switch (s.type) {
+        case 'reply':
+            return s.text?.trim() || t('automations.node.empty');
+        case 'send_template':
+            return s.template?.name
+                ? `${s.template.name} · ${s.template.language}`
+                : t('automations.node.empty');
+        case 'add_tag':
+        case 'remove_tag':
+            return s.tag?.trim()
+                ? `#${s.tag.trim()}`
+                : t('automations.node.empty');
+        case 'add_to_group':
+            return s.group_id
+                ? (lookup.groups?.get(s.group_id) ??
+                      t('automations.fields.unknownGroup'))
+                : t('automations.node.empty');
+        case 'set_field':
+            return `${contactFieldLabel(s.field ?? '', t)} = ${s.value ? q(s.value) : t('automations.node.cleared')}`;
+        case 'condition': {
+            const c = s.if;
+            if (!c) return t('automations.node.empty');
+            const field = conditionFieldLabel(c.field, t);
+            const op = operatorLabel(c.field, c.operator, t);
+            return operatorNeedsValue(c.operator)
+                ? `${field} ${op} ${q(c.value)}`
+                : `${field} ${op}`;
+        }
+        case 'http_request':
+            return `${s.method ?? 'POST'} ${s.url ?? ''}`.trim();
+        case 'send_email':
+            return s.to?.trim()
+                ? t('automations.node.emailTo', { to: s.to.trim() })
+                : t('automations.node.empty');
+        case 'delay':
+            return t('automations.node.waitFor', {
+                duration: formatDuration(s.seconds ?? 0, t),
+            });
+        case 'mute':
+            return t('automations.node.muteFor', {
+                duration: formatDuration(s.seconds ?? 0, t),
+            });
+        case 'assign':
+            return s.assignee_id
+                ? (lookup.users?.get(s.assignee_id) ??
+                      t('automations.fields.anotherUser'))
+                : t('automations.fields.unassign');
+        case 'close_conversation':
+            return t('automations.steps.close_conversation.hint');
+        default:
+            return t('automations.node.unknownType');
+    }
 }
 
 // ── API validation errors ──────────────────────────────────────────────────
@@ -626,37 +687,40 @@ export type StepError = { field: string; message: string };
 
 /**
  * Finds the step an API error path points at, e.g. `steps[1].then[0].text`
- * (or the schema guard's `steps.1.text`). Returns the step's key and the
- * remaining field path ("" for the whole step).
+ * (or the schema guard's `steps.1.text`), in the steps as sent. Returns the
+ * step's id and the remaining field path ("" for the whole step).
  */
 export function locateStep(
-    steps: EditorStep[],
+    steps: AutomationStep[],
     path: string,
-): { key: string; field: string } | null {
+): { id: string; field: string } | null {
     const p = path.replace(/\.(\d+)(?=\.|$)/g, '[$1]');
     if (!p.startsWith('steps[')) return null;
     let rest = p.slice('steps'.length);
-    let list: EditorStep[] | undefined = steps;
-    let found: EditorStep | undefined;
+    let list: AutomationStep[] | undefined = steps;
+    let found: AutomationStep | undefined;
     for (;;) {
         const m = /^\[(\d+)\]/.exec(rest);
         if (!m) break;
-        const next: EditorStep | undefined = list?.[Number(m[1])];
+        const next: AutomationStep | undefined = list?.[Number(m[1])];
         if (!next) break;
         found = next;
         rest = rest.slice(m[0].length);
         const b = /^\.(then|else)(?=\[)/.exec(rest);
         if (!b) break;
-        list = found[b[1] as 'then' | 'else'];
+        list = (found as Record<string, unknown>)[b[1]!] as
+            AutomationStep[] | undefined;
         rest = rest.slice(b[0].length);
     }
-    if (!found) return null;
-    return { key: found.key, field: rest.replace(/^\./, '') };
+    if (!found?.id) return null;
+    const field = rest.replace(/^\./, '');
+    // "then" / "else" errors concern the condition's branches.
+    return { id: found.id, field };
 }
 
 /** Splits API field errors into per-step errors and the rest. */
 export function mapErrors(
-    steps: EditorStep[],
+    steps: AutomationStep[],
     fieldErrors: Record<string, string> | undefined,
 ): { steps: Record<string, StepError>; other: Record<string, string> } {
     const out = {
@@ -665,7 +729,7 @@ export function mapErrors(
     };
     for (const [path, message] of Object.entries(fieldErrors ?? {})) {
         const at = locateStep(steps, path);
-        if (at) out.steps[at.key] = { field: at.field, message };
+        if (at) out.steps[at.id] = { field: at.field, message };
         else out.other[path] = message;
     }
     return out;
@@ -687,57 +751,56 @@ export const PLACEHOLDERS = [
     '{{message}}',
 ] as const;
 
-type Op = { value: string; label: string };
-const TEXT_OPS: Op[] = [
-    { value: 'contains', label: 'contains' },
-    { value: 'not_contains', label: 'does not contain' },
-    { value: 'equals', label: 'equals' },
-    { value: 'not_equals', label: 'does not equal' },
-    { value: 'starts_with', label: 'starts with' },
-    { value: 'is_set', label: 'is set' },
-    { value: 'is_not_set', label: 'is not set' },
+const TEXT_OPS = [
+    'contains',
+    'not_contains',
+    'equals',
+    'not_equals',
+    'starts_with',
+    'is_set',
+    'is_not_set',
 ];
-const BOOL_OPS: Op[] = [
-    { value: 'is_true', label: 'is true' },
-    { value: 'is_false', label: 'is false' },
-];
-const TAG_OPS: Op[] = [
-    { value: 'equals', label: 'has the tag' },
-    { value: 'not_equals', label: 'does not have the tag' },
-];
+const BOOL_OPS = ['is_true', 'is_false'];
+const TAG_OPS = ['equals', 'not_equals'];
 
-export const CONDITION_FIELDS: { value: string; label: string; ops: Op[] }[] = [
-    { value: 'message.body', label: 'Message text', ops: TEXT_OPS },
-    { value: 'message.type', label: 'Message type', ops: TEXT_OPS },
-    { value: 'contact.name', label: 'Contact name', ops: TEXT_OPS },
-    { value: 'contact.email', label: 'Contact e-mail', ops: TEXT_OPS },
-    { value: 'contact.phone', label: 'Contact phone', ops: TEXT_OPS },
+export const CONDITION_FIELDS: { value: string; ops: string[] }[] = [
+    { value: 'message.body', ops: TEXT_OPS },
+    { value: 'message.type', ops: TEXT_OPS },
+    { value: 'contact.name', ops: TEXT_OPS },
+    { value: 'contact.email', ops: TEXT_OPS },
+    { value: 'contact.phone', ops: TEXT_OPS },
     ...[1, 2, 3, 4, 5].map((n) => ({
         value: `contact.var${n}`,
-        label: `Contact var${n}`,
         ops: TEXT_OPS,
     })),
-    { value: 'contact.tag', label: 'Contact tags', ops: TAG_OPS },
-    {
-        value: 'contact.opted_out',
-        label: 'Contact opted out',
-        ops: BOOL_OPS,
-    },
-    {
-        value: 'conversation.window_open',
-        label: '24-hour window open',
-        ops: BOOL_OPS,
-    },
-    { value: 'event.tag', label: 'Added tag (trigger)', ops: TEXT_OPS },
-    {
-        value: 'event.status',
-        label: 'Message status (trigger)',
-        ops: TEXT_OPS,
-    },
+    { value: 'contact.tag', ops: TAG_OPS },
+    { value: 'contact.opted_out', ops: BOOL_OPS },
+    { value: 'conversation.window_open', ops: BOOL_OPS },
+    { value: 'event.tag', ops: TEXT_OPS },
+    { value: 'event.status', ops: TEXT_OPS },
 ];
 
-export function operatorsFor(field: string): Op[] {
+export function conditionFieldLabel(field: string, t: Translate): string {
+    const m = /^contact\.var([1-5])$/.exec(field);
+    if (m) return t('automations.conditionFields.var', { n: m[1]! });
+    return CONDITION_FIELDS.some((f) => f.value === field)
+        ? t(mk(`automations.conditionFields.${field.replace('.', '_')}`))
+        : field;
+}
+
+export function operatorsFor(field: string): string[] {
     return CONDITION_FIELDS.find((f) => f.value === field)?.ops ?? TEXT_OPS;
+}
+
+export function operatorLabel(field: string, op: string, t: Translate): string {
+    if (field === 'contact.tag') {
+        return op === 'not_equals' || op === 'not_contains'
+            ? t('automations.operators.not_has_tag')
+            : t('automations.operators.has_tag');
+    }
+    return [...TEXT_OPS, ...BOOL_OPS].includes(op)
+        ? t(mk(`automations.operators.${op}`))
+        : op;
 }
 
 // ── Templates ──────────────────────────────────────────────────────────────

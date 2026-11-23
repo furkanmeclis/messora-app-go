@@ -1,19 +1,46 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useTransition,
+} from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, AlertTriangle, History } from 'lucide-react';
+import {
+    type Connection,
+    type EdgeChangeset,
+    type NodeChangeset,
+    ReactFlowProvider,
+    useReactFlow,
+} from '@xyflow/react';
+import {
+    AlertCircle,
+    AlertTriangle,
+    ArrowLeft,
+    Copy,
+    History,
+    LayoutTemplate,
+    Maximize2,
+    Minimize2,
+    Plus,
+    Redo2,
+    Trash2,
+    Undo2,
+    Zap,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
     Field,
     FieldDescription,
@@ -24,58 +51,126 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import type { Automation, AutomationTriggerType } from '@/lib/types';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useT } from '@/i18n/client';
+import type { Translate } from '@/i18n/translate';
+import type {
+    Automation,
+    AutomationStep,
+    AutomationTriggerType,
+} from '@/lib/types';
+import { cn } from '@/lib/utils';
 import { createAutomationAction, updateAutomationAction } from './actions';
 import { DeleteButton } from './automations-client';
+import { FlowCanvas } from './canvas';
 import type { EditorOptions } from './data';
+import { type StepPatch, StepFields, TriggerFields } from './fields';
 import {
-    DurationInput,
-    FieldMessage,
-    KeywordsInput,
-    SelectField,
-    SuggestInput,
-} from './inputs';
+    autoLayout,
+    canConnect,
+    type FlowEdge,
+    type FlowNode,
+    freeOutput,
+    graphFromSteps,
+    graphToSteps,
+    type Layout,
+    makeEdge,
+    NODE_HEIGHT,
+    NODE_WIDTH,
+    outputsOf,
+    type StepNode,
+    TRIGGER_ID,
+    validateGraph,
+} from './graph';
+import { useHistory } from './history';
+import { FieldMessage } from './inputs';
 import {
-    countSteps,
+    cloneStep,
     describeTrigger,
-    editList,
-    editStep,
-    type EditorStep,
-    mapErrors,
-    MATCH_MODES,
-    MAX_KEYWORDS,
-    MAX_MUTE_SECONDS,
     MAX_STEPS,
-    MESSAGE_STATUSES,
+    mapErrors,
+    mk,
+    newStep,
     type StepError,
-    stepsFromApi,
-    stepsToApi,
-    TRIGGER_TYPES,
+    stepLabel,
+    stepProblems,
+    type StepType,
     type TriggerForm,
     triggerFromApi,
+    triggerLabel,
     triggerToApi,
 } from './model';
-import { EditorContext, type EditorContextValue, StepList } from './steps';
+import { CanvasContext, type CanvasContextValue, StepIcon } from './nodes';
+import { DND_TYPE, Palette } from './palette';
 
-type Errors = {
+type Doc = {
+    nodes: FlowNode[];
+    edges: FlowEdge[];
+    triggerType: AutomationTriggerType;
+    trigger: TriggerForm;
+};
+
+/** An undone snapshot keeps the current measurements and selection. */
+function restore(snap: Doc, cur: Doc): Doc {
+    const now = new Map(cur.nodes.map((n) => [n.id, n]));
+    return {
+        ...snap,
+        nodes: snap.nodes.map((n) => {
+            const c = now.get(n.id);
+            return (
+                c
+                    ? { ...n, measured: c.measured, selected: c.selected }
+                    : { ...n, selected: false }
+            ) as FlowNode;
+        }),
+        edges: snap.edges.map((e) => ({ ...e, selected: false })),
+    };
+}
+
+function layoutOf(nodes: FlowNode[]): Layout {
+    return Object.fromEntries(
+        nodes.map((n) => [
+            n.id,
+            { x: Math.round(n.position.x), y: Math.round(n.position.y) },
+        ]),
+    );
+}
+
+const GAP = 64;
+
+type ServerErrors = {
     steps: Record<string, StepError>;
     other: Record<string, string>;
     message?: string;
 };
+const NO_ERRORS: ServerErrors = { steps: {}, other: {} };
 
-const NO_ERRORS: Errors = { steps: {}, other: {} };
+function isTyping(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    return (
+        !!el &&
+        (el.isContentEditable ||
+            ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
+    );
+}
 
-const TRIGGER_FIELDS = [
-    'trigger.match',
-    'trigger.keywords',
-    'trigger.phone_number_id',
-    'trigger.tag',
-    'trigger.status',
-    'trigger.campaign_id',
-    'trigger.cooldown_seconds',
-];
+export function AutomationEditor(props: {
+    automation: Automation | null;
+    options: EditorOptions;
+    canManage: boolean;
+}) {
+    return (
+        <ReactFlowProvider>
+            <Editor {...props} />
+        </ReactFlowProvider>
+    );
+}
 
-export function AutomationEditor({
+function Editor({
     automation,
     options,
     canManage,
@@ -84,40 +179,52 @@ export function AutomationEditor({
     options: EditorOptions;
     canManage: boolean;
 }) {
+    const t = useT();
     const router = useRouter();
+    const flow = useReactFlow<FlowNode, FlowEdge>();
     const readOnly = !canManage;
+    const wrapper = useRef<HTMLDivElement>(null);
+
     const [name, setName] = useState(automation?.name ?? '');
     const [description, setDescription] = useState(
         automation?.description ?? '',
     );
     const [active, setActive] = useState(automation?.active ?? false);
-    const [triggerType, setTriggerType] = useState<AutomationTriggerType>(
-        automation?.trigger_type ?? 'message_received',
-    );
-    const [trigger, setTrigger] = useState<TriggerForm>(() =>
-        triggerFromApi(automation?.trigger),
-    );
-    const [steps, setSteps] = useState<EditorStep[]>(() =>
-        stepsFromApi(automation?.steps),
-    );
-    const [errors, setErrors] = useState<Errors>(NO_ERRORS);
+    const history = useHistory<Doc>(() => {
+        const g = graphFromSteps(automation?.steps, automation?.layout);
+        return {
+            ...g,
+            triggerType: automation?.trigger_type ?? 'message_received',
+            trigger: triggerFromApi(automation?.trigger),
+        };
+    }, restore);
+    const { nodes, edges, triggerType, trigger } = history.state;
+    const [server, setServer] = useState<ServerErrors>(NO_ERRORS);
     const [pending, startTransition] = useTransition();
+    const [fullscreen, setFullscreen] = useState(false);
 
-    const definition = () =>
+    // ── Dirty state ────────────────────────────────────────────────────────
+    const tree = useMemo(() => graphToSteps(nodes, edges), [nodes, edges]);
+    const definitionOf = (d: Doc, steps: AutomationStep[]) =>
         JSON.stringify({
-            t: triggerType,
-            o: triggerToApi(triggerType, trigger),
-            s: stepsToApi(steps),
+            t: d.triggerType,
+            o: triggerToApi(d.triggerType, d.trigger),
+            s: steps,
         });
-    const details = () => JSON.stringify({ name, description, active });
+    const definition = definitionOf(history.state, tree.steps);
+    const layoutKey = JSON.stringify(layoutOf(nodes));
+    const details = JSON.stringify({ name, description, active });
     const [baseline, setBaseline] = useState(() => ({
-        definition: definition(),
-        details: details(),
+        definition,
+        layout: layoutKey,
+        details,
     }));
-    const redefined = definition() !== baseline.definition;
-    const dirty = redefined || details() !== baseline.details;
+    const redefined = definition !== baseline.definition;
+    const dirty =
+        redefined ||
+        layoutKey !== baseline.layout ||
+        details !== baseline.details;
 
-    // Warn before leaving with unsaved changes.
     useEffect(() => {
         if (!dirty || readOnly) return;
         const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -125,46 +232,375 @@ export function AutomationEditor({
         return () => window.removeEventListener('beforeunload', onBeforeUnload);
     }, [dirty, readOnly]);
 
-    const total = countSteps(steps);
-    const ctx: EditorContextValue = useMemo(
-        () => ({
-            options,
-            readOnly,
-            errors: errors.steps,
-            total,
-            editStep: (key, fn) => setSteps((s) => editStep(s, key, fn)),
-            editList: (list, fn) => setSteps((s) => editList(s, list, fn)),
-        }),
-        [options, readOnly, errors.steps, total],
+    // ── Problems (client checks plus the last save's API errors) ───────────
+    const problems = useMemo(() => {
+        const p = validateGraph(nodes, edges, t);
+        for (const [id, e] of Object.entries(server.steps)) {
+            if (nodes.some((n) => n.id === id)) {
+                const list = (p.nodes[id] ??= []);
+                if (!list.includes(e.message)) list.unshift(e.message);
+            }
+        }
+        return p;
+    }, [nodes, edges, t, server.steps]);
+
+    // ── Editing ────────────────────────────────────────────────────────────
+    const { set, checkpoint, undo, redo } = history;
+
+    const select = useCallback(
+        (id: string | null) =>
+            set(
+                (d) => ({
+                    ...d,
+                    nodes: d.nodes.map((n) =>
+                        n.selected === (n.id === id)
+                            ? n
+                            : { ...n, selected: n.id === id },
+                    ),
+                    edges: d.edges.map((e) =>
+                        e.selected ? { ...e, selected: false } : e,
+                    ),
+                }),
+                { record: false },
+            ),
+        [set],
     );
 
-    const setT = (patch: Partial<TriggerForm>) =>
-        setTrigger((t) => ({ ...t, ...patch }));
-    const tErr = (f: string) => errors.other[`trigger.${f}`];
-    // Trigger errors no option field shows (e.g. "trigger": invalid).
-    const otherTriggerErrors = Object.entries(errors.other)
-        .filter(
-            ([k]) =>
-                (k === 'trigger' || k.startsWith('trigger.')) &&
-                !TRIGGER_FIELDS.includes(k) &&
-                !k.startsWith('trigger.keywords.'),
-        )
-        .map(([, v]) => v);
+    const editStep = useCallback(
+        (id: string): StepPatch =>
+            (fn, group) => {
+                setServer((s) => {
+                    if (!s.steps[id]) return s;
+                    const steps = { ...s.steps };
+                    delete steps[id];
+                    return { ...s, steps };
+                });
+                set(
+                    (d) => ({
+                        ...d,
+                        nodes: d.nodes.map((n) =>
+                            n.id === id && n.type === 'step'
+                                ? { ...n, data: { step: fn(n.data.step) } }
+                                : n,
+                        ),
+                    }),
+                    { group: group ? `${id}:${group}` : undefined },
+                );
+            },
+        [set],
+    );
 
-    const save = () =>
+    /**
+     * Removes nodes and edges in one undo step. A removed plain step that
+     * sat between two nodes is bridged, so A→B→C minus B is A→C.
+     */
+    const remove = useCallback(
+        (nodeIds: string[], edgeIds: string[] = []) => {
+            const gone = new Set(nodeIds.filter((id) => id !== TRIGGER_ID));
+            if (!gone.size && !edgeIds.length) return;
+            set((d) => {
+                let next = d.edges.filter((e) => !edgeIds.includes(e.id));
+                for (const id of gone) {
+                    const node = d.nodes.find((n) => n.id === id);
+                    const incoming = next.find((e) => e.target === id);
+                    const out = next.find(
+                        (e) => e.source === id && e.sourceHandle === 'out',
+                    );
+                    next = next.filter(
+                        (e) => e.source !== id && e.target !== id,
+                    );
+                    if (
+                        node?.type === 'step' &&
+                        node.data.step.type !== 'condition' &&
+                        incoming &&
+                        out &&
+                        !gone.has(incoming.source) &&
+                        !gone.has(out.target)
+                    ) {
+                        next.push(
+                            makeEdge(
+                                incoming.source,
+                                (incoming.sourceHandle ?? 'out') as never,
+                                out.target,
+                            ),
+                        );
+                    }
+                }
+                return {
+                    ...d,
+                    nodes: d.nodes.filter((n) => !gone.has(n.id)),
+                    edges: next,
+                };
+            });
+        },
+        [set],
+    );
+
+    const onNodesChange = useCallback(
+        (changes: NodeChangeset<FlowNode>) => {
+            // Removal goes through onDelete (one undo step, bridging).
+            for (const c of [...changes]) {
+                if (c.type === 'remove') changes.remove(c);
+            }
+            if (changes.isEmpty()) return;
+            set((d) => ({ ...d, nodes: changes.applyTo(d.nodes) }), {
+                record: false,
+            });
+        },
+        [set],
+    );
+
+    const onEdgesChange = useCallback(
+        (changes: EdgeChangeset<FlowEdge>) => {
+            for (const c of [...changes]) {
+                if (c.type === 'remove') changes.remove(c);
+            }
+            if (changes.isEmpty()) return;
+            set((d) => ({ ...d, edges: changes.applyTo(d.edges) }), {
+                record: false,
+            });
+        },
+        [set],
+    );
+
+    const isValidConnection = useCallback(
+        (c: FlowEdge | Connection) =>
+            !readOnly &&
+            canConnect(nodes, edges, {
+                source: c.source,
+                sourceHandle: c.sourceHandle,
+                target: c.target,
+            }),
+        [nodes, edges, readOnly],
+    );
+
+    const onConnect = useCallback(
+        (c: Connection) => {
+            set((d) =>
+                canConnect(d.nodes, d.edges, c)
+                    ? {
+                          ...d,
+                          edges: [
+                              ...d.edges,
+                              makeEdge(
+                                  c.source,
+                                  (c.sourceHandle ?? 'out') as never,
+                                  c.target,
+                              ),
+                          ],
+                      }
+                    : d,
+            );
+        },
+        [set],
+    );
+
+    /** Adds a step: after the selected node (or the end of the flow). */
+    const addStep = useCallback(
+        (type: StepType, at?: { x: number; y: number }) => {
+            if (readOnly) return;
+            if (nodes.length - 1 >= MAX_STEPS) {
+                toast.error(
+                    t('automations.problems.tooMany', { max: MAX_STEPS }),
+                );
+                return;
+            }
+            const step = newStep(type);
+            set((d) => {
+                let edgesNext = d.edges;
+                let position = at;
+                if (!position) {
+                    let anchor = d.nodes.find(
+                        (n) => n.selected && freeOutput(n, d.edges),
+                    );
+                    if (!anchor) {
+                        // The end of the main path.
+                        let cur = d.nodes.find((n) => n.id === TRIGGER_ID);
+                        for (;;) {
+                            const o = cur && freeOutput(cur, d.edges);
+                            const main = cur && outputsOf(cur).at(-1);
+                            if (!cur || (o && o === main)) break;
+                            const e = d.edges.find(
+                                (x) =>
+                                    x.source === cur!.id &&
+                                    x.sourceHandle === main,
+                            );
+                            const nextNode = d.nodes.find(
+                                (n) => n.id === e?.target,
+                            );
+                            if (!nextNode) break;
+                            cur = nextNode;
+                        }
+                        anchor = cur;
+                    }
+                    const output = anchor && freeOutput(anchor, d.edges);
+                    if (anchor && output) {
+                        const dx =
+                            output === 'yes'
+                                ? -(NODE_WIDTH / 2 + GAP / 2)
+                                : output === 'no'
+                                  ? NODE_WIDTH / 2 + GAP / 2
+                                  : 0;
+                        const h = anchor.measured?.height ?? NODE_HEIGHT;
+                        position = {
+                            x: anchor.position.x + dx,
+                            y: anchor.position.y + h + GAP,
+                        };
+                        edgesNext = [
+                            ...d.edges,
+                            makeEdge(anchor.id, output, step.id),
+                        ];
+                    } else {
+                        const box = wrapper.current?.getBoundingClientRect();
+                        position = box
+                            ? flow.screenToFlowPosition({
+                                  x: box.left + box.width / 2,
+                                  y: box.top + box.height / 2,
+                              })
+                            : { x: 0, y: 0 };
+                        position = {
+                            x: position.x - NODE_WIDTH / 2,
+                            y: position.y - NODE_HEIGHT / 2,
+                        };
+                    }
+                }
+                const node: StepNode = {
+                    id: step.id,
+                    type: 'step',
+                    position,
+                    data: { step },
+                    selected: true,
+                };
+                return {
+                    ...d,
+                    nodes: [
+                        ...d.nodes.map((n) =>
+                            n.selected ? { ...n, selected: false } : n,
+                        ),
+                        node,
+                    ],
+                    edges: edgesNext,
+                };
+            });
+        },
+        [readOnly, nodes.length, set, t, flow],
+    );
+
+    const duplicate = (node: StepNode) => {
+        const step = cloneStep(node.data.step);
+        set((d) => ({
+            ...d,
+            nodes: [
+                ...d.nodes.map((n) =>
+                    n.selected ? { ...n, selected: false } : n,
+                ),
+                {
+                    id: step.id,
+                    type: 'step',
+                    position: {
+                        x: node.position.x + 32,
+                        y: node.position.y + 32,
+                    },
+                    data: { step },
+                    selected: true,
+                },
+            ],
+        }));
+    };
+
+    const arrange = () => {
+        set((d) => {
+            const pos = autoLayout(d.nodes, d.edges);
+            return {
+                ...d,
+                nodes: d.nodes.map((n) => ({
+                    ...n,
+                    position: pos[n.id] ?? n.position,
+                })),
+            };
+        });
+        requestAnimationFrame(() =>
+            flow.fitView({ padding: 0.2, maxZoom: 1, duration: 300 }),
+        );
+    };
+
+    // Cmd/Ctrl+Z undoes, Shift+Cmd/Ctrl+Z (or Ctrl+Y) redoes; text fields
+    // keep their own undo.
+    useEffect(() => {
+        if (readOnly) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (!(e.metaKey || e.ctrlKey) || isTyping(e.target)) return;
+            const k = e.key.toLowerCase();
+            if (k === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) redo();
+                else undo();
+            } else if (k === 'y') {
+                e.preventDefault();
+                redo();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [readOnly, undo, redo]);
+
+    useEffect(() => {
+        if (!fullscreen) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !isTyping(e.target)) setFullscreen(false);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [fullscreen]);
+
+    // ── Saving ─────────────────────────────────────────────────────────────
+    const focusNode = (id: string) => {
+        select(id);
+        const n = nodes.find((x) => x.id === id);
+        if (n) {
+            flow.setCenter(
+                n.position.x + NODE_WIDTH / 2,
+                n.position.y + NODE_HEIGHT / 2,
+                { zoom: Math.max(flow.getZoom(), 0.8), duration: 300 },
+            );
+        }
+    };
+
+    const save = () => {
+        const local = validateGraph(nodes, edges, t);
+        const firstBad = Object.keys(local.nodes)[0];
+        if (!name.trim()) {
+            select(null);
+            setServer((s) => ({
+                ...s,
+                other: {
+                    ...s.other,
+                    name: t('automations.editor.nameRequired'),
+                },
+            }));
+            toast.error(t('automations.editor.nameRequired'));
+            return;
+        }
+        if (firstBad || local.global.length) {
+            toast.error(local.global[0] ?? t('automations.editor.fixProblems'));
+            if (firstBad) focusNode(firstBad);
+            return;
+        }
+        const steps = tree.steps;
+        const apiTrigger = triggerToApi(triggerType, trigger);
+        const layout = layoutOf(nodes);
         startTransition(async () => {
-            const apiSteps = stepsToApi(steps);
-            const apiTrigger = triggerToApi(triggerType, trigger);
             const r = automation
                 ? await updateAutomationAction(automation.id, {
                       name: name.trim(),
                       description,
                       active,
+                      layout,
                       ...(redefined
                           ? {
                                 trigger_type: triggerType,
                                 trigger: apiTrigger,
-                                steps: apiSteps,
+                                steps,
                             }
                           : {}),
                   })
@@ -174,26 +610,25 @@ export function AutomationEditor({
                       active,
                       trigger_type: triggerType,
                       trigger: apiTrigger,
-                      steps: apiSteps,
+                      steps,
+                      layout,
                   });
             if (r.ok) {
-                setErrors(NO_ERRORS);
-                setBaseline({ definition: definition(), details: details() });
+                setServer(NO_ERRORS);
+                setBaseline({ definition, layout: layoutKey, details });
                 if (r.message) toast.success(r.message);
                 if (!automation) router.replace(`/automations/${r.data.id}`);
                 else router.refresh();
                 return;
             }
             const mapped = mapErrors(steps, r.fieldErrors);
-            // Keywords are reported per item by the schema check.
             for (const k of Object.keys(mapped.other)) {
                 if (k.startsWith('trigger.keywords.')) {
                     mapped.other['trigger.keywords'] ??= mapped.other[k]!;
                 }
             }
-            // Errors no field shows go to the banner at the top.
             const shown = (k: string) =>
-                ['name', 'description', 'steps', 'trigger_type'].includes(k) ||
+                ['name', 'description', 'trigger_type'].includes(k) ||
                 k === 'trigger' ||
                 k.startsWith('trigger.');
             const unshown = Object.entries(mapped.other)
@@ -203,355 +638,673 @@ export function AutomationEditor({
                 unshown.length === 0 &&
                 (Object.keys(mapped.steps).length > 0 ||
                     Object.keys(mapped.other).length > 0);
-            setErrors({
+            setServer({
                 ...mapped,
                 message: handled
                     ? undefined
                     : [r.message, ...unshown].join(' '),
             });
             toast.error(
-                handled ? 'Please correct the highlighted fields.' : r.message,
+                handled ? t('automations.editor.fixProblems') : r.message,
             );
             const first = Object.keys(mapped.steps)[0];
-            if (first) {
-                requestAnimationFrame(() => {
-                    const el = document.getElementById(`step-${first}`);
-                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    el?.focus({ preventScroll: true });
-                });
-            }
+            if (first) focusNode(first);
+            else if (
+                Object.keys(mapped.other).some((k) => k.startsWith('trigger'))
+            )
+                select(TRIGGER_ID);
+            else select(null);
         });
+    };
 
-    const phoneOptions = [
-        { value: 'any', label: 'Any number' },
-        ...options.phones.map((p) => ({ value: p.id, label: p.label })),
-    ];
-    if (
-        trigger.phone_number_id &&
-        !phoneOptions.some((p) => p.value === trigger.phone_number_id)
-    ) {
-        phoneOptions.push({
-            value: trigger.phone_number_id,
-            label: 'One number',
-        });
-    }
-    const campaignOptions = [
-        { value: 'any', label: 'Any message' },
-        ...options.campaigns.map((c) => ({ value: c.id, label: c.label })),
-    ];
-    if (
-        trigger.campaign_id &&
-        !campaignOptions.some((c) => c.value === trigger.campaign_id)
-    ) {
-        campaignOptions.push({
-            value: trigger.campaign_id,
-            label: 'One campaign',
-        });
-    }
-    const summary = describeTrigger(
-        triggerType,
-        triggerToApi(triggerType, trigger),
-        {
-            phones: new Map(options.phones.map((p) => [p.id, p.label])),
-            campaigns: new Map(options.campaigns.map((c) => [c.id, c.label])),
-        },
+    // ── Canvas context ─────────────────────────────────────────────────────
+    const apiTrigger = triggerToApi(triggerType, trigger);
+    const ctx: CanvasContextValue = useMemo(
+        () => ({
+            t,
+            problems: problems.nodes,
+            triggerLabel: triggerLabel(triggerType, t),
+            triggerSummary: describeTrigger(triggerType, apiTrigger, t, {
+                phones: new Map(options.phones.map((p) => [p.id, p.label])),
+                campaigns: new Map(
+                    options.campaigns.map((c) => [c.id, c.label]),
+                ),
+            }),
+            lookup: {
+                groups: new Map(options.groups.map((g) => [g.id, g.label])),
+                users: new Map(
+                    (options.users ?? [options.me]).map((u) => [u.id, u.label]),
+                ),
+            },
+            readOnly,
+            onDeleteEdge: (id) => remove([], [id]),
+        }),
+        // apiTrigger is derived from trigger and triggerType.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [t, problems.nodes, triggerType, trigger, options, readOnly, remove],
+    );
+
+    const selectedNodes = nodes.filter((n) => n.selected);
+    const selected = selectedNodes.length === 1 ? selectedNodes[0] : undefined;
+    const triggerErrors = Object.keys(server.other).some(
+        (k) => k === 'trigger_type' || k.startsWith('trigger'),
+    );
+
+    const toolbarButton = (
+        label: string,
+        icon: React.ReactNode,
+        onClick: () => void,
+        disabled?: boolean,
+        shortcut?: string,
+    ) => (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={label}
+                    disabled={disabled}
+                    onClick={onClick}
+                >
+                    {icon}
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+                {label}
+                {shortcut && (
+                    <kbd className="ml-2 font-mono text-[10px] opacity-70">
+                        {shortcut}
+                    </kbd>
+                )}
+            </TooltipContent>
+        </Tooltip>
     );
 
     return (
         <form
-            className="space-y-6 pb-24"
-            aria-label={automation ? 'Edit automation' : 'New automation'}
+            noValidate
+            aria-label={
+                automation
+                    ? t('automations.editor.editLabel')
+                    : t('automations.editor.newLabel')
+            }
             onSubmit={(e) => {
                 e.preventDefault();
                 if (!readOnly) save();
             }}
+            className="space-y-3"
         >
-            <div className="flex flex-wrap items-center gap-2">
-                {automation && (
-                    <Button asChild variant="outline">
-                        <Link href={`/automations/${automation.id}/runs`}>
-                            <History /> Run history
-                        </Link>
-                    </Button>
-                )}
-                {automation && canManage && (
-                    <DeleteButton
-                        automation={automation}
-                        redirectTo="/automations"
-                        withLabel
-                    />
-                )}
-            </div>
-
             {readOnly && (
                 <Alert>
                     <AlertCircle />
                     <AlertDescription>
-                        You can view this automation but not change it.
+                        {t('automations.editor.readOnly')}
                     </AlertDescription>
                 </Alert>
             )}
-            {errors.message && (
+            {server.message && (
                 <Alert variant="destructive">
                     <AlertCircle />
-                    <AlertDescription>{errors.message}</AlertDescription>
+                    <AlertDescription>{server.message}</AlertDescription>
                 </Alert>
             )}
 
-            <fieldset disabled={readOnly} className="min-w-0 space-y-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Details</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <FieldGroup>
-                            <Field
-                                data-invalid={
-                                    errors.other.name ? true : undefined
-                                }
-                            >
-                                <FieldLabel htmlFor="automation-name">
-                                    Name
-                                </FieldLabel>
-                                <Input
-                                    id="automation-name"
-                                    required
-                                    maxLength={120}
-                                    value={name}
-                                    placeholder="Price question"
-                                    aria-invalid={
-                                        errors.other.name ? true : undefined
-                                    }
-                                    onChange={(e) => setName(e.target.value)}
-                                />
-                                <FieldMessage
-                                    id="automation-name"
-                                    error={errors.other.name}
-                                />
-                            </Field>
-                            <Field>
-                                <FieldLabel htmlFor="automation-description">
-                                    Description
-                                </FieldLabel>
-                                <Textarea
-                                    id="automation-description"
-                                    maxLength={500}
-                                    rows={2}
-                                    value={description}
-                                    onChange={(e) =>
-                                        setDescription(e.target.value)
-                                    }
-                                />
-                                <FieldMessage
-                                    id="automation-description"
-                                    error={errors.other.description}
-                                />
-                            </Field>
-                            <Field orientation="horizontal">
-                                <Switch
-                                    id="automation-active"
-                                    checked={active}
-                                    onCheckedChange={setActive}
-                                />
-                                <div>
-                                    <FieldLabel htmlFor="automation-active">
-                                        Active
-                                    </FieldLabel>
-                                    <FieldDescription>
-                                        Inactive automations never start.
-                                    </FieldDescription>
-                                </div>
-                            </Field>
-                        </FieldGroup>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Trigger</CardTitle>
-                        <CardDescription data-testid="trigger-summary">
-                            {summary}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <FieldGroup>
-                            <SelectField
-                                id="trigger-type"
-                                label="When"
-                                value={triggerType}
-                                onChange={(v) =>
-                                    setTriggerType(v as AutomationTriggerType)
-                                }
-                                options={TRIGGER_TYPES}
-                                hint={
-                                    TRIGGER_TYPES.find(
-                                        (t) => t.value === triggerType,
-                                    )?.description
-                                }
-                                error={errors.other.trigger_type}
-                            />
-                            {triggerType === 'message_received' && (
-                                <>
-                                    <SelectField
-                                        id="trigger-match"
-                                        label="Message"
-                                        value={trigger.match}
-                                        onChange={(match) => setT({ match })}
-                                        options={MATCH_MODES}
-                                        error={tErr('match')}
-                                    />
-                                    {trigger.match !== 'any' && (
-                                        <KeywordsInput
-                                            id="trigger-keywords"
-                                            label="Keywords"
-                                            value={trigger.keywords}
-                                            onChange={(keywords) =>
-                                                setT({ keywords })
-                                            }
-                                            max={MAX_KEYWORDS}
-                                            readOnly={readOnly}
-                                            error={tErr('keywords')}
-                                            hint={`Any keyword matches; upper and lower case are ignored. Up to ${MAX_KEYWORDS}.`}
-                                        />
-                                    )}
-                                </>
+            <div
+                data-testid="automation-canvas"
+                className={cn(
+                    'automation-canvas flex flex-col overflow-hidden border bg-card shadow-xs',
+                    fullscreen
+                        ? 'fixed inset-0 z-50 rounded-none'
+                        : 'h-[calc(100dvh-12rem)] min-h-[560px] rounded-xl',
+                )}
+            >
+                {/* Toolbar */}
+                <div className="flex flex-wrap items-center gap-1 border-b bg-background/60 px-2 py-1.5 backdrop-blur">
+                    <div className="mr-1 flex min-w-0 items-center gap-2 pl-1">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <Zap className="size-4" />
+                        </span>
+                        <span className="max-w-48 truncate text-sm font-semibold">
+                            {name.trim() || t('automations.editor.untitled')}
+                        </span>
+                        <span
+                            className={cn(
+                                'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                                active
+                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                    : 'bg-muted text-muted-foreground',
                             )}
-                            {(triggerType === 'message_received' ||
-                                triggerType === 'new_contact') && (
-                                <SelectField
-                                    id="trigger-phone"
-                                    label="On number"
-                                    value={trigger.phone_number_id || 'any'}
-                                    onChange={(v) =>
-                                        setT({
-                                            phone_number_id:
-                                                v === 'any' ? '' : v,
-                                        })
-                                    }
-                                    options={phoneOptions}
-                                    error={tErr('phone_number_id')}
-                                />
-                            )}
-                            {triggerType === 'tag_added' && (
-                                <SuggestInput
-                                    id="trigger-tag"
-                                    label="Tag"
-                                    maxLength={60}
-                                    value={trigger.tag}
-                                    onChange={(tag) => setT({ tag })}
-                                    suggestions={options.tags}
-                                    error={tErr('tag')}
-                                    hint="CSV imports do not fire this trigger."
-                                />
-                            )}
-                            {triggerType === 'message_status' && (
-                                <>
-                                    <SelectField
-                                        id="trigger-status"
-                                        label="Status"
-                                        value={trigger.status}
-                                        onChange={(status) => setT({ status })}
-                                        options={MESSAGE_STATUSES.map((s) => ({
-                                            value: s,
-                                            label:
-                                                s[0]!.toUpperCase() +
-                                                s.slice(1),
-                                        }))}
-                                        error={tErr('status')}
-                                    />
-                                    <SelectField
-                                        id="trigger-campaign"
-                                        label="Campaign"
-                                        value={trigger.campaign_id || 'any'}
-                                        onChange={(v) =>
-                                            setT({
-                                                campaign_id:
-                                                    v === 'any' ? '' : v,
-                                            })
-                                        }
-                                        options={campaignOptions}
-                                        error={tErr('campaign_id')}
-                                        hint="Limit to messages of one campaign."
-                                    />
-                                </>
-                            )}
-                            <DurationInput
-                                id="trigger-cooldown"
-                                label="Cooldown per contact"
-                                seconds={trigger.cooldown_seconds}
-                                onChange={(cooldown_seconds) =>
-                                    setT({ cooldown_seconds })
-                                }
-                                min={0}
-                                max={MAX_MUTE_SECONDS}
-                                error={tErr('cooldown_seconds')}
-                                hint="At most one run per contact within this time; 0 means no limit."
-                            />
-                            {otherTriggerErrors.map((m) => (
-                                <p
-                                    key={m}
-                                    role="alert"
-                                    className="text-sm text-destructive"
-                                >
-                                    {m}
-                                </p>
-                            ))}
-                        </FieldGroup>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Steps</CardTitle>
-                        <CardDescription>
-                            Run from top to bottom. {total} of {MAX_STEPS} steps
-                            used.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {errors.other.steps && (
-                            <Alert variant="destructive">
-                                <AlertCircle />
-                                <AlertDescription data-testid="steps-error">
-                                    {errors.other.steps}
-                                </AlertDescription>
-                            </Alert>
-                        )}
-                        <EditorContext value={ctx}>
-                            <StepList
-                                steps={steps}
-                                list="root"
-                                depth={1}
-                                labelPrefix="Step "
-                            />
-                        </EditorContext>
-                    </CardContent>
-                </Card>
-            </fieldset>
-
-            {!readOnly && (
-                <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
-                    {automation && redefined && (
-                        <p
-                            className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400"
-                            data-testid="redefine-warning"
                         >
-                            <AlertTriangle className="size-4 shrink-0" />
-                            Saving changed trigger or steps cancels runs in
-                            progress.
-                        </p>
+                            {active
+                                ? t('automations.status.active')
+                                : t('automations.status.inactive')}
+                        </span>
+                    </div>
+                    {!readOnly && (
+                        <>
+                            <span className="mx-1 h-5 w-px bg-border" />
+                            {toolbarButton(
+                                t('automations.canvas.undo'),
+                                <Undo2 />,
+                                undo,
+                                !history.canUndo,
+                                '⌘Z',
+                            )}
+                            {toolbarButton(
+                                t('automations.canvas.redo'),
+                                <Redo2 />,
+                                redo,
+                                !history.canRedo,
+                                '⇧⌘Z',
+                            )}
+                            {toolbarButton(
+                                t('automations.canvas.autoLayout'),
+                                <LayoutTemplate />,
+                                arrange,
+                            )}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="md:hidden"
+                                    >
+                                        <Plus />{' '}
+                                        {t('automations.palette.addStep')}
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    {(
+                                        [
+                                            'reply',
+                                            'send_template',
+                                            'add_tag',
+                                            'remove_tag',
+                                            'add_to_group',
+                                            'set_field',
+                                            'assign',
+                                            'close_conversation',
+                                            'condition',
+                                            'delay',
+                                            'mute',
+                                            'http_request',
+                                            'send_email',
+                                        ] as StepType[]
+                                    ).map((type) => (
+                                        <DropdownMenuItem
+                                            key={type}
+                                            onSelect={() => addStep(type)}
+                                        >
+                                            <StepIcon type={type} />
+                                            {stepLabel(type, t)}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </>
                     )}
-                    <div className="ml-auto flex gap-2">
-                        <Button asChild variant="ghost">
-                            <Link href="/automations">Cancel</Link>
-                        </Button>
-                        <Button type="submit" disabled={pending}>
-                            {pending && <Spinner />}
-                            {automation ? 'Save changes' : 'Create automation'}
-                        </Button>
+                    {toolbarButton(
+                        fullscreen
+                            ? t('automations.canvas.exitFullscreen')
+                            : t('automations.canvas.fullscreen'),
+                        fullscreen ? <Minimize2 /> : <Maximize2 />,
+                        () => setFullscreen((f) => !f),
+                    )}
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                        {automation && redefined && !readOnly && (
+                            <p
+                                className="hidden items-center gap-1.5 text-xs text-amber-700 xl:flex dark:text-amber-400"
+                                data-testid="redefine-warning"
+                            >
+                                <AlertTriangle className="size-3.5 shrink-0" />
+                                {t('automations.editor.redefineWarning')}
+                            </p>
+                        )}
+                        {automation && (
+                            <Button asChild variant="ghost" size="sm">
+                                <Link
+                                    href={`/automations/${automation.id}/runs`}
+                                >
+                                    <History />{' '}
+                                    {t('automations.editor.runHistory')}
+                                </Link>
+                            </Button>
+                        )}
+                        {automation && canManage && (
+                            <DeleteButton
+                                automation={automation}
+                                redirectTo="/automations"
+                            />
+                        )}
+                        {!readOnly && (
+                            <>
+                                <Button asChild variant="ghost" size="sm">
+                                    <Link href="/automations">
+                                        {t('common.cancel')}
+                                    </Link>
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    disabled={
+                                        pending || (!!automation && !dirty)
+                                    }
+                                >
+                                    {pending && <Spinner />}
+                                    {automation
+                                        ? t('automations.editor.save')
+                                        : t('automations.editor.create')}
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
-            )}
+
+                <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+                    {!readOnly && (
+                        <aside className="hidden w-52 shrink-0 border-r bg-background/40 md:block">
+                            <Palette onAdd={(type) => addStep(type)} />
+                        </aside>
+                    )}
+                    <div
+                        ref={wrapper}
+                        className="relative min-h-[360px] min-w-0 flex-1"
+                        onDragOver={(e) => {
+                            if (readOnly) return;
+                            if (e.dataTransfer.types.includes(DND_TYPE)) {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'copy';
+                            }
+                        }}
+                        onDrop={(e) => {
+                            const type = e.dataTransfer.getData(DND_TYPE);
+                            if (!type || readOnly) return;
+                            e.preventDefault();
+                            const p = flow.screenToFlowPosition({
+                                x: e.clientX,
+                                y: e.clientY,
+                            });
+                            addStep(type as StepType, {
+                                x: p.x - NODE_WIDTH / 2,
+                                y: p.y - 24,
+                            });
+                        }}
+                    >
+                        <CanvasContext value={ctx}>
+                            <FlowCanvas
+                                nodes={nodes}
+                                edges={edges}
+                                onNodesChange={onNodesChange}
+                                onEdgesChange={onEdgesChange}
+                                onConnect={onConnect}
+                                isValidConnection={isValidConnection}
+                                onDelete={({ nodes: ns, edges: es }) =>
+                                    remove(
+                                        ns.map((n) => n.id),
+                                        es.map((e) => e.id),
+                                    )
+                                }
+                                onNodeDragStart={() => checkpoint()}
+                                deleteKeyCode={
+                                    readOnly ? null : ['Backspace', 'Delete']
+                                }
+                                nodesDraggable={!readOnly}
+                                nodesConnectable={!readOnly}
+                                edgesReconnectable={false}
+                            />
+                        </CanvasContext>
+                        {problems.global.length > 0 && (
+                            <div
+                                role="status"
+                                data-testid="canvas-problems"
+                                className="pointer-events-none absolute top-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-card/95 px-3 py-1 text-xs text-muted-foreground shadow-sm"
+                            >
+                                <AlertCircle className="size-3.5 text-amber-500" />
+                                {problems.global[0]}
+                            </div>
+                        )}
+                    </div>
+                    <aside
+                        aria-label={t('automations.inspector.title')}
+                        className="max-h-[50vh] w-full shrink-0 overflow-y-auto border-t bg-background/40 lg:max-h-none lg:w-[22rem] lg:border-t-0 lg:border-l"
+                        data-testid="inspector"
+                    >
+                        {selected?.type === 'trigger' ? (
+                            <Panel
+                                title={t('automations.inspector.trigger')}
+                                icon={<Zap className="size-4" />}
+                                onBack={() => select(null)}
+                                t={t}
+                                invalid={triggerErrors}
+                            >
+                                <TriggerFields
+                                    type={triggerType}
+                                    trigger={trigger}
+                                    onType={(v) =>
+                                        set((d) => ({ ...d, triggerType: v }))
+                                    }
+                                    onChange={(patch, group) =>
+                                        set(
+                                            (d) => ({
+                                                ...d,
+                                                trigger: {
+                                                    ...d.trigger,
+                                                    ...patch,
+                                                },
+                                            }),
+                                            { group },
+                                        )
+                                    }
+                                    options={options}
+                                    errors={server.other}
+                                    readOnly={readOnly}
+                                />
+                            </Panel>
+                        ) : selected?.type === 'step' ? (
+                            <Panel
+                                title={stepLabel(selected.data.step.type, t)}
+                                icon={
+                                    <StepIcon
+                                        type={selected.data.step.type}
+                                        className="size-4"
+                                    />
+                                }
+                                onBack={() => select(null)}
+                                t={t}
+                                invalid={!!problems.nodes[selected.id]?.length}
+                                actions={
+                                    !readOnly && (
+                                        <>
+                                            <Button
+                                                type="button"
+                                                size="icon-sm"
+                                                variant="ghost"
+                                                aria-label={t(
+                                                    'automations.inspector.duplicate',
+                                                )}
+                                                disabled={
+                                                    nodes.length - 1 >=
+                                                    MAX_STEPS
+                                                }
+                                                onClick={() =>
+                                                    duplicate(selected)
+                                                }
+                                            >
+                                                <Copy />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="icon-sm"
+                                                variant="ghost"
+                                                aria-label={t(
+                                                    'automations.inspector.delete',
+                                                )}
+                                                onClick={() =>
+                                                    remove([selected.id])
+                                                }
+                                            >
+                                                <Trash2 />
+                                            </Button>
+                                        </>
+                                    )
+                                }
+                            >
+                                <StepInspector
+                                    key={selected.id}
+                                    node={selected}
+                                    edit={editStep(selected.id)}
+                                    serverError={server.steps[selected.id]}
+                                    problems={problems.nodes[selected.id] ?? []}
+                                    options={options}
+                                    readOnly={readOnly}
+                                    t={t}
+                                />
+                            </Panel>
+                        ) : (
+                            <div className="space-y-5 p-4">
+                                {selectedNodes.length > 1 && (
+                                    <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                                        {t('automations.inspector.many', {
+                                            count: selectedNodes.length,
+                                        })}
+                                    </p>
+                                )}
+                                <div>
+                                    <h2 className="text-sm font-semibold">
+                                        {t('automations.inspector.details')}
+                                    </h2>
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('automations.inspector.detailsHint')}
+                                    </p>
+                                </div>
+                                <fieldset
+                                    disabled={readOnly}
+                                    className="min-w-0"
+                                >
+                                    <FieldGroup>
+                                        <Field
+                                            data-invalid={
+                                                server.other.name
+                                                    ? true
+                                                    : undefined
+                                            }
+                                        >
+                                            <FieldLabel htmlFor="automation-name">
+                                                {t(
+                                                    'automations.inspector.name',
+                                                )}
+                                            </FieldLabel>
+                                            <Input
+                                                id="automation-name"
+                                                maxLength={120}
+                                                value={name}
+                                                placeholder={t(
+                                                    'automations.inspector.namePlaceholder',
+                                                )}
+                                                aria-invalid={
+                                                    server.other.name
+                                                        ? true
+                                                        : undefined
+                                                }
+                                                onChange={(e) => {
+                                                    setName(e.target.value);
+                                                    if (server.other.name) {
+                                                        setServer((s) => {
+                                                            const other = {
+                                                                ...s.other,
+                                                            };
+                                                            delete other.name;
+                                                            return {
+                                                                ...s,
+                                                                other,
+                                                            };
+                                                        });
+                                                    }
+                                                }}
+                                            />
+                                            <FieldMessage
+                                                id="automation-name"
+                                                error={server.other.name}
+                                            />
+                                        </Field>
+                                        <Field>
+                                            <FieldLabel htmlFor="automation-description">
+                                                {t(
+                                                    'automations.inspector.description',
+                                                )}
+                                            </FieldLabel>
+                                            <Textarea
+                                                id="automation-description"
+                                                maxLength={500}
+                                                rows={2}
+                                                value={description}
+                                                onChange={(e) =>
+                                                    setDescription(
+                                                        e.target.value,
+                                                    )
+                                                }
+                                            />
+                                            <FieldMessage
+                                                id="automation-description"
+                                                error={server.other.description}
+                                            />
+                                        </Field>
+                                        <Field orientation="horizontal">
+                                            <Switch
+                                                id="automation-active"
+                                                checked={active}
+                                                onCheckedChange={setActive}
+                                            />
+                                            <div>
+                                                <FieldLabel htmlFor="automation-active">
+                                                    {t(
+                                                        'automations.inspector.active',
+                                                    )}
+                                                </FieldLabel>
+                                                <FieldDescription>
+                                                    {t(
+                                                        'automations.inspector.activeHint',
+                                                    )}
+                                                </FieldDescription>
+                                            </div>
+                                        </Field>
+                                    </FieldGroup>
+                                </fieldset>
+                                <div className="space-y-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                                    <p className="font-medium text-foreground">
+                                        {t('automations.inspector.howTo')}
+                                    </p>
+                                    <ul className="list-disc space-y-1 pl-4">
+                                        <li>
+                                            {t('automations.inspector.tipAdd')}
+                                        </li>
+                                        <li>
+                                            {t(
+                                                'automations.inspector.tipConnect',
+                                            )}
+                                        </li>
+                                        <li>
+                                            {t(
+                                                'automations.inspector.tipBranch',
+                                            )}
+                                        </li>
+                                        <li>
+                                            {t('automations.inspector.tipKeys')}
+                                        </li>
+                                    </ul>
+                                    <p>
+                                        {t('automations.inspector.count', {
+                                            count: tree.count,
+                                            max: MAX_STEPS,
+                                        })}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </aside>
+                </div>
+            </div>
         </form>
+    );
+}
+
+function Panel({
+    title,
+    icon,
+    onBack,
+    actions,
+    invalid,
+    children,
+    t,
+}: {
+    title: string;
+    icon: React.ReactNode;
+    onBack: () => void;
+    actions?: React.ReactNode;
+    invalid?: boolean;
+    children: React.ReactNode;
+    t: Translate;
+}) {
+    return (
+        <div>
+            <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur">
+                <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={t('automations.inspector.back')}
+                    onClick={onBack}
+                >
+                    <ArrowLeft />
+                </Button>
+                <span
+                    className={cn(
+                        'flex size-7 items-center justify-center rounded-md bg-muted',
+                        invalid && 'bg-destructive/10 text-destructive',
+                    )}
+                >
+                    {icon}
+                </span>
+                <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    {title}
+                </h2>
+                {actions}
+            </div>
+            <div className="p-4">{children}</div>
+        </div>
+    );
+}
+
+function StepInspector({
+    node,
+    edit,
+    serverError,
+    problems,
+    options,
+    readOnly,
+    t,
+}: {
+    node: StepNode;
+    edit: StepPatch;
+    serverError?: StepError;
+    problems: string[];
+    options: EditorOptions;
+    readOnly: boolean;
+    t: Translate;
+}) {
+    const step = node.data.step;
+    const fieldErrors: StepError[] = [
+        ...(serverError ? [serverError] : []),
+        ...stepProblems(step, t),
+    ];
+    // Problems no field shows (not connected, nesting, no branch …).
+    const shownByFields = new Set(fieldErrors.map((e) => e.message));
+    const general = problems.filter((p) => !shownByFields.has(p));
+    if (serverError && serverError.field === '' && step.type !== 'send_email') {
+        general.unshift(serverError.message);
+    }
+    return (
+        <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+                {t(mk(`automations.steps.${step.type}.hint`))}
+            </p>
+            {general.length > 0 && (
+                <Alert variant="destructive">
+                    <AlertCircle />
+                    <AlertDescription data-testid="step-error">
+                        {[...new Set(general)].join(' ')}
+                    </AlertDescription>
+                </Alert>
+            )}
+            <StepFields
+                step={step}
+                edit={edit}
+                errors={fieldErrors}
+                options={options}
+                readOnly={readOnly}
+            />
+        </div>
     );
 }

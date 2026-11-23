@@ -1,0 +1,95 @@
+/*
+ * The workflow canvas follows the workspace theme: React Flow's colour
+ * variables are mapped to the panel's tokens (light and dark alike). This
+ * file and React Flow's stylesheet are bundled with the app, so the canvas
+ * needs nothing beyond the CSP's style-src 'self' 'unsafe-inline'.
+ */
+.automation-canvas {
+    --flow-yes: oklch(69.6% 0.17 162.48);
+    --flow-no: oklch(64.5% 0.246 16.439);
+
+    --xy-background-color: color-mix(
+        in oklab,
+        var(--muted) 35%,
+        var(--background)
+    );
+    --xy-background-pattern-dots-color: color-mix(
+        in oklab,
+        var(--muted-foreground) 35%,
+        transparent
+    );
+    --xy-edge-stroke: var(--muted-foreground);
+    --xy-edge-stroke-selected: var(--foreground);
+    --xy-connectionline-stroke: var(--primary);
+    --xy-connectionline-stroke-width: 2;
+    --xy-node-border-radius: var(--radius-xl);
+    --xy-minimap-background-color: var(--card);
+    --xy-minimap-mask-background-color: color-mix(
+        in oklab,
+        var(--muted) 70%,
+        transparent
+    );
+    --xy-minimap-mask-stroke-color: var(--border);
+    --xy-minimap-node-background-color: color-mix(
+        in oklab,
+        var(--muted-foreground) 35%,
+        transparent
+    );
+    --xy-controls-button-background-color: var(--card);
+    --xy-controls-button-background-color-hover: var(--accent);
+    --xy-controls-button-color: var(--foreground);
+    --xy-controls-button-color-hover: var(--accent-foreground);
+    --xy-controls-button-border-color: var(--border);
+    --xy-controls-box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+    --xy-attribution-background-color: transparent;
+    --xy-selection-background-color: color-mix(
+        in oklab,
+        var(--primary) 10%,
+        transparent
+    );
+    --xy-selection-border: 1px dashed var(--primary);
+}
+
+/* Our node components draw their own card. */
+.automation-canvas .react-flow__node {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: var(--radius-xl);
+}
+
+.automation-canvas .react-flow__node:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+}
+
+.automation-canvas .react-flow__controls,
+.automation-canvas .react-flow__minimap {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.automation-canvas .react-flow__controls-button svg {
+    fill: currentColor;
+}
+
+/* Run trace: the path a run took flows along. */
+.automation-canvas .flow-edge-visited {
+    stroke-dasharray: 8 6;
+    animation: flow-edge-dash 0.9s linear infinite;
+}
+
+@keyframes flow-edge-dash {
+    to {
+        stroke-dashoffset: -14;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .automation-canvas .flow-edge-visited {
+        animation: none;
+        stroke-dasharray: none;
+    }
+}

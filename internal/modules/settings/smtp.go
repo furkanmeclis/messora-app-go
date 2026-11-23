@@ -60,7 +60,6 @@ type Mail struct {
 	q      db.Querier
 	sealer *crypto.Sealer
 	env    *mailer.Config // nil unless SMTP_HOST is set
-	envErr error
 	ttl    time.Duration
 
 	mu      sync.Mutex

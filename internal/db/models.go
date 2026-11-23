@@ -51,6 +51,7 @@ type Automation struct {
 	CreatedBy   *uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Layout      []byte
 }
 
 type AutomationRun struct {
@@ -68,6 +69,7 @@ type AutomationRun struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	FinishedAt        *time.Time
+	Visited           []byte
 }
 
 type AutomationRunStep struct {

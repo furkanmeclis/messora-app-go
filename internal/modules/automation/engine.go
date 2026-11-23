@@ -138,6 +138,7 @@ func (s *Service) Run(ctx context.Context, id uuid.UUID) error {
 // failed or waiting).
 func (s *Service) step(ctx context.Context, id uuid.UUID) (done bool, err error) {
 	var external *Step
+	var externalID string
 	var ev trigger.Event
 	var contact db.Contact
 	var pc int32
@@ -191,8 +192,11 @@ func (s *Service) step(ctx context.Context, id uuid.UUID) (done bool, err error)
 		}
 		pc = run.Pc
 		in := prog[pc]
+		if in.StepID == "" && in.Op != "jump" {
+			in.StepID = legacyStepID(a.Steps, int(pc))
+		}
 		if in.Op == "action" && (in.Step.Type == "http_request" || in.Step.Type == "send_email") {
-			external = in.Step
+			external, externalID = in.Step, in.StepID
 			return nil // runs outside the transaction (network I/O)
 		}
 		res := s.exec(ctx, tx, q, in, int(pc), ev, contact)
@@ -212,7 +216,7 @@ func (s *Service) step(ctx context.Context, id uuid.UUID) (done bool, err error)
 			done = true // someone else advanced it meanwhile
 			return nil
 		}
-		return s.record(ctx, tx, q, id, pc, Instr{Op: "action", Step: external}, res, &done)
+		return s.record(ctx, tx, q, id, pc, Instr{Op: "action", Step: external, StepID: externalID}, res, &done)
 	})
 	return done, err
 }
@@ -233,6 +237,11 @@ func (s *Service) record(ctx context.Context, tx pgx.Tx, q *db.Queries, id uuid.
 		dj, _ := json.Marshal(res.detail)
 		if err := q.InsertAutomationRunStep(ctx, db.InsertAutomationRunStepParams{RunID: id, Pc: pc, Action: action, Outcome: res.outcome, Detail: dj}); err != nil {
 			return err
+		}
+		if in.StepID != "" {
+			if err := q.AppendAutomationRunVisited(ctx, db.AppendAutomationRunVisitedParams{ID: id, StepID: in.StepID}); err != nil {
+				return err
+			}
 		}
 	}
 	switch {
@@ -557,6 +566,22 @@ func (s *Service) tx(ctx context.Context, fn func(pgx.Tx, *db.Queries) error) er
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// legacyStepID names the step of instruction pc of a program compiled
+// before step ids existed: compiling the stored steps with their derived
+// ids (LegacyIDs, as the API shows them) yields the same instructions.
+func legacyStepID(stepsJSON []byte, pc int) string {
+	var st []Step
+	if err := json.Unmarshal(stepsJSON, &st); err != nil {
+		return ""
+	}
+	LegacyIDs(st)
+	prog, err := Compile(st)
+	if err != nil || pc >= len(prog) {
+		return ""
+	}
+	return prog[pc].StepID
 }
 
 func ptr[T any](v T) *T { return &v }

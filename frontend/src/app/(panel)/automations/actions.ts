@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { runAction } from '@/lib/server/actions';
 import type {
@@ -21,6 +22,7 @@ export type AutomationInput = Schemas['CreateAutomationRequest'];
 export async function createAutomationAction(
     input: AutomationInput,
 ): Promise<ActionResult<Automation>> {
+    const t = await getT();
     const res = await runAction(
         async () =>
             (
@@ -29,7 +31,7 @@ export async function createAutomationAction(
                     body: input,
                 })
             ).data,
-        'Automation created.',
+        t('automations.toast.created'),
     );
     revalidatePath('/automations');
     return res;
@@ -44,6 +46,7 @@ export async function updateAutomationAction(
     patch: Schemas['UpdateAutomationRequest'],
 ): Promise<ActionResult<Automation>> {
     check(id);
+    const t = await getT();
     const res = await runAction(
         async () =>
             (
@@ -52,7 +55,7 @@ export async function updateAutomationAction(
                     body: patch,
                 })
             ).data,
-        'Automation saved.',
+        t('automations.toast.saved'),
     );
     revalidatePath('/automations', 'layout');
     return res;
@@ -63,13 +66,14 @@ export async function setActiveAction(
     active: boolean,
 ): Promise<ActionResult> {
     check(id);
+    const t = await getT();
     const res = await runAction(
         () =>
             api(`/automations/${id}`, {
                 method: 'PATCH',
                 body: { active },
             }).then(() => undefined),
-        active ? 'Automation turned on.' : 'Automation turned off.',
+        active ? t('automations.toast.on') : t('automations.toast.off'),
     );
     revalidatePath('/automations', 'layout');
     return res;
@@ -79,12 +83,13 @@ export async function deleteAutomationAction(
     id: string,
 ): Promise<ActionResult> {
     check(id);
+    const t = await getT();
     const res = await runAction(
         () =>
             api(`/automations/${id}`, { method: 'DELETE' }).then(
                 () => undefined,
             ),
-        'Automation deleted.',
+        t('automations.toast.deleted'),
     );
     revalidatePath('/automations');
     return res;

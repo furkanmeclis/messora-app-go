@@ -17,6 +17,8 @@ type Querier interface {
 	AddContactTag(ctx context.Context, arg AddContactTagParams) error
 	AddGroupMembers(ctx context.Context, arg AddGroupMembersParams) (int64, error)
 	AdvanceAutomationRun(ctx context.Context, arg AdvanceAutomationRunParams) error
+	// Run trace: the step a run just executed.
+	AppendAutomationRunVisited(ctx context.Context, arg AppendAutomationRunVisitedParams) error
 	// Monotonic status transition from a webhook; see the messages table comment.
 	ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatusParams) (Message, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error

@@ -2,8 +2,8 @@
 SELECT EXISTS (SELECT 1 FROM automations WHERE active AND trigger_type = @trigger_type);
 
 -- name: InsertAutomation :one
-INSERT INTO automations (name, description, active, trigger_type, trigger, steps, program, created_by)
-VALUES (@name, @description, @active, @trigger_type, @trigger, @steps, @program, sqlc.narg(created_by))
+INSERT INTO automations (name, description, active, trigger_type, trigger, steps, program, layout, created_by)
+VALUES (@name, @description, @active, @trigger_type, @trigger, @steps, @program, @layout, sqlc.narg(created_by))
 RETURNING *;
 
 -- name: UpdateAutomation :one
@@ -15,6 +15,8 @@ UPDATE automations SET
     trigger = coalesce(sqlc.narg(trigger), trigger),
     steps = coalesce(sqlc.narg(steps), steps),
     program = coalesce(sqlc.narg(program), program),
+    -- Moving nodes on the canvas is not a new version: runs continue.
+    layout = coalesce(sqlc.narg(layout), layout),
     version = CASE WHEN sqlc.narg(program)::jsonb IS NOT NULL OR sqlc.narg(trigger)::jsonb IS NOT NULL THEN version + 1 ELSE version END,
     updated_at = now()
 WHERE id = @id
@@ -71,6 +73,11 @@ WHERE id = @id;
 
 -- name: FinishAutomationRun :exec
 UPDATE automation_runs SET status = @status, error = sqlc.narg(error), finished_at = now(), updated_at = now(), resume_at = NULL
+WHERE id = @id;
+
+-- name: AppendAutomationRunVisited :exec
+-- Run trace: the step a run just executed.
+UPDATE automation_runs SET visited = coalesce(visited, '[]'::jsonb) || jsonb_build_array(@step_id::text)
 WHERE id = @id;
 
 -- name: InsertAutomationRunStep :exec

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Automation } from '@/lib/types';
@@ -10,10 +11,14 @@ import { PageHeading } from '../panel-header';
 import { AutomationTable } from './automations-client';
 import { loadNames } from './data';
 
-export const metadata: Metadata = { title: 'Automations' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('automations.list.title') };
+}
 
 export default async function AutomationsPage() {
     const me = await requirePermission('automations.read');
+    const t = await getT();
     const [list, names] = await Promise.all([
         api<Automation[]>('/automations'),
         loadNames(me),
@@ -23,13 +28,13 @@ export default async function AutomationsPage() {
     return (
         <>
             <PageHeading
-                title="Automations"
-                description="Reply, tag, branch and wait automatically when something happens."
+                title={t('automations.list.title')}
+                description={t('automations.list.description')}
                 actions={
                     canManage && (
                         <Button asChild>
                             <Link href="/automations/new">
-                                <Plus /> New automation
+                                <Plus /> {t('automations.new.title')}
                             </Link>
                         </Button>
                     )
