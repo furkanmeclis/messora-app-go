@@ -38,6 +38,8 @@ function memoryEnv(lic, gk) {
 }
 
 const ctx = { waitUntil: (p) => p };
+// A well-formed but unsigned licence.
+const FORGED = ['msl1', 'forged', 'signature'].join('.');
 const instance = '0b0c1f0e-3c3a-4f5e-9d6f-1a2b3c4d5e6f';
 
 async function openAnswer(text, pub) {
@@ -73,7 +75,7 @@ test('check-in answers are signed and carry revocations', async () => {
     a = await openAnswer(await (await call({ key, instance_id: instance })).text(), gk.pub);
     assert.equal(a.status, 'revoked');
 
-    a = await openAnswer(await (await call({ key: 'msl1.forged.key', instance_id: instance })).text(), gk.pub);
+    a = await openAnswer(await (await call({ key: FORGED, instance_id: instance })).text(), gk.pub);
     assert.equal(a.status, 'unknown');
     assert.equal((await call({ key, instance_id: 'x' })).status, 400);
 });

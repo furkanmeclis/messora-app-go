@@ -491,7 +491,7 @@ func dialog(prompt string) (string, error) {
 	set r to display dialog (item 1 of argv) default answer "" with hidden answer with title "messora-license" buttons {"Cancel", "OK"} default button "OK"
 	return text returned of r
 end run`
-	out, err := exec.CommandContext(context.Background(), "osascript", "-e", script, strings.TrimSpace(prompt)).Output()
+	out, err := exec.CommandContext(context.Background(), "osascript", "-e", script, strings.TrimSpace(prompt)).Output() //nolint:gosec // fixed script; the prompt is passed as an argument, not code
 	if err != nil {
 		return "", err
 	}

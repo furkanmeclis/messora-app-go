@@ -10,6 +10,8 @@ paths = [
   '''^frontend/\.next/''',
   # Local git worktrees of parallel work (never committed).
   '''^\.claude/''',
+  # Repository secrets on the maintainer's machine (git-ignored).
+  '''^secrets\.env$''',
   # oapi-codegen embeds the gzipped spec as base64; random-looking by design.
   '''^internal/api/api\.gen\.go$''',
 ]
