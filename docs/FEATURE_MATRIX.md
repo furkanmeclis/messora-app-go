@@ -95,7 +95,7 @@
 | Konuşma atama, kapatma, müşteri paneli | 7 | Implemented (atama ve durum geçmişi, audit; müşteri paneli: consent, etiketler, notlar. Atanacak kullanıcı listesi yalnızca `users.manage` ile gelir, diğerleri kendine/atanmamışa atar) |
 | Otomasyon: tetikleyiciler, aksiyonlar, görsel editör | 8 | Missing |
 | Döngü / duplicate koruması, çalıştırma geçmişi | 8 | Missing |
-| Giden webhook'lar (imzalı, retry, teslimat logu, SSRF korumalı) | 8 | Missing |
+| Giden webhook'lar (imzalı, retry, teslimat logu, SSRF korumalı) | 8 | Implemented (API + panel sayfası; event'ler değişiklikle aynı transaction'da outbox üzerinden; HMAC-SHA256 imza, ~24 saatte 10 deneme, 410'da devre dışı, yeniden gönder ve test event'i; `internal/platform/safehttp` hem kayıtta hem bağlantı anında IP denetler. Unit + integration testleri; entegrasyon rehberi `docs/WEBHOOKS.md`) |
 
 ## Operasyon (Phase 10)
 

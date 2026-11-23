@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 8: outgoing webhooks
+
+- Webhook endpoints (`/api/v1/webhook-endpoints`, panel page under
+  settings, permission `webhooks.manage`): HTTPS URL, description, event
+  subscriptions, active flag, a server-generated signing secret shown once
+  and rotatable, test events.
+- Events: `message.received` (with the message text), `message.status`,
+  `conversation.assigned` / `.closed` / `.reopened`, `campaign.completed` /
+  `.failed` / `.cancelled`, `contact.created` / `.updated` / `.opted_out` /
+  `.opted_in`, recorded in the same transaction as the change through the
+  outbox. Versioned envelope `{"id", "type", "version", "created_at",
+  "data"}`; see `docs/WEBHOOKS.md`.
+- Delivery in the worker: one delivery per event and endpoint (unique, so
+  repeated relays never duplicate), `Messora-Signature: t=…,v1=…`
+  (HMAC-SHA256 over `timestamp.body`) and a stable `Messora-Event-Id` for
+  receiver-side dedupe. 2xx succeeds, 410 disables the endpoint, timeouts,
+  408, 429 (with `Retry-After`) and 5xx retry 10 times over about 24 hours,
+  other answers fail at once. Delivery log with status, attempts, last
+  response code, duration and response excerpt; manual redelivery; 30-day
+  retention.
+- `internal/platform/safehttp`: an SSRF-safe HTTP client for user-supplied
+  URLs (also for the automation HTTP action). It resolves names itself,
+  refuses loopback, private, link-local/metadata, CGNAT, multicast and
+  reserved addresses (also IPv4-mapped, NAT64 and numeric shortcuts),
+  re-checks the socket address at connect time against DNS rebinding,
+  ignores proxy variables, does not follow redirects by default, bounds
+  response bodies and keeps credentials out of errors.
+
 ### Added — Phase 5: campaigns
 
 - Campaigns send an approved template to a segment, group, tag or every
