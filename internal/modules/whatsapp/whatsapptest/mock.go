@@ -275,7 +275,7 @@ func (s *Server) templatesHandler(w http.ResponseWriter, r *http.Request, waba s
 
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<20)
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	if err := r.ParseMultipartForm(32 << 20); err != nil { //nolint:gosec // G120: body bounded by MaxBytesReader above (test mock)
 		graphError(w, http.StatusBadRequest, 131053, "Media upload error")
 		return
 	}

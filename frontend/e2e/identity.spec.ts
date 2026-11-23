@@ -92,7 +92,9 @@ test('owner invites an agent', async ({ page }) => {
     state.inviteUrl = await link.inputValue();
     await dialog.getByRole('button', { name: 'Done' }).click();
     await expect(page.getByText('Pending invitations')).toBeVisible();
-    await expect(page.getByText(AGENT.email)).toBeVisible();
+    // The address appears in the invitation row (and may also be echoed in
+    // the success toast); one visible match is enough.
+    await expect(page.getByText(AGENT.email).first()).toBeVisible();
     noErrors();
 });
 
