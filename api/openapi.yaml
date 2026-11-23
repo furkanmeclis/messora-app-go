@@ -805,6 +805,49 @@ paths:
               schema: { $ref: "#/components/schemas/MessageResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  # ── Realtime (Phase 6) ────────────────────────────────────────────────────
+  /realtime/connection-token:
+    post:
+      operationId: createRealtimeConnectionToken
+      tags: [realtime]
+      summary: Token for opening a Centrifugo connection
+      description: >-
+        A short-lived HS256 JWT for Centrifugo with the user as subject. The
+        user's personal channel and system notices are subscribed server-side.
+        The client asks for a new token before this one expires.
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: Connection token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RealtimeTokenResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /realtime/subscription-token:
+    post:
+      operationId: createRealtimeSubscriptionToken
+      tags: [realtime]
+      summary: Token for subscribing to one channel
+      description: >-
+        Issued only when the user may read the channel: `inbox:all` needs
+        conversations.read or conversations.read_all, `conversation:<id>`
+        needs conversations.read_all, `campaign:all` and `campaign:<id>` need
+        campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RealtimeSubscriptionRequest" }
+      responses:
+        "200":
+          description: Subscription token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RealtimeTokenResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     panel:
@@ -1646,3 +1689,21 @@ components:
       type: object
       required: [data, meta]
       properties: { data: { $ref: "#/components/schemas/Message" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    # ── Realtime (Phase 6) ──────────────────────────────────────────────────
+    RealtimeSubscriptionRequest:
+      type: object
+      additionalProperties: false
+      required: [channel]
+      properties:
+        channel: { type: string, minLength: 3, maxLength: 128, description: "Channel name, e.g. inbox:all or campaign:<id>." }
+    RealtimeToken:
+      type: object
+      required: [token, expires_at]
+      properties:
+        token: { type: string, description: Centrifugo JWT. }
+        expires_at: { type: string, format: date-time }
+    RealtimeTokenResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/RealtimeToken" }, meta: { $ref: "#/components/schemas/Meta" } }

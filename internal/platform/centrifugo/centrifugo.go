@@ -53,3 +53,14 @@ func (c *Client) Info(ctx context.Context) ([]NodeInfo, error) {
 	}
 	return out, nil
 }
+
+// Publish sends data (a JSON document) to channel. A non-empty
+// idempotencyKey makes Centrifugo drop a repeated publication with the same
+// key, so an at-least-once caller does not deliver duplicates.
+func (c *Client) Publish(ctx context.Context, channel string, data []byte, idempotencyKey string) error {
+	if channel == "" {
+		return errors.New("centrifugo: empty channel")
+	}
+	_, err := c.api.Publish(ctx, gocent.PublishRequest{Channel: channel, Data: data, IdempotencyKey: idempotencyKey})
+	return err
+}

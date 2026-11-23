@@ -289,6 +289,10 @@ func (c *Config) Validate(role Role) error {
 			errs = append(errs, errors.New("BFF_SHARED_SECRET must be at least 32 characters"))
 		}
 		req(c.Centrifugo.APIKey.IsSet(), "CENTRIFUGO_API_KEY")
+		req(c.Centrifugo.HMACSecret.IsSet(), "CENTRIFUGO_HMAC_SECRET")
+	}
+	if role == RoleWorker {
+		req(c.Centrifugo.APIKey.IsSet(), "CENTRIFUGO_API_KEY")
 	}
 	if v := c.Meta.GraphVersion; len(v) < 2 || v[0] != 'v' {
 		errs = append(errs, fmt.Errorf("META_GRAPH_API_VERSION must look like v26.0 (got %q)", v))

@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 )
@@ -126,7 +127,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, id uuid.UUID, attempt, max
 		unmatched, media = 0, nil
 		for _, e := range n.Entry {
 			for _, c := range e.Changes {
-				u, m, err := s.applyChange(ctx, q, c)
+				u, m, err := s.applyChange(ctx, tx, q, c)
 				if err != nil {
 					return fmt.Errorf("%s: %w", c.Field, err)
 				}
@@ -158,7 +159,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, id uuid.UUID, attempt, max
 	return nil
 }
 
-func (s *Service) applyChange(ctx context.Context, q *db.Queries, c whatsapp.Change) (unmatched int, media []uuid.UUID, err error) {
+func (s *Service) applyChange(ctx context.Context, tx pgx.Tx, q *db.Queries, c whatsapp.Change) (unmatched int, media []uuid.UUID, err error) {
 	switch c.Field {
 	case "messages":
 		var v whatsapp.MessagesValue
@@ -178,7 +179,7 @@ func (s *Service) applyChange(ctx context.Context, q *db.Queries, c whatsapp.Cha
 			names[ct.WaID] = ct.Profile.Name
 		}
 		for i := range v.Messages {
-			mid, err := s.inbound(ctx, q, pn, &v.Messages[i], names)
+			mid, err := s.inbound(ctx, tx, q, pn, &v.Messages[i], names)
 			if err != nil {
 				return 0, nil, err
 			}
@@ -187,7 +188,7 @@ func (s *Service) applyChange(ctx context.Context, q *db.Queries, c whatsapp.Cha
 			}
 		}
 		for i := range v.Statuses {
-			ok, err := s.status(ctx, q, &v.Statuses[i])
+			ok, err := s.status(ctx, tx, q, &v.Statuses[i])
 			if err != nil {
 				return 0, nil, err
 			}
@@ -215,8 +216,9 @@ func (s *Service) applyChange(ctx context.Context, q *db.Queries, c whatsapp.Cha
 	return unmatched, media, nil
 }
 
-// inbound stores a customer message; it returns the media row to download.
-func (s *Service) inbound(ctx context.Context, q *db.Queries, pn db.PhoneNumber, m *whatsapp.InboundMessage, names map[string]string) (uuid.UUID, error) {
+// inbound stores a customer message and announces it to the inbox; it
+// returns the media row to download.
+func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.PhoneNumber, m *whatsapp.InboundMessage, names map[string]string) (uuid.UUID, error) {
 	phone, ok := NormalizePhone(m.From)
 	if !ok || m.ID == "" {
 		s.log.WarnContext(ctx, "inbound message without a usable sender", "wamid", m.ID)
@@ -243,6 +245,9 @@ func (s *Service) inbound(ctx context.Context, q *db.Queries, pn db.PhoneNumber,
 	if err != nil {
 		return uuid.Nil, err
 	}
+	if err := realtime.Publish(ctx, tx, realtime.InboxChannel, realtime.NewMessageEvent(realtime.TypeMessageCreated, row)); err != nil {
+		return uuid.Nil, err
+	}
 	if m.Type != "reaction" && m.Type != "unsupported" && m.Type != "system" {
 		if err := q.TouchContactInbound(ctx, db.TouchContactInboundParams{ID: c.ID, At: &at}); err != nil {
 			return uuid.Nil, err
@@ -259,8 +264,9 @@ func (s *Service) inbound(ctx context.Context, q *db.Queries, pn db.PhoneNumber,
 	return uuid.Nil, nil
 }
 
-// status applies a delivery update; false means the message is unknown.
-func (s *Service) status(ctx context.Context, q *db.Queries, st *whatsapp.Status) (bool, error) {
+// status applies a delivery update and announces an actual change; false
+// means the message is unknown.
+func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *whatsapp.Status) (bool, error) {
 	rank, ok := statusRank[st.Status]
 	if !ok {
 		return true, nil // unknown status kinds are ignored
@@ -298,9 +304,17 @@ func (s *Service) status(ctx context.Context, q *db.Queries, st *whatsapp.Status
 		}
 		p.ErrorCode, p.ErrorTitle = &code, ptr(truncate(title, 500))
 	}
-	_, err = q.ApplyMessageStatus(ctx, p)
+	updated, err := q.ApplyMessageStatus(ctx, p)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return true, nil // inbound message id; nothing to do
 	}
-	return err == nil, err
+	if err != nil {
+		return false, err
+	}
+	if updated.Status != m.Status {
+		if err := realtime.Publish(ctx, tx, realtime.InboxChannel, realtime.NewMessageEvent(realtime.TypeMessageStatus, updated)); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
