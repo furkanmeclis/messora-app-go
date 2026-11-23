@@ -12,6 +12,7 @@ import {
     Inbox as InboxIcon,
     MessageSquare,
     Search,
+    Paperclip,
 } from 'lucide-react';
 import { newIdempotencyKey, notify } from '@/components/notify';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -699,6 +700,9 @@ function ReplyBox({
     const [template, setTemplate] = useState('');
     const [pending, startTransition] = useTransition();
     const key = useRef(newIdempotencyKey());
+    const fileInput = useRef<HTMLInputElement>(null);
+    const [file, setFile] = useState<File | null>(null);
+    const [uploading, setUploading] = useState(false);
 
     const send = (reply: Parameters<typeof replyAction>[1]) =>
         startTransition(async () => {
@@ -706,9 +710,46 @@ function ReplyBox({
             if (notify(r)) {
                 key.current = newIdempotencyKey();
                 setText('');
+                setFile(null);
             }
         });
-    const sendText = () => {
+    const sendText = async () => {
+        if (file) {
+            setUploading(true);
+            try {
+                const q = new URLSearchParams({
+                    filename: file.name,
+                    phone_number_id: c.phone_number.id,
+                });
+                const res = await fetch(`/bff/media-upload?${q}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': file.type || 'application/octet-stream',
+                    },
+                    body: file,
+                });
+                const out = await res.json().catch(() => null);
+                if (!res.ok || !out?.data?.id) {
+                    notify({
+                        ok: false,
+                        code: out?.error?.code ?? 'UPLOAD_FAILED',
+                        message:
+                            out?.error?.message ??
+                            'The file could not be uploaded.',
+                    });
+                    return;
+                }
+                send({
+                    type: mediaKind(file.type),
+                    id: out.data.id,
+                    filename: file.name,
+                    caption: text.trim() || undefined,
+                });
+            } finally {
+                setUploading(false);
+            }
+            return;
+        }
         if (text.trim()) send({ type: 'text', body: text });
     };
 
@@ -740,28 +781,77 @@ function ReplyBox({
                         <Label htmlFor="reply" className="sr-only">
                             Reply
                         </Label>
-                        <Textarea
-                            id="reply"
-                            value={text}
-                            maxLength={4096}
-                            rows={2}
-                            placeholder="Write a reply… (Ctrl+Enter to send)"
-                            onChange={(e) => setText(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (
-                                    e.key === 'Enter' &&
-                                    (e.ctrlKey || e.metaKey)
-                                ) {
-                                    e.preventDefault();
-                                    sendText();
-                                }
-                            }}
+                        <input
+                            ref={fileInput}
+                            type="file"
+                            className="sr-only"
+                            aria-label="Attach a file"
+                            accept="image/jpeg,image/png,video/mp4,video/3gpp,audio/aac,audio/mpeg,audio/mp4,audio/ogg,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                            onChange={(e) =>
+                                setFile(e.target.files?.[0] ?? null)
+                            }
                         />
                         <Button
-                            type="submit"
-                            disabled={pending || !text.trim()}
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Attach a file"
+                            onClick={() => fileInput.current?.click()}
                         >
-                            {pending && <Spinner />} Send
+                            <Paperclip />
+                        </Button>
+                        <div className="flex-1 space-y-1">
+                            {file && (
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Badge
+                                        variant="secondary"
+                                        className="max-w-full truncate"
+                                    >
+                                        {file.name}
+                                    </Badge>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setFile(null);
+                                            if (fileInput.current)
+                                                fileInput.current.value = '';
+                                        }}
+                                    >
+                                        Remove
+                                    </Button>
+                                </div>
+                            )}
+                            <Textarea
+                                id="reply"
+                                value={text}
+                                maxLength={file ? 1024 : 4096}
+                                rows={2}
+                                placeholder={
+                                    file
+                                        ? 'Add a caption (optional)…'
+                                        : 'Write a reply… (Ctrl+Enter to send)'
+                                }
+                                onChange={(e) => setText(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (
+                                        e.key === 'Enter' &&
+                                        (e.ctrlKey || e.metaKey)
+                                    ) {
+                                        e.preventDefault();
+                                        sendText();
+                                    }
+                                }}
+                            />
+                        </div>
+                        <Button
+                            type="submit"
+                            disabled={
+                                pending || uploading || (!text.trim() && !file)
+                            }
+                        >
+                            {(pending || uploading) && <Spinner />} Send
                         </Button>
                     </form>
                 )}
@@ -967,4 +1057,12 @@ function ContactPanel({
             </Card>
         </aside>
     );
+}
+
+/** The WhatsApp message type for an attached file. */
+function mediaKind(mime: string): 'image' | 'video' | 'audio' | 'document' {
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('video/')) return 'video';
+    if (mime.startsWith('audio/')) return 'audio';
+    return 'document';
 }

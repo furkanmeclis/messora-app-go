@@ -18,7 +18,13 @@ function check(id: string) {
 
 export type Reply =
     | { type: 'text'; body: string }
-    | { type: 'template'; name: string; language: string };
+    | { type: 'template'; name: string; language: string }
+    | {
+          type: 'image' | 'video' | 'audio' | 'document';
+          id: string;
+          filename?: string;
+          caption?: string;
+      };
 
 /** Sends a message in a conversation (the API applies the 24h rules). */
 export async function replyAction(
@@ -30,10 +36,23 @@ export async function replyAction(
     const body =
         reply.type === 'text'
             ? { type: 'text', text: { body: reply.body } }
-            : {
-                  type: 'template',
-                  template: { name: reply.name, language: reply.language },
-              };
+            : reply.type === 'template'
+              ? {
+                    type: 'template',
+                    template: { name: reply.name, language: reply.language },
+                }
+              : {
+                    type: reply.type,
+                    media: {
+                        id: reply.id,
+                        ...(reply.type === 'document' && reply.filename
+                            ? { filename: reply.filename }
+                            : {}),
+                        ...(reply.caption && reply.type !== 'audio'
+                            ? { caption: reply.caption }
+                            : {}),
+                    },
+                };
     const res = await runAction(() =>
         api(`/conversations/${conversationId}/messages`, {
             method: 'POST',

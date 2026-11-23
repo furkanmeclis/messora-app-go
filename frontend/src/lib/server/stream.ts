@@ -119,7 +119,7 @@ export async function streamUpload(
         return fail(
             413,
             'VALIDATION_ERROR',
-            'The file is larger than 50 MB; split it into smaller files.',
+            `The file is larger than ${Math.round(maxBytes / 1024 / 1024)} MB.`,
         );
     }
     if (!req.body) {

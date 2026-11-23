@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 9 and 10: panel screens and production readiness
+
+- Panel screens for contacts (list, detail, import wizard, groups, tags,
+  segment builder), channels, templates, campaigns (wizard and live
+  dashboard), automations (visual editor and run log) and outgoing
+  webhooks; a Playwright smoke test opens every route.
+- File attachments in the inbox and `POST /api/v1/media` (streamed to Meta,
+  type and size checked).
+- Backups, restore and a CI-tested restore rehearsal; pinned image digests,
+  resource limits and an operations guide.
+
+### Fixed
+
+- Dates and numbers render the same on the server and in the browser, in
+  the user's time zone and language (hydration failed outside UTC).
+- Idempotency keys are released when a request is rejected.
+
 ### Added — Phase 8: automations
 
 - Automations react to new messages (with keyword matching), new contacts,

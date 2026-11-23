@@ -51,7 +51,7 @@
 | Hesap / numara bağlama (şifreli token) | 3 | Implemented (API; panel ekranı Phase 9) |
 | Graph API sürümü yapılandırılabilir (varsayılan v26.0) | 3 | Implemented |
 | Text, template, image, video, document, audio, location, interactive | 3 | Implemented (+ sticker, reaction) |
-| Medya upload / download | 3 | Partial (gelen medya indirilir ve inbox'tan yetkili indirilir; giden medya ID/link ile; panelden dosya yükleme henüz yok) |
+| Medya upload / download | 3 | Implemented (gelen medya indirilir; `POST /api/v1/media` ve inbox'taki ek butonu dosyayı Meta'ya akış halinde yükler, tür/boyut sınırları uygulanır) |
 | Webhook verify + imza doğrulama + önce kaydet | 3 | Implemented |
 | Durum takibi (monoton) + durum geçmişi | 3 | Implemented (zaman damgaları; ayrıntılı event log Phase 5) |
 | Template oluşturma / silme / senkronizasyon | 3 | Implemented (+ durum webhook'u) |

@@ -689,6 +689,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/media': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file to send as an image, video, audio, document or sticker
+         * @description Send the raw file as the request body with its Content-Type. Meta keeps it for 30 days; use the returned id in a message's media.id. Limits: images 5 MB, video and audio 16 MB, documents 100 MB, stickers 500 KB.
+         */
+        post: operations['uploadMedia'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/messages/{messageId}': {
         parameters: {
             query?: never;
@@ -2980,6 +3000,20 @@ export interface components {
             data: components['schemas']['WebhookDelivery'][];
             meta: components['schemas']['Meta'];
         };
+        UploadedMedia: {
+            /** @description Meta media ID for media.id in a message. */
+            id: string;
+            mime_type: string;
+            filename: string;
+            /** Format: int64 */
+            size: number;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        UploadedMediaResponse: {
+            data: components['schemas']['UploadedMedia'];
+            meta: components['schemas']['Meta'];
+        };
     };
     responses: {
         /** @description Error */
@@ -4104,6 +4138,35 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['MessageResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    uploadMedia: {
+        parameters: {
+            query: {
+                filename: string;
+                /** @description Sender whose account stores the file; defaults to the default number. */
+                phone_number_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/octet-stream': string;
+            };
+        };
+        responses: {
+            /** @description Uploaded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['UploadedMediaResponse'];
                 };
             };
             default: components['responses']['Error'];
