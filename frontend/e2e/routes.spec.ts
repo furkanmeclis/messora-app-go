@@ -57,17 +57,22 @@ test.beforeAll(async ({ browser }) => {
         VALUES ('+9055${digits}9', 'Route Contact', 'manual') RETURNING id;`);
     ids.segment = sql(`INSERT INTO segments (name, definition)
         VALUES ('Routes ${RUN}', '{"field":"name","operator":"contains","value":"Route"}') RETURNING id;`);
-    ids.automation = sql(`INSERT INTO automations (name, trigger_type, trigger, steps, program)
+    ids.automation =
+        sql(`INSERT INTO automations (name, trigger_type, trigger, steps, program)
         VALUES ('Routes ${RUN}', 'new_contact', '{}',
                 '[{"type":"add_tag","tag":"routes"}]',
                 '[{"op":"action","step":{"type":"add_tag","tag":"routes"}}]') RETURNING id;`);
-    ids.import = sql(`INSERT INTO contact_imports (filename, storage_key, size_bytes, headers, preview, total_rows)
+    ids.import =
+        sql(`INSERT INTO contact_imports (filename, storage_key, size_bytes, headers, preview, total_rows)
         VALUES ('routes.csv', 'imports/uploads/routes-${RUN}.csv', 10, '["phone"]', '[["+905550000000"]]', 1) RETURNING id;`);
-    const account = sql(`INSERT INTO whatsapp_accounts (name, waba_id, access_token_enc, status)
+    const account =
+        sql(`INSERT INTO whatsapp_accounts (name, waba_id, access_token_enc, status)
         VALUES ('Routes ${RUN}', '9${digits}1', '\\x00', 'disabled') RETURNING id;`);
-    const number = sql(`INSERT INTO phone_numbers (account_id, phone_number_id, display_phone_number, verified_name)
+    const number =
+        sql(`INSERT INTO phone_numbers (account_id, phone_number_id, display_phone_number, verified_name)
         VALUES ('${account}', '9${digits}2', '+1 555 0100', 'Routes') RETURNING id;`);
-    ids.campaign = sql(`INSERT INTO campaigns (name, phone_number_id, template_name, template_language, audience)
+    ids.campaign =
+        sql(`INSERT INTO campaigns (name, phone_number_id, template_name, template_language, audience)
         VALUES ('Routes ${RUN}', '${number}', 'hello_world', 'en_US', '{"all":true}') RETURNING id;`);
 
     context = await browser.newContext();
@@ -81,10 +86,19 @@ test.beforeAll(async ({ browser }) => {
     await page.getByLabel('Your name').fill(ADMIN.name);
     await page.getByLabel('Password').fill(ADMIN.password);
     await page.getByRole('button', { name: 'Join' }).click();
-    // Admins must use two-factor authentication: any page leads to enrolment.
-    await expect(page).toHaveURL(/\/account\/security/);
-    await page.goto('/users');
+    // Admins must use two-factor authentication: joining lands straight on
+    // enrolment, rendered without a reload (regression: a chained redirect
+    // left the client refetching an empty page in a loop).
+    let refetches = 0;
+    page.on('request', (r) => {
+        if (r.url().includes('_rsc')) refetches++;
+    });
     await expect(page).toHaveURL(/\/account\/security\?enroll=1/);
+    await expect(
+        page.getByText('Two-factor authentication is required'),
+    ).toBeVisible();
+    await page.waitForTimeout(1_500);
+    expect(refetches, 'the enrolment page keeps refetching').toBeLessThan(10);
     await page.getByRole('button', { name: 'Set up now' }).click();
     const secret = (await page.locator('code.break-all').innerText()).trim();
     await page.getByLabel('Code from the app').fill(totp(secret));

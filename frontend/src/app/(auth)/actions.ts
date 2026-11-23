@@ -9,7 +9,7 @@ import {
     setMfaToken,
     setSessionToken,
 } from '@/lib/server/session';
-import type { ActionResult, Schemas } from '@/lib/types';
+import type { ActionResult, Me, Schemas } from '@/lib/types';
 
 type SessionCreated = Schemas['SessionCreated'];
 type LoginResult = Schemas['LoginResult'];
@@ -42,7 +42,10 @@ export async function loginAction(
         await setMfaToken(res.data.mfa_token);
         redirect(`/login/verify?next=${encodeURIComponent(next)}`);
     }
-    if (res.data.session) await startSession(res.data.session);
+    if (res.data.session) {
+        await startSession(res.data.session);
+        await land(res.data.session.session_token);
+    }
     redirect(next);
 }
 
@@ -126,6 +129,7 @@ export async function acceptInvitationAction(
     );
     if (!res.ok) return res;
     await startSession(res.data);
+    await land(res.data.session_token);
     redirect('/');
 }
 
@@ -160,4 +164,20 @@ export async function resetPasswordAction(
     );
     if (!res.ok) return res;
     redirect('/login?reset=1');
+}
+
+/**
+ * Sends a freshly signed-in user straight to where they may go. Users whose
+ * role requires two-factor authentication they have not set up go directly
+ * to enrolment: redirecting to a panel page that then redirects again
+ * left the client router refetching an empty page in a loop.
+ */
+async function land(token: string): Promise<void> {
+    let pending = false;
+    try {
+        pending = (await api<Me>('/me', { token })).data.mfa_required;
+    } catch {
+        // Unknown: the panel checks again on the next page.
+    }
+    if (pending) redirect('/account/security?enroll=1');
 }

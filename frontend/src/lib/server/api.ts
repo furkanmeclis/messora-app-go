@@ -44,6 +44,8 @@ type Options = {
     body?: unknown;
     /** Defaults to the signed-in user's session. */
     auth?: 'session' | 'none';
+    /** A session token to use instead of the cookie (right after sign-in). */
+    token?: string;
     idempotencyKey?: string;
     timeoutMs?: number;
 };
@@ -71,7 +73,7 @@ export async function api<T>(
     const ua = incoming.get('user-agent');
     if (ua) h.set('User-Agent', ua.slice(0, 512));
     if (o.auth !== 'none') {
-        const token = await getSessionToken();
+        const token = o.token ?? (await getSessionToken());
         if (token) h.set('Authorization', `Bearer ${token}`);
     }
     if (o.body !== undefined) h.set('Content-Type', 'application/json');
