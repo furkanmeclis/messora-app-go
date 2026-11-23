@@ -106,7 +106,7 @@ export async function setupAction(
     );
     if (!res.ok) return res;
     await startSession(res.data);
-    redirect('/account/security?welcome=1');
+    redirect('/welcome');
 }
 
 export async function acceptInvitationAction(

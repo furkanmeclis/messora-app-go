@@ -1,28 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useTransition } from 'react';
 import { useTheme } from 'next-themes';
 import {
-    Activity,
-    BookUser,
+    Check,
     ChevronsUpDown,
-    FileText,
-    Inbox,
-    KeyRound,
+    Languages,
     LogOut,
-    Megaphone,
     Monitor,
     Moon,
-    Phone,
-    ScrollText,
-    Settings,
-    ShieldCheck,
     Sun,
-    UserRound,
-    Users,
-    Webhook,
-    Workflow,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -34,6 +23,9 @@ import {
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
     DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -47,84 +39,12 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { notify } from '@/components/notify';
+import { useLocale, useT } from '@/i18n/client';
+import { localeNames, locales } from '@/i18n/config';
+import { activeNav, visibleNav, type NavItem } from '@/lib/navigation';
 import type { User } from '@/lib/types';
-
-type NavItem = {
-    href: string;
-    label: string;
-    icon: React.ComponentType;
-    permission?: string;
-};
-
-const WORKSPACE: NavItem[] = [
-    { href: '/', label: 'Overview', icon: Activity },
-    {
-        href: '/inbox',
-        label: 'Inbox',
-        icon: Inbox,
-        permission: 'conversations.read',
-    },
-    {
-        href: '/contacts',
-        label: 'Contacts',
-        icon: BookUser,
-        permission: 'contacts.read',
-    },
-    {
-        href: '/campaigns',
-        label: 'Campaigns',
-        icon: Megaphone,
-        permission: 'campaigns.read',
-    },
-    {
-        href: '/templates',
-        label: 'Templates',
-        icon: FileText,
-        permission: 'templates.read',
-    },
-    {
-        href: '/channels',
-        label: 'Channels',
-        icon: Phone,
-        permission: 'channels.read',
-    },
-    {
-        href: '/automations',
-        label: 'Automations',
-        icon: Workflow,
-        permission: 'automations.read',
-    },
-    { href: '/users', label: 'Users', icon: Users, permission: 'users.manage' },
-    {
-        href: '/api-keys',
-        label: 'API keys',
-        icon: KeyRound,
-        permission: 'api_keys.manage',
-    },
-    {
-        href: '/audit',
-        label: 'Audit log',
-        icon: ScrollText,
-        permission: 'audit.read',
-    },
-    {
-        href: '/settings',
-        label: 'Settings',
-        icon: Settings,
-        permission: 'settings.read',
-    },
-    {
-        href: '/settings/webhooks',
-        label: 'Webhooks',
-        icon: Webhook,
-        permission: 'webhooks.manage',
-    },
-];
-
-const ACCOUNT: NavItem[] = [
-    { href: '/account/profile', label: 'Profile', icon: UserRound },
-    { href: '/account/security', label: 'Security', icon: ShieldCheck },
-];
+import { setLanguageAction } from './actions';
 
 function initials(name: string) {
     return name
@@ -135,54 +55,65 @@ function initials(name: string) {
         .toUpperCase();
 }
 
+/** The organisation logo, or Messora's mark without one. */
+export function OrgMark({
+    logoVersion,
+    className,
+}: {
+    logoVersion?: string | null;
+    className?: string;
+}) {
+    if (!logoVersion) return <BrandMark className={className} />;
+    return (
+        // A same-origin image of unknown size; next/image adds nothing here.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src={`/bff/logo?v=${encodeURIComponent(logoVersion)}`}
+            alt=""
+            className={`${className ?? ''} rounded-lg object-contain`}
+        />
+    );
+}
+
 export function AppSidebar({
     user,
     permissions,
     organization,
+    logoVersion,
     restricted,
 }: {
     user: User;
     permissions: string[];
     organization: string;
+    logoVersion?: string | null;
     restricted: boolean;
 }) {
+    const t = useT();
+    const locale = useLocale();
+    const router = useRouter();
     const pathname = usePathname();
     const { theme, setTheme } = useTheme();
-    const visible = (items: NavItem[]) =>
-        items.filter(
-            (i) =>
-                (!i.permission || permissions.includes(i.permission)) &&
-                (!restricted || i.href === '/account/security'),
-        );
-    // The most specific matching item is active (/settings/webhooks is not
-    // also /settings).
-    const matches = (href: string) =>
-        href === '/'
-            ? pathname === '/'
-            : pathname === href || pathname.startsWith(`${href}/`);
-    const activeHref = [...WORKSPACE, ...ACCOUNT]
-        .map((i) => i.href)
-        .filter(matches)
-        .sort((a, b) => b.length - a.length)[0];
-    const isActive = (href: string) => href === activeHref;
+    const [switching, startSwitch] = useTransition();
+    const items = visibleNav(permissions, restricted);
+    const active = activeNav(pathname)?.id;
 
-    const group = (label: string, items: NavItem[]) => {
-        const v = visible(items);
+    const group = (key: NavItem['group']) => {
+        const v = items.filter((i) => i.group === key);
         if (v.length === 0) return null;
         return (
             <SidebarGroup>
-                <SidebarGroupLabel>{label}</SidebarGroupLabel>
+                <SidebarGroupLabel>{t(`nav.${key}`)}</SidebarGroupLabel>
                 <SidebarMenu>
                     {v.map((item) => (
-                        <SidebarMenuItem key={item.href}>
+                        <SidebarMenuItem key={item.id}>
                             <SidebarMenuButton
                                 asChild
-                                isActive={isActive(item.href)}
-                                tooltip={item.label}
+                                isActive={item.id === active}
+                                tooltip={t(item.label)}
                             >
                                 <Link href={item.href}>
                                     <item.icon />
-                                    <span>{item.label}</span>
+                                    <span>{t(item.label)}</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -195,8 +126,11 @@ export function AppSidebar({
     return (
         <Sidebar collapsible="icon">
             <SidebarHeader>
-                <div className="flex items-center gap-2 px-1 py-1.5">
-                    <BrandMark className="size-8 shrink-0" />
+                <div className="flex items-center gap-2.5 px-1 py-1.5">
+                    <OrgMark
+                        logoVersion={logoVersion}
+                        className="size-8 shrink-0"
+                    />
                     <div className="grid text-sm leading-tight group-data-[collapsible=icon]:hidden">
                         <span className="truncate font-semibold">
                             {organization}
@@ -208,8 +142,9 @@ export function AppSidebar({
                 </div>
             </SidebarHeader>
             <SidebarContent>
-                {group('Workspace', WORKSPACE)}
-                {group('Account', ACCOUNT)}
+                {group('workspace')}
+                {group('administration')}
+                {group('account')}
             </SidebarContent>
             <SidebarFooter>
                 <SidebarMenu>
@@ -218,7 +153,7 @@ export function AppSidebar({
                             <DropdownMenuTrigger asChild>
                                 <SidebarMenuButton size="lg">
                                     <Avatar className="size-8 rounded-lg">
-                                        <AvatarFallback className="rounded-lg">
+                                        <AvatarFallback className="rounded-lg bg-primary/10 text-primary">
                                             {initials(user.name)}
                                         </AvatarFallback>
                                     </Avatar>
@@ -227,7 +162,9 @@ export function AppSidebar({
                                             {user.name}
                                         </span>
                                         <span className="truncate text-xs text-muted-foreground">
-                                            {user.role.name}
+                                            {t(
+                                                `settings.security.roles.${user.role.key}`,
+                                            )}
                                         </span>
                                     </div>
                                     <ChevronsUpDown className="ml-auto size-4" />
@@ -236,29 +173,65 @@ export function AppSidebar({
                             <DropdownMenuContent
                                 side="top"
                                 align="start"
-                                className="w-56"
+                                className="w-60"
                             >
                                 <DropdownMenuLabel className="truncate font-normal">
                                     {user.email}
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuLabel className="text-xs text-muted-foreground">
-                                    Theme
+                                    {t('common.theme')}
                                 </DropdownMenuLabel>
                                 <DropdownMenuRadioGroup
                                     value={theme}
                                     onValueChange={setTheme}
                                 >
                                     <DropdownMenuRadioItem value="light">
-                                        <Sun /> Light
+                                        <Sun /> {t('common.light')}
                                     </DropdownMenuRadioItem>
                                     <DropdownMenuRadioItem value="dark">
-                                        <Moon /> Dark
+                                        <Moon /> {t('common.dark')}
                                     </DropdownMenuRadioItem>
                                     <DropdownMenuRadioItem value="system">
-                                        <Monitor /> System
+                                        <Monitor /> {t('common.system')}
                                     </DropdownMenuRadioItem>
                                 </DropdownMenuRadioGroup>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger
+                                        disabled={switching}
+                                    >
+                                        <Languages className="size-4" />
+                                        {t('common.language')}
+                                        <span className="ml-auto text-xs text-muted-foreground">
+                                            {localeNames[locale]}
+                                        </span>
+                                    </DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        {locales.map((l) => (
+                                            <DropdownMenuItem
+                                                key={l}
+                                                onSelect={() =>
+                                                    startSwitch(async () => {
+                                                        if (
+                                                            notify(
+                                                                await setLanguageAction(
+                                                                    l,
+                                                                ),
+                                                            )
+                                                        )
+                                                            router.refresh();
+                                                    })
+                                                }
+                                            >
+                                                {localeNames[l]}
+                                                {l === locale && (
+                                                    <Check className="ml-auto size-4" />
+                                                )}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem asChild>
                                     <form action="/logout" method="post">
@@ -266,8 +239,8 @@ export function AppSidebar({
                                             type="submit"
                                             className="flex w-full items-center gap-2"
                                         >
-                                            <LogOut className="size-4" /> Sign
-                                            out
+                                            <LogOut className="size-4" />
+                                            {t('common.signOut')}
                                         </button>
                                     </form>
                                 </DropdownMenuItem>

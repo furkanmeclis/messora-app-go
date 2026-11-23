@@ -4,6 +4,22 @@ import { redirect } from 'next/navigation';
 import { ApiError } from './api';
 import { clearSession } from './session';
 import type { ActionResult } from '@/lib/types';
+import { getLocale } from '@/i18n/server';
+import { dictionaries } from '@/i18n/messages';
+
+/**
+ * The message for an API error in the user's language. English keeps the
+ * API's own (more specific) wording; other languages translate by code and
+ * keep validation details.
+ */
+export async function errorMessage(err: ApiError): Promise<string> {
+    const locale = await getLocale();
+    if (locale === 'en') return err.message;
+    const errors = dictionaries[locale].errors as Record<string, string>;
+    const msg = errors[err.code];
+    if (!msg) return err.message;
+    return msg.replace('{detail}', err.message);
+}
 
 /**
  * Runs fn and converts API errors into an ActionResult with per-field
@@ -30,7 +46,7 @@ export async function runAction<T>(
                     fieldErrors[d.field] = d.message ?? 'Invalid value';
                 }
             }
-            let msg = err.message;
+            let msg = await errorMessage(err);
             if (err.retryAfter && err.status === 429) {
                 msg += ` (retry in ${Math.ceil(err.retryAfter / 60)} min)`;
             }

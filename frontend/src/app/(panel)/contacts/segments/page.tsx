@@ -18,7 +18,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatDateTime, prefsFor } from '@/lib/format';
+import { formatDateTime } from '@/lib/format';
+import { getDisplayPrefs } from '@/lib/server/display';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Segment } from '@/lib/types';
@@ -29,6 +30,7 @@ export const metadata: Metadata = { title: 'Segments' };
 
 export default async function SegmentsPage() {
     const me = await requirePermission('segments.read');
+    const prefs = await getDisplayPrefs();
     const segments = (await api<Segment[]>('/segments')).data;
     const canManage = can(me, 'segments.manage');
     const canContacts = can(me, 'contacts.read');
@@ -105,10 +107,7 @@ export default async function SegmentsPage() {
                                         <TableCell className="text-sm text-muted-foreground">
                                             {formatDateTime(
                                                 s.updated_at,
-                                                prefsFor(
-                                                    me.user.timezone,
-                                                    me.user.locale,
-                                                ),
+                                                prefs,
                                             )}
                                         </TableCell>
                                         {canContacts && (

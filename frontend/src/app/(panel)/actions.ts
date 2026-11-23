@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { api } from '@/lib/server/api';
 import { field, runAction } from '@/lib/server/actions';
 import type { ActionResult, Schemas } from '@/lib/types';
+import { isLocale } from '@/i18n/config';
 
 // ── Re-authentication ──────────────────────────────────────────────────────
 
@@ -265,4 +266,20 @@ export async function loadAuditPage(
 
 export async function signOutAction() {
     redirect('/logout');
+}
+
+/** Switches the signed-in user's panel language. */
+export async function setLanguageAction(locale: string): Promise<ActionResult> {
+    if (!isLocale(locale)) {
+        return {
+            ok: false,
+            code: 'VALIDATION_ERROR',
+            message: 'Unsupported language',
+        };
+    }
+    const res = await runAction(() =>
+        api('/me', { method: 'PATCH', body: { locale } }).then(() => undefined),
+    );
+    revalidatePath('/', 'layout');
+    return res;
 }
