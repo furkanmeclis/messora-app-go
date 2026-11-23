@@ -110,6 +110,8 @@ test('invitee joins as an agent and sees only what the role allows', async ({ br
     await page.getByLabel('Password').fill('password1234');
     await page.getByRole('button', { name: 'Join' }).click();
     await expect(page.getByText(/too common|varied/)).toBeVisible();
+    // A rejected submission keeps what the user typed (except the password).
+    await expect(page.getByLabel('Your name')).toHaveValue(AGENT.name);
     await page.getByLabel('Password').fill(AGENT.password);
     await page.getByRole('button', { name: 'Join' }).click();
 

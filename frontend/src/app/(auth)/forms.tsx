@@ -25,8 +25,25 @@ type Action = (
     form: FormData,
 ) => Promise<ActionResult>;
 
+/** Fields never echoed back into the form after a failed submission. */
+const SECRET_FIELDS = new Set(['password', 'code', 'token']);
+
+type FormState = ActionResult & { values?: Record<string, string> };
+
+/**
+ * React resets a form after its action runs. Keeping the submitted
+ * non-secret values lets fields show what the user typed when the server
+ * rejects the submission (for example a weak password).
+ */
 function useAction(action: Action) {
-    return useActionState<ActionResult | null, FormData>(action, null);
+    return useActionState<FormState | null, FormData>(async (prev, form) => {
+        const result = await action(prev, form);
+        const values: Record<string, string> = {};
+        form.forEach((v, k) => {
+            if (typeof v === 'string' && !SECRET_FIELDS.has(k)) values[k] = v;
+        });
+        return { ...result, values };
+    }, null);
 }
 
 const passwordHint =
@@ -48,6 +65,8 @@ export function LoginForm({
                 <TextField
                     label="E-mail"
                     name="email"
+
+                    defaultValue={state?.values?.email}
                     type="email"
                     autoComplete="username"
                     required
@@ -136,6 +155,8 @@ export function SetupForm({ token }: { token: string }) {
                 <TextField
                     label="Organization name"
                     name="organization_name"
+
+                    defaultValue={state?.values?.organization_name}
                     placeholder="Acme Inc."
                     maxLength={120}
                     error={fieldError(state, 'organization_name')}
@@ -143,6 +164,8 @@ export function SetupForm({ token }: { token: string }) {
                 <TextField
                     label="Your name"
                     name="name"
+
+                    defaultValue={state?.values?.name}
                     autoComplete="name"
                     required
                     maxLength={120}
@@ -151,6 +174,8 @@ export function SetupForm({ token }: { token: string }) {
                 <TextField
                     label="E-mail"
                     name="email"
+
+                    defaultValue={state?.values?.email}
                     type="email"
                     autoComplete="username"
                     required
@@ -195,6 +220,8 @@ export function AcceptInvitationForm({
                 <TextField
                     label="Your name"
                     name="name"
+
+                    defaultValue={state?.values?.name}
                     autoComplete="name"
                     required
                     maxLength={120}
@@ -224,6 +251,8 @@ export function ForgotPasswordForm() {
             <TextField
                 label="E-mail"
                 name="email"
+
+                defaultValue={state?.values?.email}
                 type="email"
                 autoComplete="username"
                 required
