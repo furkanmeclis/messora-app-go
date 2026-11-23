@@ -17,6 +17,7 @@ import {
     Sun,
     UserRound,
     Users,
+    Workflow,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -57,6 +58,12 @@ const WORKSPACE: NavItem[] = [
         label: 'Inbox',
         icon: Inbox,
         permission: 'conversations.read',
+    },
+    {
+        href: '/automations',
+        label: 'Automations',
+        icon: Workflow,
+        permission: 'automations.read',
     },
     { href: '/users', label: 'Users', icon: Users, permission: 'users.manage' },
     {

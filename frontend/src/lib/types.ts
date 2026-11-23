@@ -31,3 +31,11 @@ export type ActionResult<T = undefined> =
           message: string;
           fieldErrors?: Record<string, string>;
       };
+
+// ── Automations ────────────────────────────────────────────────────────────
+export type Automation = Schemas['Automation'];
+export type AutomationTrigger = Schemas['AutomationTrigger'];
+export type AutomationTriggerType = Schemas['AutomationTriggerType'];
+export type AutomationStep = Schemas['AutomationStep'];
+export type AutomationRun = Schemas['AutomationRun'];
+export type AutomationRunStep = Schemas['AutomationRunStep'];
