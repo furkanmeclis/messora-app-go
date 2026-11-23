@@ -72,6 +72,7 @@ export default async function ContactsPage({
             />
             <div className="space-y-4">
                 <ContactFilters
+                    key={query.toString()}
                     filters={filters}
                     tags={tags.map((t) => ({ id: t.id, name: t.name }))}
                     groups={groups.map((g) => ({ id: g.id, name: g.name }))}

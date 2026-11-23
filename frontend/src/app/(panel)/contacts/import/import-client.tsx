@@ -265,7 +265,7 @@ export function UploadCard() {
                         if (!busy) choose(e.dataTransfer.files[0]);
                     }}
                     className={cn(
-                        'flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-8 text-center text-sm transition-colors',
+                        'flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-8 text-center text-sm transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring',
                         drag && 'border-primary bg-muted/50',
                     )}
                 >
