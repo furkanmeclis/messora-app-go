@@ -112,7 +112,7 @@ jobs:
           cd frontend
           npx -y license-checker-rseidelsohn@5.0.1 --production --excludePrivatePackages \
             --excludePackagesStartingWith "@img/sharp-libvips" \
-            --onlyAllow "MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC-BY-4.0;BlueOak-1.0.0" >/dev/null
+            --onlyAllow "MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC-BY-4.0;BlueOak-1.0.0;OFL-1.1" >/dev/null
 
   repo:
     name: Repository · workflows, Dockerfiles, secrets, config

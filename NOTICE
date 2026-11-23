@@ -14,3 +14,8 @@ Components that run as separate containers keep their own licenses:
 PostgreSQL (PostgreSQL License), Redis 8 (RSALv2 / SSPLv1 / AGPLv3, used
 unmodified; Valkey, BSD-3, is a compatible alternative), Centrifugo
 (Apache-2.0), Caddy (Apache-2.0).
+
+Bundled typefaces (frontend, via @fontsource-variable): Geist, Inter,
+Manrope, Plus Jakarta Sans, IBM Plex Sans and Space Grotesk are licensed
+under the SIL Open Font License 1.1 (OFL-1.1), which permits bundling them
+with software; the fonts themselves may not be sold on their own.
