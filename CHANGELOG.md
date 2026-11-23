@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-23
+
+First published images (ghcr.io/furkanmeclis/messora, ghcr.io/furkanmeclis/messora-web). Feature-complete for v1; not yet validated against the live WhatsApp Cloud API.
+
 ### Added — Phase 9 and 10: panel screens and production readiness
 
 - Panel screens for contacts (list, detail, import wizard, groups, tags,
