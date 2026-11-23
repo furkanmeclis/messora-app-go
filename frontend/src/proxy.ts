@@ -70,7 +70,9 @@ export function proxy(req: NextRequest) {
 
 export const config = {
     matcher: [
-        // Everything except static assets.
-        '/((?!_next/static|_next/image|favicon.ico|robots.txt).*)',
+        // Everything except static assets and the import upload route,
+        // which streams files of up to 50 MB (a proxy would buffer the
+        // body and cut it at 10 MB); it checks the session itself.
+        '/((?!_next/static|_next/image|favicon.ico|robots.txt|bff/contact-imports).*)',
     ],
 };

@@ -1,0 +1,104 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { api } from '@/lib/server/api';
+import { can, requirePermission } from '@/lib/server/auth';
+import type { Contact, ContactGroup, Segment, Tag } from '@/lib/types';
+import { PageHeading } from '../panel-header';
+import {
+    ContactFilters,
+    ContactTable,
+    ExportMenu,
+    NewContactDialog,
+} from './contacts-client';
+
+export const metadata: Metadata = { title: 'Contacts' };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export default async function ContactsPage({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | undefined>>;
+}) {
+    const me = await requirePermission('contacts.read');
+    const sp = await searchParams;
+    const filters = {
+        q: (sp.q ?? '').trim().slice(0, 100),
+        tag_id: sp.tag_id && UUID.test(sp.tag_id) ? sp.tag_id : '',
+        group_id: sp.group_id && UUID.test(sp.group_id) ? sp.group_id : '',
+        segment_id:
+            sp.segment_id && UUID.test(sp.segment_id) ? sp.segment_id : '',
+        opted_out:
+            sp.opted_out === 'true' || sp.opted_out === 'false'
+                ? sp.opted_out
+                : '',
+    };
+    const query = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v) query.set(k, v);
+    const canSegments = can(me, 'segments.read');
+
+    const [list, tags, groups, segments] = await Promise.all([
+        api<Contact[]>(`/contacts?${query}${query.size ? '&' : ''}limit=50`),
+        api<Tag[]>('/tags').then((r) => r.data),
+        api<ContactGroup[]>('/groups').then((r) => r.data),
+        canSegments
+            ? api<Segment[]>('/segments').then((r) => r.data)
+            : Promise.resolve([] as Segment[]),
+    ]);
+
+    return (
+        <>
+            <PageHeading
+                title="Contacts"
+                description="Everyone you can message, with their tags, groups and consent."
+                actions={
+                    <div className="flex flex-wrap gap-2">
+                        {can(me, 'contacts.import') && (
+                            <Button variant="outline" asChild>
+                                <Link href="/contacts/import">
+                                    <Upload /> Import
+                                </Link>
+                            </Button>
+                        )}
+                        {can(me, 'contacts.export') && (
+                            <ExportMenu query={query.toString()} />
+                        )}
+                        {can(me, 'contacts.create') && <NewContactDialog />}
+                    </div>
+                }
+            />
+            <div className="space-y-4">
+                <ContactFilters
+                    key={query.toString()}
+                    filters={filters}
+                    tags={tags.map((t) => ({ id: t.id, name: t.name }))}
+                    groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+                    segments={segments.map((s) => ({
+                        id: s.id,
+                        name: s.name,
+                    }))}
+                />
+                <Card>
+                    <CardContent className="p-0">
+                        <ContactTable
+                            key={query.toString()}
+                            initial={list.data}
+                            initialCursor={list.nextCursor}
+                            query={query.toString()}
+                            filtered={query.size > 0}
+                            groups={groups.map((g) => ({
+                                id: g.id,
+                                name: g.name,
+                            }))}
+                            canUpdate={can(me, 'contacts.update')}
+                            canCreate={can(me, 'contacts.create')}
+                        />
+                    </CardContent>
+                </Card>
+            </div>
+        </>
+    );
+}
