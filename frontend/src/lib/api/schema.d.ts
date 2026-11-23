@@ -706,6 +706,347 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/contacts': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contacts, newest first */
+        get: operations['listContacts'];
+        put?: never;
+        /** Add a contact */
+        post: operations['createContact'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contacts/{contactId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A contact with tags and groups */
+        get: operations['getContact'];
+        put?: never;
+        post?: never;
+        /** Delete a contact and its message history */
+        delete: operations['deleteContact'];
+        options?: never;
+        head?: never;
+        /** Edit a contact; an empty string clears an optional field */
+        patch: operations['updateContact'];
+        trace?: never;
+    };
+    '/contacts/{contactId}/consent': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record an opt-in or opt-out
+         * @description Opted-out contacts receive no campaign or automation messages.
+         */
+        post: operations['recordConsent'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contacts/{contactId}/notes': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal notes, newest first */
+        get: operations['listContactNotes'];
+        put?: never;
+        /** Add an internal note */
+        post: operations['addContactNote'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contacts/{contactId}/notes/{noteId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a note */
+        delete: operations['deleteContactNote'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contact-exports': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download matching contacts as CSV */
+        get: operations['exportContacts'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contact-imports': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent imports */
+        get: operations['listContactImports'];
+        put?: never;
+        /**
+         * Upload a CSV file (up to 50 MB) to import
+         * @description Send the raw file as the request body. The response lists the detected columns and the first rows so a column mapping can be chosen; nothing is imported until the import is started.
+         */
+        post: operations['uploadContactImport'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contact-imports/{importId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Import progress and results */
+        get: operations['getContactImport'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contact-imports/{importId}/start': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Choose the column mapping and start importing */
+        post: operations['startContactImport'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contact-imports/{importId}/cancel': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop an import; rows already imported stay */
+        post: operations['cancelContactImport'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contact-imports/{importId}/errors': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rows that could not be imported, with the reason, as CSV */
+        get: operations['getContactImportErrors'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/tags': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tags with contact counts */
+        get: operations['listTags'];
+        put?: never;
+        /** Create a tag (returns the existing one for a duplicate name) */
+        post: operations['createTag'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/tags/{tagId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a tag from every contact */
+        delete: operations['deleteTag'];
+        options?: never;
+        head?: never;
+        /** Rename or recolour a tag */
+        patch: operations['updateTag'];
+        trace?: never;
+    };
+    '/groups': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contact groups with member counts */
+        get: operations['listGroups'];
+        put?: never;
+        /** Create a group */
+        post: operations['createGroup'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/groups/{groupId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a group (contacts stay) */
+        delete: operations['deleteGroup'];
+        options?: never;
+        head?: never;
+        /** Rename or describe a group */
+        patch: operations['updateGroup'];
+        trace?: never;
+    };
+    '/groups/{groupId}/members': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add or remove contacts */
+        post: operations['changeGroupMembers'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/segments': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saved segments */
+        get: operations['listSegments'];
+        put?: never;
+        /** Save a segment */
+        post: operations['createSegment'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/segments/preview': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Count matching contacts and show a sample, without saving */
+        post: operations['previewSegment'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/segments/{segmentId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A segment with its current size */
+        get: operations['getSegment'];
+        put?: never;
+        post?: never;
+        /** Delete a segment */
+        delete: operations['deleteSegment'];
+        options?: never;
+        head?: never;
+        /** Edit a segment */
+        patch: operations['updateSegment'];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1295,6 +1636,254 @@ export interface components {
             data: components['schemas']['Message'];
             meta: components['schemas']['Meta'];
         };
+        TagRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            color: string;
+        };
+        Contact: {
+            /** Format: uuid */
+            id: string;
+            phone: string;
+            name: string;
+            /** @description Name from the customer's WhatsApp profile. */
+            profile_name: string;
+            email?: string | null;
+            var1?: string | null;
+            var2?: string | null;
+            var3?: string | null;
+            var4?: string | null;
+            var5?: string | null;
+            attributes: {
+                [key: string]: string;
+            };
+            tags: components['schemas']['TagRef'][];
+            group_ids: string[];
+            opted_out: boolean;
+            /** Format: date-time */
+            opted_out_at?: string | null;
+            /** Format: date-time */
+            last_inbound_at?: string | null;
+            /** @enum {string} */
+            source: 'webhook' | 'manual' | 'import' | 'api';
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ContactFields: {
+            name?: string;
+            email?: string;
+            var1?: string;
+            var2?: string;
+            var3?: string;
+            var4?: string;
+            var5?: string;
+            attributes?: {
+                [key: string]: string;
+            };
+            tags?: string[];
+            group_ids?: string[];
+        };
+        CreateContactRequest: components['schemas']['ContactFields'] & {
+            phone: string;
+        };
+        UpdateContactRequest: components['schemas']['ContactFields'] &
+            Record<string, never>;
+        ConsentRequest: {
+            /** @enum {string} */
+            kind: 'opt_in' | 'opt_out';
+            note?: string;
+        };
+        Note: {
+            /** Format: uuid */
+            id: string;
+            body: string;
+            author_name: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Tag: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            color: string;
+            /** Format: int64 */
+            contact_count: number;
+        };
+        TagInput: {
+            name?: string;
+            color?: string;
+        };
+        Group: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            /** Format: int64 */
+            member_count: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        GroupInput: {
+            name?: string;
+            description?: string;
+        };
+        GroupMembersRequest: {
+            /** @enum {string} */
+            action: 'add' | 'remove';
+            contact_ids: string[];
+        };
+        Count: {
+            /** Format: int64 */
+            count: number;
+        };
+        /** @description A group {"op":"and"|"or","not"?:bool,"rules":[...]} or a rule {"field":..., "operator":..., "value":...}. Fields: name, profile_name, phone, email, var1–var5, created_at, last_inbound_at, opted_out, tag, group. */
+        SegmentDefinition: {
+            [key: string]: unknown;
+        };
+        Segment: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            definition: components['schemas']['SegmentDefinition'];
+            /** Format: int64 */
+            contact_count?: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        SegmentInput: {
+            name: string;
+            description?: string;
+            definition: components['schemas']['SegmentDefinition'];
+        };
+        UpdateSegmentRequest: {
+            name?: string;
+            description?: string;
+            definition?: components['schemas']['SegmentDefinition'];
+        };
+        SegmentPreview: {
+            /** Format: int64 */
+            count: number;
+            sample: components['schemas']['Contact'][];
+        };
+        ContactImport: {
+            /** Format: uuid */
+            id: string;
+            filename: string;
+            /** @enum {string} */
+            status:
+                | 'uploaded'
+                | 'queued'
+                | 'running'
+                | 'completed'
+                | 'failed'
+                | 'cancelled';
+            headers: string[];
+            preview: string[][];
+            mapping: {
+                [key: string]: string;
+            };
+            /** @enum {string} */
+            duplicate_policy: 'skip' | 'update';
+            add_tags: string[];
+            /** Format: uuid */
+            group_id?: string | null;
+            /** Format: int64 */
+            total_rows: number;
+            /** Format: int64 */
+            processed_rows: number;
+            /** Format: int64 */
+            created_count: number;
+            /** Format: int64 */
+            updated_count: number;
+            /** Format: int64 */
+            skipped_count: number;
+            /** Format: int64 */
+            failed_count: number;
+            has_error_report: boolean;
+            last_error?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            started_at?: string | null;
+            /** Format: date-time */
+            finished_at?: string | null;
+        };
+        StartContactImportRequest: {
+            /** @description Contact field → column header. "phone" is required; other keys are name, email, var1–var5, tags, or "attr:<name>". */
+            mapping: {
+                [key: string]: string;
+            };
+            /**
+             * @default skip
+             * @enum {string}
+             */
+            duplicate_policy: 'skip' | 'update';
+            add_tags?: string[];
+            /** Format: uuid */
+            group_id?: string;
+        };
+        ContactResponse: {
+            data: components['schemas']['Contact'];
+            meta: components['schemas']['Meta'];
+        };
+        ContactListResponse: {
+            data: components['schemas']['Contact'][];
+            meta: components['schemas']['Meta'];
+        };
+        NoteResponse: {
+            data: components['schemas']['Note'];
+            meta: components['schemas']['Meta'];
+        };
+        NoteListResponse: {
+            data: components['schemas']['Note'][];
+            meta: components['schemas']['Meta'];
+        };
+        TagResponse: {
+            data: components['schemas']['Tag'];
+            meta: components['schemas']['Meta'];
+        };
+        TagListResponse: {
+            data: components['schemas']['Tag'][];
+            meta: components['schemas']['Meta'];
+        };
+        GroupResponse: {
+            data: components['schemas']['Group'];
+            meta: components['schemas']['Meta'];
+        };
+        GroupListResponse: {
+            data: components['schemas']['Group'][];
+            meta: components['schemas']['Meta'];
+        };
+        CountResponse: {
+            data: components['schemas']['Count'];
+            meta: components['schemas']['Meta'];
+        };
+        SegmentResponse: {
+            data: components['schemas']['Segment'];
+            meta: components['schemas']['Meta'];
+        };
+        SegmentListResponse: {
+            data: components['schemas']['Segment'][];
+            meta: components['schemas']['Meta'];
+        };
+        SegmentPreviewResponse: {
+            data: components['schemas']['SegmentPreview'];
+            meta: components['schemas']['Meta'];
+        };
+        ContactImportResponse: {
+            data: components['schemas']['ContactImport'];
+            meta: components['schemas']['Meta'];
+        };
+        ContactImportListResponse: {
+            data: components['schemas']['ContactImport'][];
+            meta: components['schemas']['Meta'];
+        };
     };
     responses: {
         /** @description Error */
@@ -1316,6 +1905,12 @@ export interface components {
         PhoneNumberId: string;
         TemplateId: string;
         MessageId: string;
+        ContactId: string;
+        NoteId: string;
+        ImportId: string;
+        TagId: string;
+        GroupId: string;
+        SegmentId: string;
         /** @description Opaque cursor from `meta.next_cursor`. */
         Cursor: string;
         Limit: number;
@@ -2423,6 +3018,765 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['MessageResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listContacts: {
+        parameters: {
+            query?: {
+                /** @description Name, phone or e-mail contains */
+                q?: string;
+                tag_id?: string;
+                group_id?: string;
+                segment_id?: string;
+                opted_out?: boolean;
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contacts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createContact: {
+        parameters: {
+            query?: never;
+            header?: {
+                'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateContactRequest'];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contact */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateContactRequest'];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    recordConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['ConsentRequest'];
+            };
+        };
+        responses: {
+            /** @description Contact after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listContactNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['NoteListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    addContactNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': {
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['NoteResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteContactNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+                noteId: components['parameters']['NoteId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    exportContacts: {
+        parameters: {
+            query?: {
+                q?: string;
+                tag_id?: string;
+                group_id?: string;
+                segment_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file (UTF-8 with header row) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'text/csv': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listContactImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Imports */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactImportListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    uploadContactImport: {
+        parameters: {
+            query: {
+                filename: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'text/csv': string;
+            };
+        };
+        responses: {
+            /** @description Uploaded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactImportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getContactImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                importId: components['parameters']['ImportId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Import */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactImportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    startContactImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                importId: components['parameters']['ImportId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['StartContactImportRequest'];
+            };
+        };
+        responses: {
+            /** @description Queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactImportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    cancelContactImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                importId: components['parameters']['ImportId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Import */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactImportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getContactImportErrors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                importId: components['parameters']['ImportId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'text/csv': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tags */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TagListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['TagInput'];
+            };
+        };
+        responses: {
+            /** @description Tag */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TagResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tagId: components['parameters']['TagId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tagId: components['parameters']['TagId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['TagInput'];
+            };
+        };
+        responses: {
+            /** @description Tag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TagResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Groups */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['GroupListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['GroupInput'];
+            };
+        };
+        responses: {
+            /** @description Group */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['GroupResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: components['parameters']['GroupId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: components['parameters']['GroupId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['GroupInput'];
+            };
+        };
+        responses: {
+            /** @description Group */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['GroupResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    changeGroupMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: components['parameters']['GroupId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['GroupMembersRequest'];
+            };
+        };
+        responses: {
+            /** @description Rows changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CountResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listSegments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Segments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SegmentListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SegmentInput'];
+            };
+        };
+        responses: {
+            /** @description Segment */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SegmentResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    previewSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': {
+                    definition: components['schemas']['SegmentDefinition'];
+                };
+            };
+        };
+        responses: {
+            /** @description Preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SegmentPreviewResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                segmentId: components['parameters']['SegmentId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Segment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SegmentResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                segmentId: components['parameters']['SegmentId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                segmentId: components['parameters']['SegmentId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateSegmentRequest'];
+            };
+        };
+        responses: {
+            /** @description Segment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SegmentResponse'];
                 };
             };
             default: components['responses']['Error'];

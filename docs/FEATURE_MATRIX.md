@@ -63,12 +63,12 @@
 
 | Özellik | Phase | Durum |
 |---|---|---|
-| Contact CRUD, E.164 normalizasyonu, unique telefon | 4 | Missing |
-| Etiketler, gruplar, notlar, özel alanlar | 4 | Missing |
-| Opt-in / opt-out kayıtları | 4 | Missing |
-| CSV / XLSX import (worker, kolon eşleme, hata raporu, progress, iptal) | 4 | Missing |
-| CSV / XLSX export (streaming) | 4 | Missing |
-| Dinamik segmentler (tipli kural ağacı, güvenli derleyici) | 4 | Missing |
+| Contact CRUD, E.164 normalizasyonu, unique telefon | 4 | Implemented (API; panel ekranları Phase 9) |
+| Etiketler, gruplar, notlar, özel alanlar | 4 | Implemented (var1–var5 + serbest attributes) |
+| Opt-in / opt-out kayıtları | 4 | Implemented (append-only geçmiş; opt-out kişilere template gönderilmez) |
+| CSV / XLSX import (worker, kolon eşleme, hata raporu, progress, iptal) | 4 | Partial (CSV tamam: 100k satır ~20 sn, <10 MiB heap; XLSX bekliyor) |
+| CSV / XLSX export (streaming) | 4 | Partial (CSV streaming + formül nötralizasyonu; XLSX bekliyor) |
+| Dinamik segmentler (tipli kural ağacı, güvenli derleyici) | 4 | Implemented (tablo + enjeksiyon + fuzz testleri) |
 
 ## Kampanyalar (Phase 5)
 

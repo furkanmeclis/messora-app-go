@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 4: contacts
+
+- Contacts API with E.164 normalisation, personalisation fields (`var1`–`var5`
+  and free attributes), tags, groups, internal notes and an append-only
+  opt-in/opt-out history; templates are refused for opted-out contacts.
+- Dynamic segments: a JSON rule tree compiled to parameterised SQL from fixed
+  field and operator tables, with live previews and counts.
+- CSV import: streamed upload (50 MB), delimiter and BOM detection, column
+  mapping, skip or update for duplicates, per-row error report, progress,
+  cancellation and resume after restarts. Streamed CSV export with spreadsheet
+  formula neutralisation.
+
 ### Added — Phase 3: WhatsApp Cloud API
 
 - Graph API client (configurable version, default v26.0) with send-outcome
