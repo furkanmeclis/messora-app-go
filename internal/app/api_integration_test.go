@@ -329,6 +329,7 @@ func TestLoginLockoutAndMFA(t *testing.T) {
 	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/login/mfa", body: map[string]any{"mfa_token": r.data()["mfa_token"], "recovery_code": rc}}), 401, "MFA_INVALID")
 
 	// Owners cannot switch 2FA off while the policy requires it.
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: session, body: map[string]any{"mfa_required_roles": []string{"owner"}}}), 200, "")
 	h.expect(h.do(call{method: "DELETE", path: "/api/v1/me/mfa/totp", token: session}), 403, "MFA_REQUIRED_BY_POLICY")
 
 	// Ten consecutive failures lock the account, even for the right password.
