@@ -29,7 +29,9 @@ type Handler struct {
 // NewHandler returns the handler.
 func NewHandler(svc *Service, log *slog.Logger) *Handler { return &Handler{svc: svc, log: log} }
 
-func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) { httpx.WriteError(w, r, err, h.log) }
+func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
+	httpx.WriteError(w, r, err, h.log)
+}
 
 func contactToAPI(c db.Contact, tags []db.Tag, groups []uuid.UUID) api.Contact {
 	attrs := map[string]string{}
