@@ -233,6 +233,15 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run journeys on a fresh stack
         run: scripts/e2e.sh
+        env:
+          KEEP_STACK: "1" # the runner is discarded; keep it for the logs below
+      - name: Show failure context
+        if: failure()
+        run: |
+          for f in frontend/test-results/*/error-context.md; do
+            [ -f "$f" ] && { echo "::group::$f"; cat "$f"; echo "::endgroup::"; }
+          done
+          docker compose -p messora-e2e logs --no-color --tail 200 messora-api messora-web || true
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
