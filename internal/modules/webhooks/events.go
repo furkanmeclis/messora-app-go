@@ -44,7 +44,7 @@ type EventType struct {
 // Catalogue lists every subscribable event type.
 var Catalogue = []EventType{
 	{TypeMessageReceived, "A customer sent a message (includes the text)."},
-	{TypeMessageStatus, "A message's delivery state changed: accepted, sent, delivered, read, failed or unknown."},
+	{TypeMessageStatus, "A message's delivery state changed: sent, delivered, read, failed or unknown."},
 	{TypeConversationAssigned, "A conversation was assigned to a user or unassigned."},
 	{TypeConversationClosed, "A conversation was closed."},
 	{TypeConversationReopened, "A conversation was reopened by a user or by a new customer message."},
