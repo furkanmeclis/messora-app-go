@@ -22,4 +22,6 @@ regexes = [
   '''Horse-battery-staple-42''',
   '''Every-route-renders-27''',
   '''Plenty-of-entropy-58''',
+  # Unsigned licence used by the licence-gate tests (in history).
+  '''msl1\.forged\.key''',
 ]
