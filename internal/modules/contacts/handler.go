@@ -375,7 +375,7 @@ func (c csvRowWriter) Flush() error           { c.w.Flush(); return c.w.Error() 
 // safeCSV neutralises spreadsheet formulas (CSV injection).
 func safeCSV(row []string) []string {
 	for i, v := range row {
-		if v != "" && strings.ContainsRune("=+-@\t\r", rune(v[0])) && !(i == 0 && v[0] == '+') {
+		if v != "" && strings.ContainsRune("=+-@\t\r", rune(v[0])) && (i != 0 || v[0] != '+') {
 			row[i] = "'" + v
 		}
 	}

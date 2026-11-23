@@ -103,13 +103,15 @@ func dial(t *testing.T, addr string) *ws {
 	t.Cleanup(func() { _ = conn.Close() })
 	key := make([]byte, 16)
 	_, _ = rand.Read(key)
-	fmt.Fprintf(conn, "GET /connection/websocket HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"+
+	_, _ = fmt.Fprintf(conn, "GET /connection/websocket HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"+
 		"Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nOrigin: %s\r\n\r\n", addr, base64.StdEncoding.EncodeToString(key), origin)
 	r := bufio.NewReader(conn)
 	res, err := http.ReadResponse(r, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A 101 response has no body; the connection itself carries the frames.
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusSwitchingProtocols {
 		t.Fatalf("websocket handshake: %s", res.Status)
 	}

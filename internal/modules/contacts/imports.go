@@ -256,7 +256,8 @@ func (s *Service) Start(ctx context.Context, id uuid.UUID, o ImportOptions) (db.
 		return imp, apperr.Validation("mapping.phone", "Choose the column that holds phone numbers.")
 	}
 	for field, col := range o.Mapping {
-		if !mappable[field] && !(strings.HasPrefix(field, "attr:") && len(field) > 5 && len(field) <= 65) {
+		isAttr := strings.HasPrefix(field, "attr:") && len(field) > 5 && len(field) <= 65
+		if !mappable[field] && !isAttr {
 			return imp, apperr.Validation("mapping", fmt.Sprintf("Unknown contact field %q.", field))
 		}
 		if !known[col] {

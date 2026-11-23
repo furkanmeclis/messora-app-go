@@ -187,11 +187,11 @@ func TestSegmentsPreviewAndExport(t *testing.T) {
 		t.Fatal("segment not dynamic")
 	}
 
-	status, body, hdr := h.raw("GET", "/api/v1/contact-exports?tag_id=", token, "", nil)
+	status, body, _ := h.raw("GET", "/api/v1/contact-exports?tag_id=", token, "", nil)
 	if status != 422 {
 		t.Fatalf("bad filter must fail before streaming: %d %s", status, body)
 	}
-	status, body, hdr = h.raw("GET", "/api/v1/contact-exports", token, "", nil)
+	status, body, hdr := h.raw("GET", "/api/v1/contact-exports", token, "", nil)
 	if status != 200 || !strings.HasPrefix(hdr.Get("Content-Type"), "text/csv") {
 		t.Fatalf("export: %d %s", status, body)
 	}

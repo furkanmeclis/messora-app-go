@@ -50,10 +50,7 @@ func NormalizePhone(s string) (string, bool) {
 			return "", false
 		}
 	}
-	d := b.String()
-	if strings.HasPrefix(d, "00") {
-		d = d[2:]
-	}
+	d := strings.TrimPrefix(b.String(), "00") // international dialling prefix
 	out := "+" + d
 	return out, e164.MatchString(out)
 }
