@@ -35,20 +35,21 @@ MEDIA_VOL="$(volume messora-media)"
 
 mkdir -p "$DEST"
 chmod 700 "$DEST"
-DEST_ABS="$(cd "$DEST" && pwd)"
 
 echo "→ database"
 compose exec -T postgres sh -c 'pg_dump --format=custom --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >"$DEST/database.dump"
 [ -s "$DEST/database.dump" ] || fail "empty database dump"
 
 echo "→ secrets"
-docker run --rm --network none -v "$SECRETS_VOL":/src:ro -v "$DEST_ABS":/dst "$HELPER_IMAGE" \
-  tar -C /src --numeric-owner -czf /dst/secrets.tar.gz .
+# Archives stream to stdout so the files belong to the user running the
+# backup (on Linux a container would create them as root).
+docker run --rm --network none -v "$SECRETS_VOL":/src:ro "$HELPER_IMAGE" \
+  tar -C /src --numeric-owner -czf - . >"$DEST/secrets.tar.gz"
 
 if [ -n "$MEDIA_VOL" ]; then
   echo "→ media"
-  docker run --rm --network none -v "$MEDIA_VOL":/src:ro -v "$DEST_ABS":/dst "$HELPER_IMAGE" \
-    tar -C /src --numeric-owner -czf /dst/media.tar.gz .
+  docker run --rm --network none -v "$MEDIA_VOL":/src:ro "$HELPER_IMAGE" \
+    tar -C /src --numeric-owner -czf - . >"$DEST/media.tar.gz"
 fi
 
 VERSION="$(compose exec -T messora-api /usr/local/bin/messora version 2>/dev/null || echo unknown)"

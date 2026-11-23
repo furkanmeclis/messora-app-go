@@ -107,10 +107,10 @@ func TestLogHandlerAddsTraceID(t *testing.T) {
 
 func TestOperation(t *testing.T) {
 	cases := map[string]string{
-		"-- name: ListContacts :many\nSELECT 1":  "ListContacts",
-		"  SELECT c.* FROM contacts c":           "SELECT",
+		"-- name: ListContacts :many\nSELECT 1":   "ListContacts",
+		"  SELECT c.* FROM contacts c":            "SELECT",
 		"\nINSERT INTO outbox_events VALUES ($1)": "INSERT",
-		"":                                        "",
+		"": "",
 	}
 	for sql, want := range cases {
 		if got := operation(sql); got != want {

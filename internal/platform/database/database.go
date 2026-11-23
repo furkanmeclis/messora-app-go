@@ -13,13 +13,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 
 	"github.com/furkanmeclis/messora-app-go/internal/platform/startup"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 	"github.com/furkanmeclis/messora-app-go/migrations"
 )
 
