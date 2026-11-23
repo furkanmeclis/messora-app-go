@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
@@ -69,6 +70,15 @@ func RunWorker(ctx context.Context) error {
 	})
 
 	registerMessaging(mux, svc.messaging)
+	mux.HandleFunc(contacts.TypeImport, func(ctx context.Context, t *asynq.Task) error {
+		var p struct {
+			ImportID uuid.UUID `json:"import_id"`
+		}
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		return svc.contacts.Run(ctx, p.ImportID)
+	})
 
 	srv := queue.NewServer(rdb, queue.ServerOptions{
 		Concurrency: cfg.Worker.Concurrency, Queues: cfg.Worker.Queues,

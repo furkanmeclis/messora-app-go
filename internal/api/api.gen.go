@@ -60,6 +60,96 @@ func (e ComponentStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for ConsentRequestKind.
+const (
+	OptIn  ConsentRequestKind = "opt_in"
+	OptOut ConsentRequestKind = "opt_out"
+)
+
+// Valid indicates whether the value is a known member of the ConsentRequestKind enum.
+func (e ConsentRequestKind) Valid() bool {
+	switch e {
+	case OptIn:
+		return true
+	case OptOut:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ContactSource.
+const (
+	Api     ContactSource = "api"
+	Import  ContactSource = "import"
+	Manual  ContactSource = "manual"
+	Webhook ContactSource = "webhook"
+)
+
+// Valid indicates whether the value is a known member of the ContactSource enum.
+func (e ContactSource) Valid() bool {
+	switch e {
+	case Api:
+		return true
+	case Import:
+		return true
+	case Manual:
+		return true
+	case Webhook:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ContactImportDuplicatePolicy.
+const (
+	ContactImportDuplicatePolicySkip   ContactImportDuplicatePolicy = "skip"
+	ContactImportDuplicatePolicyUpdate ContactImportDuplicatePolicy = "update"
+)
+
+// Valid indicates whether the value is a known member of the ContactImportDuplicatePolicy enum.
+func (e ContactImportDuplicatePolicy) Valid() bool {
+	switch e {
+	case ContactImportDuplicatePolicySkip:
+		return true
+	case ContactImportDuplicatePolicyUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ContactImportStatus.
+const (
+	ContactImportStatusCancelled ContactImportStatus = "cancelled"
+	ContactImportStatusCompleted ContactImportStatus = "completed"
+	ContactImportStatusFailed    ContactImportStatus = "failed"
+	ContactImportStatusQueued    ContactImportStatus = "queued"
+	ContactImportStatusRunning   ContactImportStatus = "running"
+	ContactImportStatusUploaded  ContactImportStatus = "uploaded"
+)
+
+// Valid indicates whether the value is a known member of the ContactImportStatus enum.
+func (e ContactImportStatus) Valid() bool {
+	switch e {
+	case ContactImportStatusCancelled:
+		return true
+	case ContactImportStatusCompleted:
+		return true
+	case ContactImportStatusFailed:
+		return true
+	case ContactImportStatusQueued:
+		return true
+	case ContactImportStatusRunning:
+		return true
+	case ContactImportStatusUploaded:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTemplateRequestCategory.
 const (
 	AUTHENTICATION CreateTemplateRequestCategory = "AUTHENTICATION"
@@ -93,6 +183,24 @@ func (e CreateTemplateRequestParameterFormat) Valid() bool {
 	case NAMED:
 		return true
 	case POSITIONAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GroupMembersRequestAction.
+const (
+	Add    GroupMembersRequestAction = "add"
+	Remove GroupMembersRequestAction = "remove"
+)
+
+// Valid indicates whether the value is a known member of the GroupMembersRequestAction enum.
+func (e GroupMembersRequestAction) Valid() bool {
+	switch e {
+	case Add:
+		return true
+	case Remove:
 		return true
 	default:
 		return false
@@ -249,6 +357,24 @@ func (e SendMessageRequestType) Valid() bool {
 	case SendMessageRequestTypeText:
 		return true
 	case SendMessageRequestTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StartContactImportRequestDuplicatePolicy.
+const (
+	StartContactImportRequestDuplicatePolicySkip   StartContactImportRequestDuplicatePolicy = "skip"
+	StartContactImportRequestDuplicatePolicyUpdate StartContactImportRequestDuplicatePolicy = "update"
+)
+
+// Valid indicates whether the value is a known member of the StartContactImportRequestDuplicatePolicy enum.
+func (e StartContactImportRequestDuplicatePolicy) Valid() bool {
+	switch e {
+	case StartContactImportRequestDuplicatePolicySkip:
+		return true
+	case StartContactImportRequestDuplicatePolicyUpdate:
 		return true
 	default:
 		return false
@@ -457,11 +583,142 @@ type ConnectWhatsAppAccountRequest struct {
 	WabaId      string  `json:"waba_id"`
 }
 
+// ConsentRequest defines model for ConsentRequest.
+type ConsentRequest struct {
+	Kind ConsentRequestKind `json:"kind"`
+	Note *string            `json:"note,omitempty"`
+}
+
+// ConsentRequestKind defines model for ConsentRequest.Kind.
+type ConsentRequestKind string
+
+// Contact defines model for Contact.
+type Contact struct {
+	Attributes    map[string]string    `json:"attributes"`
+	CreatedAt     time.Time            `json:"created_at"`
+	Email         *string              `json:"email"`
+	GroupIds      []openapi_types.UUID `json:"group_ids"`
+	Id            openapi_types.UUID   `json:"id"`
+	LastInboundAt *time.Time           `json:"last_inbound_at"`
+	Name          string               `json:"name"`
+	OptedOut      bool                 `json:"opted_out"`
+	OptedOutAt    *time.Time           `json:"opted_out_at"`
+	Phone         string               `json:"phone"`
+
+	// ProfileName Name from the customer's WhatsApp profile.
+	ProfileName string        `json:"profile_name"`
+	Source      ContactSource `json:"source"`
+	Tags        []TagRef      `json:"tags"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+	Var1        *string       `json:"var1"`
+	Var2        *string       `json:"var2"`
+	Var3        *string       `json:"var3"`
+	Var4        *string       `json:"var4"`
+	Var5        *string       `json:"var5"`
+}
+
+// ContactSource defines model for Contact.Source.
+type ContactSource string
+
+// ContactFields defines model for ContactFields.
+type ContactFields struct {
+	Attributes *map[string]string    `json:"attributes,omitempty"`
+	Email      *string               `json:"email,omitempty"`
+	GroupIds   *[]openapi_types.UUID `json:"group_ids,omitempty"`
+	Name       *string               `json:"name,omitempty"`
+	Tags       *[]string             `json:"tags,omitempty"`
+	Var1       *string               `json:"var1,omitempty"`
+	Var2       *string               `json:"var2,omitempty"`
+	Var3       *string               `json:"var3,omitempty"`
+	Var4       *string               `json:"var4,omitempty"`
+	Var5       *string               `json:"var5,omitempty"`
+}
+
+// ContactImport defines model for ContactImport.
+type ContactImport struct {
+	AddTags         []string                     `json:"add_tags"`
+	CreatedAt       time.Time                    `json:"created_at"`
+	CreatedCount    int64                        `json:"created_count"`
+	DuplicatePolicy ContactImportDuplicatePolicy `json:"duplicate_policy"`
+	FailedCount     int64                        `json:"failed_count"`
+	Filename        string                       `json:"filename"`
+	FinishedAt      *time.Time                   `json:"finished_at"`
+	GroupId         *openapi_types.UUID          `json:"group_id"`
+	HasErrorReport  bool                         `json:"has_error_report"`
+	Headers         []string                     `json:"headers"`
+	Id              openapi_types.UUID           `json:"id"`
+	LastError       *string                      `json:"last_error"`
+	Mapping         map[string]string            `json:"mapping"`
+	Preview         [][]string                   `json:"preview"`
+	ProcessedRows   int64                        `json:"processed_rows"`
+	SkippedCount    int64                        `json:"skipped_count"`
+	StartedAt       *time.Time                   `json:"started_at"`
+	Status          ContactImportStatus          `json:"status"`
+	TotalRows       int64                        `json:"total_rows"`
+	UpdatedCount    int64                        `json:"updated_count"`
+}
+
+// ContactImportDuplicatePolicy defines model for ContactImport.DuplicatePolicy.
+type ContactImportDuplicatePolicy string
+
+// ContactImportStatus defines model for ContactImport.Status.
+type ContactImportStatus string
+
+// ContactImportListResponse defines model for ContactImportListResponse.
+type ContactImportListResponse struct {
+	Data []ContactImport `json:"data"`
+	Meta Meta            `json:"meta"`
+}
+
+// ContactImportResponse defines model for ContactImportResponse.
+type ContactImportResponse struct {
+	Data ContactImport `json:"data"`
+	Meta Meta          `json:"meta"`
+}
+
+// ContactListResponse defines model for ContactListResponse.
+type ContactListResponse struct {
+	Data []Contact `json:"data"`
+	Meta Meta      `json:"meta"`
+}
+
+// ContactResponse defines model for ContactResponse.
+type ContactResponse struct {
+	Data Contact `json:"data"`
+	Meta Meta    `json:"meta"`
+}
+
+// Count defines model for Count.
+type Count struct {
+	Count int64 `json:"count"`
+}
+
+// CountResponse defines model for CountResponse.
+type CountResponse struct {
+	Data Count `json:"data"`
+	Meta Meta  `json:"meta"`
+}
+
 // CreateApiKeyRequest defines model for CreateApiKeyRequest.
 type CreateApiKeyRequest struct {
 	ExpiresInDays *int         `json:"expires_in_days,omitempty"`
 	Name          string       `json:"name"`
 	Scopes        []Permission `json:"scopes"`
+}
+
+// CreateContactRequest defines model for CreateContactRequest.
+type CreateContactRequest struct {
+	Attributes *map[string]string    `json:"attributes,omitempty"`
+	Email      *string               `json:"email,omitempty"`
+	GroupIds   *[]openapi_types.UUID `json:"group_ids,omitempty"`
+	Name       *string               `json:"name,omitempty"`
+	Phone      string                `json:"phone"`
+	Tags       *[]string             `json:"tags,omitempty"`
+	Var1       *string               `json:"var1,omitempty"`
+	Var2       *string               `json:"var2,omitempty"`
+	Var3       *string               `json:"var3,omitempty"`
+	Var4       *string               `json:"var4,omitempty"`
+	Var5       *string               `json:"var5,omitempty"`
 }
 
 // CreateInvitationRequest defines model for CreateInvitationRequest.
@@ -513,6 +770,42 @@ type ErrorEnvelope struct {
 // ForgotPasswordRequest defines model for ForgotPasswordRequest.
 type ForgotPasswordRequest struct {
 	Email Email `json:"email"`
+}
+
+// Group defines model for Group.
+type Group struct {
+	CreatedAt   time.Time          `json:"created_at"`
+	Description string             `json:"description"`
+	Id          openapi_types.UUID `json:"id"`
+	MemberCount int64              `json:"member_count"`
+	Name        string             `json:"name"`
+}
+
+// GroupInput defines model for GroupInput.
+type GroupInput struct {
+	Description *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty"`
+}
+
+// GroupListResponse defines model for GroupListResponse.
+type GroupListResponse struct {
+	Data []Group `json:"data"`
+	Meta Meta    `json:"meta"`
+}
+
+// GroupMembersRequest defines model for GroupMembersRequest.
+type GroupMembersRequest struct {
+	Action     GroupMembersRequestAction `json:"action"`
+	ContactIds []openapi_types.UUID      `json:"contact_ids"`
+}
+
+// GroupMembersRequestAction defines model for GroupMembersRequest.Action.
+type GroupMembersRequestAction string
+
+// GroupResponse defines model for GroupResponse.
+type GroupResponse struct {
+	Data Group `json:"data"`
+	Meta Meta  `json:"meta"`
 }
 
 // Invitation defines model for Invitation.
@@ -662,6 +955,26 @@ type Meta struct {
 	RequestId  string  `json:"request_id"`
 }
 
+// Note defines model for Note.
+type Note struct {
+	AuthorName string             `json:"author_name"`
+	Body       string             `json:"body"`
+	CreatedAt  time.Time          `json:"created_at"`
+	Id         openapi_types.UUID `json:"id"`
+}
+
+// NoteListResponse defines model for NoteListResponse.
+type NoteListResponse struct {
+	Data []Note `json:"data"`
+	Meta Meta   `json:"meta"`
+}
+
+// NoteResponse defines model for NoteResponse.
+type NoteResponse struct {
+	Data Note `json:"data"`
+	Meta Meta `json:"meta"`
+}
+
 // Password At least 12 characters. Common passwords are rejected.
 type Password = string
 
@@ -762,6 +1075,54 @@ type RolesAndPermissions struct {
 	Roles       []Role           `json:"roles"`
 }
 
+// Segment defines model for Segment.
+type Segment struct {
+	ContactCount *int64    `json:"contact_count,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+
+	// Definition A group {"op":"and"|"or","not"?:bool,"rules":[...]} or a rule {"field":..., "operator":..., "value":...}. Fields: name, profile_name, phone, email, var1–var5, created_at, last_inbound_at, opted_out, tag, group.
+	Definition  SegmentDefinition  `json:"definition"`
+	Description string             `json:"description"`
+	Id          openapi_types.UUID `json:"id"`
+	Name        string             `json:"name"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+// SegmentDefinition A group {"op":"and"|"or","not"?:bool,"rules":[...]} or a rule {"field":..., "operator":..., "value":...}. Fields: name, profile_name, phone, email, var1–var5, created_at, last_inbound_at, opted_out, tag, group.
+type SegmentDefinition map[string]any
+
+// SegmentInput defines model for SegmentInput.
+type SegmentInput struct {
+	// Definition A group {"op":"and"|"or","not"?:bool,"rules":[...]} or a rule {"field":..., "operator":..., "value":...}. Fields: name, profile_name, phone, email, var1–var5, created_at, last_inbound_at, opted_out, tag, group.
+	Definition  SegmentDefinition `json:"definition"`
+	Description *string           `json:"description,omitempty"`
+	Name        string            `json:"name"`
+}
+
+// SegmentListResponse defines model for SegmentListResponse.
+type SegmentListResponse struct {
+	Data []Segment `json:"data"`
+	Meta Meta      `json:"meta"`
+}
+
+// SegmentPreview defines model for SegmentPreview.
+type SegmentPreview struct {
+	Count  int64     `json:"count"`
+	Sample []Contact `json:"sample"`
+}
+
+// SegmentPreviewResponse defines model for SegmentPreviewResponse.
+type SegmentPreviewResponse struct {
+	Data SegmentPreview `json:"data"`
+	Meta Meta           `json:"meta"`
+}
+
+// SegmentResponse defines model for SegmentResponse.
+type SegmentResponse struct {
+	Data Segment `json:"data"`
+	Meta Meta    `json:"meta"`
+}
+
 // SendMessageRequest defines model for SendMessageRequest.
 type SendMessageRequest struct {
 	// Interactive Meta's interactive object (button, list or cta_url).
@@ -859,6 +1220,19 @@ type SetupStatusResponse struct {
 	Meta Meta        `json:"meta"`
 }
 
+// StartContactImportRequest defines model for StartContactImportRequest.
+type StartContactImportRequest struct {
+	AddTags         *[]string                                 `json:"add_tags,omitempty"`
+	DuplicatePolicy *StartContactImportRequestDuplicatePolicy `json:"duplicate_policy,omitempty"`
+	GroupId         *openapi_types.UUID                       `json:"group_id,omitempty"`
+
+	// Mapping Contact field → column header. "phone" is required; other keys are name, email, var1–var5, tags, or "attr:<name>".
+	Mapping map[string]string `json:"mapping"`
+}
+
+// StartContactImportRequestDuplicatePolicy defines model for StartContactImportRequest.DuplicatePolicy.
+type StartContactImportRequestDuplicatePolicy string
+
 // SyncResult defines model for SyncResult.
 type SyncResult struct {
 	PhoneNumbers int `json:"phone_numbers"`
@@ -883,6 +1257,39 @@ type SystemStatus struct {
 type SystemStatusResponse struct {
 	Data SystemStatus `json:"data"`
 	Meta Meta         `json:"meta"`
+}
+
+// Tag defines model for Tag.
+type Tag struct {
+	Color        string             `json:"color"`
+	ContactCount int64              `json:"contact_count"`
+	Id           openapi_types.UUID `json:"id"`
+	Name         string             `json:"name"`
+}
+
+// TagInput defines model for TagInput.
+type TagInput struct {
+	Color *string `json:"color,omitempty"`
+	Name  *string `json:"name,omitempty"`
+}
+
+// TagListResponse defines model for TagListResponse.
+type TagListResponse struct {
+	Data []Tag `json:"data"`
+	Meta Meta  `json:"meta"`
+}
+
+// TagRef defines model for TagRef.
+type TagRef struct {
+	Color string             `json:"color"`
+	Id    openapi_types.UUID `json:"id"`
+	Name  string             `json:"name"`
+}
+
+// TagResponse defines model for TagResponse.
+type TagResponse struct {
+	Data Tag  `json:"data"`
+	Meta Meta `json:"meta"`
 }
 
 // Template defines model for Template.
@@ -931,11 +1338,33 @@ type TotpSetupResponse struct {
 	Meta Meta      `json:"meta"`
 }
 
+// UpdateContactRequest defines model for UpdateContactRequest.
+type UpdateContactRequest struct {
+	Attributes *map[string]string    `json:"attributes,omitempty"`
+	Email      *string               `json:"email,omitempty"`
+	GroupIds   *[]openapi_types.UUID `json:"group_ids,omitempty"`
+	Name       *string               `json:"name,omitempty"`
+	Tags       *[]string             `json:"tags,omitempty"`
+	Var1       *string               `json:"var1,omitempty"`
+	Var2       *string               `json:"var2,omitempty"`
+	Var3       *string               `json:"var3,omitempty"`
+	Var4       *string               `json:"var4,omitempty"`
+	Var5       *string               `json:"var5,omitempty"`
+}
+
 // UpdateMeRequest defines model for UpdateMeRequest.
 type UpdateMeRequest struct {
 	Locale   *string     `json:"locale,omitempty"`
 	Name     *PersonName `json:"name,omitempty"`
 	Timezone *string     `json:"timezone,omitempty"`
+}
+
+// UpdateSegmentRequest defines model for UpdateSegmentRequest.
+type UpdateSegmentRequest struct {
+	// Definition A group {"op":"and"|"or","not"?:bool,"rules":[...]} or a rule {"field":..., "operator":..., "value":...}. Fields: name, profile_name, phone, email, var1–var5, created_at, last_inbound_at, opted_out, tag, group.
+	Definition  *SegmentDefinition `json:"definition,omitempty"`
+	Description *string            `json:"description,omitempty"`
+	Name        *string            `json:"name,omitempty"`
 }
 
 // UpdateSettingsRequest defines model for UpdateSettingsRequest.
@@ -1046,11 +1475,20 @@ type AccountId = openapi_types.UUID
 // ApiKeyId defines model for ApiKeyId.
 type ApiKeyId = openapi_types.UUID
 
+// ContactId defines model for ContactId.
+type ContactId = openapi_types.UUID
+
 // Cursor defines model for Cursor.
 type Cursor = string
 
+// GroupId defines model for GroupId.
+type GroupId = openapi_types.UUID
+
 // IdempotencyKey defines model for IdempotencyKey.
 type IdempotencyKey = string
+
+// ImportId defines model for ImportId.
+type ImportId = openapi_types.UUID
 
 // InvitationId defines model for InvitationId.
 type InvitationId = openapi_types.UUID
@@ -1061,11 +1499,20 @@ type Limit = int
 // MessageId defines model for MessageId.
 type MessageId = openapi_types.UUID
 
+// NoteId defines model for NoteId.
+type NoteId = openapi_types.UUID
+
 // PhoneNumberId defines model for PhoneNumberId.
 type PhoneNumberId = openapi_types.UUID
 
+// SegmentId defines model for SegmentId.
+type SegmentId = openapi_types.UUID
+
 // SessionId defines model for SessionId.
 type SessionId = openapi_types.UUID
+
+// TagId defines model for TagId.
+type TagId = openapi_types.UUID
 
 // TemplateId defines model for TemplateId.
 type TemplateId = openapi_types.UUID
@@ -1097,6 +1544,43 @@ type ConnectWhatsAppAccountParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
+// ExportContactsParams defines parameters for ExportContacts.
+type ExportContactsParams struct {
+	Q         *string             `form:"q,omitempty" json:"q,omitempty"`
+	TagId     *openapi_types.UUID `form:"tag_id,omitempty" json:"tag_id,omitempty"`
+	GroupId   *openapi_types.UUID `form:"group_id,omitempty" json:"group_id,omitempty"`
+	SegmentId *openapi_types.UUID `form:"segment_id,omitempty" json:"segment_id,omitempty"`
+}
+
+// UploadContactImportParams defines parameters for UploadContactImport.
+type UploadContactImportParams struct {
+	Filename string `form:"filename" json:"filename"`
+}
+
+// ListContactsParams defines parameters for ListContacts.
+type ListContactsParams struct {
+	// Q Name, phone or e-mail contains
+	Q         *string             `form:"q,omitempty" json:"q,omitempty"`
+	TagId     *openapi_types.UUID `form:"tag_id,omitempty" json:"tag_id,omitempty"`
+	GroupId   *openapi_types.UUID `form:"group_id,omitempty" json:"group_id,omitempty"`
+	SegmentId *openapi_types.UUID `form:"segment_id,omitempty" json:"segment_id,omitempty"`
+	OptedOut  *bool               `form:"opted_out,omitempty" json:"opted_out,omitempty"`
+
+	// Cursor Opaque cursor from `meta.next_cursor`.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// CreateContactParams defines parameters for CreateContact.
+type CreateContactParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// AddContactNoteJSONBody defines body for AddContactNote for application/json ContentType.
+type AddContactNoteJSONBody struct {
+	Body string `json:"body"`
+}
+
 // CreateInvitationParams defines parameters for CreateInvitation.
 type CreateInvitationParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
@@ -1105,6 +1589,12 @@ type CreateInvitationParams struct {
 // SendMessageParams defines parameters for SendMessage.
 type SendMessageParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// PreviewSegmentJSONBody defines body for PreviewSegment for application/json ContentType.
+type PreviewSegmentJSONBody struct {
+	// Definition A group {"op":"and"|"or","not"?:bool,"rules":[...]} or a rule {"field":..., "operator":..., "value":...}. Fields: name, profile_name, phone, email, var1–var5, created_at, last_inbound_at, opted_out, tag, group.
+	Definition SegmentDefinition `json:"definition"`
 }
 
 // ListTemplatesParams defines parameters for ListTemplates.
@@ -1142,6 +1632,30 @@ type ConnectWhatsAppAccountJSONRequestBody = ConnectWhatsAppAccountRequest
 // UpdateWhatsAppAccountJSONRequestBody defines body for UpdateWhatsAppAccount for application/json ContentType.
 type UpdateWhatsAppAccountJSONRequestBody = UpdateWhatsAppAccountRequest
 
+// StartContactImportJSONRequestBody defines body for StartContactImport for application/json ContentType.
+type StartContactImportJSONRequestBody = StartContactImportRequest
+
+// CreateContactJSONRequestBody defines body for CreateContact for application/json ContentType.
+type CreateContactJSONRequestBody = CreateContactRequest
+
+// UpdateContactJSONRequestBody defines body for UpdateContact for application/json ContentType.
+type UpdateContactJSONRequestBody = UpdateContactRequest
+
+// RecordConsentJSONRequestBody defines body for RecordConsent for application/json ContentType.
+type RecordConsentJSONRequestBody = ConsentRequest
+
+// AddContactNoteJSONRequestBody defines body for AddContactNote for application/json ContentType.
+type AddContactNoteJSONRequestBody AddContactNoteJSONBody
+
+// CreateGroupJSONRequestBody defines body for CreateGroup for application/json ContentType.
+type CreateGroupJSONRequestBody = GroupInput
+
+// UpdateGroupJSONRequestBody defines body for UpdateGroup for application/json ContentType.
+type UpdateGroupJSONRequestBody = GroupInput
+
+// ChangeGroupMembersJSONRequestBody defines body for ChangeGroupMembers for application/json ContentType.
+type ChangeGroupMembersJSONRequestBody = GroupMembersRequest
+
 // CreateInvitationJSONRequestBody defines body for CreateInvitation for application/json ContentType.
 type CreateInvitationJSONRequestBody = CreateInvitationRequest
 
@@ -1163,11 +1677,26 @@ type ChangePasswordJSONRequestBody = ChangePasswordRequest
 // SendMessageJSONRequestBody defines body for SendMessage for application/json ContentType.
 type SendMessageJSONRequestBody = SendMessageRequest
 
+// CreateSegmentJSONRequestBody defines body for CreateSegment for application/json ContentType.
+type CreateSegmentJSONRequestBody = SegmentInput
+
+// PreviewSegmentJSONRequestBody defines body for PreviewSegment for application/json ContentType.
+type PreviewSegmentJSONRequestBody PreviewSegmentJSONBody
+
+// UpdateSegmentJSONRequestBody defines body for UpdateSegment for application/json ContentType.
+type UpdateSegmentJSONRequestBody = UpdateSegmentRequest
+
 // UpdateSettingsJSONRequestBody defines body for UpdateSettings for application/json ContentType.
 type UpdateSettingsJSONRequestBody = UpdateSettingsRequest
 
 // CompleteSetupJSONRequestBody defines body for CompleteSetup for application/json ContentType.
 type CompleteSetupJSONRequestBody = CompleteSetupRequest
+
+// CreateTagJSONRequestBody defines body for CreateTag for application/json ContentType.
+type CreateTagJSONRequestBody = TagInput
+
+// UpdateTagJSONRequestBody defines body for UpdateTag for application/json ContentType.
+type UpdateTagJSONRequestBody = TagInput
 
 // CreateTemplateJSONRequestBody defines body for CreateTemplate for application/json ContentType.
 type CreateTemplateJSONRequestBody = CreateTemplateRequest
@@ -1237,6 +1766,69 @@ type ServerInterface interface {
 	// GetWebhookSetup Values to enter in the Meta App dashboard
 	// (GET /channels/webhook)
 	GetWebhookSetup(w http.ResponseWriter, r *http.Request)
+	// ExportContacts Download matching contacts as CSV
+	// (GET /contact-exports)
+	ExportContacts(w http.ResponseWriter, r *http.Request, params ExportContactsParams)
+	// ListContactImports Recent imports
+	// (GET /contact-imports)
+	ListContactImports(w http.ResponseWriter, r *http.Request)
+	// UploadContactImport Upload a CSV file (up to 50 MB) to import
+	// (POST /contact-imports)
+	UploadContactImport(w http.ResponseWriter, r *http.Request, params UploadContactImportParams)
+	// GetContactImport Import progress and results
+	// (GET /contact-imports/{importId})
+	GetContactImport(w http.ResponseWriter, r *http.Request, importId ImportId)
+	// CancelContactImport Stop an import; rows already imported stay
+	// (POST /contact-imports/{importId}/cancel)
+	CancelContactImport(w http.ResponseWriter, r *http.Request, importId ImportId)
+	// GetContactImportErrors Rows that could not be imported, with the reason, as CSV
+	// (GET /contact-imports/{importId}/errors)
+	GetContactImportErrors(w http.ResponseWriter, r *http.Request, importId ImportId)
+	// StartContactImport Choose the column mapping and start importing
+	// (POST /contact-imports/{importId}/start)
+	StartContactImport(w http.ResponseWriter, r *http.Request, importId ImportId)
+	// ListContacts Contacts, newest first
+	// (GET /contacts)
+	ListContacts(w http.ResponseWriter, r *http.Request, params ListContactsParams)
+	// CreateContact Add a contact
+	// (POST /contacts)
+	CreateContact(w http.ResponseWriter, r *http.Request, params CreateContactParams)
+	// DeleteContact Delete a contact and its message history
+	// (DELETE /contacts/{contactId})
+	DeleteContact(w http.ResponseWriter, r *http.Request, contactId ContactId)
+	// GetContact A contact with tags and groups
+	// (GET /contacts/{contactId})
+	GetContact(w http.ResponseWriter, r *http.Request, contactId ContactId)
+	// UpdateContact Edit a contact; an empty string clears an optional field
+	// (PATCH /contacts/{contactId})
+	UpdateContact(w http.ResponseWriter, r *http.Request, contactId ContactId)
+	// RecordConsent Record an opt-in or opt-out
+	// (POST /contacts/{contactId}/consent)
+	RecordConsent(w http.ResponseWriter, r *http.Request, contactId ContactId)
+	// ListContactNotes Internal notes, newest first
+	// (GET /contacts/{contactId}/notes)
+	ListContactNotes(w http.ResponseWriter, r *http.Request, contactId ContactId)
+	// AddContactNote Add an internal note
+	// (POST /contacts/{contactId}/notes)
+	AddContactNote(w http.ResponseWriter, r *http.Request, contactId ContactId)
+	// DeleteContactNote Delete a note
+	// (DELETE /contacts/{contactId}/notes/{noteId})
+	DeleteContactNote(w http.ResponseWriter, r *http.Request, contactId ContactId, noteId NoteId)
+	// ListGroups Contact groups with member counts
+	// (GET /groups)
+	ListGroups(w http.ResponseWriter, r *http.Request)
+	// CreateGroup Create a group
+	// (POST /groups)
+	CreateGroup(w http.ResponseWriter, r *http.Request)
+	// DeleteGroup Delete a group (contacts stay)
+	// (DELETE /groups/{groupId})
+	DeleteGroup(w http.ResponseWriter, r *http.Request, groupId GroupId)
+	// UpdateGroup Rename or describe a group
+	// (PATCH /groups/{groupId})
+	UpdateGroup(w http.ResponseWriter, r *http.Request, groupId GroupId)
+	// ChangeGroupMembers Add or remove contacts
+	// (POST /groups/{groupId}/members)
+	ChangeGroupMembers(w http.ResponseWriter, r *http.Request, groupId GroupId)
 	// ListInvitations Pending invitations
 	// (GET /invitations)
 	ListInvitations(w http.ResponseWriter, r *http.Request)
@@ -1291,6 +1883,24 @@ type ServerInterface interface {
 	// ListRoles Roles and the permissions they grant
 	// (GET /roles)
 	ListRoles(w http.ResponseWriter, r *http.Request)
+	// ListSegments Saved segments
+	// (GET /segments)
+	ListSegments(w http.ResponseWriter, r *http.Request)
+	// CreateSegment Save a segment
+	// (POST /segments)
+	CreateSegment(w http.ResponseWriter, r *http.Request)
+	// PreviewSegment Count matching contacts and show a sample, without saving
+	// (POST /segments/preview)
+	PreviewSegment(w http.ResponseWriter, r *http.Request)
+	// DeleteSegment Delete a segment
+	// (DELETE /segments/{segmentId})
+	DeleteSegment(w http.ResponseWriter, r *http.Request, segmentId SegmentId)
+	// GetSegment A segment with its current size
+	// (GET /segments/{segmentId})
+	GetSegment(w http.ResponseWriter, r *http.Request, segmentId SegmentId)
+	// UpdateSegment Edit a segment
+	// (PATCH /segments/{segmentId})
+	UpdateSegment(w http.ResponseWriter, r *http.Request, segmentId SegmentId)
 	// GetSettings Workspace settings
 	// (GET /settings)
 	GetSettings(w http.ResponseWriter, r *http.Request)
@@ -1306,6 +1916,18 @@ type ServerInterface interface {
 	// GetSystemStatus Health of every component of the installation
 	// (GET /system/status)
 	GetSystemStatus(w http.ResponseWriter, r *http.Request)
+	// ListTags Tags with contact counts
+	// (GET /tags)
+	ListTags(w http.ResponseWriter, r *http.Request)
+	// CreateTag Create a tag (returns the existing one for a duplicate name)
+	// (POST /tags)
+	CreateTag(w http.ResponseWriter, r *http.Request)
+	// DeleteTag Delete a tag from every contact
+	// (DELETE /tags/{tagId})
+	DeleteTag(w http.ResponseWriter, r *http.Request, tagId TagId)
+	// UpdateTag Rename or recolour a tag
+	// (PATCH /tags/{tagId})
+	UpdateTag(w http.ResponseWriter, r *http.Request, tagId TagId)
 	// ListTemplates Message templates mirrored from Meta
 	// (GET /templates)
 	ListTemplates(w http.ResponseWriter, r *http.Request, params ListTemplatesParams)
@@ -1446,6 +2068,132 @@ func (_ Unimplemented) GetWebhookSetup(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// ExportContacts Download matching contacts as CSV
+// (GET /contact-exports)
+func (_ Unimplemented) ExportContacts(w http.ResponseWriter, r *http.Request, params ExportContactsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListContactImports Recent imports
+// (GET /contact-imports)
+func (_ Unimplemented) ListContactImports(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UploadContactImport Upload a CSV file (up to 50 MB) to import
+// (POST /contact-imports)
+func (_ Unimplemented) UploadContactImport(w http.ResponseWriter, r *http.Request, params UploadContactImportParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetContactImport Import progress and results
+// (GET /contact-imports/{importId})
+func (_ Unimplemented) GetContactImport(w http.ResponseWriter, r *http.Request, importId ImportId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CancelContactImport Stop an import; rows already imported stay
+// (POST /contact-imports/{importId}/cancel)
+func (_ Unimplemented) CancelContactImport(w http.ResponseWriter, r *http.Request, importId ImportId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetContactImportErrors Rows that could not be imported, with the reason, as CSV
+// (GET /contact-imports/{importId}/errors)
+func (_ Unimplemented) GetContactImportErrors(w http.ResponseWriter, r *http.Request, importId ImportId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// StartContactImport Choose the column mapping and start importing
+// (POST /contact-imports/{importId}/start)
+func (_ Unimplemented) StartContactImport(w http.ResponseWriter, r *http.Request, importId ImportId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListContacts Contacts, newest first
+// (GET /contacts)
+func (_ Unimplemented) ListContacts(w http.ResponseWriter, r *http.Request, params ListContactsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateContact Add a contact
+// (POST /contacts)
+func (_ Unimplemented) CreateContact(w http.ResponseWriter, r *http.Request, params CreateContactParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteContact Delete a contact and its message history
+// (DELETE /contacts/{contactId})
+func (_ Unimplemented) DeleteContact(w http.ResponseWriter, r *http.Request, contactId ContactId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetContact A contact with tags and groups
+// (GET /contacts/{contactId})
+func (_ Unimplemented) GetContact(w http.ResponseWriter, r *http.Request, contactId ContactId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateContact Edit a contact; an empty string clears an optional field
+// (PATCH /contacts/{contactId})
+func (_ Unimplemented) UpdateContact(w http.ResponseWriter, r *http.Request, contactId ContactId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RecordConsent Record an opt-in or opt-out
+// (POST /contacts/{contactId}/consent)
+func (_ Unimplemented) RecordConsent(w http.ResponseWriter, r *http.Request, contactId ContactId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListContactNotes Internal notes, newest first
+// (GET /contacts/{contactId}/notes)
+func (_ Unimplemented) ListContactNotes(w http.ResponseWriter, r *http.Request, contactId ContactId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AddContactNote Add an internal note
+// (POST /contacts/{contactId}/notes)
+func (_ Unimplemented) AddContactNote(w http.ResponseWriter, r *http.Request, contactId ContactId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteContactNote Delete a note
+// (DELETE /contacts/{contactId}/notes/{noteId})
+func (_ Unimplemented) DeleteContactNote(w http.ResponseWriter, r *http.Request, contactId ContactId, noteId NoteId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListGroups Contact groups with member counts
+// (GET /groups)
+func (_ Unimplemented) ListGroups(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateGroup Create a group
+// (POST /groups)
+func (_ Unimplemented) CreateGroup(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteGroup Delete a group (contacts stay)
+// (DELETE /groups/{groupId})
+func (_ Unimplemented) DeleteGroup(w http.ResponseWriter, r *http.Request, groupId GroupId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateGroup Rename or describe a group
+// (PATCH /groups/{groupId})
+func (_ Unimplemented) UpdateGroup(w http.ResponseWriter, r *http.Request, groupId GroupId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ChangeGroupMembers Add or remove contacts
+// (POST /groups/{groupId}/members)
+func (_ Unimplemented) ChangeGroupMembers(w http.ResponseWriter, r *http.Request, groupId GroupId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ListInvitations Pending invitations
 // (GET /invitations)
 func (_ Unimplemented) ListInvitations(w http.ResponseWriter, r *http.Request) {
@@ -1554,6 +2302,42 @@ func (_ Unimplemented) ListRoles(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// ListSegments Saved segments
+// (GET /segments)
+func (_ Unimplemented) ListSegments(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateSegment Save a segment
+// (POST /segments)
+func (_ Unimplemented) CreateSegment(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PreviewSegment Count matching contacts and show a sample, without saving
+// (POST /segments/preview)
+func (_ Unimplemented) PreviewSegment(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteSegment Delete a segment
+// (DELETE /segments/{segmentId})
+func (_ Unimplemented) DeleteSegment(w http.ResponseWriter, r *http.Request, segmentId SegmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetSegment A segment with its current size
+// (GET /segments/{segmentId})
+func (_ Unimplemented) GetSegment(w http.ResponseWriter, r *http.Request, segmentId SegmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateSegment Edit a segment
+// (PATCH /segments/{segmentId})
+func (_ Unimplemented) UpdateSegment(w http.ResponseWriter, r *http.Request, segmentId SegmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // GetSettings Workspace settings
 // (GET /settings)
 func (_ Unimplemented) GetSettings(w http.ResponseWriter, r *http.Request) {
@@ -1581,6 +2365,30 @@ func (_ Unimplemented) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 // GetSystemStatus Health of every component of the installation
 // (GET /system/status)
 func (_ Unimplemented) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListTags Tags with contact counts
+// (GET /tags)
+func (_ Unimplemented) ListTags(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateTag Create a tag (returns the existing one for a duplicate name)
+// (POST /tags)
+func (_ Unimplemented) CreateTag(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteTag Delete a tag from every contact
+// (DELETE /tags/{tagId})
+func (_ Unimplemented) DeleteTag(w http.ResponseWriter, r *http.Request, tagId TagId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateTag Rename or recolour a tag
+// (PATCH /tags/{tagId})
+func (_ Unimplemented) UpdateTag(w http.ResponseWriter, r *http.Request, tagId TagId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2101,6 +2909,678 @@ func (siw *ServerInterfaceWrapper) GetWebhookSetup(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// ExportContacts operation middleware
+func (siw *ServerInterfaceWrapper) ExportContacts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportContactsParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "tag_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "tag_id", r.URL.Query(), &params.TagId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "tag_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tag_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "group_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "group_id", r.URL.Query(), &params.GroupId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "group_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "group_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "segment_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "segment_id", r.URL.Query(), &params.SegmentId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "segment_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "segment_id", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportContacts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListContactImports operation middleware
+func (siw *ServerInterfaceWrapper) ListContactImports(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListContactImports(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UploadContactImport operation middleware
+func (siw *ServerInterfaceWrapper) UploadContactImport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UploadContactImportParams
+
+	// ------------- Required query parameter "filename" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "filename", r.URL.Query(), &params.Filename, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "filename"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filename", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadContactImport(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetContactImport operation middleware
+func (siw *ServerInterfaceWrapper) GetContactImport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "importId" -------------
+	var importId ImportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "importId", chi.URLParam(r, "importId"), &importId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "importId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetContactImport(w, r, importId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelContactImport operation middleware
+func (siw *ServerInterfaceWrapper) CancelContactImport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "importId" -------------
+	var importId ImportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "importId", chi.URLParam(r, "importId"), &importId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "importId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelContactImport(w, r, importId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetContactImportErrors operation middleware
+func (siw *ServerInterfaceWrapper) GetContactImportErrors(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "importId" -------------
+	var importId ImportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "importId", chi.URLParam(r, "importId"), &importId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "importId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetContactImportErrors(w, r, importId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartContactImport operation middleware
+func (siw *ServerInterfaceWrapper) StartContactImport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "importId" -------------
+	var importId ImportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "importId", chi.URLParam(r, "importId"), &importId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "importId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartContactImport(w, r, importId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListContacts operation middleware
+func (siw *ServerInterfaceWrapper) ListContacts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListContactsParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "tag_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "tag_id", r.URL.Query(), &params.TagId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "tag_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tag_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "group_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "group_id", r.URL.Query(), &params.GroupId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "group_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "group_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "segment_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "segment_id", r.URL.Query(), &params.SegmentId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "segment_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "segment_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "opted_out" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "opted_out", r.URL.Query(), &params.OptedOut, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "opted_out"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "opted_out", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListContacts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateContact operation middleware
+func (siw *ServerInterfaceWrapper) CreateContact(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateContactParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateContact(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteContact operation middleware
+func (siw *ServerInterfaceWrapper) DeleteContact(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId ContactId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", chi.URLParam(r, "contactId"), &contactId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "contactId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteContact(w, r, contactId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetContact operation middleware
+func (siw *ServerInterfaceWrapper) GetContact(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId ContactId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", chi.URLParam(r, "contactId"), &contactId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "contactId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetContact(w, r, contactId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateContact operation middleware
+func (siw *ServerInterfaceWrapper) UpdateContact(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId ContactId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", chi.URLParam(r, "contactId"), &contactId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "contactId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateContact(w, r, contactId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RecordConsent operation middleware
+func (siw *ServerInterfaceWrapper) RecordConsent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId ContactId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", chi.URLParam(r, "contactId"), &contactId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "contactId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RecordConsent(w, r, contactId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListContactNotes operation middleware
+func (siw *ServerInterfaceWrapper) ListContactNotes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId ContactId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", chi.URLParam(r, "contactId"), &contactId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "contactId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListContactNotes(w, r, contactId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddContactNote operation middleware
+func (siw *ServerInterfaceWrapper) AddContactNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId ContactId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", chi.URLParam(r, "contactId"), &contactId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "contactId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddContactNote(w, r, contactId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteContactNote operation middleware
+func (siw *ServerInterfaceWrapper) DeleteContactNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId ContactId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", chi.URLParam(r, "contactId"), &contactId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "contactId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "noteId" -------------
+	var noteId NoteId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "noteId", chi.URLParam(r, "noteId"), &noteId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "noteId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteContactNote(w, r, contactId, noteId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListGroups operation middleware
+func (siw *ServerInterfaceWrapper) ListGroups(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGroups(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateGroup operation middleware
+func (siw *ServerInterfaceWrapper) CreateGroup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateGroup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteGroup operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId GroupId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteGroup(w, r, groupId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateGroup operation middleware
+func (siw *ServerInterfaceWrapper) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId GroupId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateGroup(w, r, groupId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ChangeGroupMembers operation middleware
+func (siw *ServerInterfaceWrapper) ChangeGroupMembers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId GroupId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ChangeGroupMembers(w, r, groupId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListInvitations operation middleware
 func (siw *ServerInterfaceWrapper) ListInvitations(w http.ResponseWriter, r *http.Request) {
 
@@ -2443,6 +3923,126 @@ func (siw *ServerInterfaceWrapper) ListRoles(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// ListSegments operation middleware
+func (siw *ServerInterfaceWrapper) ListSegments(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSegments(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSegment operation middleware
+func (siw *ServerInterfaceWrapper) CreateSegment(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSegment(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewSegment operation middleware
+func (siw *ServerInterfaceWrapper) PreviewSegment(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewSegment(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSegment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSegment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "segmentId" -------------
+	var segmentId SegmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "segmentId", chi.URLParam(r, "segmentId"), &segmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "segmentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSegment(w, r, segmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSegment operation middleware
+func (siw *ServerInterfaceWrapper) GetSegment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "segmentId" -------------
+	var segmentId SegmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "segmentId", chi.URLParam(r, "segmentId"), &segmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "segmentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSegment(w, r, segmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateSegment operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSegment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "segmentId" -------------
+	var segmentId SegmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "segmentId", chi.URLParam(r, "segmentId"), &segmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "segmentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSegment(w, r, segmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSettings operation middleware
 func (siw *ServerInterfaceWrapper) GetSettings(w http.ResponseWriter, r *http.Request) {
 
@@ -2504,6 +4104,86 @@ func (siw *ServerInterfaceWrapper) GetSystemStatus(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSystemStatus(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTags operation middleware
+func (siw *ServerInterfaceWrapper) ListTags(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTags(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTag operation middleware
+func (siw *ServerInterfaceWrapper) CreateTag(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTag(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTag operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTag(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tagId" -------------
+	var tagId TagId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tagId", chi.URLParam(r, "tagId"), &tagId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tagId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTag(w, r, tagId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTag operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTag(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tagId" -------------
+	var tagId TagId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tagId", chi.URLParam(r, "tagId"), &tagId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tagId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTag(w, r, tagId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2924,6 +4604,99 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/messages/{messageId}", wrapper.GetMessage)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contacts", wrapper.ListContacts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/contacts", wrapper.CreateContact)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/contacts/{contactId}", wrapper.DeleteContact)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contacts/{contactId}", wrapper.GetContact)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/contacts/{contactId}", wrapper.UpdateContact)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/contacts/{contactId}/consent", wrapper.RecordConsent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contacts/{contactId}/notes", wrapper.ListContactNotes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/contacts/{contactId}/notes", wrapper.AddContactNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/contacts/{contactId}/notes/{noteId}", wrapper.DeleteContactNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contact-exports", wrapper.ExportContacts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contact-imports", wrapper.ListContactImports)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/contact-imports", wrapper.UploadContactImport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contact-imports/{importId}", wrapper.GetContactImport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/contact-imports/{importId}/start", wrapper.StartContactImport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/contact-imports/{importId}/cancel", wrapper.CancelContactImport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contact-imports/{importId}/errors", wrapper.GetContactImportErrors)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/tags", wrapper.ListTags)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/tags", wrapper.CreateTag)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/tags/{tagId}", wrapper.DeleteTag)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/tags/{tagId}", wrapper.UpdateTag)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/groups", wrapper.ListGroups)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/groups", wrapper.CreateGroup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/groups/{groupId}", wrapper.DeleteGroup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/groups/{groupId}", wrapper.UpdateGroup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/groups/{groupId}/members", wrapper.ChangeGroupMembers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/segments", wrapper.ListSegments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/segments", wrapper.CreateSegment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/segments/preview", wrapper.PreviewSegment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/segments/{segmentId}", wrapper.DeleteSegment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/segments/{segmentId}", wrapper.GetSegment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/segments/{segmentId}", wrapper.UpdateSegment)
+	})
 
 	return r
 }
@@ -2933,130 +4706,177 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"/vj8/wYA",
+	"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",
+	"H5cFlR9q9aq59/jp8f8NAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

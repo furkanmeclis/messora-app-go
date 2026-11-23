@@ -8,6 +8,7 @@ package apiguard
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -55,6 +56,33 @@ type Options struct {
 	MFAEnrolmentOps []string
 	// Limits per principal kind; anonymous panel calls are limited per IP.
 	SessionLimit, APIKeyLimit, AnonymousLimit ratelimit.Limit
+	// MaxBody caps request bodies (default 1 MiB). An operation with the
+	// extension "x-messora-raw-body: <bytes>" accepts a larger streamed
+	// body that is not schema-validated (file uploads); its handler parses it.
+	MaxBody int64
+}
+
+// RawBodyExtension marks operations whose body is a streamed file.
+const RawBodyExtension = "x-messora-raw-body"
+
+// rawBodyLimit returns the operation's raw-body limit, or 0.
+func rawBodyLimit(op *openapi3.Operation) int64 {
+	v, ok := op.Extensions[RawBodyExtension]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case int:
+		return int64(n)
+	case int64:
+		return n
+	case json.Number:
+		i, _ := n.Int64()
+		return i
+	}
+	return 0
 }
 
 // Guard is the middleware.
@@ -78,6 +106,9 @@ func init() {
 // New validates the spec (every operation must declare security) and builds
 // the guard.
 func New(spec *openapi3.T, o Options) (*Guard, error) {
+	if o.MaxBody <= 0 {
+		o.MaxBody = 1 << 20
+	}
 	if err := spec.Validate(context.Background()); err != nil {
 		return nil, fmt.Errorf("apiguard: invalid spec: %w", err)
 	}
@@ -140,15 +171,22 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		limit, raw := g.o.MaxBody, rawBodyLimit(op)
+		if raw > 0 {
+			limit = raw
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		if err := openapi3filter.ValidateRequest(ctx, &openapi3filter.RequestValidationInput{
 			Request: r, PathParams: pathParams, Route: route,
-			Options: &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc, MultiError: true},
+			Options: &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc, MultiError: true,
+				ExcludeRequestBody: raw > 0},
 		}); err != nil {
 			httpx.WriteError(w, r, validationError(err), g.o.Logger)
 			return
 		}
 
-		if r.Method == http.MethodPost && r.Header.Get("Idempotency-Key") != "" && p != nil {
+		// Streamed uploads are not replayable (the body is not buffered).
+		if r.Method == http.MethodPost && r.Header.Get("Idempotency-Key") != "" && p != nil && raw == 0 {
 			g.idempotent(w, r, p, next)
 			return
 		}

@@ -41,6 +41,7 @@ var routes = map[string]string{
 	"whatsapp:send":           Critical,
 	"whatsapp:webhook":        Critical,
 	"whatsapp:media_download": Default,
+	"contacts:import":         Bulk,
 }
 
 // Route returns the queue a task type is routed to.

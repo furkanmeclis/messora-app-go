@@ -16,6 +16,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
@@ -38,6 +39,7 @@ type (
 	systemHandler   = system.Handler
 	channelsHandler = channels.Handler
 	messagesHandler = messaging.Handler
+	contactsHandler = contacts.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -49,6 +51,7 @@ type apiServer struct {
 	*systemHandler
 	*channelsHandler
 	*messagesHandler
+	*contactsHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -64,6 +67,7 @@ type services struct {
 	queries   *db.Queries
 	channels  *channels.Service
 	messaging *messaging.Service
+	contacts  *contacts.Service
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -92,7 +96,8 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	}
 	ch := channels.New(pool, sealer, wa, cfg.Meta.AppSecret.Reveal(), log)
 	msg := messaging.New(pool, ch, messaging.NewMediaStore(cfg.MediaDir), log)
-	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg}, nil
+	cts := contacts.New(pool, cfg.MediaDir, log)
+	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg, contacts: cts}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -121,11 +126,12 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		systemHandler:   sys,
 		channelsHandler: channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),
 		messagesHandler: messaging.NewHandler(svc.messaging, log),
+		contactsHandler: contacts.NewHandler(svc.contacts, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
 	r.Group(func(g chi.Router) {
-		g.Use(httpx.MaxBody(1<<20), httpx.ClientMeta, guard.Middleware)
+		g.Use(httpx.ClientMeta, guard.Middleware) // the guard applies per-operation body limits
 		api.HandlerWithOptions(srv, api.ChiServerOptions{
 			BaseURL:    "/api/v1",
 			BaseRouter: g,
