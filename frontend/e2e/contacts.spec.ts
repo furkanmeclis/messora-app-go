@@ -221,7 +221,8 @@ test('contacts are added to a group in bulk', async () => {
         .click();
     await expect(page.getByText('3 selected')).toBeVisible();
     await page.getByRole('button', { name: 'Add to group' }).click();
-    await page.getByRole('combobox', { name: 'Group' }).click();
+    const picker = page.getByRole('dialog').filter({ hasText: 'Add to group' });
+    await picker.getByRole('combobox', { name: 'Group' }).click();
     await page.getByRole('option', { name: `Newsletter ${RUN}` }).click();
     await page.getByRole('button', { name: 'Apply' }).click();
     await expect(

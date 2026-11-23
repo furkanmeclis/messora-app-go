@@ -1,6 +1,6 @@
 const desktop = {
     enter: 'Desktop mode',
-    enterHint: 'Work with several sections side by side in windows. F11 also opens it.',
+    enterHint: 'Work with several sections side by side in windows. Ctrl+Shift+D (⌘⇧D) toggles it.',
     exit: 'Exit desktop mode',
     start: 'Start',
     searchApps: 'Search apps…',
@@ -18,6 +18,15 @@ const desktop = {
     tile: 'Arrange side by side',
     cascade: 'Cascade',
     noWindows: 'Double-click an icon to open it in a window.',
+    changeBackground: 'Change background…',
+    background: 'Desktop background',
+    backgroundHint: 'Only for you, on this device.',
+    workspaceDefault: 'Workspace default',
+    solidColour: 'Solid colour',
+    picture: 'Your picture',
+    pictureHint: 'JPEG, PNG or WebP. Large pictures are scaled down.',
+    fit: 'Fit',
+    fits: { cover: 'Fill', contain: 'Fit', center: 'Centre' },
     keyboard: 'Alt+1…9 switch windows · Alt+W close · Alt+M minimise · Alt+↑ maximise',
 };
 export default desktop;

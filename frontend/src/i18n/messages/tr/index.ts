@@ -14,6 +14,7 @@ import topbar from './topbar';
 import shortcuts from './shortcuts';
 import table from './table';
 import desktop from './desktop';
+import contextMenu from './contextMenu';
 import account from './account';
 import apiKeys from './api-keys';
 import audit from './audit';
@@ -34,6 +35,7 @@ export const tr: Messages = {
     shortcuts,
     table,
     desktop,
+    contextMenu,
     account,
     apiKeys,
     audit,

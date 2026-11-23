@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { serverConfig } from '@/lib/server/config';
 import { streamUpload } from '@/lib/server/stream';
+import { invalidateAppearance } from '@/lib/server/appearance';
 
 /**
  * The organisation logo. Public (the sign-in page shows it); the API sets
@@ -42,5 +43,12 @@ export async function GET() {
 
 /** Replaces the logo (2 MB at most, checked again by the API). */
 export async function PUT(req: NextRequest) {
-    return streamUpload(req, '/settings/logo', 2 * 1024 * 1024, 'PUT');
+    const res = await streamUpload(
+        req,
+        '/settings/logo',
+        2 * 1024 * 1024,
+        'PUT',
+    );
+    invalidateAppearance();
+    return res;
 }

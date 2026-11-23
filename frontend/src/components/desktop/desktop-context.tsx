@@ -30,20 +30,10 @@ function embedded() {
     return typeof window !== 'undefined' && window.top !== window.self;
 }
 
-/** Full screen, whether by the Fullscreen API or the browser's F11. */
-function fullscreen() {
-    return (
-        !!document.fullscreenElement ||
-        window.matchMedia('(display-mode: fullscreen)').matches ||
-        (window.innerHeight >= screen.height - 1 &&
-            window.innerWidth >= screen.width - 1)
-    );
-}
-
 /**
- * Desktop mode: turned on by going full screen (F11) or explicitly, and
- * off again when full screen ends. Never inside a desktop window, and
- * never on small screens.
+ * Desktop mode: turned on explicitly (top bar, command palette, Ctrl+Shift+D)
+ * and off again when its full screen ends. Never inside a desktop window,
+ * and never on small screens.
  */
 export function DesktopProvider({ children }: { children: React.ReactNode }) {
     const [active, setActive] = useState(false);
@@ -66,27 +56,37 @@ export function DesktopProvider({ children }: { children: React.ReactNode }) {
             window.addEventListener('keydown', onKey);
             return () => window.removeEventListener('keydown', onKey);
         }
+        // Desktop mode only starts on request; leaving the full screen it
+        // opened ends it, and small screens never show it.
         const check = () => {
             const wide = window.innerWidth >= MIN_WIDTH;
             setAvailable(wide);
-            const fs = fullscreen();
             setActive((on) => {
-                if (fs && wide && !on) {
-                    auto.current = true;
-                    return true;
-                }
-                if (!fs && on && auto.current) {
+                if (!wide && on) return false;
+                if (on && auto.current && !document.fullscreenElement) {
                     auto.current = false;
                     return false;
                 }
-                if (!wide && on) return false;
                 return on;
             });
         };
         check();
+        const onKey = (e: KeyboardEvent) => {
+            if (
+                (e.ctrlKey || e.metaKey) &&
+                e.shiftKey &&
+                e.code === 'KeyD' &&
+                window.innerWidth >= MIN_WIDTH
+            ) {
+                e.preventDefault();
+                window.dispatchEvent(new Event('messora:desktop-toggle'));
+            }
+        };
+        window.addEventListener('keydown', onKey);
         window.addEventListener('resize', check);
         document.addEventListener('fullscreenchange', check);
         return () => {
+            window.removeEventListener('keydown', onKey);
             window.removeEventListener('resize', check);
             document.removeEventListener('fullscreenchange', check);
         };
@@ -107,6 +107,13 @@ export function DesktopProvider({ children }: { children: React.ReactNode }) {
         setActive(false);
         if (document.fullscreenElement) void document.exitFullscreen();
     }, []);
+
+    useEffect(() => {
+        const toggle = () => (active ? exit() : enter());
+        window.addEventListener('messora:desktop-toggle', toggle);
+        return () =>
+            window.removeEventListener('messora:desktop-toggle', toggle);
+    }, [active, enter, exit]);
 
     return (
         <DesktopContext.Provider value={{ active, available, enter, exit }}>

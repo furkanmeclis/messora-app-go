@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { api } from '@/lib/server/api';
 import { runAction } from '@/lib/server/actions';
 import { getT } from '@/i18n/server';
+import { invalidateAppearance } from '@/lib/server/appearance';
 import type {
     ActionResult,
     Schemas,
@@ -28,6 +29,7 @@ export async function saveSettingsAction(
                 .data,
         t(successKey),
     );
+    invalidateAppearance();
     revalidatePath('/', 'layout');
     return res;
 }
@@ -53,6 +55,7 @@ export async function completeSetupStepAction(
                 })
             ).data,
     );
+    invalidateAppearance();
     revalidatePath('/', 'layout');
     return res;
 }
@@ -64,6 +67,7 @@ export async function removeLogoAction(): Promise<ActionResult<Settings>> {
             (await api<Settings>('/settings/logo', { method: 'DELETE' })).data,
         t('appearance.logoRemoved'),
     );
+    invalidateAppearance();
     revalidatePath('/', 'layout');
     return res;
 }
