@@ -150,12 +150,19 @@ test('a CSV file is imported through the wizard', async () => {
         `${PHONE(3)},Ayşe Kaya,,vip,Ankara`,
         'not-a-phone,Broken Row,,,',
     ].join('\n');
-    await page.locator('input[type="file"]').setInputFiles({
-        name: `customers-${RUN}.csv`,
-        mimeType: 'text/csv',
-        buffer: Buffer.from(csv),
-    });
-    await expect(page.getByText(`customers-${RUN}.csv`).first()).toBeVisible();
+    // The file input only reacts once the page has hydrated: retry until
+    // the chosen file shows up.
+    await page.waitForLoadState('networkidle');
+    await expect(async () => {
+        await page.locator('input[type="file"]').setInputFiles({
+            name: `customers-${RUN}.csv`,
+            mimeType: 'text/csv',
+            buffer: Buffer.from(csv),
+        });
+        await expect(
+            page.getByText(`customers-${RUN}.csv`).first(),
+        ).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Upload and continue' }).click();
 
     await expect(page).toHaveURL(/\/contacts\/import\/[0-9a-f-]{36}$/);

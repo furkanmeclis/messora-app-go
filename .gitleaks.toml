@@ -8,6 +8,8 @@ paths = [
   '''^reference/''',
   '''^frontend/node_modules/''',
   '''^frontend/\.next/''',
+  # Local git worktrees of parallel work (never committed).
+  '''^\.claude/''',
   # oapi-codegen embeds the gzipped spec as base64; random-looking by design.
   '''^internal/api/api\.gen\.go$''',
 ]
@@ -16,4 +18,6 @@ paths = [
 regexes = [
   '''Correct-horse-staple-91?''',
   '''Horse-battery-staple-42''',
+  '''Every-route-renders-27''',
+  '''Plenty-of-entropy-58''',
 ]
