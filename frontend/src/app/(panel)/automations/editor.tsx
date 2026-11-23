@@ -468,6 +468,8 @@ function Editor({
                         };
                     }
                 }
+                // Never drop a node onto another: slide it down to free space.
+                position = freeSpot(position, d.nodes);
                 const node: StepNode = {
                     id: step.id,
                     type: 'step',
@@ -1311,4 +1313,29 @@ function StepInspector({
             />
         </div>
     );
+}
+
+/** The nearest spot below `p` where a new node covers no existing one. */
+function freeSpot(
+    p: { x: number; y: number },
+    nodes: {
+        position: { x: number; y: number };
+        measured?: { width?: number; height?: number };
+    }[],
+): { x: number; y: number } {
+    const pad = 24;
+    const hit = (y: number) =>
+        nodes.some((n) => {
+            const w = n.measured?.width ?? NODE_WIDTH;
+            const h = n.measured?.height ?? NODE_HEIGHT;
+            return (
+                p.x < n.position.x + w + pad &&
+                p.x + NODE_WIDTH + pad > n.position.x &&
+                y < n.position.y + h + pad &&
+                y + NODE_HEIGHT + pad > n.position.y
+            );
+        });
+    let y = p.y;
+    for (let i = 0; i < 200 && hit(y); i++) y += 24;
+    return { x: p.x, y };
 }
