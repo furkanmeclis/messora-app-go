@@ -2228,6 +2228,10 @@ components:
       name: Idempotency-Key
       in: header
       required: false
+      description: >-
+        Retry-safe POST: a repeated request with the same key replays the first
+        successful response for 24 hours. Rejected requests (4xx/5xx) are not
+        remembered, so a corrected request may reuse the key.
       schema: { type: string, minLength: 8, maxLength: 200 }
 
   responses:

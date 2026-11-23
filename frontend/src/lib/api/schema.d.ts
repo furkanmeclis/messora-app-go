@@ -3008,6 +3008,7 @@ export interface components {
         /** @description Opaque cursor from `meta.next_cursor`. */
         Cursor: string;
         Limit: number;
+        /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
         IdempotencyKey: string;
     };
     requestBodies: never;
@@ -3512,6 +3513,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path?: never;
@@ -3727,6 +3729,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path?: never;
@@ -3838,6 +3841,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path?: never;
@@ -4023,6 +4027,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path?: never;
@@ -4071,6 +4076,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path?: never;
@@ -4152,6 +4158,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path?: never;
@@ -4955,6 +4962,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path?: never;
@@ -5053,6 +5061,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path: {
@@ -5288,6 +5297,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path: {
@@ -5669,6 +5679,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
                 'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
             };
             path?: never;

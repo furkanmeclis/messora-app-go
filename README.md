@@ -4,9 +4,29 @@
 segmentation, campaigns, a shared inbox, automations and a developer API, run
 on your own server for a single business.
 
-> **Status: early development (Phase 1 of 10).** The infrastructure is in
-> place and runs with one command; product features arrive phase by phase —
-> see the [roadmap](docs/ROADMAP.md). Not ready for production messaging yet.
+> **Status: release candidate.** All product features are implemented and
+> covered by integration, load and browser tests. Before messaging customers,
+> run the manual smoke test with a WhatsApp test number described in
+> [docs/WHATSAPP.md](docs/WHATSAPP.md).
+
+## Features
+
+- **WhatsApp Cloud API** — connect accounts and numbers, sync and create
+  templates, every message type, signed webhooks, media download.
+- **Contacts** — tags, groups, custom fields, consent history, CSV/Excel
+  import (100k rows in ~20 s) and export, dynamic segments.
+- **Campaigns** — scheduled template sends with per-contact variables,
+  pause/resume/cancel, per-number pacing that adapts to Meta's limits,
+  live statistics. Tested with 100,000 recipients: no duplicates, no losses.
+- **Shared inbox** — conversations with assignment, visibility rules, the
+  24-hour window, live updates.
+- **Automations** — triggers (keywords, new contacts, tags, delivery
+  statuses, closed conversations) and steps (replies, templates, tags,
+  conditions, delays, HTTP, e-mail …).
+- **Developer API and outgoing webhooks** — OpenAPI 3.1 spec, API keys with
+  scopes, idempotency keys, signed webhooks with retries.
+- **Security** — two-factor authentication, roles and permissions, audit log,
+  encrypted secrets, SSRF-protected outbound HTTP.
 
 Messora uses only Meta's **official WhatsApp Cloud API** (no WhatsApp Web or
 QR-code sessions). Reliability is the first design goal: no lost messages, no
@@ -27,8 +47,11 @@ docker compose up -d --build
 ```
 
 Open <http://localhost>. The first start takes a few minutes (images are
-built locally). You will see the installation status page; every component
-should report **Active**.
+built locally). Create the owner account with the one-time setup link:
+
+```bash
+docker compose exec messora-api messora setup token
+```
 
 What happens on first start:
 
@@ -71,17 +94,12 @@ realtime updates. Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ```bash
 docker compose ps                  # status and health
 docker compose logs -f messora-api # logs (JSON, secrets redacted)
-docker compose down                # stop, keep data
+scripts/backup.sh /srv/backups     # database + secrets + media
 docker compose up -d --build       # update after git pull (migrations run automatically)
 ```
 
-**Back up** the `postgres-data` volume (or `pg_dump`) **and** the
-`messora-secrets` volume: it holds `APP_ENCRYPTION_KEY`, without which stored
-WhatsApp credentials cannot be decrypted. Full backup/restore guidance comes
-with Phase 10.
-
-Prometheus metrics and readiness are served on port 9100 inside each backend
-container (not published through Caddy).
+Going live on a domain, backups and restore, upgrades, monitoring and
+troubleshooting: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Development
 
@@ -102,7 +120,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, reliability design, pinned versions |
 | [docs/DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md) | Target schema |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and controls |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Deployment, backup/restore, upgrades, monitoring |
+| [docs/WHATSAPP.md](docs/WHATSAPP.md) | WhatsApp setup, delivery guarantees, inbox rules |
+| [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md) | Automation triggers, steps and guarantees |
+| [docs/WEBHOOKS.md](docs/WEBHOOKS.md) | Outgoing webhooks for integrators |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases and exit criteria |
+| `api/openapi.yaml` | Developer API (OpenAPI 3.1) |
 
 The design documents are currently written in Turkish.
 

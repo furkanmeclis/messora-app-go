@@ -69,7 +69,10 @@ func (g *Guard) idempotent(w http.ResponseWriter, r *http.Request, p *principal.
 	next.ServeHTTP(rec, r)
 	bg, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if rec.status >= 500 {
+	if rec.status >= 400 {
+		// Only successful responses are remembered. A rejected request
+		// (validation, permission, conflict, rate limit, server error) had
+		// no effect, so the client may fix it and retry with the same key.
 		return // released by the deferred cleanup
 	}
 	status := int32(rec.status) //nolint:gosec // HTTP status codes fit in int32
