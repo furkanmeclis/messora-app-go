@@ -10,35 +10,58 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { useDisplayPrefs } from '@/components/display-preferences';
 import {
     useRealtimeEvents,
     useRealtimeState,
     type RealtimeEvent,
 } from '@/components/realtime';
+import { useT } from '@/i18n/client';
+import type { MessageKey, Translate } from '@/i18n/translate';
+import { formatTime } from '@/lib/format';
 
 type Item = { key: string; at: Date; text: string };
 
 const MAX_ITEMS = 8;
 
-function describe(e: RealtimeEvent): string | null {
-    const dir = e.direction === 'inbound' ? 'Incoming' : 'Outgoing';
+/** A translated label for an API value, or the value itself. */
+function label(t: Translate, group: string, raw: unknown): string {
+    const value = String(raw ?? '');
+    const key = `overview.live.${group}.${value}` as MessageKey;
+    const text = t(key);
+    return text === key ? value : text;
+}
+
+function describe(t: Translate, e: RealtimeEvent): string | null {
     const kind = typeof e.message_type === 'string' ? e.message_type : '';
     switch (e.type) {
         case 'message.created':
-            return `${dir} ${kind} message · ${String(e.status)}`;
+            return t(
+                e.direction === 'inbound'
+                    ? 'overview.live.incoming'
+                    : 'overview.live.outgoing',
+                {
+                    kind: label(t, 'kinds', kind),
+                    status: label(t, 'messageStatus', e.status),
+                },
+            );
         case 'message.status':
-            return `Message ${String(e.status)}`;
+            return t('overview.live.message', {
+                status: label(t, 'messageStatus', e.status),
+            });
         case 'campaign.updated':
-            return `Campaign ${String(e.status)}`;
+            return t('overview.live.campaign', {
+                status: label(t, 'campaignStatus', e.status),
+            });
         default:
             return null;
     }
 }
 
 const STATE_LABEL = {
-    connected: 'Live',
-    connecting: 'Connecting…',
-    disconnected: 'Offline',
+    connected: 'overview.live.connected',
+    connecting: 'overview.live.connecting',
+    disconnected: 'overview.live.disconnected',
 } as const;
 
 /**
@@ -46,11 +69,13 @@ const STATE_LABEL = {
  * connection (no polling). Events carry no message content.
  */
 export function LiveActivity() {
+    const t = useT();
+    const prefs = useDisplayPrefs();
     const state = useRealtimeState();
     const [items, setItems] = useState<Item[]>([]);
 
     useRealtimeEvents((channel, e) => {
-        const text = describe(e);
+        const text = describe(t, e);
         if (!text) return;
         const id =
             typeof e.message_id === 'string'
@@ -74,11 +99,10 @@ export function LiveActivity() {
                 <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 text-base">
                         <Radio className="size-4 text-muted-foreground" />
-                        Live activity
+                        {t('overview.live.title')}
                     </CardTitle>
                     <CardDescription>
-                        New messages and delivery updates appear here as they
-                        happen.
+                        {t('overview.live.description')}
                     </CardDescription>
                 </div>
                 <Badge
@@ -88,18 +112,18 @@ export function LiveActivity() {
                     aria-live="polite"
                     data-testid="realtime-state"
                 >
-                    {STATE_LABEL[state]}
+                    {t(STATE_LABEL[state])}
                 </Badge>
             </CardHeader>
             <CardContent>
                 {items.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                        No activity since this page was opened.
+                        {t('overview.live.empty')}
                     </p>
                 ) : (
                     <ul
                         className="space-y-1 text-sm"
-                        aria-label="Recent activity"
+                        aria-label={t('overview.live.recent')}
                     >
                         {items.map((i) => (
                             <li
@@ -111,7 +135,11 @@ export function LiveActivity() {
                                     className="text-muted-foreground tabular-nums"
                                     dateTime={i.at.toISOString()}
                                 >
-                                    {i.at.toLocaleTimeString()}
+                                    {formatTime(
+                                        i.at.toISOString(),
+                                        prefs,
+                                        true,
+                                    )}
                                 </time>
                             </li>
                         ))}

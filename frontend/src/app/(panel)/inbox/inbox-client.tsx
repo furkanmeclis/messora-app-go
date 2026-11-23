@@ -42,6 +42,14 @@ import {
     useFormatTimeLabel,
     useFormatDateTime,
 } from '@/components/display-preferences';
+import { FileDrop } from '@/components/ui/file-drop';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
+import { useT } from '@/i18n/client';
+import type { MessageKey, Translate } from '@/i18n/translate';
 import { cn } from '@/lib/utils';
 import type { Conversation, InboxMessage, Template } from '@/lib/types';
 import type { ThreadData } from './page';
@@ -61,6 +69,13 @@ function displayName(c: Conversation['contact']): string {
     return c.name || c.profile_name || c.phone;
 }
 
+/** The translated name of a WhatsApp message type, or the type itself. */
+function kindLabel(t: Translate, type: string): string {
+    const key = `overview.live.kinds.${type}` as MessageKey;
+    const text = t(key);
+    return text === key ? type : text;
+}
+
 function inboxHref(query: string, extra: Record<string, string>): string {
     const q = new URLSearchParams(query);
     for (const [k, v] of Object.entries(extra)) {
@@ -74,14 +89,14 @@ function inboxHref(query: string, extra: Record<string, string>): string {
 // ── Filters ────────────────────────────────────────────────────────────────
 
 const STATUSES = [
-    ['open', 'Open'],
-    ['closed', 'Closed'],
-    ['all', 'All'],
+    ['open', 'inbox.filters.open'],
+    ['closed', 'inbox.filters.closed'],
+    ['all', 'inbox.filters.all'],
 ] as const;
 const ASSIGNEES = [
-    ['', 'Everyone'],
-    ['me', 'Mine'],
-    ['unassigned', 'Unassigned'],
+    ['', 'inbox.filters.everyone'],
+    ['me', 'inbox.filters.mine'],
+    ['unassigned', 'inbox.filters.unassigned'],
 ] as const;
 
 export function InboxFilters({
@@ -93,6 +108,7 @@ export function InboxFilters({
     assignee: string;
     q: string;
 }) {
+    const t = useT();
     const base = new URLSearchParams();
     if (status !== 'open') base.set('status', status);
     if (assignee) base.set('assignee', assignee);
@@ -120,25 +136,28 @@ export function InboxFilters({
                     <input type="hidden" name="assignee" value={assignee} />
                 )}
                 <Label htmlFor="inbox-search" className="sr-only">
-                    Search conversations
+                    {t('inbox.filters.searchLabel')}
                 </Label>
                 <Input
                     id="inbox-search"
                     name="q"
                     defaultValue={q}
                     maxLength={100}
-                    placeholder="Name or phone"
+                    placeholder={t('inbox.filters.searchPlaceholder')}
                 />
                 <Button
                     type="submit"
                     variant="outline"
                     size="icon"
-                    aria-label="Search"
+                    aria-label={t('common.search')}
                 >
                     <Search />
                 </Button>
             </form>
-            <nav aria-label="Status" className="flex flex-wrap gap-1">
+            <nav
+                aria-label={t('inbox.filters.status')}
+                className="flex flex-wrap gap-1"
+            >
                 {STATUSES.map(([v, label]) => (
                     <Link
                         key={v}
@@ -149,11 +168,14 @@ export function InboxFilters({
                         aria-current={status === v ? 'page' : undefined}
                         className={pill(status === v)}
                     >
-                        {label}
+                        {t(label)}
                     </Link>
                 ))}
             </nav>
-            <nav aria-label="Assignee" className="flex flex-wrap gap-1">
+            <nav
+                aria-label={t('inbox.filters.assignee')}
+                className="flex flex-wrap gap-1"
+            >
                 {ASSIGNEES.map(([v, label]) => (
                     <Link
                         key={v || 'all'}
@@ -161,7 +183,7 @@ export function InboxFilters({
                         aria-current={assignee === v ? 'page' : undefined}
                         className={pill(assignee === v)}
                     >
-                        {label}
+                        {t(label)}
                     </Link>
                 ))}
             </nav>
@@ -182,6 +204,7 @@ export function ConversationList({
     query: string;
     selected?: string;
 }) {
+    const t = useT();
     const timeLabel = useFormatTimeLabel();
     const [more, setMore] = useState<Conversation[]>([]);
     const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -199,9 +222,9 @@ export function ConversationList({
                     <EmptyMedia variant="icon">
                         <InboxIcon />
                     </EmptyMedia>
-                    <EmptyTitle>No conversations</EmptyTitle>
+                    <EmptyTitle>{t('inbox.list.empty')}</EmptyTitle>
                     <EmptyDescription>
-                        Messages from your customers appear here.
+                        {t('inbox.list.emptyHint')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -247,7 +270,7 @@ export function ConversationList({
                                     {c.last_message
                                         ? (c.last_message.direction ===
                                           'outbound'
-                                              ? 'You: '
+                                              ? t('inbox.list.you')
                                               : '') +
                                           (c.last_message.body ||
                                               `[${c.last_message.type}]`)
@@ -255,11 +278,15 @@ export function ConversationList({
                                 </span>
                                 <span className="flex shrink-0 items-center gap-1">
                                     {c.status === 'closed' && (
-                                        <Badge variant="outline">Closed</Badge>
+                                        <Badge variant="outline">
+                                            {t('inbox.filters.closed')}
+                                        </Badge>
                                     )}
                                     {c.unread_count > 0 && (
                                         <Badge
-                                            aria-label={`${c.unread_count} unread`}
+                                            aria-label={t('inbox.list.unread', {
+                                                count: c.unread_count,
+                                            })}
                                             data-testid="unread-count"
                                         >
                                             {c.unread_count}
@@ -269,7 +296,9 @@ export function ConversationList({
                             </span>
                             {c.assignee && (
                                 <span className="text-xs text-muted-foreground">
-                                    Assigned to {c.assignee.name}
+                                    {t('inbox.list.assignedTo', {
+                                        name: c.assignee.name,
+                                    })}
                                 </span>
                             )}
                         </Link>
@@ -294,7 +323,7 @@ export function ConversationList({
                         })
                     }
                 >
-                    {pending && <Spinner />} Load more
+                    {pending && <Spinner />} {t('inbox.list.loadMore')}
                 </Button>
             )}
         </div>
@@ -303,19 +332,9 @@ export function ConversationList({
 
 // ── Thread ─────────────────────────────────────────────────────────────────
 
-const STATUS_LABEL: Record<InboxMessage['status'], string> = {
-    pending: 'Queued',
-    sending: 'Sending',
-    unknown: 'Delivery unknown',
-    sent: 'Sent',
-    delivered: 'Delivered',
-    read: 'Read',
-    failed: 'Failed',
-    received: 'Received',
-};
-
 function Ticks({ status }: { status: InboxMessage['status'] }) {
-    const label = STATUS_LABEL[status];
+    const t = useT();
+    const label = t(`inbox.status.${status}`);
     const icon =
         status === 'pending' || status === 'sending' ? (
             <Clock className="size-3.5" />
@@ -344,19 +363,21 @@ function MediaView({
     conversationId: string;
     m: InboxMessage;
 }) {
+    const t = useT();
     const md = m.media;
     if (!md) return null;
     if (md.status !== 'stored') {
         return (
             <p className="text-xs italic opacity-80">
                 {md.status === 'failed'
-                    ? 'The file could not be downloaded from WhatsApp.'
-                    : 'Downloading the file…'}
+                    ? t('inbox.media.failed')
+                    : t('inbox.media.downloading')}
             </p>
         );
     }
     const src = `/bff/media/${conversationId}/${md.id}`;
-    const alt = m.body || `${m.type} from the customer`;
+    const alt =
+        m.body || t('inbox.media.fromCustomer', { type: kindLabel(t, m.type) });
     if (m.type === 'image' || m.type === 'sticker') {
         return (
             // eslint-disable-next-line @next/next/no-img-element -- served by the BFF with the session, not optimisable
@@ -372,7 +393,7 @@ function MediaView({
         return <video src={src} controls className="max-h-72 rounded-md" />;
     }
     if (m.type === 'audio') {
-        return <audio src={src} controls aria-label="Voice message" />;
+        return <audio src={src} controls aria-label={t('inbox.media.voice')} />;
     }
     return (
         <a
@@ -380,7 +401,8 @@ function MediaView({
             className="flex items-center gap-2 underline underline-offset-2"
             download={md.filename || undefined}
         >
-            <FileText className="size-4" /> {md.filename || 'Download file'}
+            <FileText className="size-4" />{' '}
+            {md.filename || t('inbox.media.download')}
         </a>
     );
 }
@@ -449,6 +471,7 @@ export function Thread({
     canAssign: boolean;
     canNote: boolean;
 }) {
+    const t = useT();
     if (!selected || !data) {
         return (
             <Empty className="h-full rounded-lg border py-16">
@@ -458,13 +481,13 @@ export function Thread({
                     </EmptyMedia>
                     <EmptyTitle>
                         {selected
-                            ? 'Conversation not found'
-                            : 'Select a conversation'}
+                            ? t('inbox.thread.notFound')
+                            : t('inbox.thread.select')}
                     </EmptyTitle>
                     <EmptyDescription>
                         {selected
-                            ? 'It does not exist or is assigned to someone else.'
-                            : 'Choose a conversation from the list to read and reply.'}
+                            ? t('inbox.thread.notFoundHint')
+                            : t('inbox.thread.selectHint')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -497,6 +520,7 @@ function ThreadMain({
     canReply: boolean;
     canAssign: boolean;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const c = data.conversation;
     const [older, setOlder] = useState<InboxMessage[]>([]);
@@ -536,9 +560,12 @@ function ThreadMain({
                         {displayName(c.contact)}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">
-                        {c.contact.phone} · via{' '}
-                        {c.phone_number.verified_name ||
-                            c.phone_number.display_phone_number}
+                        {t('inbox.thread.via', {
+                            phone: c.contact.phone,
+                            channel:
+                                c.phone_number.verified_name ||
+                                c.phone_number.display_phone_number,
+                        })}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
                         <Badge
@@ -546,21 +573,28 @@ function ThreadMain({
                                 c.status === 'open' ? 'secondary' : 'outline'
                             }
                         >
-                            {c.status === 'open' ? 'Open' : 'Closed'}
+                            {c.status === 'open'
+                                ? t('inbox.filters.open')
+                                : t('inbox.filters.closed')}
                         </Badge>
                         {c.window_open && c.window_expires_at ? (
                             <Badge
                                 variant="secondary"
-                                title="Free-form replies are possible until then"
+                                title={t('inbox.thread.windowHint')}
                             >
-                                24h window until{' '}
-                                {formatDateTime(c.window_expires_at)}
+                                {t('inbox.thread.windowUntil', {
+                                    time: formatDateTime(c.window_expires_at),
+                                })}
                             </Badge>
                         ) : (
-                            <Badge variant="outline">24h window closed</Badge>
+                            <Badge variant="outline">
+                                {t('inbox.thread.windowClosed')}
+                            </Badge>
                         )}
                         {c.contact.opted_out && (
-                            <Badge variant="destructive">Opted out</Badge>
+                            <Badge variant="destructive">
+                                {t('inbox.thread.optedOut')}
+                            </Badge>
                         )}
                     </div>
                 </div>
@@ -573,7 +607,7 @@ function ThreadMain({
                 className="flex-1 overflow-y-auto p-4"
                 style={{ maxHeight: '60vh' }}
                 tabIndex={0}
-                aria-label="Messages"
+                aria-label={t('inbox.thread.messages')}
             >
                 {next && (
                     <div className="mb-3 text-center">
@@ -598,7 +632,8 @@ function ThreadMain({
                                 })
                             }
                         >
-                            {pending && <Spinner />} Load older messages
+                            {pending && <Spinner />}{' '}
+                            {t('inbox.thread.loadOlder')}
                         </Button>
                     </div>
                 )}
@@ -617,7 +652,7 @@ function ThreadMain({
                     <ReplyBox c={c} templates={data.templates} />
                 ) : (
                     <p className="text-sm text-muted-foreground">
-                        Your role cannot reply to conversations.
+                        {t('inbox.thread.cannotReply')}
                     </p>
                 )}
             </div>
@@ -634,10 +669,11 @@ function ConversationActions({
     me: string;
     users: UserOption[];
 }) {
+    const t = useT();
     const [pending, startTransition] = useTransition();
     const options = new Map<string, string>([
-        ['none', 'Unassigned'],
-        [me, 'Me'],
+        ['none', t('inbox.filters.unassigned')],
+        [me, t('inbox.thread.me')],
     ]);
     for (const u of users) if (!options.has(u.id)) options.set(u.id, u.name);
     if (c.assignee && !options.has(c.assignee.id)) {
@@ -656,7 +692,10 @@ function ConversationActions({
                     })
                 }
             >
-                <SelectTrigger className="w-40" aria-label="Assignee">
+                <SelectTrigger
+                    className="w-40"
+                    aria-label={t('inbox.filters.assignee')}
+                >
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -682,7 +721,9 @@ function ConversationActions({
                     })
                 }
             >
-                {c.status === 'open' ? 'Close' : 'Reopen'}
+                {c.status === 'open'
+                    ? t('inbox.thread.close')
+                    : t('inbox.thread.reopen')}
             </Button>
         </div>
     );
@@ -695,12 +736,13 @@ function ReplyBox({
     c: Conversation;
     templates: Template[];
 }) {
+    const t = useT();
     const [mode, setMode] = useState(c.window_open ? 'text' : 'template');
     const [text, setText] = useState('');
     const [template, setTemplate] = useState('');
     const [pending, startTransition] = useTransition();
     const key = useRef(newIdempotencyKey());
-    const fileInput = useRef<HTMLInputElement>(null);
+    const [attachOpen, setAttachOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
 
@@ -735,7 +777,7 @@ function ReplyBox({
                         code: out?.error?.code ?? 'UPLOAD_FAILED',
                         message:
                             out?.error?.message ??
-                            'The file could not be uploaded.',
+                            t('inbox.reply.uploadFailed'),
                     });
                     return;
                 }
@@ -756,18 +798,20 @@ function ReplyBox({
     return (
         <Tabs value={mode} onValueChange={setMode}>
             <TabsList>
-                <TabsTrigger value="text">Message</TabsTrigger>
-                <TabsTrigger value="template">Template</TabsTrigger>
+                <TabsTrigger value="text">
+                    {t('inbox.reply.message')}
+                </TabsTrigger>
+                <TabsTrigger value="template">
+                    {t('inbox.reply.template')}
+                </TabsTrigger>
             </TabsList>
             <TabsContent value="text" className="space-y-2">
                 {!c.window_open ? (
                     <Alert data-testid="window-closed">
                         <Clock />
-                        <AlertTitle>Outside the 24-hour window</AlertTitle>
+                        <AlertTitle>{t('inbox.reply.outsideTitle')}</AlertTitle>
                         <AlertDescription>
-                            The customer has not written in the last 24 hours.
-                            Send an approved template instead; free-form
-                            messages are possible again after they reply.
+                            {t('inbox.reply.outsideBody')}
                         </AlertDescription>
                     </Alert>
                 ) : (
@@ -779,27 +823,31 @@ function ReplyBox({
                         }}
                     >
                         <Label htmlFor="reply" className="sr-only">
-                            Reply
+                            {t('inbox.reply.label')}
                         </Label>
-                        <input
-                            ref={fileInput}
-                            type="file"
-                            className="sr-only"
-                            aria-label="Attach a file"
-                            accept="image/jpeg,image/png,video/mp4,video/3gpp,audio/aac,audio/mpeg,audio/mp4,audio/ogg,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                            onChange={(e) =>
-                                setFile(e.target.files?.[0] ?? null)
-                            }
-                        />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label="Attach a file"
-                            onClick={() => fileInput.current?.click()}
-                        >
-                            <Paperclip />
-                        </Button>
+                        <Popover open={attachOpen} onOpenChange={setAttachOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label={t('inbox.reply.attach')}
+                                >
+                                    <Paperclip />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-72 p-2">
+                                <FileDrop
+                                    compact
+                                    accept={ATTACH_ACCEPT}
+                                    file={file}
+                                    onFile={(f) => {
+                                        setFile(f);
+                                        if (f) setAttachOpen(false);
+                                    }}
+                                />
+                            </PopoverContent>
+                        </Popover>
                         <div className="flex-1 space-y-1">
                             {file && (
                                 <div className="flex items-center gap-2 text-sm">
@@ -813,13 +861,9 @@ function ReplyBox({
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => {
-                                            setFile(null);
-                                            if (fileInput.current)
-                                                fileInput.current.value = '';
-                                        }}
+                                        onClick={() => setFile(null)}
                                     >
-                                        Remove
+                                        {t('common.remove')}
                                     </Button>
                                 </div>
                             )}
@@ -830,8 +874,8 @@ function ReplyBox({
                                 rows={2}
                                 placeholder={
                                     file
-                                        ? 'Add a caption (optional)…'
-                                        : 'Write a reply… (Ctrl+Enter to send)'
+                                        ? t('inbox.reply.captionPlaceholder')
+                                        : t('inbox.reply.placeholder')
                                 }
                                 onChange={(e) => setText(e.target.value)}
                                 onKeyDown={(e) => {
@@ -851,7 +895,8 @@ function ReplyBox({
                                 pending || uploading || (!text.trim() && !file)
                             }
                         >
-                            {(pending || uploading) && <Spinner />} Send
+                            {(pending || uploading) && <Spinner />}{' '}
+                            {t('inbox.reply.send')}
                         </Button>
                     </form>
                 )}
@@ -861,31 +906,34 @@ function ReplyBox({
                     <Alert variant="destructive">
                         <AlertCircle />
                         <AlertDescription>
-                            This contact opted out; templates cannot be sent.
+                            {t('inbox.reply.optedOut')}
                         </AlertDescription>
                     </Alert>
                 )}
                 {templates.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                        No approved templates. Sync templates in the channel
-                        settings.
+                        {t('inbox.reply.noTemplates')}
                     </p>
                 ) : (
                     <div className="flex items-center gap-2">
                         <Select value={template} onValueChange={setTemplate}>
                             <SelectTrigger
                                 className="w-64"
-                                aria-label="Template"
+                                aria-label={t('inbox.reply.template')}
                             >
-                                <SelectValue placeholder="Choose a template" />
+                                <SelectValue
+                                    placeholder={t(
+                                        'inbox.reply.chooseTemplate',
+                                    )}
+                                />
                             </SelectTrigger>
                             <SelectContent>
-                                {templates.map((t) => (
+                                {templates.map((tpl) => (
                                     <SelectItem
-                                        key={t.id}
-                                        value={`${t.name}|${t.language}`}
+                                        key={tpl.id}
+                                        value={`${tpl.name}|${tpl.language}`}
                                     >
-                                        {t.name} ({t.language})
+                                        {tpl.name} ({tpl.language})
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -900,7 +948,8 @@ function ReplyBox({
                                 send({ type: 'template', name, language });
                             }}
                         >
-                            {pending && <Spinner />} Send template
+                            {pending && <Spinner />}{' '}
+                            {t('inbox.reply.sendTemplate')}
                         </Button>
                     </div>
                 )}
@@ -911,13 +960,6 @@ function ReplyBox({
 
 // ── Customer panel ─────────────────────────────────────────────────────────
 
-const EVENT_LABEL = {
-    assigned: 'Assigned',
-    unassigned: 'Unassigned',
-    closed: 'Closed',
-    reopened: 'Reopened',
-} as const;
-
 function ContactPanel({
     data,
     canNote,
@@ -925,15 +967,18 @@ function ContactPanel({
     data: ThreadData;
     canNote: boolean;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const { contact, notes, events } = data;
     const [note, setNote] = useState('');
     const [pending, startTransition] = useTransition();
     return (
-        <aside className="space-y-4" aria-label="Customer">
+        <aside className="space-y-4" aria-label={t('inbox.panel.customer')}>
             <Card className="gap-3 py-4">
                 <CardHeader className="px-4">
-                    <CardTitle className="text-sm">Customer</CardTitle>
+                    <CardTitle className="text-sm">
+                        {t('inbox.panel.customer')}
+                    </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 px-4 text-sm">
                     <p className="font-medium">
@@ -946,18 +991,25 @@ function ContactPanel({
                         <p className="text-muted-foreground">{contact.email}</p>
                     )}
                     <p>
-                        Consent:{' '}
+                        {t('inbox.panel.consent')}{' '}
                         {data.conversation.contact.opted_out ? (
-                            <Badge variant="destructive">Opted out</Badge>
+                            <Badge variant="destructive">
+                                {t('inbox.thread.optedOut')}
+                            </Badge>
                         ) : (
-                            <Badge variant="secondary">Subscribed</Badge>
+                            <Badge variant="secondary">
+                                {t('inbox.panel.subscribed')}
+                            </Badge>
                         )}
                     </p>
                     {contact && contact.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1" aria-label="Tags">
-                            {contact.tags.map((t) => (
-                                <Badge key={t.id} variant="outline">
-                                    {t.name}
+                        <div
+                            className="flex flex-wrap gap-1"
+                            aria-label={t('inbox.panel.tags')}
+                        >
+                            {contact.tags.map((tag) => (
+                                <Badge key={tag.id} variant="outline">
+                                    {tag.name}
                                 </Badge>
                             ))}
                         </div>
@@ -967,7 +1019,9 @@ function ContactPanel({
             {contact && (
                 <Card className="gap-3 py-4">
                     <CardHeader className="px-4">
-                        <CardTitle className="text-sm">Notes</CardTitle>
+                        <CardTitle className="text-sm">
+                            {t('inbox.panel.notes')}
+                        </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3 px-4 text-sm">
                         {canNote && (
@@ -991,14 +1045,16 @@ function ContactPanel({
                                 }}
                             >
                                 <Label htmlFor="note" className="sr-only">
-                                    New note
+                                    {t('inbox.panel.newNote')}
                                 </Label>
                                 <Textarea
                                     id="note"
                                     rows={2}
                                     maxLength={5000}
                                     value={note}
-                                    placeholder="Internal note"
+                                    placeholder={t(
+                                        'inbox.panel.notePlaceholder',
+                                    )}
                                     onChange={(e) => setNote(e.target.value)}
                                 />
                                 <Button
@@ -1006,12 +1062,14 @@ function ContactPanel({
                                     type="submit"
                                     disabled={pending || !note.trim()}
                                 >
-                                    Add note
+                                    {t('inbox.panel.addNote')}
                                 </Button>
                             </form>
                         )}
                         {notes.length === 0 ? (
-                            <p className="text-muted-foreground">No notes.</p>
+                            <p className="text-muted-foreground">
+                                {t('inbox.panel.noNotes')}
+                            </p>
                         ) : (
                             <ul className="space-y-2">
                                 {notes.slice(0, 5).map((n) => (
@@ -1032,21 +1090,33 @@ function ContactPanel({
             )}
             <Card className="gap-3 py-4">
                 <CardHeader className="px-4">
-                    <CardTitle className="text-sm">History</CardTitle>
+                    <CardTitle className="text-sm">
+                        {t('inbox.panel.history')}
+                    </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 text-sm">
                     {events.length === 0 ? (
-                        <p className="text-muted-foreground">No changes yet.</p>
+                        <p className="text-muted-foreground">
+                            {t('inbox.panel.noHistory')}
+                        </p>
                     ) : (
                         <ul className="space-y-1.5">
                             {events.slice(0, 10).map((e) => (
                                 <li key={e.id}>
-                                    {EVENT_LABEL[e.kind]}
-                                    {e.assignee ? ` to ${e.assignee.name}` : ''}
+                                    {t(`inbox.panel.events.${e.kind}`)}
+                                    {e.assignee
+                                        ? t('inbox.panel.to', {
+                                              name: e.assignee.name,
+                                          })
+                                        : ''}
                                     <span className="block text-xs text-muted-foreground">
                                         {e.actor_type === 'system'
-                                            ? 'by a customer message'
-                                            : `by ${e.actor_name ?? 'an API key'}`}{' '}
+                                            ? t('inbox.panel.byCustomer')
+                                            : t('inbox.panel.by', {
+                                                  name:
+                                                      e.actor_name ??
+                                                      t('inbox.panel.apiKey'),
+                                              })}{' '}
                                         · {formatDateTime(e.created_at)}
                                     </span>
                                 </li>
@@ -1058,6 +1128,10 @@ function ContactPanel({
         </aside>
     );
 }
+
+/** File types WhatsApp accepts as media messages. */
+const ATTACH_ACCEPT =
+    'image/jpeg,image/png,video/mp4,video/3gpp,audio/aac,audio/mpeg,audio/mp4,audio/ogg,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
 
 /** The WhatsApp message type for an attached file. */
 function mediaKind(mime: string): 'image' | 'video' | 'audio' | 'document' {

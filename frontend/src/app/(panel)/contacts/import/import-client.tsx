@@ -8,7 +8,6 @@ import {
     CheckCircle2,
     Download,
     FileSpreadsheet,
-    FileUp,
     Upload,
 } from 'lucide-react';
 import { notify } from '@/components/notify';
@@ -38,7 +37,6 @@ import {
     FieldSet,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -56,7 +54,10 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
-import { cn } from '@/lib/utils';
+import { FileDrop } from '@/components/ui/file-drop';
+import { RadioCard, RadioCards } from '@/components/ui/radio-cards';
+import { useT } from '@/i18n/client';
+import type { MessageKey, Translate } from '@/i18n/translate';
 import type { ContactImport } from '@/lib/types';
 import {
     cancelImportAction,
@@ -70,21 +71,21 @@ const MAX_BYTES = 50 * 1024 * 1024;
 
 const STATUS: Record<
     ContactImport['status'],
-    { label: string; variant: 'secondary' | 'outline' | 'destructive' }
+    'secondary' | 'outline' | 'destructive'
 > = {
-    uploaded: { label: 'Waiting for mapping', variant: 'outline' },
-    queued: { label: 'Queued', variant: 'outline' },
-    running: { label: 'Importing', variant: 'secondary' },
-    completed: { label: 'Completed', variant: 'secondary' },
-    failed: { label: 'Failed', variant: 'destructive' },
-    cancelled: { label: 'Cancelled', variant: 'outline' },
+    uploaded: 'outline',
+    queued: 'outline',
+    running: 'secondary',
+    completed: 'secondary',
+    failed: 'destructive',
+    cancelled: 'outline',
 };
 
 export function ImportStatus({ status }: { status: ContactImport['status'] }) {
-    const s = STATUS[status];
+    const t = useT();
     return (
-        <Badge variant={s.variant} data-testid="import-status">
-            {s.label}
+        <Badge variant={STATUS[status]} data-testid="import-status">
+            {t(`contacts.imports.status.${status}`)}
         </Badge>
     );
 }
@@ -128,6 +129,7 @@ type UploadError = { message: string; signedOut?: boolean };
 
 /** Sends the file with XMLHttpRequest, which reports upload progress. */
 function upload(
+    t: Translate,
     file: File,
     onProgress: (loaded: number) => void,
 ): { done: Promise<ContactImport>; abort: () => void } {
@@ -146,8 +148,9 @@ function upload(
         );
         xhr.upload.onprogress = (e) => onProgress(e.loaded);
         xhr.onerror = () =>
-            reject({ message: 'The upload failed. Check your connection.' });
-        xhr.onabort = () => reject({ message: 'Upload cancelled.' });
+            reject({ message: t('contacts.imports.uploadNetwork') });
+        xhr.onabort = () =>
+            reject({ message: t('contacts.imports.uploadCancelled') });
         xhr.onload = () => {
             let body: {
                 data?: ContactImport;
@@ -163,7 +166,7 @@ function upload(
             }
             if (xhr.status === 401) {
                 reject({
-                    message: 'Your session has ended. Sign in again.',
+                    message: t('errors.SESSION_INVALID'),
                     signedOut: true,
                 });
                 return;
@@ -176,7 +179,7 @@ function upload(
                 message:
                     body?.error?.details?.[0]?.message ??
                     body?.error?.message ??
-                    `The upload failed (${xhr.status}).`,
+                    t('contacts.imports.uploadFailed', { status: xhr.status }),
             });
         };
         xhr.send(file);
@@ -185,15 +188,14 @@ function upload(
 }
 
 export function UploadCard() {
+    const t = useT();
     const router = useRouter();
     const inputId = useId();
-    const input = useRef<HTMLInputElement>(null);
     const abort = useRef<(() => void) | null>(null);
     const [file, setFile] = useState<File | null>(null);
     const [loaded, setLoaded] = useState(0);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    const [drag, setDrag] = useState(false);
 
     useEffect(() => () => abort.current?.(), []);
 
@@ -203,19 +205,17 @@ export function UploadCard() {
         if (!f) return setFile(null);
         if (!/\.(csv|txt|xlsx)$/i.test(f.name)) {
             setFile(null);
-            setError('Choose a CSV (.csv) or Excel (.xlsx) file.');
+            setError(t('contacts.imports.wrongType'));
             return;
         }
         if (f.size > MAX_BYTES) {
             setFile(null);
-            setError(
-                'The file is larger than 50 MB; split it into smaller files.',
-            );
+            setError(t('contacts.imports.tooLarge'));
             return;
         }
         if (f.size === 0) {
             setFile(null);
-            setError('The file is empty.');
+            setError(t('contacts.imports.empty'));
             return;
         }
         setFile(f);
@@ -225,7 +225,7 @@ export function UploadCard() {
         if (!file) return;
         setBusy(true);
         setError('');
-        const u = upload(file, setLoaded);
+        const u = upload(t, file, setLoaded);
         abort.current = u.abort;
         try {
             const imp = await u.done;
@@ -246,57 +246,19 @@ export function UploadCard() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>1. Upload a file</CardTitle>
+                <CardTitle>{t('contacts.imports.step1')}</CardTitle>
                 <CardDescription>
-                    The first row must hold column names. Phone numbers need the
-                    country code (+90…). Nothing is imported until you choose
-                    the columns in the next step.
+                    {t('contacts.imports.step1Hint')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div
-                    onDragOver={(e) => {
-                        e.preventDefault();
-                        setDrag(true);
-                    }}
-                    onDragLeave={() => setDrag(false)}
-                    onDrop={(e) => {
-                        e.preventDefault();
-                        setDrag(false);
-                        if (!busy) choose(e.dataTransfer.files[0]);
-                    }}
-                    className={cn(
-                        'flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-8 text-center text-sm transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring',
-                        drag && 'border-primary bg-muted/50',
-                    )}
-                >
-                    <FileUp className="size-8 text-muted-foreground" />
-                    <p>
-                        Drop a file here or{' '}
-                        <Label
-                            htmlFor={inputId}
-                            className="inline cursor-pointer text-primary underline-offset-4 hover:underline"
-                        >
-                            choose one
-                        </Label>
-                        .
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                        CSV or Excel (.xlsx), up to 50 MB.
-                    </p>
-                    <input
-                        ref={input}
-                        id={inputId}
-                        type="file"
-                        accept=".csv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        className="sr-only"
-                        disabled={busy}
-                        aria-describedby={
-                            error ? `${inputId}-error` : undefined
-                        }
-                        onChange={(e) => choose(e.target.files?.[0])}
-                    />
-                </div>
+                <FileDrop
+                    accept=".csv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    file={file}
+                    disabled={busy}
+                    onFile={(f) => choose(f ?? undefined)}
+                    hint={t('contacts.imports.formats')}
+                />
                 {file && (
                     <div className="space-y-2 text-sm">
                         <div className="flex items-center gap-2">
@@ -311,15 +273,18 @@ export function UploadCard() {
                                 <ProgressBar
                                     value={loaded}
                                     max={file.size}
-                                    label="Upload progress"
+                                    label={t('contacts.imports.uploadProgress')}
                                 />
                                 <p
                                     className="text-xs text-muted-foreground"
                                     aria-live="polite"
                                 >
                                     {loaded < file.size
-                                        ? `Uploading… ${formatBytes(loaded)} of ${formatBytes(file.size)}`
-                                        : 'Reading the columns…'}
+                                        ? t('contacts.imports.uploading', {
+                                              loaded: formatBytes(loaded),
+                                              total: formatBytes(file.size),
+                                          })
+                                        : t('contacts.imports.reading')}
                                 </p>
                             </>
                         )}
@@ -335,11 +300,12 @@ export function UploadCard() {
             <CardFooter className="justify-end gap-2">
                 {busy && (
                     <Button variant="outline" onClick={() => abort.current?.()}>
-                        Cancel upload
+                        {t('contacts.imports.cancelUpload')}
                     </Button>
                 )}
                 <Button disabled={!file || busy} onClick={start}>
-                    {busy ? <Spinner /> : <Upload />} Upload and continue
+                    {busy ? <Spinner /> : <Upload />}{' '}
+                    {t('contacts.imports.upload')}
                 </Button>
             </CardFooter>
         </Card>
@@ -349,6 +315,7 @@ export function UploadCard() {
 // ── Recent imports ─────────────────────────────────────────────────────────
 
 export function ImportList({ imports }: { imports: ContactImport[] }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     if (imports.length === 0) {
         return (
@@ -357,9 +324,9 @@ export function ImportList({ imports }: { imports: ContactImport[] }) {
                     <EmptyMedia variant="icon">
                         <FileSpreadsheet />
                     </EmptyMedia>
-                    <EmptyTitle>No imports yet</EmptyTitle>
+                    <EmptyTitle>{t('contacts.imports.none')}</EmptyTitle>
                     <EmptyDescription>
-                        Files you upload are listed here.
+                        {t('contacts.imports.noneHint')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -369,14 +336,18 @@ export function ImportList({ imports }: { imports: ContactImport[] }) {
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>File</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Rows</TableHead>
+                    <TableHead>{t('contacts.imports.file')}</TableHead>
+                    <TableHead>{t('contacts.imports.statusLabel')}</TableHead>
                     <TableHead className="text-right">
-                        Created / updated
+                        {t('contacts.imports.rows')}
                     </TableHead>
-                    <TableHead className="text-right">Failed</TableHead>
-                    <TableHead>Uploaded</TableHead>
+                    <TableHead className="text-right">
+                        {t('contacts.imports.createdUpdated')}
+                    </TableHead>
+                    <TableHead className="text-right">
+                        {t('contacts.imports.counters.failed')}
+                    </TableHead>
+                    <TableHead>{t('contacts.imports.uploaded')}</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -444,19 +415,22 @@ export function ImportWizard({
 // ── Step 2: mapping ────────────────────────────────────────────────────────
 
 const TARGETS = [
-    ['skip', 'Do not import'],
-    ['phone', 'Phone number'],
-    ['name', 'Name'],
-    ['email', 'E-mail'],
-    ['var1', 'Variable 1'],
-    ['var2', 'Variable 2'],
-    ['var3', 'Variable 3'],
-    ['var4', 'Variable 4'],
-    ['var5', 'Variable 5'],
-    ['tags', 'Tags (separated by ; , or |)'],
-    ['attr', 'Custom field'],
+    'skip',
+    'phone',
+    'name',
+    'email',
+    'var1',
+    'var2',
+    'var3',
+    'var4',
+    'var5',
+    'tags',
+    'attr',
 ] as const;
-type Target = (typeof TARGETS)[number][0];
+type Target = (typeof TARGETS)[number];
+
+const targetLabel = (t: Translate, target: Target) =>
+    t(`contacts.imports.targets.${target}` as MessageKey);
 
 function guess(header: string): Target {
     const h = header
@@ -501,16 +475,17 @@ function MappingStep({
     tags: TagOption[];
     onStarted: (i: ContactImport) => void;
 }) {
+    const t = useT();
     const [choices, setChoices] = useState<ColumnChoice[]>(() => {
         const used = new Set<Target>();
         return imp.headers.map((h) => {
             if (h.toLowerCase().startsWith('attr:')) {
                 return { target: 'attr' as Target, attr: attrName(h) };
             }
-            let t = guess(h);
-            if (t !== 'skip' && used.has(t)) t = 'skip';
-            used.add(t);
-            return { target: t, attr: attrName(h) };
+            let g = guess(h);
+            if (g !== 'skip' && used.has(g)) g = 'skip';
+            used.add(g);
+            return { target: g, attr: attrName(h) };
         });
     });
     const [policy, setPolicy] = useState<'skip' | 'update'>('skip');
@@ -536,18 +511,19 @@ function MappingStep({
             let key: string = c.target;
             if (c.target === 'attr') {
                 const n = c.attr.trim();
-                if (!n) return `Name the custom field for “${header}”.`;
+                if (!n) return t('contacts.imports.errAttrName', { header });
                 key = `attr:${n}`;
             }
             if (mapping[key]) {
                 return c.target === 'attr'
-                    ? `Two columns are saved as the custom field “${c.attr}”.`
-                    : `Two columns are imported as ${TARGETS.find((t) => t[0] === c.target)?.[1]}; choose one.`;
+                    ? t('contacts.imports.errAttrTwice', { name: c.attr })
+                    : t('contacts.imports.errTwice', {
+                          target: targetLabel(t, c.target),
+                      });
             }
             mapping[key] = header;
         }
-        if (!mapping.phone)
-            return 'Choose the column that holds phone numbers.';
+        if (!mapping.phone) return t('contacts.imports.errPhone');
         return mapping;
     };
 
@@ -581,21 +557,28 @@ function MappingStep({
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>2. Choose what each column is</CardTitle>
+                    <CardTitle>{t('contacts.imports.step2')}</CardTitle>
                     <CardDescription>
-                        {imp.total_rows.toLocaleString(NUMBER_LOCALE)} row
-                        {imp.total_rows === 1 ? '' : 's'} found. A phone number
-                        column is required; everything else is optional.
+                        {t('contacts.imports.rowsFound', {
+                            count: imp.total_rows,
+                            formatted:
+                                imp.total_rows.toLocaleString(NUMBER_LOCALE),
+                        })}{' '}
+                        {t('contacts.imports.step2Hint')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Column in the file</TableHead>
-                                <TableHead>First values</TableHead>
+                                <TableHead>
+                                    {t('contacts.imports.column')}
+                                </TableHead>
+                                <TableHead>
+                                    {t('contacts.imports.firstValues')}
+                                </TableHead>
                                 <TableHead className="w-72">
-                                    Import as
+                                    {t('contacts.imports.importAs')}
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
@@ -607,7 +590,9 @@ function MappingStep({
                                         <TableCell className="font-medium">
                                             {h || (
                                                 <span className="text-muted-foreground">
-                                                    (no name)
+                                                    {t(
+                                                        'contacts.imports.noName',
+                                                    )}
                                                 </span>
                                             )}
                                         </TableCell>
@@ -628,27 +613,42 @@ function MappingStep({
                                                 >
                                                     <SelectTrigger
                                                         className="w-full"
-                                                        aria-label={`Import column ${h || i + 1} as`}
+                                                        aria-label={t(
+                                                            'contacts.imports.importColumnAs',
+                                                            {
+                                                                column:
+                                                                    h || i + 1,
+                                                            },
+                                                        )}
                                                     >
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {TARGETS.map(
-                                                            ([v, label]) => (
-                                                                <SelectItem
-                                                                    key={v}
-                                                                    value={v}
-                                                                >
-                                                                    {label}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
+                                                        {TARGETS.map((v) => (
+                                                            <SelectItem
+                                                                key={v}
+                                                                value={v}
+                                                            >
+                                                                {targetLabel(
+                                                                    t,
+                                                                    v,
+                                                                )}
+                                                            </SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                                 {c.target === 'attr' && (
                                                     <Input
-                                                        aria-label={`Custom field name for column ${h || i + 1}`}
-                                                        placeholder="Field name"
+                                                        aria-label={t(
+                                                            'contacts.imports.attrNameFor',
+                                                            {
+                                                                column:
+                                                                    h || i + 1,
+                                                            },
+                                                        )}
+                                                        placeholder={t(
+                                                            'contacts.imports.fieldName',
+                                                        )}
                                                         maxLength={60}
                                                         value={c.attr}
                                                         onChange={(e) =>
@@ -671,56 +671,36 @@ function MappingStep({
 
             <Card>
                 <CardHeader>
-                    <CardTitle>3. Options</CardTitle>
+                    <CardTitle>{t('contacts.imports.step3')}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-6 md:grid-cols-2">
                     <FieldSet>
                         <FieldLegend variant="label">
-                            When a phone number already exists
+                            {t('contacts.imports.duplicates')}
                         </FieldLegend>
-                        <div className="space-y-2 text-sm">
-                            {(
-                                [
-                                    [
-                                        'skip',
-                                        'Skip the row',
-                                        'Existing contacts stay as they are.',
-                                    ],
-                                    [
-                                        'update',
-                                        'Update the contact',
-                                        'Filled cells replace the saved values; tags are added.',
-                                    ],
-                                ] as const
-                            ).map(([v, label, hint]) => (
-                                <label
-                                    key={v}
-                                    className="flex cursor-pointer items-start gap-2"
-                                >
-                                    <input
-                                        type="radio"
-                                        name="duplicate_policy"
-                                        value={v}
-                                        checked={policy === v}
-                                        onChange={() => setPolicy(v)}
-                                        className="mt-1 accent-primary"
-                                    />
-                                    <span>
-                                        <span className="font-medium">
-                                            {label}
-                                        </span>
-                                        <span className="block text-muted-foreground">
-                                            {hint}
-                                        </span>
+                        <RadioCards
+                            name="duplicate_policy"
+                            value={policy}
+                            onValueChange={(v) =>
+                                setPolicy(v as 'skip' | 'update')
+                            }
+                        >
+                            {(['skip', 'update'] as const).map((v) => (
+                                <RadioCard key={v} value={v}>
+                                    <span className="font-medium">
+                                        {t(`contacts.imports.policy.${v}`)}
                                     </span>
-                                </label>
+                                    <span className="block text-muted-foreground">
+                                        {t(`contacts.imports.policy.${v}Hint`)}
+                                    </span>
+                                </RadioCard>
                             ))}
-                        </div>
+                        </RadioCards>
                     </FieldSet>
                     <div className="space-y-6">
                         <Field>
                             <FieldLabel htmlFor="import-tags">
-                                Tag every imported contact
+                                {t('contacts.imports.tagAll')}
                             </FieldLabel>
                             <TagsInput
                                 id="import-tags"
@@ -729,11 +709,13 @@ function MappingStep({
                                 suggestions={tags}
                                 max={10}
                             />
-                            <FieldDescription>Up to 10 tags.</FieldDescription>
+                            <FieldDescription>
+                                {t('contacts.imports.tagAllHint')}
+                            </FieldDescription>
                         </Field>
                         <Field>
                             <FieldLabel htmlFor="import-group">
-                                Add every imported contact to a group
+                                {t('contacts.imports.groupAll')}
                             </FieldLabel>
                             <Select
                                 value={group || 'none'}
@@ -749,7 +731,7 @@ function MappingStep({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">
-                                        No group
+                                        {t('contacts.imports.noGroup')}
                                     </SelectItem>
                                     {groups.map((g) => (
                                         <SelectItem key={g.id} value={g.id}>
@@ -772,10 +754,13 @@ function MappingStep({
                     )}
                     <div className="flex justify-end gap-2">
                         <Button variant="outline" asChild>
-                            <Link href="/contacts/import">Back</Link>
+                            <Link href="/contacts/import">
+                                {t('common.back')}
+                            </Link>
                         </Button>
                         <Button onClick={start} disabled={pending}>
-                            {pending && <Spinner />} Start import
+                            {pending && <Spinner />}{' '}
+                            {t('contacts.imports.start')}
                         </Button>
                     </div>
                 </CardFooter>
@@ -795,6 +780,7 @@ function ProgressView({
     imp: ContactImport;
     onChange: (i: ContactImport) => void;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     const active = ACTIVE.includes(imp.status);
@@ -814,10 +800,10 @@ function ProgressView({
     }, [active, imp.id, onChange]);
 
     const counters = [
-        ['Created', imp.created_count],
-        ['Updated', imp.updated_count],
-        ['Skipped', imp.skipped_count],
-        ['Failed', imp.failed_count],
+        ['created', imp.created_count],
+        ['updated', imp.updated_count],
+        ['skipped', imp.skipped_count],
+        ['failed', imp.failed_count],
     ] as const;
 
     return (
@@ -829,14 +815,18 @@ function ProgressView({
                     ) : active ? (
                         <Spinner />
                     ) : null}
-                    {active ? 'Importing contacts' : 'Import finished'}
+                    {active
+                        ? t('contacts.imports.importing')
+                        : t('contacts.imports.finished')}
                     <ImportStatus status={imp.status} />
                 </CardTitle>
                 <CardDescription>
                     {active
-                        ? 'You can leave this page; the import keeps running.'
+                        ? t('contacts.imports.leaveHint')
                         : imp.finished_at
-                          ? `Finished ${formatDateTime(imp.finished_at)}.`
+                          ? t('contacts.imports.finishedAt', {
+                                time: formatDateTime(imp.finished_at),
+                            })
                           : null}
                 </CardDescription>
             </CardHeader>
@@ -845,27 +835,30 @@ function ProgressView({
                     <ProgressBar
                         value={imp.processed_rows}
                         max={imp.total_rows}
-                        label="Import progress"
+                        label={t('contacts.imports.progress')}
                     />
                     <p
                         className="text-sm text-muted-foreground"
                         aria-live="polite"
                         data-testid="import-processed"
                     >
-                        {imp.processed_rows.toLocaleString(NUMBER_LOCALE)} of{' '}
-                        {imp.total_rows.toLocaleString(NUMBER_LOCALE)} rows
-                        processed
+                        {t('contacts.imports.processed', {
+                            done: imp.processed_rows.toLocaleString(
+                                NUMBER_LOCALE,
+                            ),
+                            total: imp.total_rows.toLocaleString(NUMBER_LOCALE),
+                        })}
                     </p>
                 </div>
                 <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    {counters.map(([label, n]) => (
-                        <div key={label} className="rounded-lg border p-3">
+                    {counters.map(([key, n]) => (
+                        <div key={key} className="rounded-lg border p-3">
                             <dt className="text-xs text-muted-foreground">
-                                {label}
+                                {t(`contacts.imports.counters.${key}`)}
                             </dt>
                             <dd
                                 className="text-2xl font-semibold tabular-nums"
-                                data-testid={`import-${label.toLowerCase()}`}
+                                data-testid={`import-${key}`}
                             >
                                 {n.toLocaleString(NUMBER_LOCALE)}
                             </dd>
@@ -875,7 +868,7 @@ function ProgressView({
                 {imp.last_error && (
                     <Alert variant="destructive">
                         <AlertCircle />
-                        <AlertTitle>The import stopped</AlertTitle>
+                        <AlertTitle>{t('contacts.imports.stopped')}</AlertTitle>
                         <AlertDescription>{imp.last_error}</AlertDescription>
                     </Alert>
                 )}
@@ -887,7 +880,7 @@ function ProgressView({
                             href={`/bff/contact-imports/${imp.id}/errors`}
                             download
                         >
-                            <Download /> Download failed rows
+                            <Download /> {t('contacts.imports.downloadFailed')}
                         </a>
                     </Button>
                 )}
@@ -902,17 +895,19 @@ function ProgressView({
                             })
                         }
                     >
-                        {pending && <Spinner />} Cancel import
+                        {pending && <Spinner />} {t('contacts.imports.cancel')}
                     </Button>
                 ) : (
                     <>
                         <Button variant="outline" asChild>
                             <Link href="/contacts/import">
-                                Import another file
+                                {t('contacts.imports.another')}
                             </Link>
                         </Button>
                         <Button asChild>
-                            <Link href="/contacts">View contacts</Link>
+                            <Link href="/contacts">
+                                {t('contacts.imports.viewContacts')}
+                            </Link>
                         </Button>
                     </>
                 )}

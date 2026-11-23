@@ -10,6 +10,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from '@/components/ui/empty';
+import { getT } from '@/i18n/server';
 import { api, ApiError } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type {
@@ -29,7 +30,10 @@ import {
     NotesCard,
 } from './contact-detail';
 
-export const metadata: Metadata = { title: 'Contact' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('contacts.detail.metaTitle') };
+}
 
 async function loadContact(id: string): Promise<Contact | null> {
     if (!UUID.test(id)) return null;
@@ -59,6 +63,7 @@ export default async function ContactPage({
     const me = await requirePermission('contacts.read');
     const { contactId } = await params;
     const contact = await loadContact(contactId);
+    const t = await getT();
     if (!contact) {
         return (
             <Empty className="py-16">
@@ -66,14 +71,16 @@ export default async function ContactPage({
                     <EmptyMedia variant="icon">
                         <UserX />
                     </EmptyMedia>
-                    <EmptyTitle>Contact not found</EmptyTitle>
+                    <EmptyTitle>{t('contacts.detail.notFound')}</EmptyTitle>
                     <EmptyDescription>
-                        It may have been deleted, or the link is wrong.
+                        {t('contacts.detail.notFoundHint')}
                     </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
                     <Button variant="outline" asChild>
-                        <Link href="/contacts">Back to contacts</Link>
+                        <Link href="/contacts">
+                            {t('contacts.detail.back')}
+                        </Link>
                     </Button>
                 </EmptyContent>
             </Empty>
@@ -92,7 +99,7 @@ export default async function ContactPage({
     return (
         <>
             <PageHeading
-                title={contactName(contact)}
+                title={contactName(contact, t('contacts.unnamed'))}
                 description={contact.phone}
                 actions={
                     <div className="flex flex-wrap gap-2">
@@ -101,14 +108,18 @@ export default async function ContactPage({
                                 <Link
                                     href={`/inbox?status=all&c=${conversation.id}`}
                                 >
-                                    <MessageSquare /> Open conversation
+                                    <MessageSquare />{' '}
+                                    {t('contacts.detail.openConversation')}
                                 </Link>
                             </Button>
                         )}
                         {can(me, 'contacts.delete') && (
                             <DeleteContactButton
                                 id={contact.id}
-                                name={contactName(contact)}
+                                name={contactName(
+                                    contact,
+                                    t('contacts.unnamed'),
+                                )}
                             />
                         )}
                     </div>

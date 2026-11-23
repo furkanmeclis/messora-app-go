@@ -3,6 +3,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n/client';
 
 /** Shown instead of a blank page when a panel page fails to render. */
 export default function PanelError({
@@ -12,16 +13,19 @@ export default function PanelError({
     error: Error & { digest?: string };
     reset: () => void;
 }) {
+    const t = useT();
     return (
         <Alert variant="destructive" className="max-w-xl">
             <AlertTriangle />
-            <AlertTitle>This page could not be loaded</AlertTitle>
+            <AlertTitle>{t('overview.error.title')}</AlertTitle>
             <AlertDescription>
                 <p>
-                    Something went wrong while talking to the Messora API. Try
-                    again; if it keeps happening, check{' '}
+                    {t('overview.error.body')}{' '}
                     <code>docker compose logs messora-web messora-api</code>
-                    {error.digest ? ` (reference ${error.digest})` : ''}.
+                    {error.digest
+                        ? ` ${t('overview.error.reference', { digest: error.digest })}`
+                        : ''}
+                    .
                 </p>
                 <Button
                     size="sm"
@@ -29,7 +33,7 @@ export default function PanelError({
                     className="mt-3"
                     onClick={reset}
                 >
-                    Try again
+                    {t('common.retry')}
                 </Button>
             </AlertDescription>
         </Alert>

@@ -15,6 +15,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n/client';
 import type { ActionResult } from '@/lib/types';
 
 /** Icon button that deletes something after a confirmation. */
@@ -34,6 +35,7 @@ export function ConfirmDelete({
     action: () => Promise<ActionResult>;
     onDone?: () => void;
 }) {
+    const t = useT();
     const [pending, startTransition] = useTransition();
     return (
         <AlertDialog>
@@ -55,7 +57,7 @@ export function ConfirmDelete({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                     <AlertDialogAction
                         variant="destructive"
                         onClick={() =>

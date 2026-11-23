@@ -7,9 +7,13 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { ResetPasswordForm } from '../forms';
 
-export const metadata: Metadata = { title: 'Choose a new password' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('auth.reset.title') };
+}
 
 export default async function ResetPasswordPage({
     searchParams,
@@ -18,13 +22,12 @@ export default async function ResetPasswordPage({
 }) {
     const token = (await searchParams).token;
     if (!token) redirect('/forgot-password');
+    const t = await getT();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Choose a new password</CardTitle>
-                <CardDescription>
-                    You will be signed out on every device.
-                </CardDescription>
+                <CardTitle>{t('auth.reset.title')}</CardTitle>
+                <CardDescription>{t('auth.reset.description')}</CardDescription>
             </CardHeader>
             <CardContent>
                 <ResetPasswordForm token={token} />

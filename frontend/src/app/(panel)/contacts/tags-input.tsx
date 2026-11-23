@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useT } from '@/i18n/client';
 import { TagChip } from './tag-chip';
 
 type TagOption = { name: string; color: string };
@@ -31,6 +32,7 @@ export function TagsInput({
     invalid?: boolean;
     describedBy?: string;
 }) {
+    const t = useT();
     const listId = useId();
     const [text, setText] = useState('');
     const has = (name: string) =>
@@ -51,18 +53,24 @@ export function TagsInput({
     return (
         <div className="space-y-2">
             {value.length > 0 && (
-                <ul className="flex flex-wrap gap-1" aria-label="Chosen tags">
-                    {value.map((t) => (
-                        <li key={t}>
-                            <TagChip name={t} color={color(t)}>
+                <ul
+                    className="flex flex-wrap gap-1"
+                    aria-label={t('contacts.tagsInput.chosen')}
+                >
+                    {value.map((tag) => (
+                        <li key={tag}>
+                            <TagChip name={tag} color={color(tag)}>
                                 {!disabled && (
                                     <button
                                         type="button"
                                         className="-mr-1 rounded-full outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
-                                        aria-label={`Remove tag ${t}`}
+                                        aria-label={t(
+                                            'contacts.tagsInput.remove',
+                                            { name: tag },
+                                        )}
                                         onClick={() =>
                                             onChange(
-                                                value.filter((v) => v !== t),
+                                                value.filter((v) => v !== tag),
                                             )
                                         }
                                     >
@@ -83,8 +91,8 @@ export function TagsInput({
                         maxLength={60}
                         placeholder={
                             value.length >= max
-                                ? `At most ${max} tags`
-                                : 'Type a tag and press Enter'
+                                ? t('contacts.tagsInput.max', { max })
+                                : t('contacts.tagsInput.placeholder')
                         }
                         disabled={value.length >= max}
                         aria-invalid={invalid || undefined}

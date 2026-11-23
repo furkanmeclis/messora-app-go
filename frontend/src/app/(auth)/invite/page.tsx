@@ -8,20 +8,26 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api, ApiError } from '@/lib/server/api';
+import { errorMessage } from '@/lib/server/actions';
 import type { Schemas } from '@/lib/types';
 import { AcceptInvitationForm } from '../forms';
 
-export const metadata: Metadata = { title: 'Accept invitation' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('auth.invite.metaTitle') };
+}
 
 export default async function InvitePage({
     searchParams,
 }: {
     searchParams: Promise<Record<string, string | undefined>>;
 }) {
+    const t = await getT();
     const token = (await searchParams).token ?? '';
     let invitation: Schemas['InvitationPreview'] | null = null;
-    let error = 'This invitation link is incomplete.';
+    let error = t('auth.invite.incomplete');
     if (token) {
         try {
             invitation = (
@@ -33,17 +39,19 @@ export default async function InvitePage({
             ).data;
         } catch (err) {
             if (!(err instanceof ApiError)) throw err;
-            error = err.message;
+            error = await errorMessage(err);
         }
     }
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Join Messora</CardTitle>
+                <CardTitle>{t('auth.invite.title')}</CardTitle>
                 <CardDescription>
                     {invitation
-                        ? `You were invited as ${invitation.role.name}.`
-                        : 'Accept your invitation.'}
+                        ? t('auth.invite.invitedAs', {
+                              role: invitation.role.name,
+                          })
+                        : t('auth.invite.accept')}
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -56,7 +64,7 @@ export default async function InvitePage({
                     <Alert variant="destructive">
                         <AlertCircle />
                         <AlertDescription>
-                            {error} Ask an administrator for a new invitation.
+                            {error} {t('auth.invite.askAdmin')}
                         </AlertDescription>
                     </Alert>
                 )}

@@ -19,87 +19,100 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
+import type { MessageKey, Translate } from '@/i18n/translate';
 import { api, ApiError } from '@/lib/server/api';
+import { errorMessage } from '@/lib/server/actions';
 import { can, requireMe } from '@/lib/server/auth';
 import type { SystemStatus } from '@/lib/types';
 import { LiveActivity } from './live-activity';
 import { PageHeading } from './panel-header';
 import { RefreshButton } from './refresh-button';
 
-export const metadata: Metadata = { title: 'Overview' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('overview.title') };
+}
 
 type Component = SystemStatus['components'][string];
 
 const COMPONENTS: {
     key: string;
-    label: string;
-    description: string;
+    /** A product name, or a key for a translated name. */
+    label: string | MessageKey;
+    description: MessageKey;
     icon: React.ComponentType<{ className?: string }>;
 }[] = [
     {
         key: 'postgres',
         label: 'PostgreSQL',
-        description: 'Primary data store',
+        description: 'overview.components.postgres',
         icon: Database,
     },
     {
         key: 'schema',
-        label: 'Database schema',
-        description: 'Migrations applied',
+        label: 'overview.components.schemaLabel',
+        description: 'overview.components.schema',
         icon: HardDrive,
     },
     {
         key: 'redis',
         label: 'Redis',
-        description: 'Queue, cache and locks',
+        description: 'overview.components.redis',
         icon: Server,
     },
     {
         key: 'worker',
-        label: 'Worker',
-        description: 'Background jobs',
+        label: 'overview.components.workerLabel',
+        description: 'overview.components.worker',
         icon: Workflow,
     },
     {
         key: 'scheduler',
-        label: 'Scheduler',
-        description: 'Periodic tasks',
+        label: 'overview.components.schedulerLabel',
+        description: 'overview.components.scheduler',
         icon: Timer,
     },
     {
         key: 'centrifugo',
         label: 'Centrifugo',
-        description: 'Realtime delivery',
+        description: 'overview.components.centrifugo',
         icon: Radio,
     },
 ];
 
-function describe(key: string, c: Component | undefined): string {
-    if (!c) return 'No result';
-    if (c.status === 'fail') return c.error ?? 'Unavailable';
+function describe(t: Translate, key: string, c: Component | undefined): string {
+    if (!c) return t('overview.status.noResult');
+    if (c.status === 'fail') return c.error ?? t('overview.status.failed');
     const d = c.detail as Record<string, unknown> | Record<string, unknown>[];
     switch (key) {
         case 'schema':
-            return `Version ${(d as { current: number }).current}`;
+            return t('overview.status.version', {
+                version: (d as { current: number }).current,
+            });
         case 'worker': {
             const w = d as { servers: number; active_tasks: number };
-            return `${w.servers} process${w.servers === 1 ? '' : 'es'} · ${w.active_tasks} running`;
+            return `${t('overview.status.worker', { count: w.servers })} · ${t('overview.status.running', { count: w.active_tasks })}`;
         }
         case 'centrifugo': {
             const n = (d as { version: string }[])[0];
-            return n ? `v${n.version}` : 'Connected';
+            return n ? `v${n.version}` : t('overview.status.connected');
         }
         case 'postgres': {
             const p = d as { total_conns: number; max_conns: number };
-            return `${p.total_conns}/${p.max_conns} connections`;
+            return t('overview.status.connections', {
+                used: p.total_conns,
+                max: p.max_conns,
+            });
         }
         default:
-            return 'Connected';
+            return t('overview.status.connected');
     }
 }
 
 export default async function OverviewPage() {
     const me = await requireMe();
+    const t = await getT();
     let status: SystemStatus | null = null;
     let statusError: string | null = null;
     if (can(me, 'settings.read')) {
@@ -107,30 +120,29 @@ export default async function OverviewPage() {
             status = (await api<SystemStatus>('/system/status')).data;
         } catch (err) {
             if (!(err instanceof ApiError)) throw err;
-            statusError = err.message;
+            statusError = await errorMessage(err);
         }
     }
-    const firstName = me.user.name.split(' ')[0];
+    const firstName = me.user.name.split(' ')[0] ?? '';
 
     return (
         <>
             <PageHeading
-                title={`Welcome, ${firstName}`}
-                description="Messora is being set up phase by phase. Messaging features arrive with the next releases."
+                title={t('overview.welcome', { name: firstName })}
+                description={t('overview.description')}
                 actions={status && <RefreshButton />}
             />
 
             {!me.user.mfa_enabled && (
                 <Alert className="mb-6">
                     <ShieldAlert />
-                    <AlertTitle>Protect your account</AlertTitle>
+                    <AlertTitle>{t('overview.protect.title')}</AlertTitle>
                     <AlertDescription>
-                        <p>
-                            Turn on two-factor authentication so a stolen
-                            password is not enough to sign in.
-                        </p>
+                        <p>{t('overview.protect.body')}</p>
                         <Button asChild size="sm" className="mt-2">
-                            <Link href="/account/security">Set up now</Link>
+                            <Link href="/account/security">
+                                {t('overview.protect.action')}
+                            </Link>
                         </Button>
                     </AlertDescription>
                 </Alert>
@@ -142,7 +154,7 @@ export default async function OverviewPage() {
 
             {statusError && (
                 <Alert variant="destructive" className="mb-6">
-                    <AlertTitle>System status unavailable</AlertTitle>
+                    <AlertTitle>{t('overview.status.unavailable')}</AlertTitle>
                     <AlertDescription>{statusError}</AlertDescription>
                 </Alert>
             )}
@@ -151,7 +163,7 @@ export default async function OverviewPage() {
                 <section aria-labelledby="system-status">
                     <div className="mb-3 flex items-center gap-3">
                         <h2 id="system-status" className="font-medium">
-                            System status
+                            {t('overview.status.title')}
                         </h2>
                         <Badge
                             variant={
@@ -159,8 +171,8 @@ export default async function OverviewPage() {
                             }
                         >
                             {status.healthy
-                                ? 'All systems healthy'
-                                : 'Attention needed'}
+                                ? t('overview.status.allHealthy')
+                                : t('overview.status.attention')}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                             v{status.version}
@@ -177,10 +189,14 @@ export default async function OverviewPage() {
                                             <div className="space-y-1">
                                                 <CardTitle className="flex items-center gap-2 text-base">
                                                     <Icon className="size-4 text-muted-foreground" />
-                                                    {label}
+                                                    {label.startsWith(
+                                                        'overview.',
+                                                    )
+                                                        ? t(label as MessageKey)
+                                                        : label}
                                                 </CardTitle>
                                                 <CardDescription>
-                                                    {description}
+                                                    {t(description)}
                                                 </CardDescription>
                                             </div>
                                             <Badge
@@ -190,7 +206,13 @@ export default async function OverviewPage() {
                                                         : 'destructive'
                                                 }
                                             >
-                                                {ok ? 'Healthy' : 'Failing'}
+                                                {ok
+                                                    ? t(
+                                                          'overview.status.healthy',
+                                                      )
+                                                    : t(
+                                                          'overview.status.failing',
+                                                      )}
                                             </Badge>
                                         </CardHeader>
                                         <CardContent>
@@ -201,7 +223,7 @@ export default async function OverviewPage() {
                                                         : 'text-sm text-destructive'
                                                 }
                                             >
-                                                {describe(key, c)}
+                                                {describe(t, key, c)}
                                             </p>
                                         </CardContent>
                                     </Card>

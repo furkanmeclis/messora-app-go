@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { api } from '@/lib/server/api';
 import { field, runAction } from '@/lib/server/actions';
+import { getT } from '@/i18n/server';
 import type {
     ActionResult,
     Contact,
@@ -68,7 +69,7 @@ export async function createContactAction(
                     },
                 })
             ).data,
-        'Contact added.',
+        (await getT())('contacts.toast.contactAdded'),
     );
     if (res.ok) revalidatePath('/contacts');
     return res;
@@ -100,7 +101,7 @@ export async function updateContactAction(
                     body: patch,
                 })
             ).data,
-        'Contact saved.',
+        (await getT())('contacts.toast.contactSaved'),
     );
     if (res.ok) {
         revalidatePath('/contacts');
@@ -114,7 +115,7 @@ export async function deleteContactAction(id: string): Promise<ActionResult> {
     const res = await runAction(
         () =>
             api(`/contacts/${id}`, { method: 'DELETE' }).then(() => undefined),
-        'Contact deleted.',
+        (await getT())('contacts.toast.contactDeleted'),
     );
     if (res.ok) revalidatePath('/contacts');
     return res;
@@ -134,7 +135,11 @@ export async function consentAction(
                     body: { kind, note: note.trim() || undefined },
                 })
             ).data,
-        kind === 'opt_in' ? 'Opt-in recorded.' : 'Opt-out recorded.',
+        (await getT())(
+            kind === 'opt_in'
+                ? 'contacts.toast.optIn'
+                : 'contacts.toast.optOut',
+        ),
     );
     if (res.ok) revalidatePath(`/contacts/${id}`);
     return res;
@@ -153,7 +158,7 @@ export async function addContactNoteAction(
                     body: { body },
                 })
             ).data,
-        'Note added.',
+        (await getT())('contacts.toast.noteAdded'),
     );
     if (res.ok) revalidatePath(`/contacts/${id}`);
     return res;
@@ -169,7 +174,7 @@ export async function deleteContactNoteAction(
             api(`/contacts/${id}/notes/${noteId}`, {
                 method: 'DELETE',
             }).then(() => undefined),
-        'Note deleted.',
+        (await getT())('contacts.toast.noteDeleted'),
     );
     if (res.ok) revalidatePath(`/contacts/${id}`);
     return res;
@@ -216,7 +221,9 @@ export async function saveGroupAction(
                     },
                 })
             ).data,
-        id ? 'Group saved.' : 'Group created.',
+        (await getT())(
+            id ? 'contacts.toast.groupSaved' : 'contacts.toast.groupCreated',
+        ),
     );
     if (res.ok) revalidatePath('/contacts/groups');
     return res;
@@ -226,7 +233,7 @@ export async function deleteGroupAction(id: string): Promise<ActionResult> {
     check(id);
     const res = await runAction(
         () => api(`/groups/${id}`, { method: 'DELETE' }).then(() => undefined),
-        'Group deleted. Its contacts were kept.',
+        (await getT())('contacts.toast.groupDeleted'),
     );
     if (res.ok) revalidatePath('/contacts/groups');
     return res;
@@ -251,7 +258,9 @@ export async function saveTagAction(
                     },
                 })
             ).data,
-        id ? 'Tag saved.' : 'Tag created.',
+        (await getT())(
+            id ? 'contacts.toast.tagSaved' : 'contacts.toast.tagCreated',
+        ),
     );
     if (res.ok) revalidatePath('/contacts/tags');
     return res;
@@ -261,7 +270,7 @@ export async function deleteTagAction(id: string): Promise<ActionResult> {
     check(id);
     const res = await runAction(
         () => api(`/tags/${id}`, { method: 'DELETE' }).then(() => undefined),
-        'Tag deleted from every contact.',
+        (await getT())('contacts.toast.tagDeleted'),
     );
     if (res.ok) revalidatePath('/contacts/tags');
     return res;
@@ -300,7 +309,7 @@ export async function saveSegmentAction(
                     },
                 })
             ).data,
-        'Segment saved.',
+        (await getT())('contacts.toast.segmentSaved'),
     );
     if (res.ok) {
         revalidatePath('/contacts/segments');
@@ -314,7 +323,7 @@ export async function deleteSegmentAction(id: string): Promise<ActionResult> {
     const res = await runAction(
         () =>
             api(`/segments/${id}`, { method: 'DELETE' }).then(() => undefined),
-        'Segment deleted.',
+        (await getT())('contacts.toast.segmentDeleted'),
     );
     if (res.ok) revalidatePath('/contacts/segments');
     return res;
@@ -349,7 +358,7 @@ export async function startImportAction(
                 method: 'POST',
                 body: options,
             }).then(() => undefined),
-        'Import started.',
+        (await getT())('contacts.toast.importStarted'),
     );
     if (res.ok) revalidatePath('/contacts/import');
     return res;
@@ -366,7 +375,7 @@ export async function cancelImportAction(
                     method: 'POST',
                 })
             ).data,
-        'Import cancelled. Rows already imported stay.',
+        (await getT())('contacts.toast.importCancelled'),
     );
     if (res.ok) revalidatePath('/contacts/import');
     return res;

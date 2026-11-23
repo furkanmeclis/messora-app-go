@@ -1,5 +1,9 @@
 import type { Messages } from '../en';
 import appearance from './appearance';
+import auth from './auth';
+import overview from './overview';
+import inbox from './inbox';
+import contacts from './contacts';
 import common from './common';
 import errors from './errors';
 import nav from './nav';
@@ -31,4 +35,8 @@ export const tr: Messages = {
     templates,
     users,
     webhooks,
+    auth,
+    overview,
+    inbox,
+    contacts,
 };

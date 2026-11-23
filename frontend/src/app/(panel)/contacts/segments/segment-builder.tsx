@@ -30,6 +30,10 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
+import { DatePicker } from '@/components/ui/date-picker';
+import { NumberField } from '@/components/ui/number-field';
+import { useT } from '@/i18n/client';
+import type { MessageKey } from '@/i18n/translate';
 import { cn } from '@/lib/utils';
 import type { Segment, SegmentPreview } from '@/lib/types';
 import {
@@ -40,7 +44,7 @@ import {
 import { ConfirmDelete } from '../confirm-delete';
 import { contactName } from '../shared';
 import {
-    FIELDS,
+    FIELD_KEYS,
     MAX_DEPTH,
     MAX_RULES,
     OPERATORS,
@@ -74,13 +78,18 @@ type Ctx = {
 // ── Rule row ───────────────────────────────────────────────────────────────
 
 function RuleRow({ rule, ctx }: { rule: RuleNode; ctx: Ctx }) {
+    const t = useT();
     const kind = fieldKind(rule.field);
     const shape = valueShape(rule.operator);
     const problem = ctx.problems.get(rule.id);
     const errId = `${rule.id}-error`;
     const set = (patch: Partial<RuleNode>) =>
         ctx.change(rule.id, (n) => ({ ...(n as RuleNode), ...patch }));
-    const field = FIELDS.find((f) => f.key === rule.field);
+    const fieldLabel = (key: string) => {
+        const k = `contacts.segments.fields.${key}` as MessageKey;
+        const text = t(k);
+        return text === k ? key : text;
+    };
 
     return (
         <li
@@ -102,13 +111,16 @@ function RuleRow({ rule, ctx }: { rule: RuleNode; ctx: Ctx }) {
                         });
                     }}
                 >
-                    <SelectTrigger className="w-48" aria-label="Field">
+                    <SelectTrigger
+                        className="w-48"
+                        aria-label={t('contacts.segments.field')}
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        {FIELDS.map((f) => (
-                            <SelectItem key={f.key} value={f.key}>
-                                {f.label}
+                        {FIELD_KEYS.map((key) => (
+                            <SelectItem key={key} value={key}>
+                                {fieldLabel(key)}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -125,14 +137,18 @@ function RuleRow({ rule, ctx }: { rule: RuleNode; ctx: Ctx }) {
                 >
                     <SelectTrigger
                         className="w-48"
-                        aria-label={`Condition on ${field?.label ?? rule.field}`}
+                        aria-label={t('contacts.segments.condition', {
+                            field: fieldLabel(rule.field),
+                        })}
                     >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {OPERATORS[kind].map((o) => (
                             <SelectItem key={o.key} value={o.key}>
-                                {o.label}
+                                {t(
+                                    `contacts.segments.ops.${kind}.${o.key}` as MessageKey,
+                                )}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -145,8 +161,11 @@ function RuleRow({ rule, ctx }: { rule: RuleNode; ctx: Ctx }) {
                     onChange={(value) => set({ value })}
                 />
                 {rule.not && (
-                    <Badge variant="outline" title="This rule is negated">
-                        negated
+                    <Badge
+                        variant="outline"
+                        title={t('contacts.segments.negatedHint')}
+                    >
+                        {t('contacts.segments.negated')}
                     </Badge>
                 )}
                 {!ctx.readOnly && (
@@ -155,7 +174,7 @@ function RuleRow({ rule, ctx }: { rule: RuleNode; ctx: Ctx }) {
                         variant="ghost"
                         size="icon-sm"
                         className="ml-auto"
-                        aria-label="Remove rule"
+                        aria-label={t('contacts.segments.removeRule')}
                         onClick={() => ctx.change(rule.id, () => null)}
                     >
                         <X />
@@ -185,6 +204,7 @@ function ValueInput({
     onChange: (v: string) => void;
 }) {
     const shape = valueShape(rule.operator);
+    const t = useT();
     const common = {
         'aria-invalid': invalid || undefined,
         'aria-describedby': describedBy,
@@ -202,15 +222,15 @@ function ValueInput({
                 >
                     <SelectTrigger
                         className="w-48"
-                        aria-label="Group"
+                        aria-label={t('contacts.filters.group')}
                         aria-invalid={invalid || undefined}
                         aria-describedby={describedBy}
                     >
                         <SelectValue
                             placeholder={
                                 ctx.groups.length
-                                    ? 'Choose a group'
-                                    : 'No groups yet'
+                                    ? t('contacts.table.chooseGroup')
+                                    : t('contacts.groups.empty')
                             }
                         />
                     </SelectTrigger>
@@ -223,7 +243,7 @@ function ValueInput({
                         {rule.value &&
                             !ctx.groups.some((g) => g.id === rule.value) && (
                                 <SelectItem value={rule.value}>
-                                    Deleted group
+                                    {t('contacts.segments.deletedGroup')}
                                 </SelectItem>
                             )}
                     </SelectContent>
@@ -231,35 +251,39 @@ function ValueInput({
             );
         case 'days':
             return (
-                <Input
-                    type="number"
+                <NumberField
                     min={1}
                     max={3650}
-                    step={1}
-                    className="w-28"
-                    aria-label="Number of days"
-                    value={rule.value}
-                    onChange={(e) => onChange(e.target.value)}
-                    {...common}
+                    allowEmpty
+                    className="w-32"
+                    aria-label={t('contacts.segments.days')}
+                    aria-invalid={invalid || undefined}
+                    disabled={ctx.readOnly}
+                    value={rule.value === '' ? null : Number(rule.value)}
+                    onValueChange={(v) => onChange(v === null ? '' : String(v))}
                 />
             );
         case 'date':
             return (
-                <Input
-                    type="date"
-                    className="w-44"
-                    aria-label="Date"
-                    value={rule.value}
-                    onChange={(e) => onChange(e.target.value)}
-                    {...common}
-                />
+                <>
+                    <Label htmlFor={`${rule.id}-date`} className="sr-only">
+                        {t('contacts.segments.date')}
+                    </Label>
+                    <DatePicker
+                        id={`${rule.id}-date`}
+                        className="w-44"
+                        disabled={ctx.readOnly}
+                        value={rule.value}
+                        onValueChange={onChange}
+                    />
+                </>
             );
         case 'list':
             return (
                 <Input
                     className="min-w-48 flex-1"
-                    aria-label="Values, separated by commas"
-                    placeholder="Values, separated by commas"
+                    aria-label={t('contacts.segments.values')}
+                    placeholder={t('contacts.segments.values')}
                     list={rule.field === 'tag' ? 'segment-tags' : undefined}
                     value={rule.value}
                     onChange={(e) => onChange(e.target.value)}
@@ -270,10 +294,14 @@ function ValueInput({
             return (
                 <Input
                     className="min-w-48 flex-1"
-                    aria-label="Value"
+                    aria-label={t('contacts.segments.value')}
                     maxLength={200}
                     list={rule.field === 'tag' ? 'segment-tags' : undefined}
-                    placeholder={rule.field === 'tag' ? 'Tag name' : 'Value'}
+                    placeholder={
+                        rule.field === 'tag'
+                            ? t('contacts.segments.tagName')
+                            : t('contacts.segments.value')
+                    }
                     value={rule.value}
                     onChange={(e) => onChange(e.target.value)}
                     {...common}
@@ -300,10 +328,14 @@ function GroupBox({
             ...(n as GroupNode),
             rules: [...(n as GroupNode).rules, node],
         }));
+    const t = useT();
     const problem = ctx.problems.get(group.id);
     // A nested group's rules sit one level deeper, within MAX_DEPTH.
     const canNest = depth + 2 <= MAX_DEPTH;
-    const label = depth === 1 ? 'Rules' : `Rule group (level ${depth})`;
+    const label =
+        depth === 1
+            ? t('contacts.segments.rules')
+            : t('contacts.segments.ruleGroup', { depth });
 
     return (
         <fieldset
@@ -316,7 +348,7 @@ function GroupBox({
         >
             <legend className="sr-only">{label}</legend>
             <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span>Contacts matching</span>
+                <span>{t('contacts.segments.matching')}</span>
                 <Select
                     value={group.op}
                     disabled={ctx.readOnly}
@@ -325,16 +357,20 @@ function GroupBox({
                     <SelectTrigger
                         size="sm"
                         className="w-24"
-                        aria-label={`${label}: combine with`}
+                        aria-label={t('contacts.segments.combine', { label })}
                     >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="and">all</SelectItem>
-                        <SelectItem value="or">any</SelectItem>
+                        <SelectItem value="and">
+                            {t('contacts.segments.all')}
+                        </SelectItem>
+                        <SelectItem value="or">
+                            {t('contacts.segments.any')}
+                        </SelectItem>
                     </SelectContent>
                 </Select>
-                <span>of these</span>
+                <span>{t('contacts.segments.ofThese')}</span>
                 <span className="ml-auto flex items-center gap-2">
                     <Checkbox
                         id={`${group.id}-not`}
@@ -343,7 +379,7 @@ function GroupBox({
                         onCheckedChange={(v) => set({ not: v === true })}
                     />
                     <Label htmlFor={`${group.id}-not`} className="font-normal">
-                        Exclude them instead
+                        {t('contacts.segments.exclude')}
                     </Label>
                 </span>
                 {depth > 1 && !ctx.readOnly && (
@@ -351,7 +387,7 @@ function GroupBox({
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="Remove rule group"
+                        aria-label={t('contacts.segments.removeGroup')}
                         onClick={() => ctx.change(group.id, () => null)}
                     >
                         <X />
@@ -383,7 +419,7 @@ function GroupBox({
                         disabled={!ctx.canAdd}
                         onClick={() => add(newRule())}
                     >
-                        <Plus /> Add rule
+                        <Plus /> {t('contacts.segments.addRule')}
                     </Button>
                     {canNest && (
                         <Button
@@ -393,7 +429,7 @@ function GroupBox({
                             disabled={!ctx.canAdd}
                             onClick={() => add(newGroup())}
                         >
-                            <FolderTree /> Add rule group
+                            <FolderTree /> {t('contacts.segments.addGroup')}
                         </Button>
                     )}
                 </div>
@@ -417,6 +453,7 @@ function PreviewCard({
     state: PreviewState;
     canViewContacts: boolean;
 }) {
+    const t = useT();
     const data =
         state.kind === 'ok'
             ? state.data
@@ -427,17 +464,17 @@ function PreviewCard({
         <Card aria-busy={state.kind === 'loading'}>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    Matching contacts
+                    {t('contacts.segments.preview')}
                     {state.kind === 'loading' && <Spinner />}
                 </CardTitle>
                 <CardDescription>
-                    Updates as you edit the rules.
+                    {t('contacts.segments.previewHint')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
                 {state.kind === 'idle' && (
                     <p className="text-muted-foreground">
-                        Complete the rules to see who matches.
+                        {t('contacts.segments.previewIdle')}
                     </p>
                 )}
                 {state.kind === 'error' && (
@@ -461,11 +498,17 @@ function PreviewCard({
                                                 href={`/contacts/${c.id}`}
                                                 className="font-medium hover:underline"
                                             >
-                                                {contactName(c)}
+                                                {contactName(
+                                                    c,
+                                                    t('contacts.unnamed'),
+                                                )}
                                             </Link>
                                         ) : (
                                             <span className="font-medium">
-                                                {contactName(c)}
+                                                {contactName(
+                                                    c,
+                                                    t('contacts.unnamed'),
+                                                )}
                                             </span>
                                         )}
                                         <span className="block font-mono text-xs text-muted-foreground">
@@ -476,12 +519,14 @@ function PreviewCard({
                             </ul>
                         ) : (
                             <p className="text-muted-foreground">
-                                No contact matches yet.
+                                {t('contacts.segments.noMatch')}
                             </p>
                         )}
                         {data.count > data.sample.length && (
                             <p className="text-xs text-muted-foreground">
-                                Showing the {data.sample.length} newest.
+                                {t('contacts.segments.showingNewest', {
+                                    count: data.sample.length,
+                                })}
                             </p>
                         )}
                     </>
@@ -506,6 +551,7 @@ export function SegmentBuilder({
     canManage: boolean;
     canViewContacts: boolean;
 }) {
+    const t = useT();
     const router = useRouter();
     const [name, setName] = useState(segment?.name ?? '');
     const [description, setDescription] = useState(segment?.description ?? '');
@@ -527,7 +573,7 @@ export function SegmentBuilder({
     // Incomplete rules are only flagged once the user tries to save.
     const [showLocal, setShowLocal] = useState(false);
 
-    const local = useMemo(() => localProblems(root), [root]);
+    const local = useMemo(() => localProblems(root, t), [root, t]);
     const { definition, paths } = useMemo(() => toDefinition(root), [root]);
     const json = JSON.stringify(definition);
     const rules = countRules(root);
@@ -546,7 +592,7 @@ export function SegmentBuilder({
     useEffect(() => {
         if (!ready) return;
         let cancelled = false;
-        const t = setTimeout(async () => {
+        const timer = setTimeout(async () => {
             const r = await previewSegmentAction(JSON.parse(json));
             if (cancelled) return;
             if (r.ok) {
@@ -562,7 +608,7 @@ export function SegmentBuilder({
                     state: {
                         kind: 'error',
                         message: located?.id
-                            ? 'Fix the highlighted rule.'
+                            ? t('contacts.segments.fixHighlighted')
                             : (located?.message ?? r.message),
                     },
                 });
@@ -570,9 +616,9 @@ export function SegmentBuilder({
         }, 500);
         return () => {
             cancelled = true;
-            clearTimeout(t);
+            clearTimeout(timer);
         };
-    }, [json, ready, paths]);
+    }, [json, ready, paths, t]);
     const preview: PreviewState = !ready
         ? { kind: 'idle' }
         : result?.json === json
@@ -595,10 +641,10 @@ export function SegmentBuilder({
         e.preventDefault();
         setShowLocal(true);
         const errs: Record<string, string> = {};
-        if (!name.trim()) errs.name = 'Give the segment a name.';
-        if (rules === 0) errs.definition = 'Add at least one rule.';
+        if (!name.trim()) errs.name = t('contacts.segments.errName');
+        if (rules === 0) errs.definition = t('contacts.segments.errNoRules');
         else if (local.size > 0)
-            errs.definition = 'Fix the rules marked in red.';
+            errs.definition = t('contacts.segments.errRules');
         setFieldErrors(errs);
         if (Object.keys(errs).length > 0) return;
         startSaving(async () => {
@@ -613,7 +659,7 @@ export function SegmentBuilder({
                     const located = locateError(fe.definition, paths);
                     setApiProblem(located);
                     fe.definition = located.id
-                        ? 'Fix the rule marked in red.'
+                        ? t('contacts.segments.errRule')
                         : located.message;
                 }
                 setFieldErrors(fe);
@@ -628,10 +674,14 @@ export function SegmentBuilder({
     };
 
     return (
-        <form onSubmit={save} noValidate aria-label="Segment">
+        <form
+            onSubmit={save}
+            noValidate
+            aria-label={t('contacts.segments.formLabel')}
+        >
             <datalist id="segment-tags">
-                {tags.map((t) => (
-                    <option key={t} value={t} />
+                {tags.map((tag) => (
+                    <option key={tag} value={tag} />
                 ))}
             </datalist>
             <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
@@ -640,7 +690,7 @@ export function SegmentBuilder({
                         <CardContent>
                             <FieldGroup className="grid gap-4 sm:grid-cols-2">
                                 <TextField
-                                    label="Name"
+                                    label={t('contacts.fields.name')}
                                     name="name"
                                     required
                                     maxLength={120}
@@ -651,7 +701,7 @@ export function SegmentBuilder({
                                 />
                                 <Field>
                                     <FieldLabel htmlFor="segment-description">
-                                        Description
+                                        {t('contacts.fields.description')}
                                     </FieldLabel>
                                     <Textarea
                                         id="segment-description"
@@ -669,17 +719,20 @@ export function SegmentBuilder({
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>Rules</CardTitle>
+                            <CardTitle>
+                                {t('contacts.segments.rules')}
+                            </CardTitle>
                             <CardDescription>
-                                Up to {MAX_RULES} rules, nested up to{' '}
-                                {MAX_DEPTH} levels. Text comparisons ignore
-                                upper and lower case.
+                                {t('contacts.segments.rulesHint', {
+                                    rules: MAX_RULES,
+                                    depth: MAX_DEPTH,
+                                })}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
                             {rules === 0 && root.rules.length === 0 ? (
                                 <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
-                                    <p>No rules yet.</p>
+                                    <p>{t('contacts.segments.noRules')}</p>
                                     {!readOnly && (
                                         <Button
                                             type="button"
@@ -692,7 +745,8 @@ export function SegmentBuilder({
                                                 }))
                                             }
                                         >
-                                            <Plus /> Add rule
+                                            <Plus />{' '}
+                                            {t('contacts.segments.addRule')}
                                         </Button>
                                     )}
                                 </div>
@@ -701,8 +755,9 @@ export function SegmentBuilder({
                             )}
                             {!ctx.canAdd && !readOnly && (
                                 <p className="text-sm text-muted-foreground">
-                                    This segment has the maximum of {MAX_RULES}{' '}
-                                    rules.
+                                    {t('contacts.segments.maxRules', {
+                                        max: MAX_RULES,
+                                    })}
                                 </p>
                             )}
                             {fieldErrors.definition && (
@@ -718,10 +773,24 @@ export function SegmentBuilder({
                             <CardFooter className="flex-wrap justify-end gap-2">
                                 {segment && (
                                     <ConfirmDelete
-                                        label={`Delete segment ${segment.name}`}
-                                        title={`Delete ${segment.name}?`}
-                                        description="Campaigns that already used it keep their recipients."
-                                        confirm="Delete segment"
+                                        label={t(
+                                            'contacts.segments.deleteLabel',
+                                            {
+                                                name: segment.name,
+                                            },
+                                        )}
+                                        title={t(
+                                            'contacts.segments.deleteTitle',
+                                            {
+                                                name: segment.name,
+                                            },
+                                        )}
+                                        description={t(
+                                            'contacts.segments.deleteBody',
+                                        )}
+                                        confirm={t(
+                                            'contacts.segments.deleteConfirm',
+                                        )}
                                         action={() =>
                                             deleteSegmentAction(segment.id)
                                         }
@@ -732,7 +801,9 @@ export function SegmentBuilder({
                                 )}
                                 <Button type="submit" disabled={saving}>
                                     {saving && <Spinner />}
-                                    {segment ? 'Save changes' : 'Save segment'}
+                                    {segment
+                                        ? t('contacts.detail.save')
+                                        : t('contacts.segments.save')}
                                 </Button>
                             </CardFooter>
                         )}
@@ -746,7 +817,7 @@ export function SegmentBuilder({
                     {segment && canViewContacts && (
                         <Button variant="outline" className="w-full" asChild>
                             <Link href={`/contacts?segment_id=${segment.id}`}>
-                                <Users /> Show all in contacts
+                                <Users /> {t('contacts.segments.showAll')}
                             </Link>
                         </Button>
                     )}

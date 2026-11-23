@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Contact, ContactGroup, Segment, Tag } from '@/lib/types';
@@ -14,7 +15,10 @@ import {
     NewContactDialog,
 } from './contacts-client';
 
-export const metadata: Metadata = { title: 'Contacts' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('contacts.title') };
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -24,6 +28,7 @@ export default async function ContactsPage({
     searchParams: Promise<Record<string, string | undefined>>;
 }) {
     const me = await requirePermission('contacts.read');
+    const t = await getT();
     const sp = await searchParams;
     const filters = {
         q: (sp.q ?? '').trim().slice(0, 100),
@@ -52,14 +57,14 @@ export default async function ContactsPage({
     return (
         <>
             <PageHeading
-                title="Contacts"
-                description="Everyone you can message, with their tags, groups and consent."
+                title={t('contacts.title')}
+                description={t('contacts.description')}
                 actions={
                     <div className="flex flex-wrap gap-2">
                         {can(me, 'contacts.import') && (
                             <Button variant="outline" asChild>
                                 <Link href="/contacts/import">
-                                    <Upload /> Import
+                                    <Upload /> {t('contacts.import')}
                                 </Link>
                             </Button>
                         )}
@@ -74,7 +79,7 @@ export default async function ContactsPage({
                 <ContactFilters
                     key={query.toString()}
                     filters={filters}
-                    tags={tags.map((t) => ({ id: t.id, name: t.name }))}
+                    tags={tags.map((tag) => ({ id: tag.id, name: tag.name }))}
                     groups={groups.map((g) => ({ id: g.id, name: g.name }))}
                     segments={segments.map((s) => ({
                         id: s.id,

@@ -2,15 +2,10 @@
 
 import { useMemo } from 'react';
 import { Field, FieldLabel } from '@/components/ui/field';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import { useT } from '@/i18n/client';
 
-/** IANA time zone picker backed by the browser's list. */
+/** Searchable IANA time zone picker backed by the browser's list. */
 export function TimezoneSelect({
     name,
     label,
@@ -20,28 +15,31 @@ export function TimezoneSelect({
     label: string;
     defaultValue: string;
 }) {
-    const zones = useMemo(() => {
+    const t = useT();
+    const zones = useMemo<ComboboxOption[]>(() => {
         const list =
             typeof Intl.supportedValuesOf === 'function'
                 ? Intl.supportedValuesOf('timeZone')
                 : [];
-        return Array.from(new Set(['UTC', ...list, defaultValue]));
+        return Array.from(new Set(['UTC', ...list, defaultValue])).map((z) => ({
+            value: z,
+            label: z.replaceAll('_', ' '),
+            // Match the city alone ("istanbul") as well as the full id.
+            keywords: z.split('/').pop()?.replaceAll('_', ' '),
+        }));
     }, [defaultValue]);
     return (
         <Field>
             <FieldLabel htmlFor={`field-${name}`}>{label}</FieldLabel>
-            <Select name={name} defaultValue={defaultValue}>
-                <SelectTrigger id={`field-${name}`} className="w-full">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                    {zones.map((z) => (
-                        <SelectItem key={z} value={z}>
-                            {z.replaceAll('_', ' ')}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+            <Combobox
+                id={`field-${name}`}
+                name={name}
+                defaultValue={defaultValue}
+                options={zones}
+                placeholder={t('common.select')}
+                searchPlaceholder={t('common.searchPlaceholder')}
+                emptyText={t('common.noResults')}
+            />
         </Field>
     );
 }

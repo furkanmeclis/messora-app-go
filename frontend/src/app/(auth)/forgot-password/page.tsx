@@ -9,11 +9,15 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import type { Schemas } from '@/lib/types';
 import { ForgotPasswordForm } from '../forms';
 
-export const metadata: Metadata = { title: 'Reset password' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('auth.forgot.metaTitle') };
+}
 
 export default async function ForgotPasswordPage() {
     const caps = (
@@ -21,12 +25,13 @@ export default async function ForgotPasswordPage() {
             auth: 'none',
         })
     ).data;
+    const t = await getT();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Reset your password</CardTitle>
+                <CardTitle>{t('auth.forgot.title')}</CardTitle>
                 <CardDescription>
-                    We will e-mail you a link to choose a new password.
+                    {t('auth.forgot.description')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -36,8 +41,7 @@ export default async function ForgotPasswordPage() {
                     <Alert>
                         <Info />
                         <AlertDescription>
-                            E-mail is not configured on this installation. Ask
-                            an owner or administrator to reset your access.
+                            {t('auth.forgot.noEmail')}
                         </AlertDescription>
                     </Alert>
                 )}
@@ -46,7 +50,7 @@ export default async function ForgotPasswordPage() {
                         href="/login"
                         className="text-muted-foreground underline-offset-4 hover:underline"
                     >
-                        Back to sign in
+                        {t('auth.forgot.backToSignIn')}
                     </Link>
                 </p>
             </CardContent>
