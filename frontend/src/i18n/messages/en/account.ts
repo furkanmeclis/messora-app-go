@@ -1,2 +1,71 @@
-const account = {};
+const account = {
+    profile: {
+        title: 'Profile',
+        description: 'How you appear to your team.',
+        personalDetails: 'Personal details',
+        signedInAs: 'Signed in as {email} ({role}).',
+        name: 'Name',
+        timezone: 'Time zone',
+        language: 'Language',
+        saved: 'Profile saved.',
+    },
+    security: {
+        title: 'Security',
+        description: 'Password, two-factor authentication and active sessions.',
+        mfaRequiredTitle: 'Two-factor authentication is required',
+        mfaRequiredBody:
+            'Your role requires an authenticator app. Set it up below to continue to the panel.',
+    },
+    password: {
+        title: 'Password',
+        description: 'Changing it signs you out everywhere else.',
+        current: 'Current password',
+        new: 'New password',
+        newHint: 'At least 12 characters.',
+        submit: 'Change password',
+        changed: 'Password changed. Other sessions were signed out.',
+    },
+    sessions: {
+        title: 'Active sessions',
+        description: 'Devices currently signed in to your account.',
+        thisDevice: 'This device',
+        unknownAddress: 'Unknown address',
+        lastActive: '{ip} · last active {time}',
+        signOut: 'Sign out',
+        signOutOthers: 'Sign out all other sessions',
+        unknownDevice: 'Unknown device',
+        browser: 'Browser',
+        browserOn: '{browser} on {os}',
+        ended: 'Session ended.',
+        othersEnded: 'All other sessions were signed out.',
+    },
+    twoFactor: {
+        title: 'Two-factor authentication',
+        description:
+            'Sign-in also asks for a code from an authenticator app such as 1Password, Google Authenticator or Aegis.',
+        on: 'On',
+        off: 'Off',
+        qrAlt: 'QR code for your authenticator app',
+        scan: 'Scan the QR code, or enter this key manually:',
+        code: 'Code from the app',
+        turnOn: 'Turn on',
+        turnOff: 'Turn off',
+        setUpNow: 'Set up now',
+        newCodes: 'New recovery codes',
+        turnedOff: 'Two-factor authentication was turned off.',
+        recoveryIntro:
+            'Save these recovery codes somewhere safe. Each works once if you lose your phone.',
+        recoveryWarning: 'They will not be shown again.',
+        recoveryCopied: 'Recovery codes copied',
+        savedThem: 'I saved them',
+    },
+    reauth: {
+        title: 'Confirm it is you',
+        description:
+            'This action needs a fresh confirmation. It stays valid for 10 minutes.',
+        password: 'Password',
+        code: '…or authenticator code',
+        confirm: 'Confirm',
+    },
+};
 export default account;

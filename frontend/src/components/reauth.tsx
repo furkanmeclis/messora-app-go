@@ -22,6 +22,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { reauthAction } from '@/app/(panel)/actions';
+import { useT } from '@/i18n/client';
 import type { ActionResult } from '@/lib/types';
 
 type Ctx = {
@@ -47,6 +48,7 @@ export function ReauthProvider({
     mfaEnabled: boolean;
     children: React.ReactNode;
 }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const pending = useRef<((ok: boolean) => void) | null>(null);
     const [state, action] = useActionState<
@@ -88,16 +90,15 @@ export function ReauthProvider({
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Confirm it is you</DialogTitle>
+                        <DialogTitle>{t('account.reauth.title')}</DialogTitle>
                         <DialogDescription>
-                            This action needs a fresh confirmation. It stays
-                            valid for 10 minutes.
+                            {t('account.reauth.description')}
                         </DialogDescription>
                     </DialogHeader>
                     <form action={action} className="space-y-4">
                         <FormStatus state={state && !state.ok ? state : null} />
                         <TextField
-                            label="Password"
+                            label={t('account.reauth.password')}
                             name="password"
                             type="password"
                             autoComplete="current-password"
@@ -106,7 +107,7 @@ export function ReauthProvider({
                         />
                         {mfaEnabled && (
                             <TextField
-                                label="…or authenticator code"
+                                label={t('account.reauth.code')}
                                 name="code"
                                 inputMode="numeric"
                                 maxLength={6}
@@ -114,7 +115,9 @@ export function ReauthProvider({
                                 autoComplete="one-time-code"
                             />
                         )}
-                        <SubmitButton className="w-full">Confirm</SubmitButton>
+                        <SubmitButton className="w-full">
+                            {t('account.reauth.confirm')}
+                        </SubmitButton>
                     </form>
                 </DialogContent>
             </Dialog>

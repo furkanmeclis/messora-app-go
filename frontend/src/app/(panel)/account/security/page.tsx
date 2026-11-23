@@ -8,6 +8,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requireMe } from '@/lib/server/auth';
 import type { SessionInfo } from '@/lib/types';
@@ -16,10 +17,16 @@ import { PasswordForm } from './password-form';
 import { SessionList } from './session-list';
 import { TwoFactorCard } from './two-factor';
 
-export const metadata: Metadata = { title: 'Security' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('account.security.title') };
+}
 
 export default async function SecurityPage() {
-    const me = await requireMe({ allowMfaPending: true });
+    const [me, t] = await Promise.all([
+        requireMe({ allowMfaPending: true }),
+        getT(),
+    ]);
     // Sessions are hidden while a mandatory second factor is pending (the API
     // restricts the session to enrolment).
     const sessions = me.mfa_required
@@ -29,18 +36,17 @@ export default async function SecurityPage() {
     return (
         <>
             <PageHeading
-                title="Security"
-                description="Password, two-factor authentication and active sessions."
+                title={t('account.security.title')}
+                description={t('account.security.description')}
             />
             {me.mfa_required && (
                 <Alert className="mb-6 max-w-3xl">
                     <ShieldAlert />
                     <AlertTitle>
-                        Two-factor authentication is required
+                        {t('account.security.mfaRequiredTitle')}
                     </AlertTitle>
                     <AlertDescription>
-                        Your role requires an authenticator app. Set it up below
-                        to continue to the panel.
+                        {t('account.security.mfaRequiredBody')}
                     </AlertDescription>
                 </Alert>
             )}
@@ -53,9 +59,11 @@ export default async function SecurityPage() {
                     <>
                         <Card>
                             <CardHeader>
-                                <CardTitle>Password</CardTitle>
+                                <CardTitle>
+                                    {t('account.password.title')}
+                                </CardTitle>
                                 <CardDescription>
-                                    Changing it signs you out everywhere else.
+                                    {t('account.password.description')}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -64,9 +72,11 @@ export default async function SecurityPage() {
                         </Card>
                         <Card>
                             <CardHeader>
-                                <CardTitle>Active sessions</CardTitle>
+                                <CardTitle>
+                                    {t('account.sessions.title')}
+                                </CardTitle>
                                 <CardDescription>
-                                    Devices currently signed in to your account.
+                                    {t('account.sessions.description')}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>

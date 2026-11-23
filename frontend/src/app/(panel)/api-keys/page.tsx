@@ -1,15 +1,20 @@
 import type { Metadata } from 'next';
 import { Card, CardContent } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
 import type { ApiKey, RolesAndPermissions } from '@/lib/types';
 import { PageHeading } from '../panel-header';
 import { ApiKeyTable, CreateKeyDialog } from './keys-client';
 
-export const metadata: Metadata = { title: 'API keys' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('apiKeys.title') };
+}
 
 export default async function ApiKeysPage() {
     const me = await requirePermission('api_keys.manage');
+    const t = await getT();
     const keys = (await api<ApiKey[]>('/api-keys')).data;
     // Describe scopes using the permission catalogue when it is visible.
     let catalogue: RolesAndPermissions['permissions'] = [];
@@ -24,8 +29,8 @@ export default async function ApiKeysPage() {
     return (
         <>
             <PageHeading
-                title="API keys"
-                description="Credentials for integrations. Use them as `Authorization: Bearer msk_live_…`."
+                title={t('apiKeys.title')}
+                description={t('apiKeys.description')}
                 actions={<CreateKeyDialog scopes={scopes} />}
             />
             <Card>

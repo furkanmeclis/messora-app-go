@@ -131,8 +131,19 @@ export function formatTimeLabel(
 export const NUMBER_LOCALE = 'en-GB';
 
 /** Rough, privacy-friendly browser/OS label from a user agent. */
-export function describeUserAgent(ua: string | null | undefined): string {
-    if (!ua) return 'Unknown device';
+export function describeUserAgent(
+    ua: string | null | undefined,
+    labels: {
+        unknown: string;
+        browser: string;
+        on: (browser: string, os: string) => string;
+    } = {
+        unknown: 'Unknown device',
+        browser: 'Browser',
+        on: (browser, os) => `${browser} on ${os}`,
+    },
+): string {
+    if (!ua) return labels.unknown;
     const browser = /Edg\//.test(ua)
         ? 'Edge'
         : /Firefox\//.test(ua)
@@ -141,7 +152,7 @@ export function describeUserAgent(ua: string | null | undefined): string {
             ? 'Chrome'
             : /Safari\//.test(ua)
               ? 'Safari'
-              : 'Browser';
+              : labels.browser;
     const os = /Windows/.test(ua)
         ? 'Windows'
         : /Mac OS X/.test(ua)
@@ -153,5 +164,5 @@ export function describeUserAgent(ua: string | null | undefined): string {
               : /Linux/.test(ua)
                 ? 'Linux'
                 : '';
-    return os ? `${browser} on ${os}` : browser;
+    return os ? labels.on(browser, os) : browser;
 }

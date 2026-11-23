@@ -38,6 +38,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type {
     ActionResult,
     Invitation,
@@ -72,6 +73,7 @@ export function UserTable({
     myRank: number;
     roles: RoleOption[];
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     const update = (
@@ -86,11 +88,13 @@ export function UserTable({
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>2FA</TableHead>
-                    <TableHead>Last sign-in</TableHead>
-                    <TableHead className="text-right">Status</TableHead>
+                    <TableHead>{t('users.columns.name')}</TableHead>
+                    <TableHead>{t('users.columns.role')}</TableHead>
+                    <TableHead>{t('users.columns.twoFactor')}</TableHead>
+                    <TableHead>{t('users.columns.lastSignIn')}</TableHead>
+                    <TableHead className="text-right">
+                        {t('users.columns.status')}
+                    </TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -117,7 +121,9 @@ export function UserTable({
                                     >
                                         <SelectTrigger
                                             className="w-32"
-                                            aria-label={`Role of ${u.name}`}
+                                            aria-label={t('users.roleOf', {
+                                                name: u.name,
+                                            })}
                                         >
                                             <SelectValue />
                                         </SelectTrigger>
@@ -133,7 +139,11 @@ export function UserTable({
                                         </SelectContent>
                                     </Select>
                                 ) : (
-                                    <span>{u.role.name}</span>
+                                    <span>
+                                        {t(
+                                            `settings.security.roles.${u.role.key}`,
+                                        )}
+                                    </span>
                                 )}
                             </TableCell>
                             <TableCell>
@@ -142,7 +152,9 @@ export function UserTable({
                                         u.mfa_enabled ? 'secondary' : 'outline'
                                     }
                                 >
-                                    {u.mfa_enabled ? 'On' : 'Off'}
+                                    {u.mfa_enabled
+                                        ? t('users.on')
+                                        : t('users.off')}
                                 </Badge>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
@@ -164,8 +176,8 @@ export function UserTable({
                                         }
                                     >
                                         {u.status === 'active'
-                                            ? 'Disable'
-                                            : 'Enable'}
+                                            ? t('users.disable')
+                                            : t('users.enable')}
                                     </Button>
                                 ) : (
                                     <Badge
@@ -175,7 +187,9 @@ export function UserTable({
                                                 : 'destructive'
                                         }
                                     >
-                                        {u.id === meId ? 'You' : u.status}
+                                        {u.id === meId
+                                            ? t('users.you')
+                                            : t(`users.statuses.${u.status}`)}
                                     </Badge>
                                 )}
                             </TableCell>
@@ -188,6 +202,7 @@ export function UserTable({
 }
 
 export function InviteDialog({ roles }: { roles: RoleOption[] }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const [key, setKey] = useState(newIdempotencyKey);
     const [state, action] = useActionState<
@@ -206,22 +221,26 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
         >
             <DialogTrigger asChild>
                 <Button>
-                    <UserPlus /> Invite user
+                    <UserPlus /> {t('users.invite.button')}
                 </Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Invite a user</DialogTitle>
+                    <DialogTitle>{t('users.invite.title')}</DialogTitle>
                     <DialogDescription>
-                        They receive a link to create their account.
+                        {t('users.invite.description')}
                     </DialogDescription>
                 </DialogHeader>
                 {created && created.invitation.id && state?.ok ? (
                     <div className="space-y-3 text-sm">
                         <p>
                             {created.email_sent
-                                ? `We e-mailed an invitation to ${created.invitation.email}. You can also share this link:`
-                                : `E-mail is not configured. Share this link with ${created.invitation.email} — it is shown only once:`}
+                                ? t('users.invite.emailed', {
+                                      email: created.invitation.email,
+                                  })
+                                : t('users.invite.noEmail', {
+                                      email: created.invitation.email,
+                                  })}
                         </p>
                         <div className="flex gap-2">
                             <Input
@@ -233,12 +252,12 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                aria-label="Copy link"
+                                aria-label={t('users.invite.copyLink')}
                                 onClick={() => {
                                     void navigator.clipboard.writeText(
                                         created.accept_url,
                                     );
-                                    toast.success('Link copied');
+                                    toast.success(t('users.invite.linkCopied'));
                                 }}
                             >
                                 <Copy />
@@ -248,7 +267,7 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
                             className="w-full"
                             onClick={() => setOpen(false)}
                         >
-                            Done
+                            {t('users.invite.done')}
                         </Button>
                     </div>
                 ) : (
@@ -261,7 +280,7 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
                         <FormStatus state={state} />
                         <FieldGroup>
                             <TextField
-                                label="E-mail"
+                                label={t('users.invite.email')}
                                 name="email"
                                 type="email"
                                 required
@@ -270,7 +289,7 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
                             />
                             <Field>
                                 <FieldLabel htmlFor="field-role">
-                                    Role
+                                    {t('users.invite.role')}
                                 </FieldLabel>
                                 <Select
                                     name="role"
@@ -296,7 +315,7 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
                             </Field>
                         </FieldGroup>
                         <SubmitButton className="w-full">
-                            Send invitation
+                            {t('users.invite.send')}
                         </SubmitButton>
                     </form>
                 )}
@@ -306,6 +325,7 @@ export function InviteDialog({ roles }: { roles: RoleOption[] }) {
 }
 
 export function InvitationList({ invitations }: { invitations: Invitation[] }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     return (
@@ -315,13 +335,21 @@ export function InvitationList({ invitations }: { invitations: Invitation[] }) {
                     <div className="min-w-0 flex-1">
                         <div className="font-medium">{i.email}</div>
                         <div className="text-muted-foreground">
-                            {i.role.name} · invited by{' '}
-                            {i.invited_by ?? 'unknown'} · expires{' '}
-                            {formatDateTime(i.expires_at)}
+                            {t('users.invitation.details', {
+                                role: t(
+                                    `settings.security.roles.${i.role.key}`,
+                                ),
+                                by:
+                                    i.invited_by ??
+                                    t('users.invitation.unknown'),
+                                expires: formatDateTime(i.expires_at),
+                            })}
                         </div>
                     </div>
                     {i.status === 'expired' && (
-                        <Badge variant="outline">Expired</Badge>
+                        <Badge variant="outline">
+                            {t('users.invitation.expired')}
+                        </Badge>
                     )}
                     <Button
                         size="sm"
@@ -336,7 +364,7 @@ export function InvitationList({ invitations }: { invitations: Invitation[] }) {
                             )
                         }
                     >
-                        Revoke
+                        {t('users.invitation.revoke')}
                     </Button>
                 </li>
             ))}
