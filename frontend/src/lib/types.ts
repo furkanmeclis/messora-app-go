@@ -31,3 +31,11 @@ export type ActionResult<T = undefined> =
           message: string;
           fieldErrors?: Record<string, string>;
       };
+
+// ── Contacts, tags, groups, segments and imports ───────────────────────────
+export type Tag = Schemas['Tag'];
+export type TagRef = Schemas['TagRef'];
+export type ContactGroup = Schemas['Group'];
+export type Segment = Schemas['Segment'];
+export type SegmentPreview = Schemas['SegmentPreview'];
+export type ContactImport = Schemas['ContactImport'];

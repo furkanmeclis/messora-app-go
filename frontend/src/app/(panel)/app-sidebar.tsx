@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import {
     Activity,
+    BookUser,
     ChevronsUpDown,
     Inbox,
     KeyRound,
@@ -57,6 +58,12 @@ const WORKSPACE: NavItem[] = [
         label: 'Inbox',
         icon: Inbox,
         permission: 'conversations.read',
+    },
+    {
+        href: '/contacts',
+        label: 'Contacts',
+        icon: BookUser,
+        permission: 'contacts.read',
     },
     { href: '/users', label: 'Users', icon: Users, permission: 'users.manage' },
     {
