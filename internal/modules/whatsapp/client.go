@@ -19,6 +19,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 )
 
 // DefaultVersion is the newest Graph API version verified for Messora
@@ -77,6 +81,9 @@ func New(o Options) (*Client, error) {
 	}
 	if o.DryRun {
 		rt = dryRunGuard{next: rt}
+	}
+	if tracing.Enabled() {
+		rt = otelhttp.NewTransport(rt)
 	}
 	return &Client{base: u, version: o.Version, http: &http.Client{Transport: rt, Timeout: o.Timeout,
 		// Media download URLs live on Meta CDNs; redirects are not expected.

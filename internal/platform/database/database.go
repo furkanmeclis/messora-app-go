@@ -13,6 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
@@ -27,6 +29,8 @@ type PoolOptions struct {
 	MaxConns        int32
 	MinConns        int32
 	ApplicationName string
+	// Traced records a span per query (OpenTelemetry).
+	Traced bool
 }
 
 // Open creates a pgx pool and verifies connectivity, retrying for up to
@@ -49,6 +53,9 @@ func Open(ctx context.Context, o PoolOptions, connectTimeout time.Duration, log 
 	}
 	// Store and compare all timestamps in UTC regardless of server defaults.
 	cfg.ConnConfig.RuntimeParams["timezone"] = "UTC"
+	if o.Traced {
+		cfg.ConnConfig.Tracer = tracing.PgxTracer{}
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

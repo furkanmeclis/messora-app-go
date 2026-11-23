@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
@@ -13,6 +15,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 )
 
 // RunAPI serves the public REST API.
@@ -75,11 +78,20 @@ func RunAPI(ctx context.Context) error {
 	internal.Handler.(chi.Router).Get("/status", sys.ReadyHandler)
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return serve(gctx, newHTTPServer(cfg.HTTPAddr, r), cfg.ShutdownTimeout, log, "api") })
+	var handler http.Handler = r
+	if tracing.Enabled() {
+		// One server span per request; the API guard names it after the
+		// route template (e.g. "GET /api/v1/contacts/{contactId}").
+		handler = otelhttp.NewHandler(r, "http.request")
+	}
+	g.Go(func() error {
+		return serve(gctx, newHTTPServer(cfg.HTTPAddr, handler), cfg.ShutdownTimeout, log, "api")
+	})
 	g.Go(func() error { return serve(gctx, internal, cfg.ShutdownTimeout, log, "internal") })
 	if err := g.Wait(); err != nil {
 		return reportFatal(log, err)
 	}
+	flushTracing()
 	log.Info("stopped")
 	return nil
 }

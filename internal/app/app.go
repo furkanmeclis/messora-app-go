@@ -21,6 +21,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/logger"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	platformredis "github.com/furkanmeclis/messora-app-go/internal/platform/redis"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 )
 
 // Version is set at build time with -ldflags "-X …/internal/app.Version=…".
@@ -41,8 +42,27 @@ func bootstrap(role config.Role) (*config.Config, *slog.Logger, error) {
 	if err := cfg.Validate(role); err != nil {
 		return nil, log, fmt.Errorf("configuration: %w", err)
 	}
+	if tracing.Enabled() {
+		shutdown, err := tracing.Setup(context.Background(), cfg.ServiceName, string(role), Version)
+		if err != nil {
+			return nil, log, fmt.Errorf("tracing: %w", err)
+		}
+		shutdownTracing = shutdown
+		log = slog.New(tracing.LogHandler{Handler: log.Handler()})
+		log.Info("tracing enabled")
+	}
 	log.Info("starting", "version", Version, "env", cfg.Env)
 	return cfg, log, nil
+}
+
+// shutdownTracing flushes spans; set by bootstrap when tracing is on.
+var shutdownTracing = func(context.Context) error { return nil }
+
+// flushTracing exports pending spans before the process exits.
+func flushTracing() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = shutdownTracing(ctx)
 }
 
 func openPostgres(ctx context.Context, cfg *config.Config, role config.Role, log *slog.Logger) (*pgxpool.Pool, error) {
@@ -51,6 +71,7 @@ func openPostgres(ctx context.Context, cfg *config.Config, role config.Role, log
 		MaxConns:        cfg.Database.MaxConns,
 		MinConns:        cfg.Database.MinConns,
 		ApplicationName: "messora-" + string(role),
+		Traced:          tracing.Enabled(),
 	}, dependencyTimeout, log)
 }
 

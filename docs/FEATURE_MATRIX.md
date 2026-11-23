@@ -104,5 +104,5 @@
 | E2E (Playwright) | 2+ | Implemented (kimlik, kişiler, kampanyalar, inbox, otomasyon, realtime; `routes.spec.ts` her paneli gezer) |
 | Yük testleri | 10 | Implemented (100k alıcılı kampanya: 0 duplicate/0 kayıp; 100k satır import; 10k konuşmalı inbox p95) |
 | Backup / restore dokümanı ve provası | 10 | Implemented (`scripts/backup.sh`, `restore.sh`, CI'da `backup-restore-test.sh`; docs/OPERATIONS.md) |
-| OpenTelemetry tracing | 10 | Missing |
+| OpenTelemetry tracing | 10 | Implemented (OTLP ile isteğe bağlı: API istekleri, kuyruk görevleri, sorgular, Meta çağrıları; loglarda trace_id) |
 | i18n (EN + TR) | v1.x | Missing |

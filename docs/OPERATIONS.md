@@ -117,6 +117,13 @@ reconciled from Meta's status webhook.
   `internal` network to scrape them): HTTP latency and status, queue depth,
   task outcomes and durations, outbox lag, database pool, Redis status.
 - Logs are JSON with secrets redacted: `docker compose logs -f messora-worker`.
+- Tracing (optional): set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g.
+  `http://otel-collector:4318`) and, if needed, `OTEL_EXPORTER_OTLP_HEADERS`
+  and `OTEL_TRACES_SAMPLER=parentbased_traceidratio` with
+  `OTEL_TRACES_SAMPLER_ARG=0.1`. The API, worker and scheduler then export
+  spans for requests (named after the route), queue tasks, database queries
+  (operation names only, never SQL text) and calls to Meta; log lines carry
+  `trace_id`. The collector must be reachable from the `edge` network.
 
 Alert on: unhealthy containers, growing outbox lag or queue depth, campaigns
 with many `unknown` messages, WhatsApp accounts in `error` status (expired or

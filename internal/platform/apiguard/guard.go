@@ -21,6 +21,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
@@ -149,6 +151,10 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		op := route.Operation
+		if span := trace.SpanFromContext(r.Context()); span.IsRecording() {
+			span.SetName(r.Method + " /api/v1" + route.Path)
+			span.SetAttributes(attribute.String("http.route", "/api/v1"+route.Path), attribute.String("messora.operation", op.OperationID))
+		}
 
 		p, err := g.authorize(r, *op.Security)
 		if err != nil {

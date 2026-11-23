@@ -60,6 +60,7 @@ func RunScheduler(ctx context.Context) error {
 	if err := g.Wait(); err != nil {
 		return reportFatal(log, err)
 	}
+	flushTracing()
 	log.Info("stopped")
 	return nil
 }

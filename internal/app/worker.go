@@ -25,6 +25,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 )
 
 // outboxRetention is how long published outbox rows are kept for debugging.
@@ -71,7 +72,7 @@ func RunWorker(ctx context.Context) error {
 	}
 
 	mux := asynq.NewServeMux()
-	mux.Use(taskMetrics.Middleware)
+	mux.Use(taskMetrics.Middleware, tracing.TaskMiddleware)
 	mux.Handle(queue.TypeOutboxCleanup, outbox.CleanupHandler(pool, outboxRetention, log))
 	mux.HandleFunc(queue.TypeIdentityCleanup, func(ctx context.Context, _ *asynq.Task) error {
 		sessions, keys, err := svc.identity.Cleanup(ctx)
@@ -125,6 +126,7 @@ func RunWorker(ctx context.Context) error {
 	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 		return reportFatal(log, err)
 	}
+	flushTracing()
 	log.Info("stopped")
 	return nil
 }
