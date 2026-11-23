@@ -69,7 +69,7 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** FEATURE_MATRIX'teki tüm v1 özellikleri `Implemented` durumundadır ve temiz ortamda `git clone → cp .env.example .env → docker compose up -d --build` akışı panelin açıldığı noktaya kadar sorunsuz çalışır. Backup'tan geri yükleme provası belgelenmiştir.
 
-## Phase 11 — Ayar katmanı ve kurulum sihirbazı
+## Phase 11 — Ayar katmanı ve kurulum sihirbazı ✅ (2026-11-23)
 - Kurulumla yönetilen ayarlar veritabanında tutulur, `.env` her zaman önceliklidir: `.env`'de tanımlı bir değer panelde "ortam değişkeniyle yönetiliyor" olarak kilitli görünür.
 - SMTP ayarları (şifre AES-GCM ile şifreli) + test e-postası; marka (organizasyon adı, logo); varsayılan dil, saat dilimi, tarih ve saat biçimi; tema.
 - 2FA zorunluluğu organizasyon ayarıdır; varsayılan olarak hiçbir rol için zorunlu değildir, sahip ve adminler açar.
@@ -77,14 +77,14 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** Temiz kurulumda sihirbaz baştan sona tarayıcıda tamamlanır (E2E). `.env`'de tanımlı SMTP değeri panelden değiştirilemez ve kilitli görünür. SMTP şifresi veritabanında düz metin bulunmaz.
 
-## Phase 12 — Tasarım sistemi ve tema motoru
+## Phase 12 — Tasarım sistemi ve tema motoru ✅ (2026-11-23)
 - Messora'ya özgü görsel dil; tarayıcının yerel (native) kontrolleri kullanılmaz: select, checkbox, radio, tarih/saat seçici, dosya seçici, renk seçici, onay pencereleri özel bileşenlerdir.
 - Tema motoru: hazır temalar (açık/koyu) + tam özelleştirme (renkler, yüzeyler, köşe yuvarlaklığı, yazı tipi, yoğunluk), canlı önizleme, okunabilirlik (kontrast) uyarısı. Sadece sahip değiştirir.
 - Yükleme, boş ve hata durumlarında tutarlı hareket ve geçişler.
 
 **Bitti kriteri:** Kaynakta `<select>`, `type="date|time|color|file|checkbox|radio"`, `window.confirm/alert` kalmaz (lint kuralı). Tema değişikliği yeniden yüklemeden uygulanır ve sunucu tarafında ilk boyamada doğru gelir (titreme yok).
 
-## Phase 13 — Türkçe ve İngilizce
+## Phase 13 — Türkçe ve İngilizce ✅ (2026-11-23)
 - Bütün arayüz metinleri sözlükten gelir (TR + EN). Kullanıcı kendi dilini seçer; varsayılan organizasyon ayarıdır. Sunucu hata mesajları koddan çevrilir.
 
 **Bitti kriteri:** Sözlükte eksik anahtar kalmaz (test). Playwright smoke testi her route'u iki dilde gezer.
@@ -97,10 +97,16 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Durum:** `@xyflow/react` tuvali; adımların kalıcı `id`'si, `layout` (düğüm konumları) ve çalıştırma izi (`visited`) migration 00011 ile. Koşulun üç çıkışı var: evet, hayır ve iki daldan sonra çalışan "sonra"; graf her zaman ağaçtır, adım ağacına kayıpsız çevrilir. Testler: id/derleme tablo testleri, `FuzzStepIDs`, eski otomasyonların konumdan türetilen id'leri ve izleri, dallı akışın API üzerinden tetiklenip izinin doğrulandığı entegrasyon testi, `e2e/automation-canvas.spec.ts` (kur, kaydet, yeniden yükle). Ayrıntılar: [AUTOMATIONS.md](AUTOMATIONS.md).
 
-## Phase 15 — Masaüstü modu
+## Phase 15 — Masaüstü modu ✅ (2026-11-23)
 - F11 (tarayıcı tam ekranı) veya menüden: masaüstü, görev çubuğu, uygulama ikonları; bölümler taşınabilir, boyutlandırılabilir, küçültülüp büyütülebilir pencerelerde açılır; birden çok pencere aynı anda açık kalır. Pencere düzeni kullanıcı başına hatırlanır. Tam ekrandan çıkınca normal panele dönülür.
 
 **Bitti kriteri:** Her bölüm bir pencerede çalışır (E2E); klavye ile pencere değiştirme; mobilde masaüstü modu kapalıdır.
+
+### Phase 11–15 ek işler (2026-11-23)
+- Canlı üst çubuk (Centrifugo): bölüm adı, ⌘K komut paleti, bağlantı durumu, okunmamış sohbet sayısı, gönderilen kampanyaların ilerlemesi, etkinlik akışı.
+- Klavye kısayolları: her listede N = yeni, G + harf = bölüme git, / = ara, ? = kısayol listesi.
+- Kişiler tablosu: numaralı sayfalar, sıralama, sütun ve yoğunluk seçimi, satır/sayfa/tüm eşleşenleri seçme ve toplu işlemler (etiket, grup, izin, silme) için `POST /contacts/bulk`.
+- Profil ve güvenlik sayfaları yeniden tasarlandı; sekme, durum ve rol ikonları.
 
 ## Phase 16 — Lisans ve dağıtım
 - **Lisans:** Ed25519 ile imzalı belge; özel anahtar yalnızca sahibin bilgisayarında (`messora-license` CLI), uygulamada yalnızca açık anahtar. Alanlar: lisans ID, müşteri, paket ve limitler, `issued_at`, `expires_at` (boş = süresiz), `updates_until` (boş = süresiz), `check_in` (`online` varsayılan / `offline`).
