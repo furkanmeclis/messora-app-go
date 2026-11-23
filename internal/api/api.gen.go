@@ -60,18 +60,57 @@ func (e ComponentStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for CreateTemplateRequestCategory.
+const (
+	AUTHENTICATION CreateTemplateRequestCategory = "AUTHENTICATION"
+	MARKETING      CreateTemplateRequestCategory = "MARKETING"
+	UTILITY        CreateTemplateRequestCategory = "UTILITY"
+)
+
+// Valid indicates whether the value is a known member of the CreateTemplateRequestCategory enum.
+func (e CreateTemplateRequestCategory) Valid() bool {
+	switch e {
+	case AUTHENTICATION:
+		return true
+	case MARKETING:
+		return true
+	case UTILITY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateTemplateRequestParameterFormat.
+const (
+	NAMED      CreateTemplateRequestParameterFormat = "NAMED"
+	POSITIONAL CreateTemplateRequestParameterFormat = "POSITIONAL"
+)
+
+// Valid indicates whether the value is a known member of the CreateTemplateRequestParameterFormat enum.
+func (e CreateTemplateRequestParameterFormat) Valid() bool {
+	switch e {
+	case NAMED:
+		return true
+	case POSITIONAL:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InvitationStatus.
 const (
-	Expired InvitationStatus = "expired"
-	Pending InvitationStatus = "pending"
+	InvitationStatusExpired InvitationStatus = "expired"
+	InvitationStatusPending InvitationStatus = "pending"
 )
 
 // Valid indicates whether the value is a known member of the InvitationStatus enum.
 func (e InvitationStatus) Valid() bool {
 	switch e {
-	case Expired:
+	case InvitationStatusExpired:
 		return true
-	case Pending:
+	case InvitationStatusPending:
 		return true
 	default:
 		return false
@@ -90,6 +129,60 @@ func (e LoginResultStatus) Valid() bool {
 	case Authenticated:
 		return true
 	case MfaRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MessageDirection.
+const (
+	Inbound  MessageDirection = "inbound"
+	Outbound MessageDirection = "outbound"
+)
+
+// Valid indicates whether the value is a known member of the MessageDirection enum.
+func (e MessageDirection) Valid() bool {
+	switch e {
+	case Inbound:
+		return true
+	case Outbound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MessageStatus.
+const (
+	MessageStatusDelivered MessageStatus = "delivered"
+	MessageStatusFailed    MessageStatus = "failed"
+	MessageStatusPending   MessageStatus = "pending"
+	MessageStatusRead      MessageStatus = "read"
+	MessageStatusReceived  MessageStatus = "received"
+	MessageStatusSending   MessageStatus = "sending"
+	MessageStatusSent      MessageStatus = "sent"
+	MessageStatusUnknown   MessageStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the MessageStatus enum.
+func (e MessageStatus) Valid() bool {
+	switch e {
+	case MessageStatusDelivered:
+		return true
+	case MessageStatusFailed:
+		return true
+	case MessageStatusPending:
+		return true
+	case MessageStatusRead:
+		return true
+	case MessageStatusReceived:
+		return true
+	case MessageStatusSending:
+		return true
+	case MessageStatusSent:
+		return true
+	case MessageStatusUnknown:
 		return true
 	default:
 		return false
@@ -120,6 +213,48 @@ func (e RoleKey) Valid() bool {
 	}
 }
 
+// Defines values for SendMessageRequestType.
+const (
+	SendMessageRequestTypeAudio       SendMessageRequestType = "audio"
+	SendMessageRequestTypeDocument    SendMessageRequestType = "document"
+	SendMessageRequestTypeImage       SendMessageRequestType = "image"
+	SendMessageRequestTypeInteractive SendMessageRequestType = "interactive"
+	SendMessageRequestTypeLocation    SendMessageRequestType = "location"
+	SendMessageRequestTypeReaction    SendMessageRequestType = "reaction"
+	SendMessageRequestTypeSticker     SendMessageRequestType = "sticker"
+	SendMessageRequestTypeTemplate    SendMessageRequestType = "template"
+	SendMessageRequestTypeText        SendMessageRequestType = "text"
+	SendMessageRequestTypeVideo       SendMessageRequestType = "video"
+)
+
+// Valid indicates whether the value is a known member of the SendMessageRequestType enum.
+func (e SendMessageRequestType) Valid() bool {
+	switch e {
+	case SendMessageRequestTypeAudio:
+		return true
+	case SendMessageRequestTypeDocument:
+		return true
+	case SendMessageRequestTypeImage:
+		return true
+	case SendMessageRequestTypeInteractive:
+		return true
+	case SendMessageRequestTypeLocation:
+		return true
+	case SendMessageRequestTypeReaction:
+		return true
+	case SendMessageRequestTypeSticker:
+		return true
+	case SendMessageRequestTypeTemplate:
+		return true
+	case SendMessageRequestTypeText:
+		return true
+	case SendMessageRequestTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateUserRequestStatus.
 const (
 	UpdateUserRequestStatusActive   UpdateUserRequestStatus = "active"
@@ -138,6 +273,24 @@ func (e UpdateUserRequestStatus) Valid() bool {
 	}
 }
 
+// Defines values for UpdateWhatsAppAccountRequestStatus.
+const (
+	UpdateWhatsAppAccountRequestStatusActive   UpdateWhatsAppAccountRequestStatus = "active"
+	UpdateWhatsAppAccountRequestStatusDisabled UpdateWhatsAppAccountRequestStatus = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the UpdateWhatsAppAccountRequestStatus enum.
+func (e UpdateWhatsAppAccountRequestStatus) Valid() bool {
+	switch e {
+	case UpdateWhatsAppAccountRequestStatusActive:
+		return true
+	case UpdateWhatsAppAccountRequestStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserStatus.
 const (
 	UserStatusActive   UserStatus = "active"
@@ -150,6 +303,27 @@ func (e UserStatus) Valid() bool {
 	case UserStatusActive:
 		return true
 	case UserStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WhatsAppAccountStatus.
+const (
+	WhatsAppAccountStatusActive   WhatsAppAccountStatus = "active"
+	WhatsAppAccountStatusDisabled WhatsAppAccountStatus = "disabled"
+	WhatsAppAccountStatusError    WhatsAppAccountStatus = "error"
+)
+
+// Valid indicates whether the value is a known member of the WhatsAppAccountStatus enum.
+func (e WhatsAppAccountStatus) Valid() bool {
+	switch e {
+	case WhatsAppAccountStatusActive:
+		return true
+	case WhatsAppAccountStatusDisabled:
+		return true
+	case WhatsAppAccountStatusError:
 		return true
 	default:
 		return false
@@ -274,6 +448,15 @@ type ComponentStatus struct {
 // ComponentStatusStatus defines model for ComponentStatus.Status.
 type ComponentStatusStatus string
 
+// ConnectWhatsAppAccountRequest defines model for ConnectWhatsAppAccountRequest.
+type ConnectWhatsAppAccountRequest struct {
+	AccessToken *string `json:"access_token,omitempty"`
+	AppId       *string `json:"app_id,omitempty"`
+	AppSecret   *string `json:"app_secret,omitempty"`
+	Name        string  `json:"name"`
+	WabaId      string  `json:"waba_id"`
+}
+
 // CreateApiKeyRequest defines model for CreateApiKeyRequest.
 type CreateApiKeyRequest struct {
 	ExpiresInDays *int         `json:"expires_in_days,omitempty"`
@@ -286,6 +469,22 @@ type CreateInvitationRequest struct {
 	Email Email   `json:"email"`
 	Role  RoleKey `json:"role"`
 }
+
+// CreateTemplateRequest defines model for CreateTemplateRequest.
+type CreateTemplateRequest struct {
+	AccountId       openapi_types.UUID                    `json:"account_id"`
+	Category        CreateTemplateRequestCategory         `json:"category"`
+	Components      []map[string]any                      `json:"components"`
+	Language        string                                `json:"language"`
+	Name            string                                `json:"name"`
+	ParameterFormat *CreateTemplateRequestParameterFormat `json:"parameter_format,omitempty"`
+}
+
+// CreateTemplateRequestCategory defines model for CreateTemplateRequest.Category.
+type CreateTemplateRequestCategory string
+
+// CreateTemplateRequestParameterFormat defines model for CreateTemplateRequest.ParameterFormat.
+type CreateTemplateRequestParameterFormat string
 
 // Email defines model for Email.
 type Email = openapi_types.Email
@@ -417,6 +616,46 @@ type MeResponse struct {
 	Meta Meta `json:"meta"`
 }
 
+// MediaRef defines model for MediaRef.
+type MediaRef struct {
+	Caption  *string `json:"caption,omitempty"`
+	Filename *string `json:"filename,omitempty"`
+	Id       *string `json:"id,omitempty"`
+	Link     *string `json:"link,omitempty"`
+}
+
+// Message defines model for Message.
+type Message struct {
+	Body          string             `json:"body"`
+	ContactId     openapi_types.UUID `json:"contact_id"`
+	CreatedAt     time.Time          `json:"created_at"`
+	DeliveredAt   *time.Time         `json:"delivered_at"`
+	Direction     MessageDirection   `json:"direction"`
+	ErrorCode     *string            `json:"error_code"`
+	ErrorTitle    *string            `json:"error_title"`
+	FailedAt      *time.Time         `json:"failed_at"`
+	Id            openapi_types.UUID `json:"id"`
+	PhoneNumberId openapi_types.UUID `json:"phone_number_id"`
+	ReadAt        *time.Time         `json:"read_at"`
+	SentAt        *time.Time         `json:"sent_at"`
+	Status        MessageStatus      `json:"status"`
+	To            string             `json:"to"`
+	Type          string             `json:"type"`
+	Wamid         *string            `json:"wamid"`
+}
+
+// MessageDirection defines model for Message.Direction.
+type MessageDirection string
+
+// MessageStatus defines model for Message.Status.
+type MessageStatus string
+
+// MessageResponse defines model for MessageResponse.
+type MessageResponse struct {
+	Data Message `json:"data"`
+	Meta Meta    `json:"meta"`
+}
+
 // Meta defines model for Meta.
 type Meta struct {
 	NextCursor *string `json:"next_cursor,omitempty"`
@@ -438,6 +677,26 @@ type PermissionInfo struct {
 
 // PersonName defines model for PersonName.
 type PersonName = string
+
+// PhoneNumber defines model for PhoneNumber.
+type PhoneNumber struct {
+	AccountId          openapi_types.UUID `json:"account_id"`
+	AccountName        string             `json:"account_name"`
+	DisplayPhoneNumber string             `json:"display_phone_number"`
+	Id                 openapi_types.UUID `json:"id"`
+	IsDefault          bool               `json:"is_default"`
+	MessagingLimit     string             `json:"messaging_limit"`
+	PhoneNumberId      string             `json:"phone_number_id"`
+	QualityRating      string             `json:"quality_rating"`
+	ThroughputLevel    *string            `json:"throughput_level,omitempty"`
+	VerifiedName       string             `json:"verified_name"`
+}
+
+// PhoneNumberListResponse defines model for PhoneNumberListResponse.
+type PhoneNumberListResponse struct {
+	Data []PhoneNumber `json:"data"`
+	Meta Meta          `json:"meta"`
+}
 
 // ReauthRequest defines model for ReauthRequest.
 type ReauthRequest struct {
@@ -503,6 +762,45 @@ type RolesAndPermissions struct {
 	Roles       []Role           `json:"roles"`
 }
 
+// SendMessageRequest defines model for SendMessageRequest.
+type SendMessageRequest struct {
+	// Interactive Meta's interactive object (button, list or cta_url).
+	Interactive *map[string]any `json:"interactive,omitempty"`
+	Location    *struct {
+		Address   *string `json:"address,omitempty"`
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+		Name      *string `json:"name,omitempty"`
+	} `json:"location,omitempty"`
+	Media *MediaRef `json:"media,omitempty"`
+
+	// PhoneNumberId Sender; defaults to the default number.
+	PhoneNumberId *openapi_types.UUID `json:"phone_number_id,omitempty"`
+	Reaction      *struct {
+		Emoji     string `json:"emoji"`
+		MessageId string `json:"message_id"`
+	} `json:"reaction,omitempty"`
+
+	// ReplyTo WhatsApp message ID to quote.
+	ReplyTo  *string `json:"reply_to,omitempty"`
+	Template *struct {
+		Components *[]map[string]any `json:"components,omitempty"`
+		Language   string            `json:"language"`
+		Name       string            `json:"name"`
+	} `json:"template,omitempty"`
+	Text *struct {
+		Body       string `json:"body"`
+		PreviewUrl *bool  `json:"preview_url,omitempty"`
+	} `json:"text,omitempty"`
+
+	// To Recipient phone number in international format.
+	To   string                 `json:"to"`
+	Type SendMessageRequestType `json:"type"`
+}
+
+// SendMessageRequestType defines model for SendMessageRequest.Type.
+type SendMessageRequestType string
+
 // SessionCreated defines model for SessionCreated.
 type SessionCreated struct {
 	ExpiresAt time.Time `json:"expires_at"`
@@ -561,6 +859,18 @@ type SetupStatusResponse struct {
 	Meta Meta        `json:"meta"`
 }
 
+// SyncResult defines model for SyncResult.
+type SyncResult struct {
+	PhoneNumbers int `json:"phone_numbers"`
+	Templates    int `json:"templates"`
+}
+
+// SyncResultResponse defines model for SyncResultResponse.
+type SyncResultResponse struct {
+	Data SyncResult `json:"data"`
+	Meta Meta       `json:"meta"`
+}
+
 // SystemStatus defines model for SystemStatus.
 type SystemStatus struct {
 	CheckedAt  time.Time                  `json:"checked_at"`
@@ -573,6 +883,35 @@ type SystemStatus struct {
 type SystemStatusResponse struct {
 	Data SystemStatus `json:"data"`
 	Meta Meta         `json:"meta"`
+}
+
+// Template defines model for Template.
+type Template struct {
+	AccountId       openapi_types.UUID `json:"account_id"`
+	AccountName     *string            `json:"account_name,omitempty"`
+	Category        string             `json:"category"`
+	Components      []map[string]any   `json:"components"`
+	Id              openapi_types.UUID `json:"id"`
+	Language        string             `json:"language"`
+	MetaTemplateId  *string            `json:"meta_template_id,omitempty"`
+	Name            string             `json:"name"`
+	ParameterFormat string             `json:"parameter_format"`
+	QualityScore    *string            `json:"quality_score,omitempty"`
+	RejectedReason  string             `json:"rejected_reason"`
+	Status          string             `json:"status"`
+	SyncedAt        *time.Time         `json:"synced_at,omitempty"`
+}
+
+// TemplateListResponse defines model for TemplateListResponse.
+type TemplateListResponse struct {
+	Data []Template `json:"data"`
+	Meta Meta       `json:"meta"`
+}
+
+// TemplateResponse defines model for TemplateResponse.
+type TemplateResponse struct {
+	Data Template `json:"data"`
+	Meta Meta     `json:"meta"`
 }
 
 // TotpConfirmRequest defines model for TotpConfirmRequest.
@@ -617,6 +956,17 @@ type UpdateUserRequest struct {
 // UpdateUserRequestStatus defines model for UpdateUserRequest.Status.
 type UpdateUserRequestStatus string
 
+// UpdateWhatsAppAccountRequest defines model for UpdateWhatsAppAccountRequest.
+type UpdateWhatsAppAccountRequest struct {
+	AccessToken *string                             `json:"access_token,omitempty"`
+	AppSecret   *string                             `json:"app_secret,omitempty"`
+	Name        *string                             `json:"name,omitempty"`
+	Status      *UpdateWhatsAppAccountRequestStatus `json:"status,omitempty"`
+}
+
+// UpdateWhatsAppAccountRequestStatus defines model for UpdateWhatsAppAccountRequest.Status.
+type UpdateWhatsAppAccountRequestStatus string
+
 // User defines model for User.
 type User struct {
 	CreatedAt   time.Time          `json:"created_at"`
@@ -646,6 +996,53 @@ type UserResponse struct {
 	Meta Meta `json:"meta"`
 }
 
+// WebhookSetup defines model for WebhookSetup.
+type WebhookSetup struct {
+	CallbackUrl string    `json:"callback_url"`
+	Fields      *[]string `json:"fields,omitempty"`
+
+	// SignatureVerification False until an app secret is configured; webhooks are rejected until then.
+	SignatureVerification bool   `json:"signature_verification"`
+	VerifyToken           string `json:"verify_token"`
+}
+
+// WebhookSetupResponse defines model for WebhookSetupResponse.
+type WebhookSetupResponse struct {
+	Data WebhookSetup `json:"data"`
+	Meta Meta         `json:"meta"`
+}
+
+// WhatsAppAccount defines model for WhatsAppAccount.
+type WhatsAppAccount struct {
+	AppId               *string               `json:"app_id"`
+	AppSecretConfigured bool                  `json:"app_secret_configured"`
+	CreatedAt           time.Time             `json:"created_at"`
+	Id                  openapi_types.UUID    `json:"id"`
+	LastError           *string               `json:"last_error"`
+	LastSyncedAt        *time.Time            `json:"last_synced_at"`
+	Name                string                `json:"name"`
+	Status              WhatsAppAccountStatus `json:"status"`
+	WabaId              string                `json:"waba_id"`
+}
+
+// WhatsAppAccountStatus defines model for WhatsAppAccount.Status.
+type WhatsAppAccountStatus string
+
+// WhatsAppAccountListResponse defines model for WhatsAppAccountListResponse.
+type WhatsAppAccountListResponse struct {
+	Data []WhatsAppAccount `json:"data"`
+	Meta Meta              `json:"meta"`
+}
+
+// WhatsAppAccountResponse defines model for WhatsAppAccountResponse.
+type WhatsAppAccountResponse struct {
+	Data WhatsAppAccount `json:"data"`
+	Meta Meta            `json:"meta"`
+}
+
+// AccountId defines model for AccountId.
+type AccountId = openapi_types.UUID
+
 // ApiKeyId defines model for ApiKeyId.
 type ApiKeyId = openapi_types.UUID
 
@@ -661,8 +1058,17 @@ type InvitationId = openapi_types.UUID
 // Limit defines model for Limit.
 type Limit = int
 
+// MessageId defines model for MessageId.
+type MessageId = openapi_types.UUID
+
+// PhoneNumberId defines model for PhoneNumberId.
+type PhoneNumberId = openapi_types.UUID
+
 // SessionId defines model for SessionId.
 type SessionId = openapi_types.UUID
+
+// TemplateId defines model for TemplateId.
+type TemplateId = openapi_types.UUID
 
 // UserId defines model for UserId.
 type UserId = openapi_types.UUID
@@ -686,8 +1092,29 @@ type ListAuditLogsParams struct {
 	EntityId   *openapi_types.UUID `form:"entity_id,omitempty" json:"entity_id,omitempty"`
 }
 
+// ConnectWhatsAppAccountParams defines parameters for ConnectWhatsAppAccount.
+type ConnectWhatsAppAccountParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // CreateInvitationParams defines parameters for CreateInvitation.
 type CreateInvitationParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// SendMessageParams defines parameters for SendMessage.
+type SendMessageParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ListTemplatesParams defines parameters for ListTemplates.
+type ListTemplatesParams struct {
+	AccountId *openapi_types.UUID `form:"account_id,omitempty" json:"account_id,omitempty"`
+	Status    *string             `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// CreateTemplateParams defines parameters for CreateTemplate.
+type CreateTemplateParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
@@ -709,6 +1136,12 @@ type ResetPasswordJSONRequestBody = ResetPasswordRequest
 // ReauthenticateJSONRequestBody defines body for Reauthenticate for application/json ContentType.
 type ReauthenticateJSONRequestBody = ReauthRequest
 
+// ConnectWhatsAppAccountJSONRequestBody defines body for ConnectWhatsAppAccount for application/json ContentType.
+type ConnectWhatsAppAccountJSONRequestBody = ConnectWhatsAppAccountRequest
+
+// UpdateWhatsAppAccountJSONRequestBody defines body for UpdateWhatsAppAccount for application/json ContentType.
+type UpdateWhatsAppAccountJSONRequestBody = UpdateWhatsAppAccountRequest
+
 // CreateInvitationJSONRequestBody defines body for CreateInvitation for application/json ContentType.
 type CreateInvitationJSONRequestBody = CreateInvitationRequest
 
@@ -727,11 +1160,17 @@ type ConfirmTotpJSONRequestBody = TotpConfirmRequest
 // ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
 type ChangePasswordJSONRequestBody = ChangePasswordRequest
 
+// SendMessageJSONRequestBody defines body for SendMessage for application/json ContentType.
+type SendMessageJSONRequestBody = SendMessageRequest
+
 // UpdateSettingsJSONRequestBody defines body for UpdateSettings for application/json ContentType.
 type UpdateSettingsJSONRequestBody = UpdateSettingsRequest
 
 // CompleteSetupJSONRequestBody defines body for CompleteSetup for application/json ContentType.
 type CompleteSetupJSONRequestBody = CompleteSetupRequest
+
+// CreateTemplateJSONRequestBody defines body for CreateTemplate for application/json ContentType.
+type CreateTemplateJSONRequestBody = CreateTemplateRequest
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest
@@ -774,6 +1213,30 @@ type ServerInterface interface {
 	// Reauthenticate Confirm identity before a sensitive action
 	// (POST /auth/reauth)
 	Reauthenticate(w http.ResponseWriter, r *http.Request)
+	// ListWhatsAppAccounts Connected WhatsApp Business Accounts (credentials are never returned)
+	// (GET /channels/accounts)
+	ListWhatsAppAccounts(w http.ResponseWriter, r *http.Request)
+	// ConnectWhatsAppAccount Connect a WhatsApp Business Account
+	// (POST /channels/accounts)
+	ConnectWhatsAppAccount(w http.ResponseWriter, r *http.Request, params ConnectWhatsAppAccountParams)
+	// DisconnectWhatsAppAccount Disconnect an account without message history
+	// (DELETE /channels/accounts/{accountId})
+	DisconnectWhatsAppAccount(w http.ResponseWriter, r *http.Request, accountId AccountId)
+	// UpdateWhatsAppAccount Rename, rotate credentials, or enable/disable an account
+	// (PATCH /channels/accounts/{accountId})
+	UpdateWhatsAppAccount(w http.ResponseWriter, r *http.Request, accountId AccountId)
+	// SyncWhatsAppAccount Refresh phone numbers and templates from Meta
+	// (POST /channels/accounts/{accountId}/sync)
+	SyncWhatsAppAccount(w http.ResponseWriter, r *http.Request, accountId AccountId)
+	// ListPhoneNumbers Phone numbers of every connected account
+	// (GET /channels/phone-numbers)
+	ListPhoneNumbers(w http.ResponseWriter, r *http.Request)
+	// SetDefaultPhoneNumber Use this number when a request names no sender
+	// (POST /channels/phone-numbers/{phoneNumberId}/default)
+	SetDefaultPhoneNumber(w http.ResponseWriter, r *http.Request, phoneNumberId PhoneNumberId)
+	// GetWebhookSetup Values to enter in the Meta App dashboard
+	// (GET /channels/webhook)
+	GetWebhookSetup(w http.ResponseWriter, r *http.Request)
 	// ListInvitations Pending invitations
 	// (GET /invitations)
 	ListInvitations(w http.ResponseWriter, r *http.Request)
@@ -819,6 +1282,12 @@ type ServerInterface interface {
 	// RevokeMySession End one of the user's sessions
 	// (DELETE /me/sessions/{sessionId})
 	RevokeMySession(w http.ResponseWriter, r *http.Request, sessionId SessionId)
+	// SendMessage Queue a WhatsApp message
+	// (POST /messages)
+	SendMessage(w http.ResponseWriter, r *http.Request, params SendMessageParams)
+	// GetMessage A message and its delivery state
+	// (GET /messages/{messageId})
+	GetMessage(w http.ResponseWriter, r *http.Request, messageId MessageId)
 	// ListRoles Roles and the permissions they grant
 	// (GET /roles)
 	ListRoles(w http.ResponseWriter, r *http.Request)
@@ -837,6 +1306,15 @@ type ServerInterface interface {
 	// GetSystemStatus Health of every component of the installation
 	// (GET /system/status)
 	GetSystemStatus(w http.ResponseWriter, r *http.Request)
+	// ListTemplates Message templates mirrored from Meta
+	// (GET /templates)
+	ListTemplates(w http.ResponseWriter, r *http.Request, params ListTemplatesParams)
+	// CreateTemplate Submit a template for Meta's review
+	// (POST /templates)
+	CreateTemplate(w http.ResponseWriter, r *http.Request, params CreateTemplateParams)
+	// DeleteTemplate Delete one language version of a template on Meta and locally
+	// (DELETE /templates/{templateId})
+	DeleteTemplate(w http.ResponseWriter, r *http.Request, templateId TemplateId)
 	// ListUsers All panel users
 	// (GET /users)
 	ListUsers(w http.ResponseWriter, r *http.Request)
@@ -917,6 +1395,54 @@ func (_ Unimplemented) ResetPassword(w http.ResponseWriter, r *http.Request) {
 // Reauthenticate Confirm identity before a sensitive action
 // (POST /auth/reauth)
 func (_ Unimplemented) Reauthenticate(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListWhatsAppAccounts Connected WhatsApp Business Accounts (credentials are never returned)
+// (GET /channels/accounts)
+func (_ Unimplemented) ListWhatsAppAccounts(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ConnectWhatsAppAccount Connect a WhatsApp Business Account
+// (POST /channels/accounts)
+func (_ Unimplemented) ConnectWhatsAppAccount(w http.ResponseWriter, r *http.Request, params ConnectWhatsAppAccountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DisconnectWhatsAppAccount Disconnect an account without message history
+// (DELETE /channels/accounts/{accountId})
+func (_ Unimplemented) DisconnectWhatsAppAccount(w http.ResponseWriter, r *http.Request, accountId AccountId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateWhatsAppAccount Rename, rotate credentials, or enable/disable an account
+// (PATCH /channels/accounts/{accountId})
+func (_ Unimplemented) UpdateWhatsAppAccount(w http.ResponseWriter, r *http.Request, accountId AccountId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SyncWhatsAppAccount Refresh phone numbers and templates from Meta
+// (POST /channels/accounts/{accountId}/sync)
+func (_ Unimplemented) SyncWhatsAppAccount(w http.ResponseWriter, r *http.Request, accountId AccountId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListPhoneNumbers Phone numbers of every connected account
+// (GET /channels/phone-numbers)
+func (_ Unimplemented) ListPhoneNumbers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SetDefaultPhoneNumber Use this number when a request names no sender
+// (POST /channels/phone-numbers/{phoneNumberId}/default)
+func (_ Unimplemented) SetDefaultPhoneNumber(w http.ResponseWriter, r *http.Request, phoneNumberId PhoneNumberId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetWebhookSetup Values to enter in the Meta App dashboard
+// (GET /channels/webhook)
+func (_ Unimplemented) GetWebhookSetup(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1010,6 +1536,18 @@ func (_ Unimplemented) RevokeMySession(w http.ResponseWriter, r *http.Request, s
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// SendMessage Queue a WhatsApp message
+// (POST /messages)
+func (_ Unimplemented) SendMessage(w http.ResponseWriter, r *http.Request, params SendMessageParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetMessage A message and its delivery state
+// (GET /messages/{messageId})
+func (_ Unimplemented) GetMessage(w http.ResponseWriter, r *http.Request, messageId MessageId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ListRoles Roles and the permissions they grant
 // (GET /roles)
 func (_ Unimplemented) ListRoles(w http.ResponseWriter, r *http.Request) {
@@ -1043,6 +1581,24 @@ func (_ Unimplemented) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 // GetSystemStatus Health of every component of the installation
 // (GET /system/status)
 func (_ Unimplemented) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListTemplates Message templates mirrored from Meta
+// (GET /templates)
+func (_ Unimplemented) ListTemplates(w http.ResponseWriter, r *http.Request, params ListTemplatesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateTemplate Submit a template for Meta's review
+// (POST /templates)
+func (_ Unimplemented) CreateTemplate(w http.ResponseWriter, r *http.Request, params CreateTemplateParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteTemplate Delete one language version of a template on Meta and locally
+// (DELETE /templates/{templateId})
+func (_ Unimplemented) DeleteTemplate(w http.ResponseWriter, r *http.Request, templateId TemplateId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1358,6 +1914,193 @@ func (siw *ServerInterfaceWrapper) Reauthenticate(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ListWhatsAppAccounts operation middleware
+func (siw *ServerInterfaceWrapper) ListWhatsAppAccounts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListWhatsAppAccounts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConnectWhatsAppAccount operation middleware
+func (siw *ServerInterfaceWrapper) ConnectWhatsAppAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConnectWhatsAppAccountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConnectWhatsAppAccount(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DisconnectWhatsAppAccount operation middleware
+func (siw *ServerInterfaceWrapper) DisconnectWhatsAppAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "accountId" -------------
+	var accountId AccountId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "accountId", chi.URLParam(r, "accountId"), &accountId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "accountId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DisconnectWhatsAppAccount(w, r, accountId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateWhatsAppAccount operation middleware
+func (siw *ServerInterfaceWrapper) UpdateWhatsAppAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "accountId" -------------
+	var accountId AccountId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "accountId", chi.URLParam(r, "accountId"), &accountId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "accountId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateWhatsAppAccount(w, r, accountId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SyncWhatsAppAccount operation middleware
+func (siw *ServerInterfaceWrapper) SyncWhatsAppAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "accountId" -------------
+	var accountId AccountId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "accountId", chi.URLParam(r, "accountId"), &accountId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "accountId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SyncWhatsAppAccount(w, r, accountId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPhoneNumbers operation middleware
+func (siw *ServerInterfaceWrapper) ListPhoneNumbers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPhoneNumbers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetDefaultPhoneNumber operation middleware
+func (siw *ServerInterfaceWrapper) SetDefaultPhoneNumber(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "phoneNumberId" -------------
+	var phoneNumberId PhoneNumberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "phoneNumberId", chi.URLParam(r, "phoneNumberId"), &phoneNumberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "phoneNumberId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetDefaultPhoneNumber(w, r, phoneNumberId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetWebhookSetup operation middleware
+func (siw *ServerInterfaceWrapper) GetWebhookSetup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetWebhookSetup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListInvitations operation middleware
 func (siw *ServerInterfaceWrapper) ListInvitations(w http.ResponseWriter, r *http.Request) {
 
@@ -1619,6 +2362,73 @@ func (siw *ServerInterfaceWrapper) RevokeMySession(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// SendMessage operation middleware
+func (siw *ServerInterfaceWrapper) SendMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SendMessageParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendMessage(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMessage operation middleware
+func (siw *ServerInterfaceWrapper) GetMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "messageId" -------------
+	var messageId MessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "messageId", chi.URLParam(r, "messageId"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "messageId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMessage(w, r, messageId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListRoles operation middleware
 func (siw *ServerInterfaceWrapper) ListRoles(w http.ResponseWriter, r *http.Request) {
 
@@ -1694,6 +2504,119 @@ func (siw *ServerInterfaceWrapper) GetSystemStatus(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSystemStatus(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListTemplates(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTemplatesParams
+
+	// ------------- Optional query parameter "account_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "account_id", r.URL.Query(), &params.AccountId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "account_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "account_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTemplates(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTemplate operation middleware
+func (siw *ServerInterfaceWrapper) CreateTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateTemplateParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTemplate(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTemplate operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId TemplateId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", chi.URLParam(r, "templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTemplate(w, r, templateId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1962,6 +2885,45 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/system/status", wrapper.GetSystemStatus)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/channels/accounts", wrapper.ListWhatsAppAccounts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/channels/accounts", wrapper.ConnectWhatsAppAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/channels/accounts/{accountId}", wrapper.DisconnectWhatsAppAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/channels/accounts/{accountId}", wrapper.UpdateWhatsAppAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/channels/accounts/{accountId}/sync", wrapper.SyncWhatsAppAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/channels/phone-numbers", wrapper.ListPhoneNumbers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/channels/phone-numbers/{phoneNumberId}/default", wrapper.SetDefaultPhoneNumber)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/channels/webhook", wrapper.GetWebhookSetup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/templates", wrapper.ListTemplates)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/templates", wrapper.CreateTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/templates/{templateId}", wrapper.DeleteTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/messages", wrapper.SendMessage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/messages/{messageId}", wrapper.GetMessage)
+	})
 
 	return r
 }
@@ -1971,94 +2933,130 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"7D3tcuM2kq+C4qXqkhz9mUzu1vNjy+PxJK7118mezdWO5zQw2ZIQUwAHAO1RXKrKQ9wz7IPlSa7wQRIk",
-	"QVGyRCU/9p9NgkCjv7vRaD0HEZumjAKVIjh6DlLM8RQkcP3fcUr+BrOzWP1NaHAUpFhOgjCgeArBUYDz",
-	"12HA4XNGOMTBkeQZhIGIJjDF6rsR41Msg6Mgy4gaKWep+lZITug4mM/D4CTjgnE1NgYRcZJKwtRiVyn+",
-	"nAGK9Gs04myKPk1B4l0KX+TQPP60G4QGtM8Z8FkJm3kduJBM8ZdzoGM5CY4O9/d9kJzFME2ZBBrN/gaz",
-	"YtcTwDHwcm5n2I4at2iRKaH5///lXZI+EonVjlvRTNwh66H6nEyJLJapoSzRL90JYxjhLJHB0Su1E/yF",
-	"TLNpuS/z30GxDqESxsD1QjcgxKI9ieL9eht6L4C3LpKZl+usMFcfi5RRAVoiTjk3rBoxKoFqXOI0TUik",
-	"CbT3i1Cs++ys8BWHUXAU/NteKWh75q3Y07Od0kdIWApmtaoImOXUc/uJlsooglSWjDOAzxkIA0ocE/UI",
-	"J9ecpcAlUWCPcCIgDFLn0bPF0WL4roELRi/VyHkYpFiIJ8bjzq/ycfMwkOwBaIdcHHplsaTZBzuLpasD",
-	"yMfiQ3b/C0RSrWh0ltZllf1GHLCEeIhlhe4xlrAjiZ63BkRYfHOv5zOvP+Tvw4BmSRJ8nIcBfEkJB9E9",
-	"t+9jEi/BiGGQYCGHmYD4Zavk5G7Mm3IYkS/eVyJiqUEekTAVS3DLlGix1pQ3s2HO8axBUL3FnJoGgGK5",
-	"0CVVO4VPzKAmoXFKhg8w64LWzKK3CREH2bQ/NxP2RBGjEbxGQjIOiEgkIMo4JLPdoItpcziKBTr3MrCa",
-	"prmnGEu83IZytMzDYArdH12oMXXI9Wr2+3agz4mQ3RAvxTklLapc0/seNoHxfsHMYiKPI8l4E8RFiqNb",
-	"BfhGmDfPAVBl2T9oAxqELifPhISpA2mbwlZvW/dzzsYesY2M2Hn0EM73v5AYJaaU5p5gOgbRbhONI9CA",
-	"D6gkcjZcFbX2sxx/ayt7ki6ehkVRxvmK1owbP8Furm1yn6Z2l8vJEeYUK5G9iOCb1BZ2yu3qi0xOTnCK",
-	"70lCcqire8i9kiEH4TMn75QXhp4mQBHL5JgROkawM8UkQUQgyiSKGB2RccYhdqzLPWMJYGoMlczSYQn1",
-	"c2NMbVM1kBozLLPRNVVkHW190uhE82Hufr7MLdaMTuXQdXZd3/XVDxXf9cAjZxSehqv7yrW9NuCozevd",
-	"P5umCUi4UVR+2fZB8WNn2KIHORZl+RiC8TGm5Fcdtwzzzx38Hhzud+L3TxOHGGSFQSdRNGA3EsvMozdi",
-	"kAbnyo7k4WVj06L4OjfO7CEIg5H6tNMc24+94Gl/MfeGXsQyNvghdBjjmbBINsmB73541ZErKJnI5YL9",
-	"bi5YKziZ4i9n5qvvzUr2v4OaRQmDjJLPGdjXkmdQx63lBQtOO4rXjddXk0zOkk7JHLAEtP9a21HO1noO",
-	"34ZOc1AKvyP/pKIpv6/Q8DsPDXV64w2LfeE6i8FwF1ZKTSjA/n58fvb2+Pbs6nJ4OhhcDYIweH95/P72",
-	"p6vB2T9O3wZh8O5q8Obs7dvTyyAMLq9uh++u3l+q5ydXl+/Oz05ugzAYHN+eDs/PLs5u9ReDUzXBcHD6",
-	"3+/PBvrJ2eXt6eDy+Nyu8dEDtxHZ5ZlP7/Ot/sjvtAiBx77wvG4UFFLK8SUgXio5i7ait7G1EYEk9r5Z",
-	"DcpWiIp0VwOmQvl1olKzzDqehFlqgSvxjvExk+u5EqtIrFcEfYCVamQzKa4CyOabZZNazjfLhjdqE0vk",
-	"1ZbVYgMY+W1kCjQ2c5rdxN22UkNcUYGVhFQFL+Eiy1pSqj1VpTO5w4wni7JPu+hmgk326YnICZITQAaD",
-	"gMhomRiiRu6hsJnrZohBKuy1CO/l9pooLF+F7h4ryy+FsvWCjyYF+ow+ytU2GOu6WN5itFsue83hkcBT",
-	"cxubVRwrSfoif6Wy/FJb2xSP5ZjaDl1uVSjyMru0yVjIB+Q5GxN6McIvDMCtZ5JiKYHT4Cj437u7+PmH",
-	"+Vc+vpmO8PCF+1Hbidgj8NnQs+YHvPPr4c5fPj6/mu/81fnnq868fwlSK3K2EQG8OIHRIl0Lg1y7q3UE",
-	"KZ9CnTf3KULuOg1AK+xUtcfXHARQaRJ4xuwrm6u+yJd/jR5xQmI0Yhy9QlNCMwnCa4bt8XfXBu0pumO9",
-	"mi4OzuQEqFQH0BAHYeACtFZm4AL8+HHzj1UU3U4AZQL4vwukdDGyIwWST2xnpNPGyAGXMIruM6n8Guu8",
-	"AMX3CcRoBtKfAU2LKH4zx5IVSvjTGj24vxwUFoaaWYYZlSTpWGK5LH2H4VOU6cKVKqdo8Ig9BXJxX+Kt",
-	"leFcRlpPM1xArwrhwk5cBcypMfI6Ob7DlDYhc8b6ALh2NHVVoI4lSgALiQ4OUTTBHEcSuNhFJ2w6ZRTl",
-	"KlkgFR5wUBMav3+Rwj/0cKQjI00zOPz4H3d3u/avr4KFn5/REfNQ2d2VB5lLHNfX8ncszpIlUhHm1NKO",
-	"rhbXeClR5qpXT0sPtFRvw+lZx7Q39pyDvY6EFnP0bbwrCzVAXV6htvGLO4N/feMxnrDYdwQY5Y8Lw9Sg",
-	"3cKyGPN958LrEsvdQ7/UErBmDu2PP+tZ6PcObNhaBXoJdVbk3hdVZm3c2eGYPjhLuQWbTa1pDzb0N1Vg",
-	"2jBh6+6KA6onaspH4inRjgKmeGyejKsZIEeJsgSWS590YVcc0/jaAbpXRreZiX44oZ06bbDU996Aaz3W",
-	"0kbex14sWeFETstOl0Y0U3azXy1S2og3b13ctoDQlqfrt7tIxT4pppCYUkGhoxqKMEU/SZle0WSGIsYe",
-	"CLxGFB6BI/iSMqGTupKhe86ehHLtfHC82HGvbqCWudazdqNyPUFsBrC9yeANlLy5meJfU4Hhz5P3eTjS",
-	"UfulC4EFAF1pcUXuodG7KxZ/VQ4/KovXOCpH2ALqbDAz7tJ7m6nxG5CS0LG3kEPflhgqEvzKaD2G+OH7",
-	"zhDCDaWHq2vTvBi1LG5YopxhMzU5uaohcQLDCct4tQ7kPw87y0DyGRIyAoXBZjHJX7qvnbiEbG4rbJLI",
-	"i3PvdtogXMQj6ypPM0vf7JylbaVJKxccLlFf6Cy4NnoKyHvFkK55bkNRNIHoYVXLUrly54+GFm+kXlTm",
-	"C+wngBM5mfnt1yNw4c/G1CNiO7CcrwJ/6CKgC3tr0tulQ58Ev2UyPVHH6HzafzZn2doZBZTm+CbymEx1",
-	"PjnjxF86WNxvWby2HRdWJlwIy3oELbfUJzXfp0oWL+BlpExYhBPf2eDH58P51zsfjnf+of765q/eRN3q",
-	"9bEv9R3mrTsvbdFy+58S6j49CP/l5fzZvJwWSqsY8GVcvlK1qPcQMpLkUTtYROgjPP/JYxNwG9r2Wce2",
-	"yv3KRB0Ov+yCZakpvAxvjzb91rg1Bbh2AdwyhKlqnRWq4/LSZ7NqUYDjbrfAi7NI5wVPxRUbjBRNbmSL",
-	"IaIRxHVMYw5yTyAapyDjRM5u1CzFxVmbwb0HzIG/ywVgKh6GCXmE4e+//TPvD6A5WA8rhWkiZWrOpyh4",
-	"KxoxhxgZNwOxkS5k1GNfI6YSZKktsWBUvyJUAqc4QRTkE+MPRauHej+G/9m5ACEYxztv3r0rwcHODd/i",
-	"bNObw7OJOzPKZPRCZAoXITawSTYGOQFelmDmH6nd7HajZa6rK0esCcTg9OYWHV+fKZTYjYQIIwHJaGfC",
-	"hALh5wmW4jhN0ZtMEApCoJOEZbH+Kk2wVLpq947e0W+/Pa4UWOx++y06Vac9SLGgfoRiiBJsUpQC5XyQ",
-	"F2tMgcojNdMO+qR3+An9/tv/GRxEOEmUWKP7mcaABdZi4utL+CJ3fxHozbt33yB1xKQG3VHUJCR6L8CU",
-	"yQgypjuEolHCnsSuXtWSwayL9QiI1RizTCaA76Ibfd1Cn3trWpTp4XxRtxBlmgmJxhxTaZYwnGFW+KQQ",
-	"xrj1DI7QG0095PL8p8Z65rZHvtQDzNATFsiqNc0ilhp5tbuiw00WRSDEEfr0fKcF9C44Qr//9s8Q3WlB",
-	"Vf8+3znVAvb9fP5pF+m6d3F0R9XHoP6xw1XEcBeYOXSBvvnH3gy4C+aV6e10Bjinj4mC7/rq5rZkE2EF",
-	"QKWwP9U6nnxCRgRfI3xHOUhOIEYW7lJABJ6Cxg2mMbpnseIxmXFDIpMmV18ZPbl7R5WxIBFYpWll++Ls",
-	"1lgomeh/LcsdX58FThQb7O8e7u6rgSwFilMSHAXf7R7s7usDPDnR+m0Pp2TnAYy/NTYRUbFd1UQkUEbH",
-	"XIXS5sxt/HG4v7+xth+e+/Oe3h8ainlYNmHxT1pAuec0C7FCHRx9eC6VX9GSQOyao7jg4/xjGIhsOsV8",
-	"pspNrs8UvQT62mg1w+/muMKQDmKEx5jQb4IwkHgs7KQGq8oLSpnwXH0d5IVgHCKl4DnsVOvACgGLMNWF",
-	"YF8igFjziRYqpkTZEXKlb6ukc++xBWGlj9EHP+LKIXu1vj8KK5ab88tJG6G7767dvGq5bbBSY72DDbNe",
-	"/WzHw33Okc32GNAsqjSOZcXXRlUYj4EIJIpLEX4GnIellO89TRieEkfYqzs8Vwyuw6pc4T0CJyNt2ghX",
-	"fBcrBsWJ0ArMqPwm4/0IVmXcQDLqX2ssopk6g1Q2Wt0sf4DZJmiX+4QfapR6qxe+N9bQEgtluVWXEyJy",
-	"e7AEoZ7zRmJzQ6UEJDSV8wAe2cNLJbzoZGZku0Ki730KS621Ze43izrcj8h0CjHBEpLZAjSqdgg7CRt3",
-	"2DXbNUGsjDvbn20edo407cXUQF9/saJfhLdb2oG3JVvrTIwPSVyZq7NZmH8ut3VHC2iv9ledbUXQPvap",
-	"NnwNODzKQ49DQCW3bRo2yfhq7l0OOG64HHpVyTFJQkThCYREI8KrakONKZhdTvaiWh8OL88rvVxvPtEr",
-	"mlvaZvhsa60hxrqYtvF2XUf/PCHRBLHUJAHLUAuwzLgNZvAjJjqmq+BbTlx066SYAi537mrKRb/ux2Oq",
-	"3JZZylXa3/Ta7WS80ZEpIjREjOuAPWI0Rvaig7WAGtb+aKxgUHVGOuiyN0GVt+K0DVlI1r3pCHeQ9mKE",
-	"+6Suc1FsywRuKXRaROkeKZk3bynkVJMUo9ur22vFX/llNWSbACwgK8vkQpqq98t4QXbbavhG7UFt56fU",
-	"RnqmfijPwy3YY87deyN9Td/dbM2oJU94pvx38QRcoMP9QyQYkhMsEYcxERJUDgLHMQchyvDzHlBMhMa3",
-	"uU9R90Q1v5aVzaa5Uh8i4u9DsJSgHDbRcWZyrna/RkXlWAiV42k1iEpmCaAbIXsLu59aXVVoKsRBgEQJ",
-	"oQ/LUL5osuXn8krpeU+08Za3L0Uaj6zl8yDTTC1+jUBLe56UViQBGvdrTEAirLywkihWCRna5HWkbcQx",
-	"99rapfHvxe3Ig/38emSe7K8Jv0/o3JuOvZHUvcOzZXtUu4njcxxNVcqmA9OGJdKrIBKbaAbdw4gpX1Hp",
-	"BEHUgSIqYjkPL5TtHxZHpGfOuB7R2tKXwYNeF6CNIlhX37aF/demRwkiFXTkeNVfLkitqpxPDglS+MLE",
-	"JthN+h7TCLRS1VmzUJk/IpWdU0ZOmBM5faV5URsRX6r1zG3y8SdOtzb7bm055dre1GQhC+anSVvkRL04",
-	"IMGmwKg+5TNM4WHHmpzvGWZrt8f1nuU96e+21uhbJvnykcVxFLGMyuLoUGeatxBtHBdneyUV9eIGkFyB",
-	"KNiWoH7C2EOWtlP/XL/vnfot3VG2bMbbG8wslPc+/boJe0JPE1Yjt3bnlMIfMb4EkZ/d36FYIlO/joFw",
-	"VvpDM/aLtGWerkdpw4C3YHMKrf7QjyAvoE8v6AIWseGJ9b4zW3fUm2+p3JWyokMtF+oSjbBSwqG1YCML",
-	"MAXjB2EZTZoYzOt8e9It9TLiLSuVxeQzwMX9k88shFLORiSBOm0Mj6uU4l6erdoprsS/tDLAEwiOgaoH",
-	"UL3J3mtk5rt97yHEJTzp/JwqoSiOqr/plSQDSBMcAcJJUs0RigXkkUymVQ2+csHGAEaZyIMHuXLnnyZd",
-	"35oKVXUrYKns5Nu8orVXfZVxitho1L4Rj4LaFKffSMxleUuiRwZv3ujwZcFNGYZSzvaGCHo/OENfq3jR",
-	"1Bkj3TkDRXmaol/O/9GqgTxJbstEJENAOVPnIC6pFOHStEMm9izo7a6sTY4UXLp5S+O5frT1RNSS6u6U",
-	"9i+Bx4qzFJU1jW0+Uuk384twOlBJ09dFbWFVB9ZrhVyiu71FWohd+UGBnujt/9WCl+aRzWw9Jwj1GkWS",
-	"+LVKTAubr2a6SLrFebOIt29FdwxxpWa7yYf/YXGA58Cqmp1X9YqprCSyzU2HmmlozYVezNp3ufETz648",
-	"aAFK73INOQZFfh+gGhx0MNDec/E7gksEpAWOV45Hy18z/AODUQ8TMgo53qz3JUouaiCuuGrXyoW6d0yv",
-	"jnS9vY+H+wwQW4zj1Xraq/HcJJiZawMOOg0WDUaF0wuiLawvbvH3Kte1fgNeoS67CWwQszkKvNVdPzP+",
-	"IFIVnYgSCzkii0edQX0FhX2F9vV7slsvRukmYR7mi55Jmel1Ar/Vf1qSplY+FqWFK79X1Jd35ftNpD/t",
-	"ccDVEwW+9cOAkzLnr2svke7cluf/yws9jJp7sEjTtVEOoJ+6lN8r76Mu0I5FE49+pavRdMSvI7PUNnfu",
-	"tTDTXCVsQ7iQJEnQBAvdGgxyfmhDte6LsQyu3QYafSLb1/LDW81gP90gxpe1TD/pZibKeQIbLOawWH+K",
-	"UCHVdcdaiif/AUyNeZPbX+RQvdcjesR146q0z2xoILbnUB0niXNXU7Qchui/957Nb3TPbYeNdh/gvW1C",
-	"vZLfbn8dvK8Cg2bbhS07DZWL5u0OwxZpb50EXMkGM46KHgENVtAL8cecovq3cPTdoL3HA005+8Vz+dPx",
-	"pmVM8UCXHjn/T8H9L7PcXzzgNr5wJ8zdKWfOmMjKg/zSjfuhUQbzj/P/HwA=",
+	"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",
+	"/vj8/wYA",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

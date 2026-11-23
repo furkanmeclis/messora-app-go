@@ -28,6 +28,8 @@ x-messora-app: &messora-app
       read_only: true
       volume:
         subpath: app
+    # Downloaded WhatsApp media (inbound files are kept after Meta's expiry).
+    - messora-media:/var/lib/messora/media
   read_only: true
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
@@ -270,5 +272,6 @@ volumes:
   postgres-data:
   redis-data:
   messora-secrets:
+  messora-media:
   caddy-data:
   caddy-config:

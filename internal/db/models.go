@@ -38,6 +38,17 @@ type AuditLog struct {
 	Changes    []byte
 }
 
+type Contact struct {
+	ID            uuid.UUID
+	PhoneE164     string
+	WaID          *string
+	Name          string
+	ProfileName   string
+	LastInboundAt *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type IdempotencyKey struct {
 	Principal      string
 	Key            string
@@ -46,6 +57,64 @@ type IdempotencyKey struct {
 	ResponseStatus *int32
 	ResponseBody   []byte
 	CreatedAt      time.Time
+}
+
+type MediaFile struct {
+	ID          uuid.UUID
+	MessageID   *uuid.UUID
+	MetaMediaID *string
+	MimeType    string
+	Filename    string
+	SizeBytes   *int64
+	Sha256      string
+	StorageKey  *string
+	Status      string
+	LastError   *string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type Message struct {
+	ID            uuid.UUID
+	PhoneNumberID uuid.UUID
+	ContactID     uuid.UUID
+	Direction     string
+	Wamid         *string
+	Type          string
+	Body          string
+	Payload       []byte
+	Status        string
+	StatusRank    int16
+	ReplyToWamid  *string
+	ErrorCode     *string
+	ErrorTitle    *string
+	Attempts      int32
+	Source        string
+	CreatedBy     *uuid.UUID
+	SentAt        *time.Time
+	DeliveredAt   *time.Time
+	ReadAt        *time.Time
+	FailedAt      *time.Time
+	OccurredAt    time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type MessageTemplate struct {
+	ID              uuid.UUID
+	AccountID       uuid.UUID
+	MetaTemplateID  string
+	Name            string
+	Language        string
+	Category        string
+	Status          string
+	ParameterFormat string
+	Components      []byte
+	RejectedReason  string
+	QualityScore    string
+	SyncedAt        time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type OutboxEvent struct {
@@ -72,6 +141,22 @@ type Permission struct {
 	Key         string
 	Module      string
 	Description string
+}
+
+type PhoneNumber struct {
+	ID                     uuid.UUID
+	AccountID              uuid.UUID
+	PhoneNumberID          string
+	DisplayPhoneNumber     string
+	VerifiedName           string
+	QualityRating          string
+	MessagingLimit         string
+	ThroughputLevel        string
+	CodeVerificationStatus string
+	MetaStatus             string
+	IsDefault              bool
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 type Role struct {
@@ -147,4 +232,30 @@ type UserSession struct {
 	LastSeenAt time.Time
 	ExpiresAt  time.Time
 	RevokedAt  *time.Time
+}
+
+type WebhookEvent struct {
+	ID            uuid.UUID
+	PayloadSha256 []byte
+	Body          []byte
+	Status        string
+	Attempts      int32
+	LastError     *string
+	ReceivedAt    time.Time
+	ProcessedAt   *time.Time
+}
+
+type WhatsappAccount struct {
+	ID             uuid.UUID
+	Name           string
+	WabaID         string
+	AppID          *string
+	AccessTokenEnc []byte
+	AppSecretEnc   []byte
+	Status         string
+	LastError      *string
+	LastSyncedAt   *time.Time
+	CreatedBy      *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }

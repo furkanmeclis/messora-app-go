@@ -23,6 +23,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
@@ -59,13 +60,23 @@ type harness struct {
 	svc    *services
 	mail   *capturingMailer
 	router routers.Router
+	meta   *whatsapptest.Server
 }
+
+const (
+	testAppSecret   = "meta-app-secret-for-tests"   // gitleaks:allow (test fixture)
+	testVerifyToken = "meta-verify-token-for-tests" // gitleaks:allow (test fixture)
+)
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	pool := testutil.MigratedPostgres(t)
 	rdb := testutil.Redis(t)
-	cfg := &config.Config{PublicAppURL: "https://messora.test", EncryptionKey: bytes.Repeat([]byte{7}, 32)}
+	meta := whatsapptest.New()
+	t.Cleanup(meta.Close)
+	cfg := &config.Config{PublicAppURL: "https://messora.test", EncryptionKey: bytes.Repeat([]byte{7}, 32),
+		MediaDir: t.TempDir(),
+		Meta:     config.MetaConfig{GraphBaseURL: meta.URL, GraphVersion: "v26.0", AppSecret: testAppSecret, VerifyToken: testVerifyToken}}
 	mail := &capturingMailer{}
 	fast := crypto.Argon2Params{MemoryKiB: 8 * 1024, Iterations: 1, Parallelism: 1, SaltLen: 16, KeyLen: 32}
 	svc, err := newServicesWith(cfg, pool, rdb, testutil.DiscardLogger(), mail, fast)
@@ -94,7 +105,7 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &harness{t: t, pool: pool, srv: srv, svc: svc, mail: mail, router: router}
+	return &harness{t: t, pool: pool, srv: srv, svc: svc, mail: mail, router: router, meta: meta}
 }
 
 type call struct {

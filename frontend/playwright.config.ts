@@ -20,5 +20,18 @@ export default defineConfig({
         trace: 'retain-on-failure',
         screenshot: 'only-on-failure',
     },
-    projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+    // CI runs Chromium; E2E_BROWSER=webkit|firefox runs another engine locally.
+    projects: [
+        {
+            name: process.env.E2E_BROWSER ?? 'chromium',
+            use: {
+                ...devices[
+                    {
+                        webkit: 'Desktop Safari',
+                        firefox: 'Desktop Firefox',
+                    }[process.env.E2E_BROWSER ?? ''] ?? 'Desktop Chrome'
+                ],
+            },
+        },
+    ],
 });

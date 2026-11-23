@@ -13,13 +13,20 @@ import (
 
 type Querier interface {
 	AcceptInvitation(ctx context.Context, id uuid.UUID) (int64, error)
+	// Monotonic status transition from a webhook; see the messages table comment.
+	ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatusParams) (Message, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
 	// ── Idempotency ─────────────────────────────────────────────────────────────
 	// Returns inserted=true for a new key; otherwise the stored row.
 	ClaimIdempotencyKey(ctx context.Context, arg ClaimIdempotencyKeyParams) (ClaimIdempotencyKeyRow, error)
+	// Only a pending message can be sent. A message left in "sending" means a
+	// previous attempt died mid-request; it must not be sent again.
+	ClaimMessageForSend(ctx context.Context, id uuid.UUID) (Message, error)
+	ClearDefaultPhoneNumber(ctx context.Context) error
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	ConsumePasswordReset(ctx context.Context, tokenHash []byte) (uuid.UUID, error)
 	CountActiveOwners(ctx context.Context) (int64, error)
+	CountMessagesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountRecentPasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
 	// ── Users ───────────────────────────────────────────────────────────────────
 	CountUsers(ctx context.Context) (int64, error)
@@ -34,55 +41,109 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
 	DeleteOldIdempotencyKeys(ctx context.Context) (int64, error)
+	DeleteOldWebhookEvents(ctx context.Context, before time.Time) (int64, error)
 	// ── Recovery codes ──────────────────────────────────────────────────────────
 	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DeleteSetting(ctx context.Context, key string) error
+	DeleteTemplate(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteTemplatesNotSynced(ctx context.Context, arg DeleteTemplatesNotSyncedParams) (int64, error)
+	DeleteWhatsAppAccount(ctx context.Context, id uuid.UUID) (int64, error)
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
+	FindApprovedTemplate(ctx context.Context, arg FindApprovedTemplateParams) (MessageTemplate, error)
 	GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetActiveSessionByTokenHashRow, error)
+	GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
+	GetDefaultPhoneNumber(ctx context.Context) (PhoneNumber, error)
+	GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, error)
+	GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
+	GetMessageByWAMID(ctx context.Context, wamid *string) (Message, error)
 	GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []byte) (GetOpenInvitationByTokenHashRow, error)
+	GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber, error)
+	GetPhoneNumberByMetaID(ctx context.Context, phoneNumberID string) (PhoneNumber, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
 	GetSetting(ctx context.Context, key string) ([]byte, error)
+	GetTemplate(ctx context.Context, id uuid.UUID) (MessageTemplate, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserRole(ctx context.Context, userID uuid.UUID) (GetUserRoleRow, error)
+	GetWebhookEvent(ctx context.Context, id uuid.UUID) (WebhookEvent, error)
+	GetWhatsAppAccount(ctx context.Context, id uuid.UUID) (WhatsappAccount, error)
+	GetWhatsAppAccountByWABA(ctx context.Context, wabaID string) (WhatsappAccount, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
+	// Duplicate deliveries of the same wamid insert nothing (no row returned).
+	InsertInboundMessage(ctx context.Context, arg InsertInboundMessageParams) (Message, error)
+	// ── Media ───────────────────────────────────────────────────────────────────
+	InsertMediaFile(ctx context.Context, arg InsertMediaFileParams) (MediaFile, error)
+	// ── Messages ────────────────────────────────────────────────────────────────
+	InsertOutboundMessage(ctx context.Context, arg InsertOutboundMessageParams) (Message, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	InsertSettingIfAbsent(ctx context.Context, arg InsertSettingIfAbsentParams) (int64, error)
+	// ── Webhook events ──────────────────────────────────────────────────────────
+	// Returns no row when the identical body was already received.
+	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (uuid.UUID, error)
+	// ── Accounts ────────────────────────────────────────────────────────────────
+	InsertWhatsAppAccount(ctx context.Context, arg InsertWhatsAppAccountParams) (WhatsappAccount, error)
 	InvalidatePasswordResets(ctx context.Context, userID uuid.UUID) error
 	ListApiKeys(ctx context.Context) ([]ListApiKeysRow, error)
+	ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
+	ListMediaForMessage(ctx context.Context, messageID *uuid.UUID) ([]MediaFile, error)
+	ListMessagesByContact(ctx context.Context, arg ListMessagesByContactParams) ([]Message, error)
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
+	ListPhoneNumbers(ctx context.Context) ([]ListPhoneNumbersRow, error)
 	ListRolePermissions(ctx context.Context) ([]ListRolePermissionsRow, error)
 	// ── Roles ───────────────────────────────────────────────────────────────────
 	ListRoles(ctx context.Context) ([]Role, error)
+	ListTemplates(ctx context.Context, arg ListTemplatesParams) ([]ListTemplatesRow, error)
 	ListUserSessions(ctx context.Context, userID uuid.UUID) ([]UserSession, error)
 	ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error)
+	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	// Serializes changes that could remove an owner, so two concurrent
 	// demotions cannot both pass the "at least one owner" check.
 	LockOwnerChanges(ctx context.Context) error
+	MarkMediaFailed(ctx context.Context, arg MarkMediaFailedParams) error
+	MarkMediaStored(ctx context.Context, arg MarkMediaStoredParams) error
+	MarkMessageAccepted(ctx context.Context, arg MarkMessageAcceptedParams) error
+	MarkMessageFailed(ctx context.Context, arg MarkMessageFailedParams) error
+	MarkMessageUnknown(ctx context.Context, arg MarkMessageUnknownParams) error
 	MarkSessionReauthenticated(ctx context.Context, id uuid.UUID) (*time.Time, error)
+	MarkWebhookAttempt(ctx context.Context, arg MarkWebhookAttemptParams) error
+	MarkWebhookProcessed(ctx context.Context, id uuid.UUID) error
+	MarkWhatsAppAccountError(ctx context.Context, arg MarkWhatsAppAccountErrorParams) error
+	MarkWhatsAppAccountSynced(ctx context.Context, id uuid.UUID) error
 	// Counts consecutive failures and locks the account for lock_minutes once
 	// max_failures is reached. An expired lock starts a fresh count.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (RecordLoginFailureRow, error)
 	RecordLoginSuccess(ctx context.Context, id uuid.UUID) error
 	ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempotencyKeyParams) error
+	ReleaseMessageForRetry(ctx context.Context, arg ReleaseMessageForRetryParams) error
 	ReplaceRole(ctx context.Context, arg ReplaceRoleParams) error
 	RevokeApiKey(ctx context.Context, id uuid.UUID) (string, error)
 	RevokeInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
+	SetDefaultPhoneNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
 	// Updates at most once a minute to avoid write amplification under load.
 	TouchApiKey(ctx context.Context, id uuid.UUID) error
+	TouchContactInbound(ctx context.Context, arg TouchContactInboundParams) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) error
+	UpdatePhoneNumberLimit(ctx context.Context, arg UpdatePhoneNumberLimitParams) error
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (User, error)
+	UpdateTemplateStatusByMetaID(ctx context.Context, arg UpdateTemplateStatusByMetaIDParams) (int64, error)
+	UpdateWhatsAppAccount(ctx context.Context, arg UpdateWhatsAppAccountParams) (WhatsappAccount, error)
+	// ── Contacts ────────────────────────────────────────────────────────────────
+	UpsertContactByPhone(ctx context.Context, arg UpsertContactByPhoneParams) (Contact, error)
+	// ── Phone numbers ───────────────────────────────────────────────────────────
+	UpsertPhoneNumber(ctx context.Context, arg UpsertPhoneNumberParams) (PhoneNumber, error)
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
+	// ── Templates ───────────────────────────────────────────────────────────────
+	UpsertTemplate(ctx context.Context, arg UpsertTemplateParams) (MessageTemplate, error)
 	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)
 	UserPermissions(ctx context.Context, userID uuid.UUID) ([]string, error)
 }

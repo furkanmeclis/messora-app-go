@@ -181,7 +181,7 @@ func (s *Service) CreateInvitation(ctx context.Context, actor *principal.Princip
 	}
 	inviter := actor.Name
 	return api.InvitationCreated{
-		Invitation: api.Invitation{Id: row.ID, Email: row.Email, Role: roleRef(role), InvitedBy: &inviter, CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, Status: api.Pending},
+		Invitation: api.Invitation{Id: row.ID, Email: row.Email, Role: roleRef(role), InvitedBy: &inviter, CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, Status: api.InvitationStatusPending},
 		AcceptUrl:  link,
 		EmailSent:  sent,
 	}, nil
@@ -199,9 +199,9 @@ func (s *Service) ListInvitations(ctx context.Context) ([]api.Invitation, error)
 	}
 	out := make([]api.Invitation, 0, len(rows))
 	for _, r := range rows {
-		status := api.Pending
+		status := api.InvitationStatusPending
 		if !s.now().Before(r.ExpiresAt) {
-			status = api.Expired
+			status = api.InvitationStatusExpired
 		}
 		out = append(out, api.Invitation{Id: r.ID, Email: r.Email, Role: api.RoleRef{Key: api.RoleKey(r.RoleKey), Name: r.RoleName},
 			InvitedBy: r.InvitedByName, CreatedAt: r.CreatedAt, ExpiresAt: r.ExpiresAt, Status: status})

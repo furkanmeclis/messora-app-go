@@ -527,6 +527,185 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/channels/accounts': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connected WhatsApp Business Accounts (credentials are never returned) */
+        get: operations['listWhatsAppAccounts'];
+        put?: never;
+        /**
+         * Connect a WhatsApp Business Account
+         * @description The access token is verified against Meta before anything is stored; phone numbers and templates are imported.
+         */
+        post: operations['connectWhatsAppAccount'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/accounts/{accountId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disconnect an account without message history */
+        delete: operations['disconnectWhatsAppAccount'];
+        options?: never;
+        head?: never;
+        /** Rename, rotate credentials, or enable/disable an account */
+        patch: operations['updateWhatsAppAccount'];
+        trace?: never;
+    };
+    '/channels/accounts/{accountId}/sync': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh phone numbers and templates from Meta */
+        post: operations['syncWhatsAppAccount'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/phone-numbers': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Phone numbers of every connected account */
+        get: operations['listPhoneNumbers'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/phone-numbers/{phoneNumberId}/default': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Use this number when a request names no sender */
+        post: operations['setDefaultPhoneNumber'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/webhook': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Values to enter in the Meta App dashboard */
+        get: operations['getWebhookSetup'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/templates': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Message templates mirrored from Meta */
+        get: operations['listTemplates'];
+        put?: never;
+        /** Submit a template for Meta's review */
+        post: operations['createTemplate'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/templates/{templateId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete one language version of a template on Meta and locally */
+        delete: operations['deleteTemplate'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/messages': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue a WhatsApp message
+         * @description The message is stored and sent asynchronously; poll GET /messages/{messageId} or use webhooks for the outcome. Outside the 24-hour customer service window only approved templates are accepted. Use Idempotency-Key to retry safely.
+         */
+        post: operations['sendMessage'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/messages/{messageId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A message and its delivery state */
+        get: operations['getMessage'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -903,6 +1082,219 @@ export interface components {
             data: components['schemas']['SystemStatus'];
             meta: components['schemas']['Meta'];
         };
+        WhatsAppAccount: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            waba_id: string;
+            app_id?: string | null;
+            /** @enum {string} */
+            status: 'active' | 'error' | 'disabled';
+            last_error?: string | null;
+            app_secret_configured: boolean;
+            /** Format: date-time */
+            last_synced_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ConnectWhatsAppAccountRequest: {
+            name: string;
+            waba_id: string;
+            app_id?: string;
+            access_token: string;
+            app_secret?: string;
+        };
+        UpdateWhatsAppAccountRequest: {
+            name?: string;
+            access_token?: string;
+            app_secret?: string;
+            /** @enum {string} */
+            status?: 'active' | 'disabled';
+        };
+        SyncResult: {
+            phone_numbers: number;
+            templates: number;
+        };
+        PhoneNumber: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            account_id: string;
+            account_name: string;
+            phone_number_id: string;
+            display_phone_number: string;
+            verified_name: string;
+            quality_rating: string;
+            messaging_limit: string;
+            throughput_level?: string;
+            is_default: boolean;
+        };
+        WebhookSetup: {
+            callback_url: string;
+            verify_token: string;
+            /** @description False until an app secret is configured; webhooks are rejected until then. */
+            signature_verification: boolean;
+            fields?: string[];
+        };
+        Template: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            account_id: string;
+            account_name?: string;
+            meta_template_id?: string;
+            name: string;
+            language: string;
+            category: string;
+            status: string;
+            parameter_format: string;
+            components: {
+                [key: string]: unknown;
+            }[];
+            rejected_reason: string;
+            quality_score?: string;
+            /** Format: date-time */
+            synced_at?: string;
+        };
+        CreateTemplateRequest: {
+            /** Format: uuid */
+            account_id: string;
+            name: string;
+            language: string;
+            /** @enum {string} */
+            category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+            /** @enum {string} */
+            parameter_format?: 'POSITIONAL' | 'NAMED';
+            components: {
+                [key: string]: unknown;
+            }[];
+        };
+        MediaRef: {
+            id?: string;
+            /** Format: uri */
+            link?: string;
+            caption?: string;
+            filename?: string;
+        };
+        SendMessageRequest: {
+            /** @description Recipient phone number in international format. */
+            to: string;
+            /**
+             * Format: uuid
+             * @description Sender; defaults to the default number.
+             */
+            phone_number_id?: string;
+            /** @enum {string} */
+            type:
+                | 'text'
+                | 'template'
+                | 'image'
+                | 'video'
+                | 'audio'
+                | 'document'
+                | 'sticker'
+                | 'location'
+                | 'reaction'
+                | 'interactive';
+            /** @description WhatsApp message ID to quote. */
+            reply_to?: string;
+            text?: {
+                body: string;
+                preview_url?: boolean;
+            };
+            template?: {
+                name: string;
+                language: string;
+                components?: {
+                    [key: string]: unknown;
+                }[];
+            };
+            media?: components['schemas']['MediaRef'];
+            location?: {
+                /** Format: double */
+                latitude: number;
+                /** Format: double */
+                longitude: number;
+                name?: string;
+                address?: string;
+            };
+            reaction?: {
+                message_id: string;
+                emoji: string;
+            };
+            /** @description Meta's interactive object (button, list or cta_url). */
+            interactive?: {
+                [key: string]: unknown;
+            };
+        };
+        Message: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            phone_number_id: string;
+            /** Format: uuid */
+            contact_id: string;
+            to: string;
+            /** @enum {string} */
+            direction: 'inbound' | 'outbound';
+            wamid?: string | null;
+            type: string;
+            body: string;
+            /** @enum {string} */
+            status:
+                | 'pending'
+                | 'sending'
+                | 'unknown'
+                | 'sent'
+                | 'delivered'
+                | 'read'
+                | 'failed'
+                | 'received';
+            error_code?: string | null;
+            error_title?: string | null;
+            /** Format: date-time */
+            sent_at?: string | null;
+            /** Format: date-time */
+            delivered_at?: string | null;
+            /** Format: date-time */
+            read_at?: string | null;
+            /** Format: date-time */
+            failed_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        WhatsAppAccountResponse: {
+            data: components['schemas']['WhatsAppAccount'];
+            meta: components['schemas']['Meta'];
+        };
+        WhatsAppAccountListResponse: {
+            data: components['schemas']['WhatsAppAccount'][];
+            meta: components['schemas']['Meta'];
+        };
+        SyncResultResponse: {
+            data: components['schemas']['SyncResult'];
+            meta: components['schemas']['Meta'];
+        };
+        PhoneNumberListResponse: {
+            data: components['schemas']['PhoneNumber'][];
+            meta: components['schemas']['Meta'];
+        };
+        WebhookSetupResponse: {
+            data: components['schemas']['WebhookSetup'];
+            meta: components['schemas']['Meta'];
+        };
+        TemplateResponse: {
+            data: components['schemas']['Template'];
+            meta: components['schemas']['Meta'];
+        };
+        TemplateListResponse: {
+            data: components['schemas']['Template'][];
+            meta: components['schemas']['Meta'];
+        };
+        MessageResponse: {
+            data: components['schemas']['Message'];
+            meta: components['schemas']['Meta'];
+        };
     };
     responses: {
         /** @description Error */
@@ -920,6 +1312,10 @@ export interface components {
         SessionId: string;
         InvitationId: string;
         ApiKeyId: string;
+        AccountId: string;
+        PhoneNumberId: string;
+        TemplateId: string;
+        MessageId: string;
         /** @description Opaque cursor from `meta.next_cursor`. */
         Cursor: string;
         Limit: number;
@@ -1723,6 +2119,310 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['SystemStatusResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listWhatsAppAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accounts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['WhatsAppAccountListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    connectWhatsAppAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['ConnectWhatsAppAccountRequest'];
+            };
+        };
+        responses: {
+            /** @description Connected */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['WhatsAppAccountResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    disconnectWhatsAppAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components['parameters']['AccountId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disconnected */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateWhatsAppAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components['parameters']['AccountId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateWhatsAppAccountRequest'];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['WhatsAppAccountResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    syncWhatsAppAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components['parameters']['AccountId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sync result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SyncResultResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPhoneNumbers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Numbers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PhoneNumberListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    setDefaultPhoneNumber: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                phoneNumberId: components['parameters']['PhoneNumberId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getWebhookSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook configuration */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['WebhookSetupResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listTemplates: {
+        parameters: {
+            query?: {
+                account_id?: string;
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Templates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TemplateListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateTemplateRequest'];
+            };
+        };
+        responses: {
+            /** @description Submitted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TemplateResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: components['parameters']['TemplateId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    sendMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SendMessageRequest'];
+            };
+        };
+        responses: {
+            /** @description Queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MessageResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                messageId: components['parameters']['MessageId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MessageResponse'];
                 };
             };
             default: components['responses']['Error'];

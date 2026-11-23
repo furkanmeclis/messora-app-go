@@ -2,13 +2,17 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
@@ -64,6 +68,8 @@ func RunWorker(ctx context.Context) error {
 		return err
 	})
 
+	registerMessaging(mux, svc.messaging)
+
 	srv := queue.NewServer(rdb, queue.ServerOptions{
 		Concurrency: cfg.Worker.Concurrency, Queues: cfg.Worker.Queues,
 		ShutdownTimeout: cfg.ShutdownTimeout, Logger: log.With("component", "asynq"),
@@ -95,4 +101,49 @@ func RunWorker(ctx context.Context) error {
 	}
 	log.Info("stopped")
 	return nil
+}
+
+// registerMessaging wires the WhatsApp task handlers.
+func registerMessaging(mux *asynq.ServeMux, m *messaging.Service) {
+	idFrom := func(t *asynq.Task, key string) (uuid.UUID, error) {
+		var p map[string]string
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return uuid.Nil, fmt.Errorf("%w: %v", asynq.SkipRetry, err)
+		}
+		id, err := uuid.Parse(p[key])
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("%w: bad %s", asynq.SkipRetry, key)
+		}
+		return id, nil
+	}
+	retry := func(err error) error {
+		var r *messaging.ErrRetry
+		if errors.As(err, &r) {
+			return &queue.RetryAfterError{After: r.After, Reason: r.Reason}
+		}
+		return err
+	}
+	mux.HandleFunc(messaging.TypeSend, func(ctx context.Context, t *asynq.Task) error {
+		id, err := idFrom(t, "message_id")
+		if err != nil {
+			return err
+		}
+		return retry(m.Send(ctx, id))
+	})
+	mux.HandleFunc(messaging.TypeWebhook, func(ctx context.Context, t *asynq.Task) error {
+		id, err := idFrom(t, "event_id")
+		if err != nil {
+			return err
+		}
+		n, _ := asynq.GetRetryCount(ctx)
+		maxN, _ := asynq.GetMaxRetry(ctx)
+		return retry(m.ProcessWebhook(ctx, id, n, maxN+1))
+	})
+	mux.HandleFunc(messaging.TypeMediaDownload, func(ctx context.Context, t *asynq.Task) error {
+		id, err := idFrom(t, "media_id")
+		if err != nil {
+			return err
+		}
+		return m.DownloadMedia(ctx, id)
+	})
 }

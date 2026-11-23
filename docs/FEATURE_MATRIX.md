@@ -48,15 +48,15 @@
 
 | Özellik | Phase | Durum |
 |---|---|---|
-| Hesap / numara bağlama (şifreli token) | 3 | Missing |
-| Graph API sürümü yapılandırılabilir (varsayılan v26.0) | 3 | Missing |
-| Text, template, image, video, document, audio, location, interactive | 3 | Missing |
-| Medya upload / download | 3 | Missing |
-| Webhook verify + imza doğrulama + önce kaydet | 3 | Missing |
-| Durum takibi (monoton) + durum geçmişi | 3 | Missing |
-| Template oluşturma / silme / senkronizasyon | 3 | Missing |
-| Meta mock sunucusu + dry-run koruması | 3 | Missing |
-| `biz_opaque_callback_data` ile uzlaştırma | 3–5 | Needs verification |
+| Hesap / numara bağlama (şifreli token) | 3 | Implemented (API; panel ekranı Phase 9) |
+| Graph API sürümü yapılandırılabilir (varsayılan v26.0) | 3 | Implemented |
+| Text, template, image, video, document, audio, location, interactive | 3 | Implemented (+ sticker, reaction) |
+| Medya upload / download | 3 | Partial (gelen medya indirilir; giden medya ID/link ile; panelden upload Phase 7) |
+| Webhook verify + imza doğrulama + önce kaydet | 3 | Implemented |
+| Durum takibi (monoton) + durum geçmişi | 3 | Implemented (zaman damgaları; ayrıntılı event log Phase 5) |
+| Template oluşturma / silme / senkronizasyon | 3 | Implemented (+ durum webhook'u) |
+| Meta mock sunucusu + dry-run koruması | 3 | Implemented |
+| `biz_opaque_callback_data` ile uzlaştırma | 3–5 | Implemented; gerçek Meta ile doğrulanmalı (gönderim tarafı dokümante değil) |
 | Embedded Signup | v1.x | Missing |
 
 ## Contacts ve segmentasyon (Phase 4)

@@ -152,3 +152,29 @@ func TestParseDotenv(t *testing.T) {
 		t.Error("expected error for invalid key")
 	}
 }
+
+func TestMetaSettings(t *testing.T) {
+	cfg, err := loadFrom(envFrom(map[string]string{"APP_ENV": "test", "META_DRY_RUN": "false", "META_GRAPH_API_VERSION": "v27.0"}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Meta.DryRun || cfg.Meta.GraphVersion != "v27.0" {
+		t.Fatalf("test environment must force dry-run: %+v", cfg.Meta)
+	}
+	if _, err := loadFrom(envFrom(map[string]string{"META_DRY_RUN": "maybe"}), nil); err == nil {
+		t.Fatal("invalid boolean accepted")
+	}
+	for _, env := range []map[string]string{
+		{"POSTGRES_PASSWORD": "pw", "META_GRAPH_API_VERSION": "26.0"},
+		{"POSTGRES_PASSWORD": "pw", "META_WABA_ID": "123"},
+		{"POSTGRES_PASSWORD": "pw", "META_ACCESS_TOKEN": "EAAG-token"},
+	} {
+		c, err := loadFrom(envFrom(env), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Validate(RoleMigrate); err == nil {
+			t.Errorf("%v accepted", env)
+		}
+	}
+}

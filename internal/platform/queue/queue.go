@@ -37,6 +37,10 @@ const (
 var routes = map[string]string{
 	TypeOutboxCleanup:   Default,
 	TypeIdentityCleanup: Default,
+	// WhatsApp (constants live in the messaging module).
+	"whatsapp:send":           Critical,
+	"whatsapp:webhook":        Critical,
+	"whatsapp:media_download": Default,
 }
 
 // Route returns the queue a task type is routed to.

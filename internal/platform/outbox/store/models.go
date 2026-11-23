@@ -37,6 +37,17 @@ type AuditLog struct {
 	Changes    []byte
 }
 
+type Contact struct {
+	ID            pgtype.UUID
+	PhoneE164     string
+	WaID          *string
+	Name          string
+	ProfileName   string
+	LastInboundAt pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
 type IdempotencyKey struct {
 	Principal      string
 	Key            string
@@ -45,6 +56,64 @@ type IdempotencyKey struct {
 	ResponseStatus *int32
 	ResponseBody   []byte
 	CreatedAt      pgtype.Timestamptz
+}
+
+type MediaFile struct {
+	ID          pgtype.UUID
+	MessageID   pgtype.UUID
+	MetaMediaID *string
+	MimeType    string
+	Filename    string
+	SizeBytes   *int64
+	Sha256      string
+	StorageKey  *string
+	Status      string
+	LastError   *string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type Message struct {
+	ID            pgtype.UUID
+	PhoneNumberID pgtype.UUID
+	ContactID     pgtype.UUID
+	Direction     string
+	Wamid         *string
+	Type          string
+	Body          string
+	Payload       []byte
+	Status        string
+	StatusRank    int16
+	ReplyToWamid  *string
+	ErrorCode     *string
+	ErrorTitle    *string
+	Attempts      int32
+	Source        string
+	CreatedBy     pgtype.UUID
+	SentAt        pgtype.Timestamptz
+	DeliveredAt   pgtype.Timestamptz
+	ReadAt        pgtype.Timestamptz
+	FailedAt      pgtype.Timestamptz
+	OccurredAt    pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
+type MessageTemplate struct {
+	ID              pgtype.UUID
+	AccountID       pgtype.UUID
+	MetaTemplateID  string
+	Name            string
+	Language        string
+	Category        string
+	Status          string
+	ParameterFormat string
+	Components      []byte
+	RejectedReason  string
+	QualityScore    string
+	SyncedAt        pgtype.Timestamptz
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
 }
 
 type OutboxEvent struct {
@@ -71,6 +140,22 @@ type Permission struct {
 	Key         string
 	Module      string
 	Description string
+}
+
+type PhoneNumber struct {
+	ID                     pgtype.UUID
+	AccountID              pgtype.UUID
+	PhoneNumberID          string
+	DisplayPhoneNumber     string
+	VerifiedName           string
+	QualityRating          string
+	MessagingLimit         string
+	ThroughputLevel        string
+	CodeVerificationStatus string
+	MetaStatus             string
+	IsDefault              bool
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
 }
 
 type Role struct {
@@ -146,4 +231,30 @@ type UserSession struct {
 	LastSeenAt pgtype.Timestamptz
 	ExpiresAt  pgtype.Timestamptz
 	RevokedAt  pgtype.Timestamptz
+}
+
+type WebhookEvent struct {
+	ID            pgtype.UUID
+	PayloadSha256 []byte
+	Body          []byte
+	Status        string
+	Attempts      int32
+	LastError     *string
+	ReceivedAt    pgtype.Timestamptz
+	ProcessedAt   pgtype.Timestamptz
+}
+
+type WhatsappAccount struct {
+	ID             pgtype.UUID
+	Name           string
+	WabaID         string
+	AppID          *string
+	AccessTokenEnc []byte
+	AppSecretEnc   []byte
+	Status         string
+	LastError      *string
+	LastSyncedAt   pgtype.Timestamptz
+	CreatedBy      pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
 }

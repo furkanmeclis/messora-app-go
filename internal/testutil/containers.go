@@ -8,6 +8,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -26,8 +27,13 @@ const (
 	RedisImage    = "redis:8.10.3"
 )
 
-// DiscardLogger is a logger for tests.
-func DiscardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+// DiscardLogger is a logger for tests; set TEST_LOG=1 to see the output.
+func DiscardLogger() *slog.Logger {
+	if os.Getenv("TEST_LOG") != "" {
+		return slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
 
 // Postgres starts a fresh PostgreSQL container and returns a pool to it. The
 // database is empty (no migrations applied).

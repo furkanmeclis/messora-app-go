@@ -14,10 +14,13 @@ ARG VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath \
       -ldflags "-s -w -X github.com/furkanmeclis/messora-app-go/internal/app.Version=${VERSION}" \
-      -o /out/messora ./cmd/messora
+      -o /out/messora ./cmd/messora \
+ && mkdir -p /out/media
 
 FROM gcr.io/distroless/static-debian13:nonroot
 COPY --from=build /out/messora /usr/local/bin/messora
+# A fresh named volume mounted here inherits this ownership.
+COPY --from=build --chown=65532:65532 /out/media /var/lib/messora/media
 USER nonroot:nonroot
 EXPOSE 8080 9100
 ENTRYPOINT ["/usr/local/bin/messora"]

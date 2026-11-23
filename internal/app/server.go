@@ -15,9 +15,12 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/apiguard"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
@@ -33,6 +36,8 @@ type (
 	settingsHandler = settings.Handler
 	auditHandler    = audit.Handler
 	systemHandler   = system.Handler
+	channelsHandler = channels.Handler
+	messagesHandler = messaging.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -42,6 +47,8 @@ type apiServer struct {
 	*settingsHandler
 	*auditHandler
 	*systemHandler
+	*channelsHandler
+	*messagesHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -51,9 +58,12 @@ var mfaEnrolmentOps = []string{"getMe", "logout", "reauthenticate", "startTotpSe
 
 // services holds what the API and CLI commands need.
 type services struct {
-	identity *identity.Service
-	settings *settings.Store
-	queries  *db.Queries
+	cfg       *config.Config
+	identity  *identity.Service
+	settings  *settings.Store
+	queries   *db.Queries
+	channels  *channels.Service
+	messaging *messaging.Service
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -76,7 +86,13 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	q := db.New(pool)
 	st := settings.NewStore(q, 15*time.Second)
 	idsvc := identity.New(pool, rdb, sealer, st, mail, identity.Options{PublicAppURL: cfg.PublicAppURL, Logger: log, Argon2: argon})
-	return &services{identity: idsvc, settings: st, queries: q}, nil
+	wa, err := whatsapp.New(whatsapp.Options{BaseURL: cfg.Meta.GraphBaseURL, Version: cfg.Meta.GraphVersion, DryRun: cfg.Meta.DryRun})
+	if err != nil {
+		return nil, err
+	}
+	ch := channels.New(pool, sealer, wa, cfg.Meta.AppSecret.Reveal(), log)
+	msg := messaging.New(pool, ch, messaging.NewMediaStore(cfg.MediaDir), log)
+	return &services{cfg: cfg, identity: idsvc, settings: st, queries: q, channels: ch, messaging: msg}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -103,7 +119,11 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		settingsHandler: settings.NewHandler(pool, svc.settings, log),
 		auditHandler:    audit.NewHandler(svc.queries, log),
 		systemHandler:   sys,
+		channelsHandler: channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),
+		messagesHandler: messaging.NewHandler(svc.messaging, log),
 	}
+	// Meta's webhooks: authenticated by signature, not by the API guard.
+	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
 	r.Group(func(g chi.Router) {
 		g.Use(httpx.MaxBody(1<<20), httpx.ClientMeta, guard.Middleware)
 		api.HandlerWithOptions(srv, api.ChiServerOptions{

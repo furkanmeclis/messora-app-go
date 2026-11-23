@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 3: WhatsApp Cloud API
+
+- Graph API client (configurable version, default v26.0) with send-outcome
+  classification: messages are retried only when Meta certainly did not
+  accept them; ambiguous outcomes become `unknown` and are reconciled from the
+  status webhook via `biz_opaque_callback_data`.
+- Connect WhatsApp Business Accounts with encrypted tokens and app secrets;
+  phone number and template sync; template creation and deletion.
+- `POST /api/v1/messages` for text, template, media, location, reaction and
+  interactive messages, with the 24-hour customer service window enforced.
+- Signed webhook ingestion that stores events before acknowledging them,
+  deduplicates Meta's retries and applies delivery statuses monotonically;
+  template review and number limit updates; inbound media download to a
+  dedicated volume.
+- A programmable Meta mock (`whatsapptest`) and `META_DRY_RUN`, forced on in
+  tests. See docs/WHATSAPP.md.
+
 ### Added — Phase 2: panel
 
 - Sign-in flows (setup, sign-in, two-factor verification, invitation

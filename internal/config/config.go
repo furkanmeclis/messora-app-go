@@ -74,6 +74,25 @@ type Config struct {
 	Worker WorkerConfig
 
 	SMTP SMTPConfig
+
+	Meta MetaConfig
+
+	// MediaDir stores downloaded WhatsApp media (a volume in Compose).
+	MediaDir string
+}
+
+// MetaConfig configures the WhatsApp Cloud API integration. Account
+// credentials live in the database; the values here bootstrap the first
+// account and verify webhooks.
+type MetaConfig struct {
+	AppID        string
+	AppSecret    Secret
+	VerifyToken  Secret
+	GraphVersion string
+	GraphBaseURL string // override for the mock server; empty = Meta
+	DryRun       bool   // refuse requests to Meta (forced in APP_ENV=test)
+	AccessToken  Secret
+	WABAID       string
 }
 
 // SMTPConfig configures outgoing e-mail; an empty Host disables e-mail.
@@ -194,6 +213,21 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 			From:     l.str("SMTP_FROM", ""),
 			TLS:      l.str("SMTP_TLS", "starttls"),
 		},
+		Meta: MetaConfig{
+			AppID:        l.str("META_APP_ID", ""),
+			AppSecret:    Secret(l.str("META_APP_SECRET", "")),
+			VerifyToken:  Secret(l.str("META_VERIFY_TOKEN", "")),
+			GraphVersion: l.str("META_GRAPH_API_VERSION", "v26.0"),
+			GraphBaseURL: l.str("META_GRAPH_BASE_URL", ""),
+			DryRun:       l.bool("META_DRY_RUN", false),
+			AccessToken:  Secret(l.str("META_ACCESS_TOKEN", "")),
+			WABAID:       l.str("META_WABA_ID", ""),
+		},
+		MediaDir: l.str("MEDIA_DIR", "/var/lib/messora/media"),
+	}
+	if cfg.Env == EnvTest {
+		// Tests must never reach Meta, whatever the environment says.
+		cfg.Meta.DryRun = true
 	}
 
 	queues, err := ParseQueues(l.str("WORKER_QUEUES", "critical=6,campaigns=3,default=3,bulk=1"))
@@ -255,6 +289,12 @@ func (c *Config) Validate(role Role) error {
 			errs = append(errs, errors.New("BFF_SHARED_SECRET must be at least 32 characters"))
 		}
 		req(c.Centrifugo.APIKey.IsSet(), "CENTRIFUGO_API_KEY")
+	}
+	if v := c.Meta.GraphVersion; len(v) < 2 || v[0] != 'v' {
+		errs = append(errs, fmt.Errorf("META_GRAPH_API_VERSION must look like v26.0 (got %q)", v))
+	}
+	if c.Meta.AccessToken.IsSet() != (c.Meta.WABAID != "") {
+		errs = append(errs, errors.New("META_ACCESS_TOKEN and META_WABA_ID must be set together"))
 	}
 	if c.ShutdownTimeout <= 0 {
 		errs = append(errs, errors.New("SHUTDOWN_TIMEOUT must be positive"))
@@ -333,6 +373,19 @@ func (l *loader) duration(key string, def time.Duration) time.Duration {
 	v, err := time.ParseDuration(raw)
 	if err != nil {
 		l.errs = append(l.errs, fmt.Errorf("%s: must be a Go duration such as 30s", key))
+		return def
+	}
+	return v
+}
+
+func (l *loader) bool(key string, def bool) bool {
+	raw := l.str(key, "")
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		l.errs = append(l.errs, fmt.Errorf("%s: must be true or false", key))
 		return def
 	}
 	return v
