@@ -1,5 +1,6 @@
 -- +goose Up
 SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '5min';
 
 -- Live campaign counts are published at most every two seconds per campaign
 -- while delivery statuses arrive; updates that fall into a quiet period

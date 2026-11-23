@@ -61,12 +61,12 @@ func (s *Service) SetCampaignProgress(f CampaignProgress) { s.campaignProgress =
 type Service struct {
 	throttle         *Throttle
 	campaignProgress CampaignProgress
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	ch       *channels.Service
-	log      *slog.Logger
-	media    *MediaStore
-	maxMedia int64
+	pool             *pgxpool.Pool
+	q                *db.Queries
+	ch               *channels.Service
+	log              *slog.Logger
+	media            *MediaStore
+	maxMedia         int64
 }
 
 // New returns the service.
