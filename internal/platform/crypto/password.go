@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -58,11 +59,17 @@ func VerifyPassword(password, encoded string, want Argon2Params) (needsRehash bo
 
 // dummyHash is verified against when the user does not exist, so that the
 // response time does not reveal which e-mail addresses are registered.
-var dummyHash, _ = HashPassword("messora-timing-equalizer", DefaultArgon2)
+// It is computed on first use: argon2 needs 64 MiB, and processes that
+// never verify passwords (scheduler, worker, health checks) must not pay
+// for it at start-up.
+var dummyHash = sync.OnceValue(func() string {
+	h, _ := HashPassword("messora-timing-equalizer", DefaultArgon2)
+	return h
+})
 
 // BurnVerify spends the same time as a real verification.
 func BurnVerify(password string) {
-	_, _ = VerifyPassword(password, dummyHash, DefaultArgon2)
+	_, _ = VerifyPassword(password, dummyHash(), DefaultArgon2)
 }
 
 func decodeHash(encoded string) (Argon2Params, []byte, []byte, error) {
