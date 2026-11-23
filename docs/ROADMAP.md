@@ -8,7 +8,7 @@
 Özellik kapsamı, mimari, DB tasarımı, güvenlik modeli, yol haritası.
 
 ## Phase 1 — Temel altyapı ✅ (2026-11-22)
-- Repo iskeleti, `go.mod` (Go 1.27.4), sabitlenmiş bağımlılıklar, Makefile, `.editorconfig`, `.gitignore`, `.dockerignore`, `LICENSE` (MIT), `NOTICE`, `SECURITY.md` (disclosure), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`.
+- Repo iskeleti, `go.mod` (Go 1.27.4), sabitlenmiş bağımlılıklar, Makefile, `.editorconfig`, `.gitignore`, `.dockerignore`, `LICENSE`, `NOTICE`, `SECURITY.md` (disclosure), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`.
 - `cmd/messora`: `api | worker | scheduler | migrate | init | version` alt komutları.
 - Config yükleme ve doğrulama, secrets dosyası, slog + redaction, request ID, recover, Prometheus, `/healthz` ve `/readyz`.
 - pgxpool, go-redis, goose (embed) + ilk migration (extension'lar, `settings`, `outbox_events`), sqlc yapılandırması, asynq server/client iskeleti, outbox relay, scheduler leader lock.

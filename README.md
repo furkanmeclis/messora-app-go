@@ -131,7 +131,8 @@ The design documents are currently written in Turkish.
 
 ## License
 
-Messora is MIT licensed — see [LICENSE](LICENSE). Third-party notices are in
-[NOTICE](NOTICE).
+Messora is commercial software: using it requires a licence key (see
+[LICENSE](LICENSE) and [docs/LICENSING.md](docs/LICENSING.md)). Third-party
+notices are in [NOTICE](NOTICE).
 
 Security issues: please follow [SECURITY.md](SECURITY.md).

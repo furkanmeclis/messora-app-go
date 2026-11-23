@@ -20,7 +20,7 @@ info:
     **Idempotency.** POST operations accept an `Idempotency-Key` header; a
     retried request with the same key and body returns the stored response.
   license:
-    name: MIT
+    name: Proprietary (Messora Commercial License)
 servers:
   - url: /api/v1
 
