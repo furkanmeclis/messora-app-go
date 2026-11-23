@@ -4,18 +4,8 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { History, Pencil, Trash2, Workflow } from 'lucide-react';
+import { useConfirm } from '@/components/confirm';
 import { notify } from '@/components/notify';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
     Empty,
@@ -35,12 +25,19 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useLocale, useT } from '@/i18n/client';
+import { intlLocale } from '@/i18n/config';
 import type { Automation } from '@/lib/types';
 import { deleteAutomationAction, setActiveAction } from './actions';
 import { describeTrigger } from './model';
-import { NUMBER_LOCALE } from '@/lib/format';
 
 type Option = { id: string; label: string };
+
+/** "Loading…" for screen readers while a screen loads. */
+export function LoadingLabel() {
+    const t = useT();
+    return <span className="sr-only">{t('common.loading')}</span>;
+}
 
 export function AutomationTable({
     automations,
@@ -53,6 +50,8 @@ export function AutomationTable({
     campaigns: Option[];
     canManage: boolean;
 }) {
+    const t = useT();
+    const locale = useLocale();
     const formatDateTime = useFormatDateTime();
     const names = {
         phones: new Map(phones.map((p) => [p.id, p.label])),
@@ -65,17 +64,16 @@ export function AutomationTable({
                     <EmptyMedia variant="icon">
                         <Workflow />
                     </EmptyMedia>
-                    <EmptyTitle>No automations yet</EmptyTitle>
+                    <EmptyTitle>{t('automations.list.emptyTitle')}</EmptyTitle>
                     <EmptyDescription>
-                        Answer keywords, tag contacts or follow up after a delay
-                        without lifting a finger.
+                        {t('automations.list.emptyDescription')}
                     </EmptyDescription>
                 </EmptyHeader>
                 {canManage && (
                     <EmptyContent>
                         <Button asChild>
                             <Link href="/automations/new">
-                                Create your first automation
+                                {t('automations.list.createFirst')}
                             </Link>
                         </Button>
                     </EmptyContent>
@@ -87,13 +85,23 @@ export function AutomationTable({
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Trigger</TableHead>
-                    <TableHead>Active</TableHead>
-                    <TableHead className="text-right">Runs</TableHead>
-                    <TableHead>Last run</TableHead>
+                    <TableHead>{t('automations.list.columns.name')}</TableHead>
                     <TableHead>
-                        <span className="sr-only">Actions</span>
+                        {t('automations.list.columns.trigger')}
+                    </TableHead>
+                    <TableHead>
+                        {t('automations.list.columns.active')}
+                    </TableHead>
+                    <TableHead className="text-right">
+                        {t('automations.list.columns.runs')}
+                    </TableHead>
+                    <TableHead>
+                        {t('automations.list.columns.lastRun')}
+                    </TableHead>
+                    <TableHead>
+                        <span className="sr-only">
+                            {t('automations.list.columns.actions')}
+                        </span>
                     </TableHead>
                 </TableRow>
             </TableHeader>
@@ -114,7 +122,12 @@ export function AutomationTable({
                             )}
                         </TableCell>
                         <TableCell className="max-w-80 text-sm whitespace-normal">
-                            {describeTrigger(a.trigger_type, a.trigger, names)}
+                            {describeTrigger(
+                                a.trigger_type,
+                                a.trigger,
+                                t,
+                                names,
+                            )}
                         </TableCell>
                         <TableCell>
                             <ActiveSwitch
@@ -123,12 +136,12 @@ export function AutomationTable({
                             />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                            {a.run_count.toLocaleString(NUMBER_LOCALE)}
+                            {a.run_count.toLocaleString(intlLocale(locale))}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                             {a.last_run_at
                                 ? formatDateTime(a.last_run_at)
-                                : 'Never'}
+                                : t('automations.list.never')}
                         </TableCell>
                         <TableCell>
                             <div className="flex justify-end gap-1">
@@ -136,7 +149,9 @@ export function AutomationTable({
                                     asChild
                                     size="icon-sm"
                                     variant="ghost"
-                                    aria-label={`Runs of ${a.name}`}
+                                    aria-label={t('automations.list.runsOf', {
+                                        name: a.name,
+                                    })}
                                 >
                                     <Link href={`/automations/${a.id}/runs`}>
                                         <History />
@@ -146,7 +161,15 @@ export function AutomationTable({
                                     asChild
                                     size="icon-sm"
                                     variant="ghost"
-                                    aria-label={`${canManage ? 'Edit' : 'View'} ${a.name}`}
+                                    aria-label={
+                                        canManage
+                                            ? t('automations.list.edit', {
+                                                  name: a.name,
+                                              })
+                                            : t('automations.list.view', {
+                                                  name: a.name,
+                                              })
+                                    }
                                 >
                                     <Link href={`/automations/${a.id}`}>
                                         <Pencil />
@@ -169,6 +192,7 @@ export function ActiveSwitch({
     automation: Pick<Automation, 'id' | 'name' | 'active'>;
     disabled?: boolean;
 }) {
+    const t = useT();
     const [pending, startTransition] = useTransition();
     const [checked, setChecked] = useState(automation.active);
     const [seen, setSeen] = useState(automation.active);
@@ -181,7 +205,9 @@ export function ActiveSwitch({
         <Switch
             checked={checked}
             disabled={disabled || pending}
-            aria-label={`Active: ${automation.name}`}
+            aria-label={t('automations.list.activeLabel', {
+                name: automation.name,
+            })}
             onCheckedChange={(v) => {
                 setChecked(v);
                 startTransition(async () => {
@@ -203,53 +229,44 @@ export function DeleteButton({
     redirectTo?: string;
     withLabel?: boolean;
 }) {
+    const t = useT();
+    const ask = useConfirm();
     const router = useRouter();
     const [pending, startTransition] = useTransition();
-    return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild>
-                {withLabel ? (
-                    <Button variant="outline" disabled={pending}>
-                        <Trash2 /> Delete
-                    </Button>
-                ) : (
-                    <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        disabled={pending}
-                        aria-label={`Delete ${automation.name}`}
-                    >
-                        <Trash2 />
-                    </Button>
-                )}
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>
-                        Delete “{automation.name}”?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Runs in progress stop and the run history is deleted
-                        too. This cannot be undone.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                        variant="destructive"
-                        onClick={() =>
-                            startTransition(async () => {
-                                const ok = notify(
-                                    await deleteAutomationAction(automation.id),
-                                );
-                                if (ok && redirectTo) router.push(redirectTo);
-                            })
-                        }
-                    >
-                        Delete
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+    const onClick = async () => {
+        const ok = await ask({
+            title: t('automations.delete.title', { name: automation.name }),
+            description: t('automations.delete.description'),
+            confirmLabel: t('common.delete'),
+            destructive: true,
+        });
+        if (!ok) return;
+        startTransition(async () => {
+            const done = notify(await deleteAutomationAction(automation.id));
+            if (done && redirectTo) router.push(redirectTo);
+        });
+    };
+    return withLabel ? (
+        <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={onClick}
+        >
+            <Trash2 /> {t('common.delete')}
+        </Button>
+    ) : (
+        <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={pending}
+            aria-label={t('automations.delete.label', {
+                name: automation.name,
+            })}
+            onClick={onClick}
+        >
+            <Trash2 />
+        </Button>
     );
 }

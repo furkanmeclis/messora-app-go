@@ -3008,8 +3008,20 @@ export interface components {
         /** @description One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field, condition (with if/then/else), http_request, send_email, delay, assign, close_conversation, mute. Text values accept placeholders such as {{name}}, {{first_name}}, {{var1}} and {{message}}. See docs/AUTOMATIONS.md. */
         AutomationStep: {
             type: string;
+            /** @description Stable id of the step (unique within the automation; "trigger" is reserved). Optional: the server assigns one to steps without it. The canvas layout and run traces refer to steps by this id. */
+            id?: string;
         } & {
             [key: string]: unknown;
+        };
+        AutomationPoint: {
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+        };
+        /** @description Canvas positions of the editor's nodes by step id ("trigger" for the trigger node). Positions of unknown ids are dropped on save. */
+        AutomationLayout: {
+            [key: string]: components['schemas']['AutomationPoint'];
         };
         Automation: {
             /** Format: uuid */
@@ -3019,7 +3031,9 @@ export interface components {
             active: boolean;
             trigger_type: components['schemas']['AutomationTriggerType'];
             trigger: components['schemas']['AutomationTrigger'];
+            /** @description Every step has an id (automations saved before ids existed get ids derived from their position). */
             steps: components['schemas']['AutomationStep'][];
+            layout: components['schemas']['AutomationLayout'];
             version: number;
             /** Format: int64 */
             run_count: number;
@@ -3037,6 +3051,7 @@ export interface components {
             trigger_type: components['schemas']['AutomationTriggerType'];
             trigger?: components['schemas']['AutomationTrigger'];
             steps: components['schemas']['AutomationStep'][];
+            layout?: components['schemas']['AutomationLayout'];
         };
         UpdateAutomationRequest: {
             name?: string;
@@ -3045,6 +3060,7 @@ export interface components {
             trigger_type?: components['schemas']['AutomationTriggerType'];
             trigger?: components['schemas']['AutomationTrigger'];
             steps?: components['schemas']['AutomationStep'][];
+            layout?: components['schemas']['AutomationLayout'];
         };
         AutomationRunStep: {
             pc: number;
@@ -3080,6 +3096,8 @@ export interface components {
             /** Format: date-time */
             resume_at?: string | null;
             steps?: components['schemas']['AutomationRunStep'][];
+            /** @description Ids of the steps the run executed, in order (run trace for the canvas). Empty for runs started before step ids existed. */
+            visited: string[];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
