@@ -45,5 +45,27 @@ const users: Messages['users'] = {
         revoke: 'İptal et',
     },
     invitationRevoked: 'Davet iptal edildi.',
+    roleSummary: {
+        owner: 'Her şey: tema, sistem ayarları ve diğer sahipler dahil.',
+        admin: 'Çalışma alanını yönetir: kullanıcılar, kanallar, ayarlar ve tüm özellikler.',
+        manager:
+            'Mesajlaşmayı yönetir: kişiler, kampanyalar, şablonlar ve otomasyonlar.',
+        agent: 'Gelen kutusunda müşterilere yanıt verir.',
+    },
+    areas: {
+        api_keys: 'API anahtarları',
+        audit: 'Denetim kaydı',
+        automations: 'Otomasyonlar',
+        campaigns: 'Kampanyalar',
+        channels: 'Kanallar',
+        contacts: 'Kişiler',
+        conversations: 'Gelen kutusu',
+        messages: 'Mesajlar',
+        segments: 'Segmentler',
+        settings: 'Ayarlar',
+        templates: 'Şablonlar',
+        users: 'Kullanıcılar',
+        webhooks: "Webhook'lar",
+    },
 };
 export default users;

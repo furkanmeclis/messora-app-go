@@ -12,8 +12,7 @@ const auth: Messages['auth'] = {
         description: 'Messora’ya tekrar hoş geldiniz.',
         submit: 'Giriş yap',
         forgot: 'Şifrenizi mı unuttunuz?',
-        passwordChanged:
-            'Şifreniz değiştirildi. Yeni şifrenizle giriş yapın.',
+        passwordChanged: 'Şifreniz değiştirildi. Yeni şifrenizle giriş yapın.',
         expired: 'Giriş denemesinin süresi doldu. Lütfen yeniden giriş yapın.',
     },
     verify: {

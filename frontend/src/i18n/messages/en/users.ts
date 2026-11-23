@@ -43,5 +43,27 @@ const users = {
         revoke: 'Revoke',
     },
     invitationRevoked: 'Invitation revoked.',
+    roleSummary: {
+        owner: 'Everything, including the theme, billing-level settings and other owners.',
+        admin: 'Runs the workspace: users, channels, settings and every feature.',
+        manager:
+            'Runs messaging: contacts, campaigns, templates and automations.',
+        agent: 'Answers customers in the inbox.',
+    },
+    areas: {
+        api_keys: 'API keys',
+        audit: 'Audit log',
+        automations: 'Automations',
+        campaigns: 'Campaigns',
+        channels: 'Channels',
+        contacts: 'Contacts',
+        conversations: 'Inbox',
+        messages: 'Messages',
+        segments: 'Segments',
+        settings: 'Settings',
+        templates: 'Templates',
+        users: 'Users',
+        webhooks: 'Webhooks',
+    },
 };
 export default users;

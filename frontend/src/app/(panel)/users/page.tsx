@@ -11,6 +11,7 @@ import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
 import type { Invitation, RolesAndPermissions, User } from '@/lib/types';
 import { PageHeading } from '../panel-header';
+import { RoleCards } from './role-cards';
 import { InvitationList, InviteDialog, UserTable } from './users-client';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -76,30 +77,17 @@ export default async function UsersPage() {
                         </CardContent>
                     </Card>
                 )}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>{t('users.roles')}</CardTitle>
-                        <CardDescription>
+                <section className="space-y-3">
+                    <div>
+                        <h2 className="font-semibold tracking-tight">
+                            {t('users.roles')}
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
                             {t('users.rolesHint')}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm">
-                        {roles.roles.map((r) => (
-                            <div key={r.key}>
-                                <span className="font-medium">
-                                    {t(`settings.security.roles.${r.key}`)}
-                                </span>
-                                <span className="text-muted-foreground">
-                                    {' '}
-                                    {t('users.permissionCount', {
-                                        count: r.permissions.length,
-                                        total: roles.permissions.length,
-                                    })}
-                                </span>
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
+                        </p>
+                    </div>
+                    <RoleCards data={roles} />
+                </section>
             </div>
         </>
     );

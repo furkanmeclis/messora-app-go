@@ -58,6 +58,8 @@ import { useFormatDateTime } from '@/components/display-preferences';
 import { useLocale, useT } from '@/i18n/client';
 import type { Translate } from '@/i18n/translate';
 import { TEMPLATE_STATUSES, variablesOf } from '@/lib/templates';
+import { STATUS_TONE, TEMPLATE_STATUS_ICON } from '@/lib/status-icons';
+import { Layers } from 'lucide-react';
 import type { ActionResult, Schemas, Template } from '@/lib/types';
 import { createTemplateAction, deleteTemplateAction } from './actions';
 import { TemplatePreview } from './template-preview';
@@ -150,13 +152,18 @@ export function TemplateFilters({
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value={ALL}>
+                        <Layers className="text-muted-foreground" />
                         {t('templates.filters.allStatuses')}
                     </SelectItem>
-                    {TEMPLATE_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                            {statusLabel(t, s)}
-                        </SelectItem>
-                    ))}
+                    {TEMPLATE_STATUSES.map((s) => {
+                        const Icon = TEMPLATE_STATUS_ICON[s] ?? Layers;
+                        return (
+                            <SelectItem key={s} value={s}>
+                                <Icon className={STATUS_TONE[s]} />
+                                {statusLabel(t, s)}
+                            </SelectItem>
+                        );
+                    })}
                 </SelectContent>
             </Select>
             {(account || status) && (

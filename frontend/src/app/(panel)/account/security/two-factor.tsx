@@ -4,7 +4,17 @@
 
 import { useActionState, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Copy, ShieldCheck } from 'lucide-react';
+import {
+    Copy,
+    KeyRound,
+    QrCode,
+    RefreshCw,
+    ShieldAlert,
+    ShieldCheck,
+    ShieldOff,
+} from 'lucide-react';
+import { useConfirm } from '@/components/confirm';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
     FormStatus,
@@ -98,31 +108,64 @@ export function TwoFactorCard({
         return r;
     }, null);
 
+    const confirmDialog = useConfirm();
     const finish = () => {
         setCodes(null);
         router.refresh();
     };
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    {t('account.twoFactor.title')}
-                    <Badge variant={enabled ? 'secondary' : 'outline'}>
-                        {enabled
-                            ? t('account.twoFactor.on')
-                            : t('account.twoFactor.off')}
-                    </Badge>
-                </CardTitle>
-                <CardDescription>
-                    {t('account.twoFactor.description')}
-                </CardDescription>
+        <Card id="two-factor" className="scroll-mt-20 overflow-hidden">
+            <CardHeader className="flex flex-row items-start gap-4">
+                <span
+                    className={cn(
+                        'flex size-11 shrink-0 items-center justify-center rounded-2xl',
+                        enabled
+                            ? 'bg-success/15 text-success'
+                            : 'bg-warning/15 text-warning',
+                    )}
+                >
+                    {enabled ? (
+                        <ShieldCheck className="size-5" />
+                    ) : (
+                        <ShieldAlert className="size-5" />
+                    )}
+                </span>
+                <div className="min-w-0 space-y-1.5">
+                    <CardTitle className="flex flex-wrap items-center gap-2">
+                        {t('account.twoFactor.title')}
+                        <Badge
+                            variant="outline"
+                            className={cn(
+                                'gap-1.5',
+                                enabled
+                                    ? 'border-success/30 text-success'
+                                    : 'text-muted-foreground',
+                            )}
+                        >
+                            <span
+                                className={cn(
+                                    'size-1.5 rounded-full',
+                                    enabled
+                                        ? 'bg-success'
+                                        : 'bg-muted-foreground',
+                                )}
+                            />
+                            {enabled
+                                ? t('account.twoFactor.on')
+                                : t('account.twoFactor.off')}
+                        </Badge>
+                    </CardTitle>
+                    <CardDescription>
+                        {t('account.twoFactor.description')}
+                    </CardDescription>
+                </div>
             </CardHeader>
             <CardContent className="space-y-4">
                 {codes ? (
                     <RecoveryCodes codes={codes} onDone={finish} />
                 ) : setup ? (
-                    <div className="space-y-4">
+                    <div className="space-y-5 rounded-2xl border bg-muted/20 p-4">
                         <div className="flex flex-wrap items-start gap-6">
                             <img
                                 src={setup.qr}
@@ -132,13 +175,26 @@ export function TwoFactorCard({
                                 className="rounded-md border bg-white p-1"
                             />
                             <div className="min-w-0 flex-1 space-y-2 text-sm">
-                                <p>{t('account.twoFactor.scan')}</p>
+                                <p className="flex items-start gap-2">
+                                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                                        1
+                                    </span>
+                                    <QrCode className="mt-0.5 size-4 shrink-0 text-primary" />
+                                    {t('account.twoFactor.scan')}
+                                </p>
                                 <code className="block rounded bg-muted p-2 font-mono break-all">
                                     {setup.secret}
                                 </code>
                             </div>
                         </div>
                         <form action={confirm} className="max-w-xs space-y-3">
+                            <p className="flex items-center gap-2 text-sm">
+                                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                                    2
+                                </span>
+                                <KeyRound className="size-4 text-primary" />
+                                {t('account.twoFactor.code')}
+                            </p>
                             <FormStatus state={confirmState} />
                             <TextField
                                 label={t('account.twoFactor.code')}
@@ -179,13 +235,26 @@ export function TwoFactorCard({
                                 })
                             }
                         >
+                            <RefreshCw />
                             {t('account.twoFactor.newCodes')}
                         </Button>
                         <Button
-                            variant="outline"
+                            variant="destructive"
                             disabled={pending}
                             onClick={() =>
                                 startTransition(async () => {
+                                    if (
+                                        !(await confirmDialog({
+                                            destructive: true,
+                                            title: t(
+                                                'account.twoFactor.turnOff',
+                                            ),
+                                            confirmLabel: t(
+                                                'account.twoFactor.turnOff',
+                                            ),
+                                        }))
+                                    )
+                                        return;
                                     if (
                                         notify(
                                             await guard(() =>
@@ -197,6 +266,7 @@ export function TwoFactorCard({
                                 })
                             }
                         >
+                            <ShieldOff />
                             {t('account.twoFactor.turnOff')}
                         </Button>
                     </div>

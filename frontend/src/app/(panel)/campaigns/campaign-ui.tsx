@@ -3,6 +3,8 @@ import { useT } from '@/i18n/client';
 import type { Translate } from '@/i18n/translate';
 import type { CampaignStatus } from '@/lib/types';
 import { NUMBER_LOCALE } from '@/lib/format';
+import { CAMPAIGN_STATUS_ICON, FallbackStatusIcon } from '@/lib/status-icons';
+import { cn } from '@/lib/utils';
 
 export const CAMPAIGN_STATUSES: CampaignStatus[] = [
     'draft',
@@ -37,6 +39,16 @@ export function statusLabel(t: Translate, s: string): string {
     return isStatus(s) ? t(`campaigns.statuses.${s}`) : s;
 }
 
+function StatusIcon({ status }: { status: string }) {
+    const Icon = CAMPAIGN_STATUS_ICON[status] ?? FallbackStatusIcon;
+    return (
+        <Icon
+            className={cn('size-3', status === 'preparing' && 'animate-spin')}
+            aria-hidden
+        />
+    );
+}
+
 export function CampaignStatusBadge({ status }: { status: string }) {
     const t = useT();
     return (
@@ -44,7 +56,9 @@ export function CampaignStatusBadge({ status }: { status: string }) {
             variant={isStatus(status) ? STATUS_VARIANT[status] : 'outline'}
             data-testid="campaign-status"
             data-status={status}
+            className="gap-1"
         >
+            <StatusIcon status={status} />
             {statusLabel(t, status)}
         </Badge>
     );

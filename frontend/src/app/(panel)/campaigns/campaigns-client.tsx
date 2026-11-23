@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
+import { TabNav } from '@/components/tab-nav';
+import { CAMPAIGN_STATUS_ICON, STATUS_TONE } from '@/lib/status-icons';
 import type { Campaign } from '@/lib/types';
 import { loadCampaignsAction } from './actions';
 import {
@@ -38,30 +40,16 @@ export function StatusFilter({ status }: { status: string }) {
     const t = useT();
     const items = ['', ...CAMPAIGN_STATUSES];
     return (
-        <nav aria-label={t('campaigns.list.filterByStatus')}>
-            <ul className="flex flex-wrap gap-1">
-                {items.map((s) => (
-                    <li key={s || 'all'}>
-                        <Button
-                            asChild
-                            size="sm"
-                            variant={s === status ? 'secondary' : 'ghost'}
-                        >
-                            <Link
-                                href={
-                                    s ? `/campaigns?status=${s}` : '/campaigns'
-                                }
-                                aria-current={s === status ? 'page' : undefined}
-                            >
-                                {s
-                                    ? statusLabel(t, s)
-                                    : t('campaigns.list.all')}
-                            </Link>
-                        </Button>
-                    </li>
-                ))}
-            </ul>
-        </nav>
+        <TabNav
+            label={t('campaigns.list.filterByStatus')}
+            items={items.map((s) => ({
+                href: s ? `/campaigns?status=${s}` : '/campaigns',
+                label: s ? statusLabel(t, s) : t('campaigns.list.all'),
+                icon: CAMPAIGN_STATUS_ICON[s || 'all'],
+                tone: s ? STATUS_TONE[s] : undefined,
+                active: s === status,
+            }))}
+        />
     );
 }
 
