@@ -730,7 +730,7 @@ export function Desktop({
                         side="top"
                         align="start"
                         sideOffset={10}
-                        className="z-[10000] w-[26rem] space-y-3 p-3"
+                        className="w-[26rem] space-y-3 p-3"
                     >
                         <div className="flex items-center gap-2 rounded-lg border px-2">
                             <Search className="size-4 text-muted-foreground" />
@@ -869,7 +869,7 @@ export function Desktop({
                             )}
                         />
                     </TooltipTrigger>
-                    <TooltipContent className="z-[10000]">
+                    <TooltipContent>
                         {t(
                             realtime === 'connected'
                                 ? 'topbar.live'
