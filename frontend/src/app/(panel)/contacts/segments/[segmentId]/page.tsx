@@ -10,6 +10,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from '@/components/ui/empty';
+import { getT } from '@/i18n/server';
 import { api, ApiError } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { ContactGroup, Segment, Tag } from '@/lib/types';
@@ -18,7 +19,10 @@ import { UUID_RE } from '../../shared';
 import { SegmentBuilder } from '../segment-builder';
 import { NUMBER_LOCALE } from '@/lib/format';
 
-export const metadata: Metadata = { title: 'Segment' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('contacts.segments.metaTitle') };
+}
 
 async function loadSegment(id: string): Promise<Segment | null> {
     if (!UUID_RE.test(id)) return null;
@@ -38,6 +42,7 @@ export default async function SegmentPage({
     const me = await requirePermission('segments.read');
     const { segmentId } = await params;
     const segment = await loadSegment(segmentId);
+    const t = await getT();
     if (!segment) {
         return (
             <Empty className="py-16">
@@ -45,14 +50,16 @@ export default async function SegmentPage({
                     <EmptyMedia variant="icon">
                         <Filter />
                     </EmptyMedia>
-                    <EmptyTitle>Segment not found</EmptyTitle>
+                    <EmptyTitle>{t('contacts.segments.notFound')}</EmptyTitle>
                     <EmptyDescription>
-                        It may have been deleted, or the link is wrong.
+                        {t('contacts.detail.notFoundHint')}
                     </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
                     <Button variant="outline" asChild>
-                        <Link href="/contacts/segments">Back to segments</Link>
+                        <Link href="/contacts/segments">
+                            {t('contacts.segments.back')}
+                        </Link>
                     </Button>
                 </EmptyContent>
             </Empty>
@@ -72,14 +79,17 @@ export default async function SegmentPage({
                 title={segment.name}
                 description={
                     count == null
-                        ? 'The saved rules are no longer valid; fix them below.'
-                        : `${count.toLocaleString(NUMBER_LOCALE)} contact${count === 1 ? '' : 's'} match right now.`
+                        ? t('contacts.segments.invalid')
+                        : t('contacts.segments.matchNow', {
+                              count,
+                              formatted: count.toLocaleString(NUMBER_LOCALE),
+                          })
                 }
             />
             <SegmentBuilder
                 key={segment.updated_at}
                 segment={segment}
-                tags={tags.map((t) => t.name)}
+                tags={tags.map((tag) => tag.name)}
                 groups={groups.map((g) => ({ id: g.id, name: g.name }))}
                 canManage={can(me, 'segments.manage')}
                 canViewContacts={canContacts}

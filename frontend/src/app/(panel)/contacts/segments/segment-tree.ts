@@ -1,3 +1,5 @@
+import type { Translate } from '@/i18n/translate';
+
 /**
  * The segment rule tree as the editor holds it, and its conversion to and
  * from the API's definition. Fields, operators and value shapes mirror
@@ -11,57 +13,55 @@ export const MAX_VALUES = 500;
 
 export type FieldKind = 'text' | 'time' | 'bool' | 'tag' | 'group';
 
-export const FIELDS: { key: string; label: string; kind: FieldKind }[] = [
-    { key: 'name', label: 'Name', kind: 'text' },
-    { key: 'profile_name', label: 'WhatsApp profile name', kind: 'text' },
-    { key: 'phone', label: 'Phone number', kind: 'text' },
-    { key: 'email', label: 'E-mail', kind: 'text' },
-    { key: 'var1', label: 'Variable 1', kind: 'text' },
-    { key: 'var2', label: 'Variable 2', kind: 'text' },
-    { key: 'var3', label: 'Variable 3', kind: 'text' },
-    { key: 'var4', label: 'Variable 4', kind: 'text' },
-    { key: 'var5', label: 'Variable 5', kind: 'text' },
-    { key: 'created_at', label: 'Added', kind: 'time' },
-    { key: 'last_inbound_at', label: 'Last message from them', kind: 'time' },
-    { key: 'opted_out', label: 'Opted out', kind: 'bool' },
-    { key: 'tag', label: 'Tag', kind: 'tag' },
-    { key: 'group', label: 'Group', kind: 'group' },
+// Labels live in the contacts.segments.fields and .ops dictionaries.
+export const FIELDS: { key: string; kind: FieldKind }[] = [
+    { key: 'name', kind: 'text' },
+    { key: 'profile_name', kind: 'text' },
+    { key: 'phone', kind: 'text' },
+    { key: 'email', kind: 'text' },
+    { key: 'var1', kind: 'text' },
+    { key: 'var2', kind: 'text' },
+    { key: 'var3', kind: 'text' },
+    { key: 'var4', kind: 'text' },
+    { key: 'var5', kind: 'text' },
+    { key: 'created_at', kind: 'time' },
+    { key: 'last_inbound_at', kind: 'time' },
+    { key: 'opted_out', kind: 'bool' },
+    { key: 'tag', kind: 'tag' },
+    { key: 'group', kind: 'group' },
 ];
 
-export const OPERATORS: Record<FieldKind, { key: string; label: string }[]> = {
+/** The field keys in menu order; labels come from contacts.segments.fields. */
+export const FIELD_KEYS = FIELDS.map((f) => f.key);
+
+export const OPERATORS: Record<FieldKind, { key: string }[]> = {
     text: [
-        { key: 'eq', label: 'is' },
-        { key: 'neq', label: 'is not' },
-        { key: 'contains', label: 'contains' },
-        { key: 'not_contains', label: 'does not contain' },
-        { key: 'starts_with', label: 'starts with' },
-        { key: 'in', label: 'is one of' },
-        { key: 'not_in', label: 'is none of' },
-        { key: 'is_set', label: 'is filled in' },
-        { key: 'is_not_set', label: 'is empty' },
+        { key: 'eq' },
+        { key: 'neq' },
+        { key: 'contains' },
+        { key: 'not_contains' },
+        { key: 'starts_with' },
+        { key: 'in' },
+        { key: 'not_in' },
+        { key: 'is_set' },
+        { key: 'is_not_set' },
     ],
     time: [
-        { key: 'within_days', label: 'in the last … days' },
-        { key: 'older_than_days', label: 'more than … days ago' },
-        { key: 'before', label: 'before' },
-        { key: 'after', label: 'after' },
-        { key: 'is_set', label: 'is known' },
-        { key: 'is_not_set', label: 'is unknown' },
+        { key: 'within_days' },
+        { key: 'older_than_days' },
+        { key: 'before' },
+        { key: 'after' },
+        { key: 'is_set' },
+        { key: 'is_not_set' },
     ],
-    bool: [
-        { key: 'is_true', label: 'yes' },
-        { key: 'is_false', label: 'no' },
-    ],
+    bool: [{ key: 'is_true' }, { key: 'is_false' }],
     tag: [
-        { key: 'has', label: 'has' },
-        { key: 'not_has', label: 'does not have' },
-        { key: 'has_any', label: 'has any of' },
-        { key: 'has_none', label: 'has none of' },
+        { key: 'has' },
+        { key: 'not_has' },
+        { key: 'has_any' },
+        { key: 'has_none' },
     ],
-    group: [
-        { key: 'in_group', label: 'is in' },
-        { key: 'not_in_group', label: 'is not in' },
-    ],
+    group: [{ key: 'in_group' }, { key: 'not_in_group' }],
 };
 
 export type ValueShape = 'none' | 'text' | 'list' | 'days' | 'date' | 'group';
@@ -247,12 +247,15 @@ export function toDefinition(root: GroupNode): {
  * Checks what the editor can check before asking the API; returns
  * problems by node id.
  */
-export function localProblems(root: GroupNode): Map<string, string> {
+export function localProblems(
+    root: GroupNode,
+    t: Translate,
+): Map<string, string> {
     const out = new Map<string, string>();
     const walk = (n: TreeNode, depth: number) => {
         if (n.type === 'group') {
             if (n.rules.length === 0) {
-                out.set(n.id, 'Add at least one rule to this group.');
+                out.set(n.id, t('contacts.segments.problems.emptyGroup'));
             }
             n.rules.forEach((r) => walk(r, depth + 1));
             return;
@@ -263,30 +266,46 @@ export function localProblems(root: GroupNode): Map<string, string> {
                 return;
             case 'list': {
                 const l = splitList(n.value);
-                if (l.length === 0) out.set(n.id, 'Enter at least one value.');
+                if (l.length === 0)
+                    out.set(n.id, t('contacts.segments.problems.noValues'));
                 else if (l.length > MAX_VALUES)
-                    out.set(n.id, `At most ${MAX_VALUES} values.`);
+                    out.set(
+                        n.id,
+                        t('contacts.segments.problems.tooManyValues', {
+                            max: MAX_VALUES,
+                        }),
+                    );
                 else if (l.some((s) => s.length > MAX_TEXT))
-                    out.set(n.id, `Values are up to ${MAX_TEXT} characters.`);
+                    out.set(
+                        n.id,
+                        t('contacts.segments.problems.valuesTooLong', {
+                            max: MAX_TEXT,
+                        }),
+                    );
                 return;
             }
             case 'days': {
                 const d = Number(v);
                 if (!Number.isInteger(d) || d < 1 || d > 3650)
-                    out.set(n.id, 'Enter a whole number of days (1–3650).');
+                    out.set(n.id, t('contacts.segments.problems.days'));
                 return;
             }
             case 'date':
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(v))
-                    out.set(n.id, 'Choose a date.');
+                    out.set(n.id, t('contacts.segments.problems.date'));
                 return;
             case 'group':
-                if (!v) out.set(n.id, 'Choose a group.');
+                if (!v) out.set(n.id, t('contacts.segments.problems.group'));
                 return;
             default:
-                if (!v) out.set(n.id, 'Enter a value.');
+                if (!v) out.set(n.id, t('contacts.segments.problems.value'));
                 else if (v.length > MAX_TEXT)
-                    out.set(n.id, `Up to ${MAX_TEXT} characters.`);
+                    out.set(
+                        n.id,
+                        t('contacts.segments.problems.tooLong', {
+                            max: MAX_TEXT,
+                        }),
+                    );
         }
     };
     walk(root, 1);

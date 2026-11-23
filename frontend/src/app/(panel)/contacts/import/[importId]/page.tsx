@@ -10,6 +10,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from '@/components/ui/empty';
+import { getT } from '@/i18n/server';
 import { api, ApiError } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
 import type { ContactGroup, ContactImport, Tag } from '@/lib/types';
@@ -17,7 +18,10 @@ import { PageHeading } from '../../../panel-header';
 import { UUID_RE } from '../../shared';
 import { ImportWizard } from '../import-client';
 
-export const metadata: Metadata = { title: 'Import contacts' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('contacts.imports.title') };
+}
 
 async function loadImport(id: string): Promise<ContactImport | null> {
     if (!UUID_RE.test(id)) return null;
@@ -37,6 +41,7 @@ export default async function ImportDetailPage({
     await requirePermission('contacts.import');
     const { importId } = await params;
     const imp = await loadImport(importId);
+    const t = await getT();
     if (!imp) {
         return (
             <Empty className="py-16">
@@ -44,14 +49,16 @@ export default async function ImportDetailPage({
                     <EmptyMedia variant="icon">
                         <FileX />
                     </EmptyMedia>
-                    <EmptyTitle>Import not found</EmptyTitle>
+                    <EmptyTitle>{t('contacts.imports.notFound')}</EmptyTitle>
                     <EmptyDescription>
-                        It may have been removed, or the link is wrong.
+                        {t('contacts.imports.notFoundHint')}
                     </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
                     <Button variant="outline" asChild>
-                        <Link href="/contacts/import">Back to imports</Link>
+                        <Link href="/contacts/import">
+                            {t('contacts.imports.back')}
+                        </Link>
                     </Button>
                 </EmptyContent>
             </Empty>
@@ -63,11 +70,14 @@ export default async function ImportDetailPage({
     ]);
     return (
         <>
-            <PageHeading title="Import contacts" description={imp.filename} />
+            <PageHeading
+                title={t('contacts.imports.title')}
+                description={imp.filename}
+            />
             <ImportWizard
                 initial={imp}
                 groups={groups.map((g) => ({ id: g.id, name: g.name }))}
-                tags={tags.map((t) => ({ name: t.name, color: t.color }))}
+                tags={tags.map((tag) => ({ name: tag.name, color: tag.color }))}
             />
         </>
     );

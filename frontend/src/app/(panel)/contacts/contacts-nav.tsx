@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useT } from '@/i18n/client';
 import { cn } from '@/lib/utils';
 
 export type ContactsNavItem = { href: string; label: string };
 
 /** Section tabs shared by the contact pages. */
 export function ContactsNav({ items }: { items: ContactsNavItem[] }) {
+    const t = useT();
     const pathname = usePathname();
     const active = (href: string) =>
         href === '/contacts'
@@ -16,7 +18,7 @@ export function ContactsNav({ items }: { items: ContactsNavItem[] }) {
             : pathname.startsWith(href);
     if (items.length < 2) return null;
     return (
-        <nav aria-label="Contacts sections" className="mb-6 border-b">
+        <nav aria-label={t('contacts.nav.label')} className="mb-6 border-b">
             <ul className="-mb-px flex flex-wrap gap-1">
                 {items.map((i) => {
                     const on = active(i.href);

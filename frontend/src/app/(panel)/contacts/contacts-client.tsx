@@ -56,6 +56,8 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
+import type { Translate } from '@/i18n/translate';
 import type { ActionResult, Contact } from '@/lib/types';
 import {
     createContactAction,
@@ -92,6 +94,7 @@ function FilterSelect({
     options: Option[];
     onChange: (v: string) => void;
 }) {
+    const t = useT();
     return (
         <div className="grid gap-1.5">
             <Label htmlFor={id} className="text-xs text-muted-foreground">
@@ -105,7 +108,9 @@ function FilterSelect({
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value={ANY}>Any</SelectItem>
+                    <SelectItem value={ANY}>
+                        {t('contacts.filters.any')}
+                    </SelectItem>
                     {options.map((o) => (
                         <SelectItem key={o.id} value={o.id}>
                             {o.name}
@@ -128,6 +133,7 @@ export function ContactFilters({
     groups: Option[];
     segments: Option[];
 }) {
+    const t = useT();
     const router = useRouter();
     const [q, setQ] = useState(filters.q);
     const go = (patch: Partial<Filters>) => {
@@ -157,7 +163,7 @@ export function ContactFilters({
                     htmlFor="contact-search"
                     className="text-xs text-muted-foreground"
                 >
-                    Search
+                    {t('common.search')}
                 </Label>
                 <div className="relative">
                     <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -165,7 +171,7 @@ export function ContactFilters({
                         id="contact-search"
                         type="search"
                         className="pl-8"
-                        placeholder="Name, phone or e-mail"
+                        placeholder={t('contacts.filters.searchPlaceholder')}
                         maxLength={100}
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
@@ -174,14 +180,14 @@ export function ContactFilters({
             </form>
             <FilterSelect
                 id="filter-tag"
-                label="Tag"
+                label={t('contacts.filters.tag')}
                 value={filters.tag_id}
                 options={tags}
                 onChange={(tag_id) => go({ tag_id })}
             />
             <FilterSelect
                 id="filter-group"
-                label="Group"
+                label={t('contacts.filters.group')}
                 value={filters.group_id}
                 options={groups}
                 onChange={(group_id) => go({ group_id })}
@@ -189,7 +195,7 @@ export function ContactFilters({
             {segments.length > 0 && (
                 <FilterSelect
                     id="filter-segment"
-                    label="Segment"
+                    label={t('contacts.filters.segment')}
                     value={filters.segment_id}
                     options={segments}
                     onChange={(segment_id) => go({ segment_id })}
@@ -197,11 +203,11 @@ export function ContactFilters({
             )}
             <FilterSelect
                 id="filter-consent"
-                label="Consent"
+                label={t('contacts.consent.label')}
                 value={filters.opted_out}
                 options={[
-                    { id: 'false', name: 'Subscribed' },
-                    { id: 'true', name: 'Opted out' },
+                    { id: 'false', name: t('contacts.consent.subscribed') },
+                    { id: 'true', name: t('contacts.consent.optedOut') },
                 ]}
                 onChange={(opted_out) => go({ opted_out })}
             />
@@ -213,7 +219,7 @@ export function ContactFilters({
                         router.push('/contacts');
                     }}
                 >
-                    Clear filters
+                    {t('contacts.filters.clear')}
                 </Button>
             )}
         </div>
@@ -223,6 +229,7 @@ export function ContactFilters({
 // ── Export ─────────────────────────────────────────────────────────────────
 
 export function ExportMenu({ query }: { query: string }) {
+    const t = useT();
     const href = (format: 'csv' | 'xlsx') => {
         const sp = new URLSearchParams(query);
         // The export has no consent filter; it always includes everyone
@@ -235,7 +242,7 @@ export function ExportMenu({ query }: { query: string }) {
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline">
-                    <Download /> Export <ChevronDown />
+                    <Download /> {t('contacts.export')} <ChevronDown />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -257,6 +264,7 @@ export function ExportMenu({ query }: { query: string }) {
 // ── New contact ────────────────────────────────────────────────────────────
 
 export function NewContactDialog() {
+    const t = useT();
     const router = useRouter();
     const [open, setOpen] = useState(false);
     const [key, setKey] = useState(newIdempotencyKey);
@@ -290,15 +298,14 @@ export function NewContactDialog() {
         >
             <DialogTrigger asChild>
                 <Button>
-                    <UserPlus /> New contact
+                    <UserPlus /> {t('contacts.create.title')}
                 </Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>New contact</DialogTitle>
+                    <DialogTitle>{t('contacts.create.title')}</DialogTitle>
                     <DialogDescription>
-                        Tags, groups and custom fields can be added on the next
-                        page.
+                        {t('contacts.create.description')}
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={submit} className="space-y-4">
@@ -306,25 +313,25 @@ export function NewContactDialog() {
                     <FormStatus state={state?.ok ? null : state} />
                     <FieldGroup>
                         <TextField
-                            label="Phone number"
+                            label={t('contacts.fields.phone')}
                             name="phone"
                             type="tel"
                             required
                             autoFocus
                             placeholder="+905551112233"
-                            hint="International format with the country code."
+                            hint={t('contacts.create.phoneHint')}
                             minLength={7}
                             maxLength={24}
                             error={fieldError(state, 'phone')}
                         />
                         <TextField
-                            label="Name"
+                            label={t('contacts.fields.name')}
                             name="name"
                             maxLength={200}
                             error={fieldError(state, 'name')}
                         />
                         <TextField
-                            label="E-mail"
+                            label={t('contacts.fields.email')}
                             name="email"
                             type="email"
                             maxLength={254}
@@ -332,7 +339,8 @@ export function NewContactDialog() {
                         />
                     </FieldGroup>
                     <Button type="submit" className="w-full" disabled={pending}>
-                        {pending && <Spinner />}Add contact
+                        {pending && <Spinner />}
+                        {t('contacts.create.submit')}
                     </Button>
                 </form>
             </DialogContent>
@@ -359,6 +367,7 @@ export function ContactTable({
     canUpdate: boolean;
     canCreate: boolean;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [contacts, setContacts] = useState(initial);
     const [cursor, setCursor] = useState(initialCursor);
@@ -394,12 +403,14 @@ export function ContactTable({
     const addToGroup = () =>
         startSaving(async () => {
             if (!group || ids.length === 0) return;
-            const name = groups.find((g) => g.id === group)?.name ?? 'group';
+            const name =
+                groups.find((g) => g.id === group)?.name ??
+                t('contacts.table.groupFallback');
             const r = await groupMembersAction(group, 'add', ids);
             if (notify(r)) {
                 const n = ids.length;
                 const added = r.data;
-                toastAdded(name, n, added);
+                toastAdded(t, name, n, added);
                 setSelected(new Set());
             }
         });
@@ -412,14 +423,16 @@ export function ContactTable({
                         <Users />
                     </EmptyMedia>
                     <EmptyTitle>
-                        {filtered ? 'No matching contacts' : 'No contacts yet'}
+                        {filtered
+                            ? t('contacts.table.noMatches')
+                            : t('contacts.table.empty')}
                     </EmptyTitle>
                     <EmptyDescription>
                         {filtered
-                            ? 'Try another search or clear the filters.'
+                            ? t('contacts.table.noMatchesHint')
                             : canCreate
-                              ? 'Add a contact or import a CSV or Excel file. Customers who write to you are added automatically.'
-                              : 'Customers who write to you appear here automatically.'}
+                              ? t('contacts.table.emptyHintCreate')
+                              : t('contacts.table.emptyHint')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -431,18 +444,22 @@ export function ContactTable({
             {selectable && selected.size > 0 && (
                 <div
                     role="region"
-                    aria-label="Bulk actions"
+                    aria-label={t('contacts.table.bulk')}
                     className="flex flex-wrap items-center gap-2 border-b bg-muted/40 p-3 text-sm"
                 >
                     <span className="font-medium">
-                        {selected.size} selected
+                        {t('contacts.table.selected', {
+                            count: selected.size,
+                        })}
                     </span>
                     <Select value={group} onValueChange={setGroup}>
                         <SelectTrigger
                             className="w-48"
-                            aria-label="Group to add the selected contacts to"
+                            aria-label={t('contacts.table.groupTarget')}
                         >
-                            <SelectValue placeholder="Choose a group" />
+                            <SelectValue
+                                placeholder={t('contacts.table.chooseGroup')}
+                            />
                         </SelectTrigger>
                         <SelectContent>
                             {groups.map((g) => (
@@ -457,14 +474,14 @@ export function ContactTable({
                         disabled={!group || saving}
                         onClick={addToGroup}
                     >
-                        {saving && <Spinner />} Add to group
+                        {saving && <Spinner />} {t('contacts.table.addToGroup')}
                     </Button>
                     <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setSelected(new Set())}
                     >
-                        Clear selection
+                        {t('contacts.table.clearSelection')}
                     </Button>
                 </div>
             )}
@@ -474,7 +491,7 @@ export function ContactTable({
                         {selectable && (
                             <TableHead className="w-10">
                                 <Checkbox
-                                    aria-label="Select all shown contacts"
+                                    aria-label={t('contacts.table.selectAll')}
                                     checked={
                                         allSelected
                                             ? true
@@ -494,11 +511,11 @@ export function ContactTable({
                                 />
                             </TableHead>
                         )}
-                        <TableHead>Name</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Tags</TableHead>
-                        <TableHead>Consent</TableHead>
-                        <TableHead>Added</TableHead>
+                        <TableHead>{t('contacts.fields.name')}</TableHead>
+                        <TableHead>{t('contacts.table.phone')}</TableHead>
+                        <TableHead>{t('contacts.fields.tags')}</TableHead>
+                        <TableHead>{t('contacts.consent.label')}</TableHead>
+                        <TableHead>{t('contacts.table.added')}</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -513,7 +530,12 @@ export function ContactTable({
                             {selectable && (
                                 <TableCell>
                                     <Checkbox
-                                        aria-label={`Select ${contactName(c)}`}
+                                        aria-label={t('contacts.table.select', {
+                                            name: contactName(
+                                                c,
+                                                t('contacts.unnamed'),
+                                            ),
+                                        })}
                                         checked={selected.has(c.id)}
                                         onCheckedChange={(v) =>
                                             toggle(c.id, v === true)
@@ -526,7 +548,7 @@ export function ContactTable({
                                     href={`/contacts/${c.id}`}
                                     className="font-medium hover:underline"
                                 >
-                                    {contactName(c)}
+                                    {contactName(c, t('contacts.unnamed'))}
                                 </Link>
                                 {c.email && (
                                     <div className="text-xs text-muted-foreground">
@@ -539,11 +561,11 @@ export function ContactTable({
                             </TableCell>
                             <TableCell>
                                 <div className="flex max-w-xs flex-wrap gap-1">
-                                    {c.tags.map((t) => (
+                                    {c.tags.map((tag) => (
                                         <TagChip
-                                            key={t.id}
-                                            name={t.name}
-                                            color={t.color}
+                                            key={tag.id}
+                                            name={tag.name}
+                                            color={tag.color}
                                         />
                                     ))}
                                 </div>
@@ -551,11 +573,11 @@ export function ContactTable({
                             <TableCell>
                                 {c.opted_out ? (
                                     <Badge variant="destructive">
-                                        Opted out
+                                        {t('contacts.consent.optedOut')}
                                     </Badge>
                                 ) : (
                                     <Badge variant="secondary">
-                                        Subscribed
+                                        {t('contacts.consent.subscribed')}
                                     </Badge>
                                 )}
                             </TableCell>
@@ -569,7 +591,7 @@ export function ContactTable({
             {cursor && (
                 <div className="border-t p-3 text-center">
                     <Button variant="outline" onClick={more} disabled={loading}>
-                        {loading && <Spinner />} Load more
+                        {loading && <Spinner />} {t('contacts.loadMore')}
                     </Button>
                 </div>
             )}
@@ -577,13 +599,20 @@ export function ContactTable({
     );
 }
 
-function toastAdded(group: string, selected: number, added: number) {
+function toastAdded(
+    t: Translate,
+    group: string,
+    selected: number,
+    added: number,
+) {
     const already = selected - added;
     notify({
         ok: true,
         data: undefined,
         message:
-            `Added ${added} contact${added === 1 ? '' : 's'} to ${group}.` +
-            (already > 0 ? ` ${already} were already members.` : ''),
+            t('contacts.table.addedToGroup', { count: added, group }) +
+            (already > 0
+                ? ` ${t('contacts.table.alreadyMembers', { count: already })}`
+                : ''),
     });
 }

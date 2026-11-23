@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type { ActionResult, ContactGroup } from '@/lib/types';
 import { deleteGroupAction, saveGroupAction } from '../actions';
 import { ConfirmDelete } from '../confirm-delete';
@@ -39,6 +40,7 @@ import { useSubmit } from '../use-submit';
 import { NUMBER_LOCALE } from '@/lib/format';
 
 export function GroupDialog({ group }: { group?: ContactGroup }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -47,23 +49,27 @@ export function GroupDialog({ group }: { group?: ContactGroup }) {
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`Edit group ${group.name}`}
+                        aria-label={t('contacts.groups.editLabel', {
+                            name: group.name,
+                        })}
                     >
                         <Pencil />
                     </Button>
                 ) : (
                     <Button>
-                        <FolderPlus /> New group
+                        <FolderPlus /> {t('contacts.groups.new')}
                     </Button>
                 )}
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>
-                        {group ? 'Edit group' : 'New group'}
+                        {group
+                            ? t('contacts.groups.edit')
+                            : t('contacts.groups.new')}
                     </DialogTitle>
                     <DialogDescription>
-                        Add contacts from the contact list or a contact’s page.
+                        {t('contacts.groups.dialogHint')}
                     </DialogDescription>
                 </DialogHeader>
                 {open && (
@@ -81,6 +87,7 @@ function GroupForm({
     group?: ContactGroup;
     onDone: () => void;
 }) {
+    const t = useT();
     const [state, action, pending] = useActionState<
         ActionResult<ContactGroup> | null,
         FormData
@@ -95,7 +102,7 @@ function GroupForm({
             <FormStatus state={state?.ok ? null : state} />
             <FieldGroup>
                 <TextField
-                    label="Name"
+                    label={t('contacts.fields.name')}
                     name="name"
                     required
                     autoFocus
@@ -105,7 +112,7 @@ function GroupForm({
                 />
                 <Field data-invalid={descError ? true : undefined}>
                     <FieldLabel htmlFor="group-description">
-                        Description
+                        {t('contacts.fields.description')}
                     </FieldLabel>
                     <Textarea
                         id="group-description"
@@ -124,7 +131,9 @@ function GroupForm({
             </FieldGroup>
             <Button type="submit" className="w-full" disabled={pending}>
                 {pending && <Spinner />}
-                {group ? 'Save group' : 'Create group'}
+                {group
+                    ? t('contacts.groups.save')
+                    : t('contacts.groups.create')}
             </Button>
         </form>
     );
@@ -137,6 +146,7 @@ export function GroupTable({
     groups: ContactGroup[];
     canManage: boolean;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     if (groups.length === 0) {
         return (
@@ -145,11 +155,11 @@ export function GroupTable({
                     <EmptyMedia variant="icon">
                         <UsersRound />
                     </EmptyMedia>
-                    <EmptyTitle>No groups yet</EmptyTitle>
+                    <EmptyTitle>{t('contacts.groups.empty')}</EmptyTitle>
                     <EmptyDescription>
                         {canManage
-                            ? 'Create a group, then add contacts to it from the contact list or while importing a file.'
-                            : 'Groups your team creates appear here.'}
+                            ? t('contacts.groups.emptyHintManage')
+                            : t('contacts.groups.emptyHint')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -159,12 +169,16 @@ export function GroupTable({
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="text-right">Members</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead>{t('contacts.fields.name')}</TableHead>
+                    <TableHead className="text-right">
+                        {t('contacts.groups.members')}
+                    </TableHead>
+                    <TableHead>{t('contacts.groups.created')}</TableHead>
                     {canManage && (
                         <TableHead>
-                            <span className="sr-only">Actions</span>
+                            <span className="sr-only">
+                                {t('contacts.actions')}
+                            </span>
                         </TableHead>
                     )}
                 </TableRow>
@@ -184,7 +198,10 @@ export function GroupTable({
                             <Link
                                 href={`/contacts?group_id=${g.id}`}
                                 className="hover:underline"
-                                aria-label={`${g.member_count} members of ${g.name}; show them`}
+                                aria-label={t('contacts.groups.showMembers', {
+                                    count: g.member_count,
+                                    name: g.name,
+                                })}
                             >
                                 {g.member_count.toLocaleString(NUMBER_LOCALE)}
                             </Link>
@@ -196,10 +213,16 @@ export function GroupTable({
                             <TableCell className="text-right whitespace-nowrap">
                                 <GroupDialog group={g} />
                                 <ConfirmDelete
-                                    label={`Delete group ${g.name}`}
-                                    title={`Delete ${g.name}?`}
-                                    description="The group is removed. Its contacts stay, and campaigns already sent are not affected."
-                                    confirm="Delete group"
+                                    label={t('contacts.groups.deleteLabel', {
+                                        name: g.name,
+                                    })}
+                                    title={t('contacts.groups.deleteTitle', {
+                                        name: g.name,
+                                    })}
+                                    description={t(
+                                        'contacts.groups.deleteBody',
+                                    )}
+                                    confirm={t('contacts.groups.deleteConfirm')}
                                     action={() => deleteGroupAction(g.id)}
                                 />
                             </TableCell>

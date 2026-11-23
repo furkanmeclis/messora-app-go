@@ -3,6 +3,7 @@ import appearance from './appearance';
 import auth from './auth';
 import overview from './overview';
 import inbox from './inbox';
+import contacts from './contacts';
 import common from './common';
 import errors from './errors';
 import nav from './nav';
@@ -19,4 +20,5 @@ export const tr: Messages = {
     auth,
     overview,
     inbox,
+    contacts,
 };

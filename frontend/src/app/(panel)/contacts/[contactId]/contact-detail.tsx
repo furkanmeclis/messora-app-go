@@ -40,6 +40,7 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type { Contact, Note } from '@/lib/types';
 import {
     addContactNoteAction,
@@ -78,6 +79,7 @@ export function ContactForm({
     groups: Option[];
     canUpdate: boolean;
 }) {
+    const t = useT();
     const router = useRouter();
     const [name, setName] = useState(contact.name);
     const [email, setEmail] = useState(contact.email ?? '');
@@ -105,9 +107,11 @@ export function ContactForm({
         for (const a of attrs) {
             const k = a.key.trim();
             if (!k && !a.value.trim()) continue;
-            if (!k) local.attributes = 'Every custom field needs a name.';
+            if (!k) local.attributes = t('contacts.detail.errFieldName');
             else if (seen.has(k))
-                local.attributes = `The field name “${k}” is used twice.`;
+                local.attributes = t('contacts.detail.errFieldTwice', {
+                    name: k,
+                });
             seen.add(k);
             attributes[k] = a.value;
         }
@@ -135,18 +139,22 @@ export function ContactForm({
     };
 
     return (
-        <form onSubmit={save} noValidate aria-label="Contact details">
+        <form
+            onSubmit={save}
+            noValidate
+            aria-label={t('contacts.detail.formLabel')}
+        >
             <Card>
                 <CardHeader>
-                    <CardTitle>Details</CardTitle>
+                    <CardTitle>{t('contacts.detail.details')}</CardTitle>
                     <CardDescription>
-                        Variables 1–5 fill template placeholders in campaigns.
+                        {t('contacts.detail.detailsHint')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
                     <FieldGroup className="grid gap-4 sm:grid-cols-2">
                         <TextField
-                            label="Name"
+                            label={t('contacts.fields.name')}
                             name="name"
                             value={name}
                             maxLength={200}
@@ -155,12 +163,14 @@ export function ContactForm({
                             error={errors.name}
                             hint={
                                 contact.profile_name
-                                    ? `WhatsApp profile: ${contact.profile_name}`
+                                    ? t('contacts.detail.profile', {
+                                          name: contact.profile_name,
+                                      })
                                     : undefined
                             }
                         />
                         <TextField
-                            label="E-mail"
+                            label={t('contacts.fields.email')}
                             name="email"
                             type="email"
                             value={email}
@@ -172,7 +182,9 @@ export function ContactForm({
                         {VARS.map((k, i) => (
                             <TextField
                                 key={k}
-                                label={`Variable ${i + 1}`}
+                                label={t('contacts.detail.variable', {
+                                    n: i + 1,
+                                })}
                                 name={k}
                                 value={vars[i]}
                                 maxLength={500}
@@ -190,7 +202,9 @@ export function ContactForm({
                     </FieldGroup>
 
                     <Field data-invalid={errors.tags ? true : undefined}>
-                        <FieldLabel htmlFor="contact-tags">Tags</FieldLabel>
+                        <FieldLabel htmlFor="contact-tags">
+                            {t('contacts.fields.tags')}
+                        </FieldLabel>
                         <TagsInput
                             id="contact-tags"
                             value={tagNames}
@@ -204,17 +218,19 @@ export function ContactForm({
                         />
                         {!ro && tagNames.length === 0 && (
                             <FieldDescription>
-                                New names create new tags.
+                                {t('contacts.detail.newTags')}
                             </FieldDescription>
                         )}
                         <ErrorText id="contact-tags-error" text={errors.tags} />
                     </Field>
 
                     <FieldSet>
-                        <FieldLegend variant="label">Groups</FieldLegend>
+                        <FieldLegend variant="label">
+                            {t('contacts.detail.groups')}
+                        </FieldLegend>
                         {groups.length === 0 ? (
                             <FieldDescription>
-                                No groups yet. Create them under Groups.
+                                {t('contacts.detail.noGroups')}
                             </FieldDescription>
                         ) : (
                             <ul className="grid max-h-48 gap-2 overflow-y-auto rounded-md border p-3 sm:grid-cols-2">
@@ -251,9 +267,11 @@ export function ContactForm({
                     </FieldSet>
 
                     <FieldSet>
-                        <FieldLegend variant="label">Custom fields</FieldLegend>
+                        <FieldLegend variant="label">
+                            {t('contacts.detail.customFields')}
+                        </FieldLegend>
                         <FieldDescription>
-                            Extra information as name and value, up to 50.
+                            {t('contacts.detail.customFieldsHint')}
                         </FieldDescription>
                         {attrs.length > 0 && (
                             <ul className="space-y-2">
@@ -263,8 +281,13 @@ export function ContactForm({
                                         className="flex items-center gap-2"
                                     >
                                         <Input
-                                            aria-label={`Custom field ${i + 1} name`}
-                                            placeholder="Name"
+                                            aria-label={t(
+                                                'contacts.detail.fieldName',
+                                                { n: i + 1 },
+                                            )}
+                                            placeholder={t(
+                                                'contacts.fields.name',
+                                            )}
                                             className="w-40"
                                             value={a.key}
                                             maxLength={60}
@@ -284,8 +307,13 @@ export function ContactForm({
                                             }
                                         />
                                         <Input
-                                            aria-label={`Custom field ${i + 1} value`}
-                                            placeholder="Value"
+                                            aria-label={t(
+                                                'contacts.detail.fieldValue',
+                                                { n: i + 1 },
+                                            )}
+                                            placeholder={t(
+                                                'contacts.detail.value',
+                                            )}
                                             value={a.value}
                                             maxLength={1000}
                                             readOnly={ro}
@@ -309,7 +337,10 @@ export function ContactForm({
                                                 type="button"
                                                 variant="ghost"
                                                 size="icon"
-                                                aria-label={`Remove custom field ${a.key || i + 1}`}
+                                                aria-label={t(
+                                                    'contacts.detail.removeField',
+                                                    { name: a.key || i + 1 },
+                                                )}
                                                 onClick={() =>
                                                     setAttrs((l) =>
                                                         l.filter(
@@ -347,12 +378,12 @@ export function ContactForm({
                                     ])
                                 }
                             >
-                                <Plus /> Add field
+                                <Plus /> {t('contacts.detail.addField')}
                             </Button>
                         )}
                         {ro && attrs.length === 0 && (
                             <p className="text-sm text-muted-foreground">
-                                None.
+                                {t('contacts.detail.none')}
                             </p>
                         )}
                         <ErrorText id="attrs-error" text={errors.attributes} />
@@ -361,7 +392,7 @@ export function ContactForm({
                 {canUpdate && (
                     <CardFooter className="justify-end">
                         <Button type="submit" disabled={pending}>
-                            {pending && <Spinner />} Save changes
+                            {pending && <Spinner />} {t('contacts.detail.save')}
                         </Button>
                     </CardFooter>
                 )}
@@ -372,33 +403,33 @@ export function ContactForm({
 
 // ── Facts ──────────────────────────────────────────────────────────────────
 
-const SOURCE: Record<Contact['source'], string> = {
-    webhook: 'Wrote to you on WhatsApp',
-    manual: 'Added in the panel',
-    import: 'Imported from a file',
-    api: 'Added through the API',
-};
-
 export function ContactFacts({ contact }: { contact: Contact }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>About</CardTitle>
+                <CardTitle>{t('contacts.detail.about')}</CardTitle>
             </CardHeader>
             <CardContent>
                 <dl className="grid gap-2 text-sm">
                     <div>
-                        <dt className="text-muted-foreground">Source</dt>
-                        <dd>{SOURCE[contact.source]}</dd>
+                        <dt className="text-muted-foreground">
+                            {t('contacts.detail.source')}
+                        </dt>
+                        <dd>
+                            {t(`contacts.detail.sources.${contact.source}`)}
+                        </dd>
                     </div>
                     <div>
-                        <dt className="text-muted-foreground">Added</dt>
+                        <dt className="text-muted-foreground">
+                            {t('contacts.table.added')}
+                        </dt>
                         <dd>{formatDateTime(contact.created_at)}</dd>
                     </div>
                     <div>
                         <dt className="text-muted-foreground">
-                            Last message from them
+                            {t('contacts.detail.lastInbound')}
                         </dt>
                         <dd>{formatDateTime(contact.last_inbound_at)}</dd>
                     </div>
@@ -417,6 +448,7 @@ export function ConsentCard({
     contact: Contact;
     canUpdate: boolean;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const router = useRouter();
     const [note, setNote] = useState('');
@@ -425,22 +457,27 @@ export function ConsentCard({
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Consent</CardTitle>
+                <CardTitle>{t('contacts.consent.label')}</CardTitle>
                 <CardDescription>
-                    Opted-out contacts receive no campaign or automation
-                    messages.
+                    {t('contacts.detail.consentHint')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
                 <p data-testid="consent-state">
                     {contact.opted_out ? (
-                        <Badge variant="destructive">Opted out</Badge>
+                        <Badge variant="destructive">
+                            {t('contacts.consent.optedOut')}
+                        </Badge>
                     ) : (
-                        <Badge variant="secondary">Subscribed</Badge>
+                        <Badge variant="secondary">
+                            {t('contacts.consent.subscribed')}
+                        </Badge>
                     )}
                     {contact.opted_out && contact.opted_out_at && (
                         <span className="ml-2 text-muted-foreground">
-                            since {formatDateTime(contact.opted_out_at)}
+                            {t('contacts.detail.since', {
+                                time: formatDateTime(contact.opted_out_at),
+                            })}
                         </span>
                     )}
                 </p>
@@ -463,9 +500,9 @@ export function ConsentCard({
                         }}
                     >
                         <Label htmlFor="consent-note">
-                            Note{' '}
+                            {t('contacts.detail.note')}{' '}
                             <span className="font-normal text-muted-foreground">
-                                (optional)
+                                {t('contacts.detail.optional')}
                             </span>
                         </Label>
                         <Textarea
@@ -475,8 +512,8 @@ export function ConsentCard({
                             value={note}
                             placeholder={
                                 contact.opted_out
-                                    ? 'e.g. Asked to receive offers again'
-                                    : 'e.g. Asked by phone to stop messages'
+                                    ? t('contacts.detail.optInPlaceholder')
+                                    : t('contacts.detail.optOutPlaceholder')
                             }
                             onChange={(e) => setNote(e.target.value)}
                         />
@@ -488,8 +525,8 @@ export function ConsentCard({
                         >
                             {pending && <Spinner />}
                             {contact.opted_out
-                                ? 'Record opt-in'
-                                : 'Record opt-out'}
+                                ? t('contacts.detail.recordOptIn')
+                                : t('contacts.detail.recordOptOut')}
                         </Button>
                     </form>
                 )}
@@ -509,6 +546,7 @@ export function NotesCard({
     notes: Note[];
     canUpdate: boolean;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const router = useRouter();
     const [body, setBody] = useState('');
@@ -516,8 +554,10 @@ export function NotesCard({
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Notes</CardTitle>
-                <CardDescription>Only your team sees these.</CardDescription>
+                <CardTitle>{t('contacts.detail.notes')}</CardTitle>
+                <CardDescription>
+                    {t('contacts.detail.notesHint')}
+                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
                 {canUpdate && (
@@ -539,14 +579,14 @@ export function NotesCard({
                         }}
                     >
                         <Label htmlFor="new-note" className="sr-only">
-                            New note
+                            {t('contacts.detail.newNote')}
                         </Label>
                         <Textarea
                             id="new-note"
                             rows={3}
                             maxLength={5000}
                             value={body}
-                            placeholder="Write a note"
+                            placeholder={t('contacts.detail.notePlaceholder')}
                             onChange={(e) => setBody(e.target.value)}
                         />
                         <Button
@@ -554,12 +594,15 @@ export function NotesCard({
                             size="sm"
                             disabled={pending || !body.trim()}
                         >
-                            {pending && <Spinner />} Add note
+                            {pending && <Spinner />}{' '}
+                            {t('contacts.detail.addNote')}
                         </Button>
                     </form>
                 )}
                 {notes.length === 0 ? (
-                    <p className="text-muted-foreground">No notes yet.</p>
+                    <p className="text-muted-foreground">
+                        {t('contacts.detail.noNotes')}
+                    </p>
                 ) : (
                     <ul className="divide-y">
                         {notes.map((n) => (
@@ -572,15 +615,18 @@ export function NotesCard({
                                         {n.body}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                        {n.author_name || 'Someone'} ·{' '}
-                                        {formatDateTime(n.created_at)}
+                                        {n.author_name ||
+                                            t('contacts.detail.someone')}{' '}
+                                        · {formatDateTime(n.created_at)}
                                     </p>
                                 </div>
                                 {canUpdate && (
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        aria-label="Delete note"
+                                        aria-label={t(
+                                            'contacts.detail.deleteNote',
+                                        )}
                                         disabled={pending}
                                         onClick={() =>
                                             startTransition(async () => {
@@ -618,25 +664,27 @@ export function DeleteContactButton({
     id: string;
     name: string;
 }) {
+    const t = useT();
     const router = useRouter();
     const [pending, startTransition] = useTransition();
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
                 <Button variant="destructive" disabled={pending}>
-                    <Trash2 /> Delete
+                    <Trash2 /> {t('common.delete')}
                 </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                        {t('contacts.detail.deleteTitle', { name })}
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                        The contact, its notes and its whole message history are
-                        removed for good. This cannot be undone.
+                        {t('contacts.detail.deleteBody')}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                     <AlertDialogAction
                         variant="destructive"
                         onClick={() =>
@@ -647,7 +695,7 @@ export function DeleteContactButton({
                             })
                         }
                     >
-                        Delete contact
+                        {t('contacts.detail.deleteConfirm')}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

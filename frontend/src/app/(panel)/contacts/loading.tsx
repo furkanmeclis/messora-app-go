@@ -1,10 +1,12 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getT } from '@/i18n/server';
 
 /** Placeholder while a contacts page loads. */
-export default function ContactsLoading() {
+export default async function ContactsLoading() {
+    const t = await getT();
     return (
-        <div aria-busy="true" aria-label="Loading">
+        <div aria-busy="true" aria-label={t('common.loading')}>
             <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
                 <div className="space-y-2">
                     <Skeleton className="h-7 w-40" />
