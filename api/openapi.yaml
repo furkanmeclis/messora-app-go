@@ -37,6 +37,7 @@ tags:
   - name: channels
   - name: templates
   - name: messages
+  - name: conversations
   - name: contacts
   - name: segments
 
@@ -1371,7 +1372,8 @@ paths:
       description: >-
         Issued only when the user may read the channel: `inbox:all` needs
         conversations.read or conversations.read_all, `conversation:<id>`
-        needs conversations.read_all, `campaign:all` and `campaign:<id>` need
+        needs conversations.read_all, or conversations.read when the
+        conversation is assigned to the user or to nobody, `campaign:all` and `campaign:<id>` need
         campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
       security: [{ session: [] }]
       requestBody:
@@ -1385,6 +1387,231 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/RealtimeTokenResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ── Inbox (Phase 7) ─────────────────────────────────────────────────────────
+  # Visibility: conversations.read_all sees every conversation; with only
+  # conversations.read, a caller sees conversations assigned to them or to
+  # nobody. Invisible conversations answer 404 on every operation.
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [conversations]
+      summary: Conversations visible to the caller, most recent activity first
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [open, closed] } }
+        - name: assignee
+          in: query
+          description: "`me`, `unassigned` or a user ID."
+          schema: { type: string, maxLength: 36 }
+        - { name: unread, in: query, schema: { type: boolean }, description: Only conversations with unread customer messages. }
+        - { name: phone_number_id, in: query, schema: { type: string, format: uuid } }
+        - { name: q, in: query, schema: { type: string, maxLength: 100 }, description: "Contact name or phone contains" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}:
+    get:
+      operationId: getConversation
+      tags: [conversations]
+      summary: A conversation with its contact and 24-hour window
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/messages:
+    get:
+      operationId: listConversationMessages
+      tags: [conversations]
+      summary: Message history, newest first
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InboxMessageListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: replyToConversation
+      tags: [conversations]
+      summary: Send a message in the conversation
+      description: >-
+        Queued like POST /messages, from the conversation's number. Free-form
+        messages need an open 24-hour window (422 OUTSIDE_SERVICE_WINDOW
+        otherwise; send an approved template instead); templates are refused
+        to opted-out contacts (422 CONTACT_OPTED_OUT).
+      security:
+        - { session: [conversations.reply] }
+        - { apiKey: [conversations.reply] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReplyRequest" }
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InboxMessageResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/assignment:
+    put:
+      operationId: assignConversation
+      tags: [conversations]
+      summary: Assign the conversation to a user, or unassign it with null
+      security:
+        - { session: [conversations.assign] }
+        - { apiKey: [conversations.assign] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignConversationRequest" }
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/close:
+    post:
+      operationId: closeConversation
+      tags: [conversations]
+      summary: Close the conversation; the next customer message reopens it
+      security:
+        - { session: [conversations.assign] }
+        - { apiKey: [conversations.assign] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/reopen:
+    post:
+      operationId: reopenConversation
+      tags: [conversations]
+      summary: Reopen a closed conversation
+      security:
+        - { session: [conversations.assign] }
+        - { apiKey: [conversations.assign] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/read:
+    post:
+      operationId: markConversationRead
+      tags: [conversations]
+      summary: Mark the customer's messages as read for the team
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/events:
+    get:
+      operationId: listConversationEvents
+      tags: [conversations]
+      summary: Assignment and status history, newest first (last 100)
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationEventListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/media/{mediaId}:
+    get:
+      operationId: downloadConversationMedia
+      tags: [conversations]
+      summary: Download a stored media file of a message in the conversation
+      description: >-
+        Images, video and audio of common types are served inline, everything
+        else as an attachment; always with X-Content-Type-Options nosniff and a
+        sandboxing Content-Security-Policy. 409 MEDIA_NOT_STORED while the
+        worker has not downloaded the file from Meta yet.
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+        - { $ref: "#/components/parameters/MediaId" }
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
         default: { $ref: "#/components/responses/Error" }
 
 components:
@@ -1441,6 +1668,16 @@ components:
       schema: { type: string, format: uuid }
     MessageId:
       name: messageId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MediaId:
+      name: mediaId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -2572,6 +2809,167 @@ components:
       required: [data, meta]
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/ContactImport" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    # ── Inbox (Phase 7) ─────────────────────────────────────────────────────
+    ConversationContact:
+      type: object
+      required: [id, phone, name, profile_name, opted_out]
+      properties:
+        id: { type: string, format: uuid }
+        phone: { type: string }
+        name: { type: string }
+        profile_name: { type: string }
+        opted_out: { type: boolean }
+    ConversationPhoneNumber:
+      type: object
+      required: [id, display_phone_number, verified_name]
+      properties:
+        id: { type: string, format: uuid }
+        display_phone_number: { type: string }
+        verified_name: { type: string }
+    UserRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    ConversationLastMessage:
+      type: object
+      required: [direction, type, body, status]
+      properties:
+        direction: { type: string, enum: [inbound, outbound] }
+        type: { type: string }
+        body: { type: string }
+        status: { type: string }
+    Conversation:
+      type: object
+      required: [id, contact, phone_number, status, assignee, unread_count, last_message_at, last_inbound_at,
+                 window_open, window_expires_at, last_message, closed_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        contact: { $ref: "#/components/schemas/ConversationContact" }
+        phone_number: { $ref: "#/components/schemas/ConversationPhoneNumber" }
+        status: { type: string, enum: [open, closed] }
+        assignee:
+          oneOf:
+            - { $ref: "#/components/schemas/UserRef" }
+            - { type: "null" }
+        unread_count: { type: integer, format: int32 }
+        last_message_at: { type: string, format: date-time }
+        last_inbound_at: { type: [string, "null"], format: date-time, description: Last customer message that opened the 24-hour window. }
+        window_open: { type: boolean, description: Free-form messages can be sent now. }
+        window_expires_at: { type: [string, "null"], format: date-time }
+        last_message:
+          oneOf:
+            - { $ref: "#/components/schemas/ConversationLastMessage" }
+            - { type: "null" }
+        closed_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+    ConversationResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Conversation" }, meta: { $ref: "#/components/schemas/Meta" } }
+    ConversationListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Conversation" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    InboxMedia:
+      type: object
+      required: [id, mime_type, filename, size_bytes, status]
+      properties:
+        id: { type: string, format: uuid }
+        mime_type: { type: string }
+        filename: { type: string }
+        size_bytes: { type: [integer, "null"], format: int64 }
+        status: { type: string, enum: [pending, stored, failed] }
+    InboxMessage:
+      type: object
+      required: [id, direction, type, body, status, wamid, reply_to_wamid, source, error_code, error_title, media,
+                 occurred_at, sent_at, delivered_at, read_at, failed_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        direction: { type: string, enum: [inbound, outbound] }
+        type: { type: string }
+        body: { type: string }
+        status: { type: string, enum: [pending, sending, unknown, sent, delivered, read, failed, received] }
+        wamid: { type: [string, "null"] }
+        reply_to_wamid: { type: [string, "null"] }
+        source: { type: string, enum: [api, panel, webhook, campaign, automation] }
+        error_code: { type: [string, "null"] }
+        error_title: { type: [string, "null"] }
+        media:
+          oneOf:
+            - { $ref: "#/components/schemas/InboxMedia" }
+            - { type: "null" }
+        occurred_at: { type: string, format: date-time }
+        sent_at: { type: [string, "null"], format: date-time }
+        delivered_at: { type: [string, "null"], format: date-time }
+        read_at: { type: [string, "null"], format: date-time }
+        failed_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+    InboxMessageResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/InboxMessage" }, meta: { $ref: "#/components/schemas/Meta" } }
+    InboxMessageListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/InboxMessage" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ReplyRequest:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: { type: string, enum: [text, template, image, video, audio, document] }
+        reply_to: { type: string, maxLength: 200, description: WhatsApp message ID to quote. }
+        text:
+          type: object
+          additionalProperties: false
+          required: [body]
+          properties:
+            body: { type: string, minLength: 1, maxLength: 4096 }
+            preview_url: { type: boolean }
+        template:
+          type: object
+          additionalProperties: false
+          required: [name, language]
+          properties:
+            name: { type: string, maxLength: 512 }
+            language: { type: string, maxLength: 15 }
+            components:
+              type: array
+              maxItems: 20
+              items: { type: object, additionalProperties: true }
+        media: { $ref: "#/components/schemas/MediaRef" }
+    AssignConversationRequest:
+      type: object
+      additionalProperties: false
+      required: [assignee_id]
+      properties:
+        assignee_id: { type: [string, "null"], format: uuid, description: The user to assign; null unassigns. }
+    ConversationEvent:
+      type: object
+      required: [id, kind, actor_type, actor_name, assignee, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [assigned, unassigned, closed, reopened] }
+        actor_type: { type: string, enum: [user, api_key, system] }
+        actor_name: { type: [string, "null"], description: "The user who acted; null for API keys and automatic reopening." }
+        assignee:
+          oneOf:
+            - { $ref: "#/components/schemas/UserRef" }
+            - { type: "null" }
+        created_at: { type: string, format: date-time }
+    ConversationEventListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ConversationEvent" } }
         meta: { $ref: "#/components/schemas/Meta" }
 
     # ── Realtime (Phase 6) ──────────────────────────────────────────────────

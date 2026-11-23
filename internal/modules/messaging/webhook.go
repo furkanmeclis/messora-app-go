@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
-	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 )
@@ -245,10 +244,10 @@ func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.P
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if err := realtime.Publish(ctx, tx, realtime.InboxChannel, realtime.NewMessageEvent(realtime.TypeMessageCreated, row)); err != nil {
+	if _, err := recordNew(ctx, tx, q, row); err != nil {
 		return uuid.Nil, err
 	}
-	if m.Type != "reaction" && m.Type != "unsupported" && m.Type != "system" {
+	if opensWindow(m.Type) {
 		if err := q.TouchContactInbound(ctx, db.TouchContactInboundParams{ID: c.ID, At: &at}); err != nil {
 			return uuid.Nil, err
 		}
@@ -312,7 +311,7 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 		return false, err
 	}
 	if updated.Status != m.Status {
-		if err := realtime.Publish(ctx, tx, realtime.InboxChannel, realtime.NewMessageEvent(realtime.TypeMessageStatus, updated)); err != nil {
+		if err := announceStatus(ctx, tx, q, updated); err != nil {
 			return false, err
 		}
 	}

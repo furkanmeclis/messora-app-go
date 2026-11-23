@@ -92,6 +92,80 @@ func TestAuthorizeMatrix(t *testing.T) {
 	}
 }
 
+func TestAuthorizeConversationAccess(t *testing.T) {
+	mine, others, broken := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	var asked []uuid.UUID
+	access := func(_ context.Context, p *principal.Principal, id uuid.UUID) (bool, error) {
+		if p != agent {
+			t.Fatalf("checker called for %v", p.Permissions)
+		}
+		asked = append(asked, id)
+		if id == broken {
+			return false, errors.New("database down")
+		}
+		return id == mine, nil
+	}
+	ctx := context.Background()
+	readOnly := user("contacts.read")
+	cases := []struct {
+		who     string
+		p       *principal.Principal
+		channel string
+		ok      bool
+	}{
+		{"agent", agent, ConversationChannel(mine), true},
+		{"agent", agent, ConversationChannel(others), false},
+		{"agent", agent, "conversation:" + strings.ToUpper(mine.String()), false},
+		{"agent", agent, "conversation:not-a-uuid", false},
+		{"owner", owner, ConversationChannel(others), true}, // read_all: no lookup
+		{"viewer", viewer, ConversationChannel(mine), false},
+		{"no inbox permission", readOnly, ConversationChannel(mine), false},
+	}
+	for _, c := range cases {
+		err := AuthorizeContext(ctx, c.p, c.channel, access)
+		if (err == nil) != c.ok {
+			t.Errorf("%s → %q: allowed=%v, want %v (err %v)", c.who, c.channel, err == nil, c.ok, err)
+		}
+	}
+	if len(asked) != 2 || asked[0] != mine || asked[1] != others {
+		t.Fatalf("checker consulted for %v; only agents' well-formed channels need it", asked)
+	}
+	// A failing lookup is an error, not a grant.
+	if err := AuthorizeContext(ctx, agent, ConversationChannel(broken), access); err == nil || errors.Is(err, ErrChannelForbidden) {
+		t.Fatalf("lookup failure: %v", err)
+	}
+	// Without a checker agents keep the Phase 6 behaviour.
+	if err := AuthorizeContext(ctx, agent, ConversationChannel(mine), nil); !errors.Is(err, ErrChannelForbidden) {
+		t.Fatalf("no checker: %v", err)
+	}
+
+	iss, _ := NewIssuer(testSecret)
+	iss.WithConversationAccess(access)
+	tok, err := iss.SubscriptionContext(ctx, agent, ConversationChannel(mine))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := verify(t, tok.Token, testSecret); c["channel"] != ConversationChannel(mine) {
+		t.Fatalf("claims %v", c)
+	}
+	if _, err := iss.SubscriptionContext(ctx, agent, ConversationChannel(others)); !errors.Is(err, ErrChannelForbidden) {
+		t.Fatalf("agent got a token for someone else's conversation: %v", err)
+	}
+}
+
+func TestConversationEvent(t *testing.T) {
+	assignee := uuid.New()
+	c := db.Conversation{ID: uuid.New(), ContactID: uuid.New(), PhoneNumberID: uuid.New(), Status: "open", AssigneeID: &assignee,
+		UnreadCount: 3, LastMessageAt: time.Now(), UpdatedAt: time.Now()}
+	raw, _ := json.Marshal(NewConversationEvent(c))
+	var got map[string]any
+	_ = json.Unmarshal(raw, &got)
+	if got["type"] != TypeConversationUpdated || got["v"] != float64(EventVersion) || got["conversation_id"] != c.ID.String() ||
+		got["assignee_id"] != assignee.String() || got["unread_count"] != float64(3) || got["status"] != "open" {
+		t.Fatalf("event %s", raw)
+	}
+}
+
 // verify checks an HS256 JWT the way Centrifugo does and returns its claims.
 func verify(t *testing.T, tok, secret string) map[string]any {
 	t.Helper()

@@ -64,10 +64,15 @@ type Querier interface {
 	FinishContactImport(ctx context.Context, arg FinishContactImportParams) error
 	GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetActiveSessionByTokenHashRow, error)
+	// Conversations can only be assigned to active users who can read them.
+	GetAssignableUser(ctx context.Context, id uuid.UUID) (GetAssignableUserRow, error)
 	GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 	GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error)
 	GetContactGroup(ctx context.Context, id uuid.UUID) (ContactGroup, error)
 	GetContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error)
+	GetConversation(ctx context.Context, id uuid.UUID) (Conversation, error)
+	GetConversationByThread(ctx context.Context, arg GetConversationByThreadParams) (Conversation, error)
+	GetConversationRow(ctx context.Context, id uuid.UUID) (GetConversationRowRow, error)
 	GetDefaultPhoneNumber(ctx context.Context) (PhoneNumber, error)
 	GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, error)
 	GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
@@ -96,6 +101,7 @@ type Querier interface {
 	InsertContactImport(ctx context.Context, arg InsertContactImportParams) (ContactImport, error)
 	// ── Notes ───────────────────────────────────────────────────────────────────
 	InsertContactNote(ctx context.Context, arg InsertContactNoteParams) (ContactNote, error)
+	InsertConversationEvent(ctx context.Context, arg InsertConversationEventParams) (ConversationEvent, error)
 	// Duplicate deliveries of the same wamid insert nothing (no row returned).
 	InsertInboundMessage(ctx context.Context, arg InsertInboundMessageParams) (Message, error)
 	// ── Media ───────────────────────────────────────────────────────────────────
@@ -119,7 +125,12 @@ type Querier interface {
 	ListContactGroups(ctx context.Context) ([]ListContactGroupsRow, error)
 	ListContactImports(ctx context.Context) ([]ContactImport, error)
 	ListContactNotes(ctx context.Context, contactID uuid.UUID) ([]ListContactNotesRow, error)
+	ListConversationEvents(ctx context.Context, arg ListConversationEventsParams) ([]ListConversationEventsRow, error)
+	// see_all is false for users who may only read conversations assigned to
+	// them or to nobody (conversations.read without conversations.read_all).
+	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
 	ListMediaForMessage(ctx context.Context, messageID *uuid.UUID) ([]MediaFile, error)
+	ListMediaForMessages(ctx context.Context, messageIds []uuid.UUID) ([]MediaFile, error)
 	ListMessagesByContact(ctx context.Context, arg ListMessagesByContactParams) ([]Message, error)
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
@@ -132,12 +143,17 @@ type Querier interface {
 	// ── Tags ────────────────────────────────────────────────────────────────────
 	ListTags(ctx context.Context) ([]ListTagsRow, error)
 	ListTemplates(ctx context.Context, arg ListTemplatesParams) ([]ListTemplatesRow, error)
+	// A conversation's messages, newest first, before the cursor message.
+	ListThreadMessages(ctx context.Context, arg ListThreadMessagesParams) ([]Message, error)
 	ListUserSessions(ctx context.Context, userID uuid.UUID) ([]UserSession, error)
 	ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error)
 	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
+	// ── Conversations (inbox) ───────────────────────────────────────────────────
+	LockConversationByThread(ctx context.Context, arg LockConversationByThreadParams) (Conversation, error)
 	// Serializes changes that could remove an owner, so two concurrent
 	// demotions cannot both pass the "at least one owner" check.
 	LockOwnerChanges(ctx context.Context) error
+	MarkConversationRead(ctx context.Context, id uuid.UUID) (Conversation, error)
 	MarkMediaFailed(ctx context.Context, arg MarkMediaFailedParams) error
 	MarkMediaStored(ctx context.Context, arg MarkMediaStoredParams) error
 	MarkMessageAccepted(ctx context.Context, arg MarkMessageAcceptedParams) error
@@ -166,6 +182,8 @@ type Querier interface {
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
 	SetContactOptOut(ctx context.Context, arg SetContactOptOutParams) error
+	SetConversationAssignee(ctx context.Context, arg SetConversationAssigneeParams) (Conversation, error)
+	SetConversationStatus(ctx context.Context, arg SetConversationStatusParams) (Conversation, error)
 	SetDefaultPhoneNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
@@ -174,6 +192,11 @@ type Querier interface {
 	// Updates at most once a minute to avoid write amplification under load.
 	TouchApiKey(ctx context.Context, id uuid.UUID) error
 	TouchContactInbound(ctx context.Context, arg TouchContactInboundParams) error
+	// Records a new message in its thread. A customer message (inbound) counts
+	// as unread and reopens a closed conversation; opens_window extends the
+	// 24-hour customer service window. Late (out of order) messages never move
+	// the recency backwards.
+	TouchConversation(ctx context.Context, arg TouchConversationParams) (Conversation, error)
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
 	UpdateContactGroup(ctx context.Context, arg UpdateContactGroupParams) (ContactGroup, error)
