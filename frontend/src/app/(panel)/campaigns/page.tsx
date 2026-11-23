@@ -1,0 +1,58 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { api } from '@/lib/server/api';
+import { can, requirePermission } from '@/lib/server/auth';
+import type { Campaign } from '@/lib/types';
+import { PageHeading } from '../panel-header';
+import { CAMPAIGN_STATUSES } from './campaign-ui';
+import { CampaignList, StatusFilter } from './campaigns-client';
+
+export const metadata: Metadata = { title: 'Campaigns' };
+
+export default async function CampaignsPage({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | undefined>>;
+}) {
+    const me = await requirePermission('campaigns.read');
+    const sp = await searchParams;
+    const status = CAMPAIGN_STATUSES.find((s) => s === sp.status) ?? '';
+    const q = new URLSearchParams({ limit: '25' });
+    if (status) q.set('status', status);
+    const list = await api<Campaign[]>(`/campaigns?${q}`);
+
+    return (
+        <>
+            <PageHeading
+                title="Campaigns"
+                description="Send an approved template to a segment, group or tag at the pace Meta allows."
+                actions={
+                    can(me, 'campaigns.create') ? (
+                        <Button asChild>
+                            <Link href="/campaigns/new">
+                                <Plus /> New campaign
+                            </Link>
+                        </Button>
+                    ) : undefined
+                }
+            />
+            <div className="space-y-4">
+                <StatusFilter status={status} />
+                <Card>
+                    <CardContent className="p-0">
+                        <CampaignList
+                            key={status}
+                            initial={list.data}
+                            initialCursor={list.nextCursor}
+                            status={status}
+                            canCreate={can(me, 'campaigns.create')}
+                        />
+                    </CardContent>
+                </Card>
+            </div>
+        </>
+    );
+}
