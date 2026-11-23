@@ -85,7 +85,12 @@
 
 | Özellik | Phase | Durum |
 |---|---|---|
-| Centrifugo token'ları, kanal izinleri, outbox → publish | 6 | Partial (sunucu ve config hazır) |
+| Centrifugo config'i (`messora init`), connection / subscription token endpoint'leri | 6 | Implemented |
+| Kanal izinleri (yetkisiz kanal reddi, gerçek Centrifugo ile test edildi) | 6 | Implemented |
+| Outbox → Centrifugo publish (idempotent), yeni mesaj ve durum event'leri | 6 | Implemented |
+| Frontend Centrifuge client: yeniden bağlanma, recovery, kurtarılamayan kopmada yeniden çekme | 6 | Needs verification (Centrifugo restart E2E senaryosu yazıldı: `frontend/e2e/realtime.spec.ts`; CI'da çalışacak) |
+| Kampanya ilerlemesinin realtime yayını | 6 | Partial (kanal, izin ve `campaign.updated` event'i hazır; kampanya motoru Phase 5 ile bağlanır) |
+| Konuşma kanalı (`conversation:<id>`) agent ataması | 7 | Partial (şimdilik yalnızca `conversations.read_all`) |
 | Inbox: liste, geçmiş, gönderim, medya, okundu | 7 | Missing |
 | Konuşma atama, kapatma, müşteri paneli | 7 | Missing |
 | Otomasyon: tetikleyiciler, aksiyonlar, görsel editör | 8 | Missing |

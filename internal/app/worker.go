@@ -14,6 +14,8 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
@@ -51,6 +53,11 @@ func RunWorker(ctx context.Context) error {
 
 	router := outbox.NewRouter()
 	router.Handle(outbox.TaskTopicPrefix, outbox.TaskPublisher(client))
+	cf, err := centrifugo.New(cfg.Centrifugo)
+	if err != nil {
+		return reportFatal(log, err)
+	}
+	router.Handle(realtime.TopicPrefix, realtime.Publisher(cf))
 	relay := outbox.NewRelay(pool, router, outbox.RelayOptions{Logger: log.With("component", "outbox"), Registerer: reg})
 
 	svc, err := newServices(cfg, pool, rdb, log)

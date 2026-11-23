@@ -19,6 +19,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
@@ -40,6 +41,7 @@ type (
 	channelsHandler = channels.Handler
 	messagesHandler = messaging.Handler
 	contactsHandler = contacts.Handler
+	realtimeHandler = realtime.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -52,6 +54,7 @@ type apiServer struct {
 	*channelsHandler
 	*messagesHandler
 	*contactsHandler
+	*realtimeHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -119,6 +122,10 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	if err != nil {
 		return err
 	}
+	rtIssuer, err := realtime.NewIssuer(svc.cfg.Centrifugo.HMACSecret.Reveal())
+	if err != nil {
+		return err
+	}
 	srv := apiServer{
 		identityHandler: identity.NewHandler(svc.identity, log),
 		settingsHandler: settings.NewHandler(pool, svc.settings, log),
@@ -127,6 +134,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		channelsHandler: channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),
 		messagesHandler: messaging.NewHandler(svc.messaging, log),
 		contactsHandler: contacts.NewHandler(svc.contacts, log),
+		realtimeHandler: realtime.NewHandler(rtIssuer, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))

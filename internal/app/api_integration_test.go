@@ -77,6 +77,7 @@ func newHarness(t *testing.T) *harness {
 	cfg := &config.Config{PublicAppURL: "https://messora.test", EncryptionKey: bytes.Repeat([]byte{7}, 32),
 		MediaDir: t.TempDir(),
 		Meta:     config.MetaConfig{GraphBaseURL: meta.URL, GraphVersion: "v26.0", AppSecret: testAppSecret, VerifyToken: testVerifyToken}}
+	cfg.Centrifugo.HMACSecret = testHMACSecret // see realtime_integration_test.go
 	mail := &capturingMailer{}
 	fast := crypto.Argon2Params{MemoryKiB: 8 * 1024, Iterations: 1, Parallelism: 1, SaltLen: 16, KeyLen: 32}
 	svc, err := newServicesWith(cfg, pool, rdb, testutil.DiscardLogger(), mail, fast)

@@ -29,6 +29,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -234,8 +235,10 @@ func (s *Service) Queue(ctx context.Context, in SendInput) (db.Message, error) {
 		if err != nil {
 			return err
 		}
-		_, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeSend), map[string]string{"message_id": out.ID.String()}, 0)
-		return err
+		if _, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeSend), map[string]string{"message_id": out.ID.String()}, 0); err != nil {
+			return err
+		}
+		return realtime.Publish(ctx, tx, realtime.InboxChannel, realtime.NewMessageEvent(realtime.TypeMessageCreated, out))
 	})
 	return out, err
 }
@@ -295,7 +298,9 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 			// A previous attempt was interrupted after claiming: the request
 			// may have reached Meta. Never send twice.
 			s.log.WarnContext(ctx, "message left in sending state, marking unknown", "message_id", id)
-			return s.q.MarkMessageUnknown(ctx, db.MarkMessageUnknownParams{ID: id, ErrorTitle: ptr("Interrupted while sending; awaiting status from Meta.")})
+			return s.settle(ctx, id, func(q *db.Queries) error {
+				return q.MarkMessageUnknown(ctx, db.MarkMessageUnknownParams{ID: id, ErrorTitle: ptr("Interrupted while sending; awaiting status from Meta.")})
+			})
 		}
 		return nil // already handled
 	}
@@ -307,7 +312,7 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		var ae *apperr.Error
 		if errors.As(err, &ae) {
-			return s.q.MarkMessageFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &ae.Code, ErrorTitle: &ae.Message})
+			return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &ae.Code, ErrorTitle: &ae.Message})
 		}
 		// Database trouble: nothing was sent yet, put it back.
 		_ = s.q.ReleaseMessageForRetry(ctx, db.ReleaseMessageForRetryParams{ID: id})
@@ -315,19 +320,22 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 	}
 	if sender.Account.Status == "error" {
 		code, title := "ACCOUNT_ERROR", "The WhatsApp account needs attention: "+deref(sender.Account.LastError)
-		return s.q.MarkMessageFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title})
+		return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title})
 	}
 	var wm whatsapp.Message
 	if err := json.Unmarshal(m.Payload, &wm); err != nil {
 		code, title := "INVALID_PAYLOAD", "Stored message could not be decoded."
-		return s.q.MarkMessageFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title})
+		return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title})
 	}
 	wm.BizOpaqueCallbackData = m.ID.String()
 
 	res, err := s.ch.Client().SendMessage(ctx, sender.PhoneNumber.PhoneNumberID, sender.Token, wm, int(m.Attempts)-1)
 	if err == nil {
 		// Acceptance must be recorded even if the job context is ending.
-		return s.q.MarkMessageAccepted(context.WithoutCancel(ctx), db.MarkMessageAcceptedParams{ID: id, Wamid: &res.MessageID})
+		bg := context.WithoutCancel(ctx)
+		return s.settle(bg, id, func(q *db.Queries) error {
+			return q.MarkMessageAccepted(bg, db.MarkMessageAcceptedParams{ID: id, Wamid: &res.MessageID})
+		})
 	}
 	se, ok := whatsapp.AsSendError(err)
 	if !ok {
@@ -339,7 +347,7 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 	case whatsapp.Retryable:
 		if m.Attempts >= maxSendAttempts {
 			title = "Gave up after repeated temporary errors: " + title
-			return s.q.MarkMessageFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title})
+			return s.markFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title})
 		}
 		if err := s.q.ReleaseMessageForRetry(bg, db.ReleaseMessageForRetryParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title}); err != nil {
 			return err
@@ -347,13 +355,37 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 		return &ErrRetry{After: se.RetryAfter, Reason: title}
 	case whatsapp.Ambiguous:
 		s.log.WarnContext(ctx, "send outcome unknown; waiting for Meta's status webhook", "message_id", id, "error", err)
-		return s.q.MarkMessageUnknown(bg, db.MarkMessageUnknownParams{ID: id, ErrorTitle: &title})
+		return s.settle(bg, id, func(q *db.Queries) error {
+			return q.MarkMessageUnknown(bg, db.MarkMessageUnknownParams{ID: id, ErrorTitle: &title})
+		})
 	default:
 		if se.AccountProblem {
 			s.ch.FlagAccountProblem(bg, sender.Account.ID, title)
 		}
-		return s.q.MarkMessageFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title})
+		return s.markFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title})
 	}
+}
+
+// settle records the outcome of a send attempt and, in the same
+// transaction, announces the message's resulting state to the inbox.
+func (s *Service) settle(ctx context.Context, id uuid.UUID, mark func(q *db.Queries) error) error {
+	return s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		if err := mark(q); err != nil {
+			return err
+		}
+		m, err := q.GetMessage(ctx, id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // deleted meanwhile
+		}
+		if err != nil {
+			return err
+		}
+		return realtime.Publish(ctx, tx, realtime.InboxChannel, realtime.NewMessageEvent(realtime.TypeMessageStatus, m))
+	})
+}
+
+func (s *Service) markFailed(ctx context.Context, p db.MarkMessageFailedParams) error {
+	return s.settle(ctx, p.ID, func(q *db.Queries) error { return q.MarkMessageFailed(ctx, p) })
 }
 
 func (s *Service) tx(ctx context.Context, fn func(pgx.Tx, *db.Queries) error) error {

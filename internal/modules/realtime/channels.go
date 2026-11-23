@@ -1,0 +1,86 @@
+// Package realtime connects the panel to Centrifugo: it issues connection and
+// subscription tokens, decides who may read which channel, and turns business
+// changes into small events published through the transactional outbox.
+//
+// Channels (namespaces are configured by `messora init`, see
+// provision.CentrifugoConfig):
+//
+//	personal:#<user_id>    the user's own channel (server-side subscription)
+//	system:notifications   installation-wide notices (server-side subscription)
+//	inbox:all              message activity       conversations.read or conversations.read_all
+//	conversation:<id>      one conversation       conversations.read_all
+//	campaign:all           campaign list progress campaigns.read
+//	campaign:<id>          one campaign           campaigns.read
+//
+// Everything else is refused. Events carry IDs and states only, never message
+// bodies: the client fetches the details from the API with its own
+// permissions.
+package realtime
+
+import (
+	"strings"
+
+	"github.com/google/uuid"
+
+	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
+	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
+)
+
+// Well-known channels.
+const (
+	InboxChannel         = "inbox:all"
+	CampaignsChannel     = "campaign:all"
+	NotificationsChannel = "system:notifications"
+)
+
+// PersonalChannel is the user-limited channel of one user.
+func PersonalChannel(userID uuid.UUID) string { return "personal:#" + userID.String() }
+
+// CampaignChannel carries the progress of one campaign.
+func CampaignChannel(id uuid.UUID) string { return "campaign:" + id.String() }
+
+// ConversationChannel carries the activity of one conversation.
+func ConversationChannel(id uuid.UUID) string { return "conversation:" + id.String() }
+
+// ErrChannelForbidden is returned for channels the caller may not read,
+// including unknown and malformed ones (they are indistinguishable on
+// purpose).
+var ErrChannelForbidden = apperr.Forbidden("CHANNEL_FORBIDDEN", "You are not allowed to subscribe to this channel.")
+
+// Authorize reports whether p may subscribe to channel. Only signed-in panel
+// users can subscribe; API keys never reach the realtime endpoints.
+func Authorize(p *principal.Principal, channel string) error {
+	if p == nil || p.Kind != principal.KindUser || p.MFAPending {
+		return ErrChannelForbidden
+	}
+	ns, rest, ok := strings.Cut(channel, ":")
+	if !ok || rest == "" {
+		return ErrChannelForbidden
+	}
+	allowed := false
+	switch ns {
+	case "personal":
+		allowed = rest == "#"+p.ID.String()
+	case "system":
+		allowed = rest == "notifications"
+	case "inbox":
+		allowed = rest == "all" && (p.Has("conversations.read") || p.Has("conversations.read_all"))
+	case "conversation":
+		// Agents (conversations.read) will be allowed the conversations
+		// assigned to them once assignments exist (Phase 7).
+		allowed = isUUID(rest) && p.Has("conversations.read_all")
+	case "campaign":
+		allowed = (rest == "all" || isUUID(rest)) && p.Has("campaigns.read")
+	}
+	if !allowed {
+		return ErrChannelForbidden
+	}
+	return nil
+}
+
+// isUUID accepts only the canonical lower-case form, so a channel has
+// exactly one spelling.
+func isUUID(s string) bool {
+	id, err := uuid.Parse(s)
+	return err == nil && id.String() == s
+}

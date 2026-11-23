@@ -22,6 +22,7 @@ import {
 import { api, ApiError } from '@/lib/server/api';
 import { can, requireMe } from '@/lib/server/auth';
 import type { SystemStatus } from '@/lib/types';
+import { LiveActivity } from './live-activity';
 import { PageHeading } from './panel-header';
 import { RefreshButton } from './refresh-button';
 
@@ -134,6 +135,10 @@ export default async function OverviewPage() {
                     </AlertDescription>
                 </Alert>
             )}
+
+            {(can(me, 'conversations.read') ||
+                can(me, 'conversations.read_all') ||
+                can(me, 'campaigns.read')) && <LiveActivity />}
 
             {statusError && (
                 <Alert variant="destructive" className="mb-6">

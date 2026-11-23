@@ -35,13 +35,24 @@ export function proxy(req: NextRequest) {
 
     const nonce = btoa(crypto.randomUUID());
     const dev = process.env.NODE_ENV === 'development';
+    // The realtime WebSocket (Centrifugo behind Caddy's /connection route)
+    // lives on this origin; older browsers do not let 'self' cover ws(s):.
+    const host = req.headers.get('host') ?? req.nextUrl.host;
+    const proto =
+        req.headers.get('x-forwarded-proto')?.split(',')[0] ??
+        req.nextUrl.protocol;
+    const https = proto.trim().replace(/:$/, '') === 'https';
+    // Only a plain host[:port] may end up in the policy.
+    const socket = /^[a-z0-9.\-:[\]]+$/i.test(host)
+        ? `${https ? 'wss' : 'ws'}://${host}`
+        : '';
     const csp = [
         `default-src 'self'`,
         `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
         `style-src 'self' 'unsafe-inline'`,
         `img-src 'self' data: blob:`,
         `font-src 'self'`,
-        `connect-src 'self' ws: wss:`,
+        `connect-src 'self'${socket ? ' ' + socket : ''}${dev ? ' ws: wss:' : ''}`,
         `object-src 'none'`,
         `base-uri 'self'`,
         `form-action 'self'`,

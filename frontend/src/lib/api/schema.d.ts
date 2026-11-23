@@ -1047,6 +1047,46 @@ export interface paths {
         patch: operations['updateSegment'];
         trace?: never;
     };
+    '/realtime/connection-token': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Token for opening a Centrifugo connection
+         * @description A short-lived HS256 JWT for Centrifugo with the user as subject. The user's personal channel and system notices are subscribed server-side. The client asks for a new token before this one expires.
+         */
+        post: operations['createRealtimeConnectionToken'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/realtime/subscription-token': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Token for subscribing to one channel
+         * @description Issued only when the user may read the channel: `inbox:all` needs conversations.read or conversations.read_all, `conversation:<id>` needs conversations.read_all, `campaign:all` and `campaign:<id>` need campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
+         */
+        post: operations['createRealtimeSubscriptionToken'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1882,6 +1922,20 @@ export interface components {
         };
         ContactImportListResponse: {
             data: components['schemas']['ContactImport'][];
+            meta: components['schemas']['Meta'];
+        };
+        RealtimeSubscriptionRequest: {
+            /** @description Channel name, e.g. inbox:all or campaign:<id>. */
+            channel: string;
+        };
+        RealtimeToken: {
+            /** @description Centrifugo JWT. */
+            token: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        RealtimeTokenResponse: {
+            data: components['schemas']['RealtimeToken'];
             meta: components['schemas']['Meta'];
         };
     };
@@ -3780,6 +3834,52 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['SegmentResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createRealtimeConnectionToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connection token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['RealtimeTokenResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createRealtimeSubscriptionToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['RealtimeSubscriptionRequest'];
+            };
+        };
+        responses: {
+            /** @description Subscription token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['RealtimeTokenResponse'];
                 };
             };
             default: components['responses']['Error'];

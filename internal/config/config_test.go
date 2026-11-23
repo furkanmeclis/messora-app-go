@@ -79,10 +79,11 @@ func TestEncryptionKeyValidation(t *testing.T) {
 
 func TestValidateByRole(t *testing.T) {
 	base := map[string]string{
-		"POSTGRES_PASSWORD":  "pw",
-		"APP_ENCRYPTION_KEY": validKey,
-		"BFF_SHARED_SECRET":  strings.Repeat("x", 32),
-		"CENTRIFUGO_API_KEY": "k",
+		"POSTGRES_PASSWORD":      "pw",
+		"APP_ENCRYPTION_KEY":     validKey,
+		"BFF_SHARED_SECRET":      strings.Repeat("x", 32),
+		"CENTRIFUGO_API_KEY":     "k",
+		"CENTRIFUGO_HMAC_SECRET": "h",
 	}
 	cfg, err := loadFrom(envFrom(base), nil)
 	if err != nil {
@@ -101,8 +102,11 @@ func TestValidateByRole(t *testing.T) {
 	if err := migrateOnly.Validate(RoleWorker); err == nil || !strings.Contains(err.Error(), "APP_ENCRYPTION_KEY") {
 		t.Errorf("worker must require encryption key, got %v", err)
 	}
-	if err := migrateOnly.Validate(RoleAPI); err == nil || !strings.Contains(err.Error(), "BFF_SHARED_SECRET") {
-		t.Errorf("api must require BFF secret, got %v", err)
+	if err := migrateOnly.Validate(RoleAPI); err == nil || !strings.Contains(err.Error(), "BFF_SHARED_SECRET") || !strings.Contains(err.Error(), "CENTRIFUGO_HMAC_SECRET") {
+		t.Errorf("api must require the BFF and token secrets, got %v", err)
+	}
+	if err := migrateOnly.Validate(RoleWorker); err == nil || !strings.Contains(err.Error(), "CENTRIFUGO_API_KEY") {
+		t.Errorf("worker publishes realtime events and needs the Centrifugo API key, got %v", err)
 	}
 
 	short := maps.Clone(base)
