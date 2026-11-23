@@ -1,9 +1,16 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Braces, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -37,9 +44,10 @@ function describedBy(id: string, error?: string, hint?: string) {
 }
 
 /**
- * Text input (or textarea) with placeholder chips that insert {{name}},
- * {{var1}} … at the cursor. The chips appear while the field or a chip
- * has focus, so tabbing from the field reaches them.
+ * Text input (or textarea) with an "Insert placeholder" menu of chips that
+ * insert {{name}}, {{var1}} … at the cursor. A menu (rather than chips that
+ * appear on focus) keeps the layout still, so a click elsewhere right after
+ * typing lands where the pointer is.
  */
 export function PlaceholderText({
     id,
@@ -92,8 +100,45 @@ export function PlaceholderText({
         'aria-describedby': describedBy(id, error, hint),
     };
     return (
-        <Field data-invalid={error ? true : undefined} className="group/ph">
-            <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <Field data-invalid={error ? true : undefined}>
+            <div className="flex items-center justify-between gap-2">
+                <FieldLabel htmlFor={id}>{label}</FieldLabel>
+                {!readOnly && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                aria-label={`Insert placeholder into ${label}`}
+                                className="font-mono text-muted-foreground"
+                            >
+                                <Braces /> Insert
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align="end"
+                            className="w-56"
+                            onCloseAutoFocus={(e) => e.preventDefault()}
+                        >
+                            <DropdownMenuLabel>Placeholders</DropdownMenuLabel>
+                            <div className="flex flex-wrap gap-1 p-1">
+                                {PLACEHOLDERS.map((ph) => (
+                                    <DropdownMenuItem
+                                        key={ph}
+                                        onSelect={() => insert(ph)}
+                                        className="rounded-md border bg-muted px-1.5 py-0.5 font-mono text-xs"
+                                    >
+                                        {ph === '{{attr:key}}'
+                                            ? '{{attr:…}}'
+                                            : ph}
+                                    </DropdownMenuItem>
+                                ))}
+                            </div>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
+            </div>
             {multiline ? (
                 <Textarea
                     {...common}
@@ -106,24 +151,6 @@ export function PlaceholderText({
                     type={type}
                     onChange={(e) => onChange(e.target.value)}
                 />
-            )}
-            {!readOnly && (
-                <div
-                    role="group"
-                    aria-label={`Insert a placeholder into ${label}`}
-                    className="hidden flex-wrap gap-1 group-focus-within/ph:flex"
-                >
-                    {PLACEHOLDERS.map((ph) => (
-                        <button
-                            key={ph}
-                            type="button"
-                            onClick={() => insert(ph)}
-                            className="rounded-md border bg-muted px-1.5 py-0.5 font-mono text-xs hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                        >
-                            {ph === '{{attr:key}}' ? '{{attr:…}}' : ph}
-                        </button>
-                    ))}
-                </div>
             )}
             {hint && !error && (
                 <FieldDescription id={`${id}-hint`}>{hint}</FieldDescription>
