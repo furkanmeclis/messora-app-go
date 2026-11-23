@@ -282,39 +282,41 @@ export function Topbar({
                     <Search className="size-4" />
                 </button>
 
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <span
-                            className={cn(
-                                'mr-1 hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium sm:flex',
-                                state === 'connected' &&
-                                    'border-success/30 bg-success/10 text-success',
-                                state === 'connecting' &&
-                                    'border-warning/30 bg-warning/10 text-warning',
-                                state === 'disconnected' &&
-                                    'text-muted-foreground',
-                            )}
-                        >
-                            <span className="relative flex size-2">
-                                {state === 'connected' && (
-                                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60" />
+                {!restricted && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span
+                                className={cn(
+                                    'mr-1 hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium sm:flex',
+                                    state === 'connected' &&
+                                        'border-success/30 bg-success/10 text-success',
+                                    state === 'connecting' &&
+                                        'border-warning/30 bg-warning/10 text-warning',
+                                    state === 'disconnected' &&
+                                        'text-muted-foreground',
                                 )}
-                                <span
-                                    className={cn(
-                                        'relative inline-flex size-2 rounded-full',
-                                        state === 'connected'
-                                            ? 'bg-success'
-                                            : state === 'connecting'
-                                              ? 'bg-warning'
-                                              : 'bg-muted-foreground',
+                            >
+                                <span className="relative flex size-2">
+                                    {state === 'connected' && (
+                                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60" />
                                     )}
-                                />
+                                    <span
+                                        className={cn(
+                                            'relative inline-flex size-2 rounded-full',
+                                            state === 'connected'
+                                                ? 'bg-success'
+                                                : state === 'connecting'
+                                                  ? 'bg-warning'
+                                                  : 'bg-muted-foreground',
+                                        )}
+                                    />
+                                </span>
+                                {stateLabel}
                             </span>
-                            {stateLabel}
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('topbar.liveHint')}</TooltipContent>
-                </Tooltip>
+                        </TooltipTrigger>
+                        <TooltipContent>{t('topbar.liveHint')}</TooltipContent>
+                    </Tooltip>
+                )}
 
                 {canCampaigns && !restricted && (
                     <Popover>
