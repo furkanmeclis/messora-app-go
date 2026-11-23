@@ -442,9 +442,13 @@ function Editor({
                                   ? NODE_WIDTH / 2 + GAP / 2
                                   : 0;
                         const h = anchor.measured?.height ?? NODE_HEIGHT;
+                        // What follows a condition goes below its branches,
+                        // so it never covers the yes/no nodes.
+                        const belowBranches =
+                            output === 'next' ? NODE_HEIGHT + GAP : 0;
                         position = {
                             x: anchor.position.x + dx,
-                            y: anchor.position.y + h + GAP,
+                            y: anchor.position.y + h + GAP + belowBranches,
                         };
                         edgesNext = [
                             ...d.edges,

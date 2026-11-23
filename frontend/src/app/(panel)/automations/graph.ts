@@ -40,6 +40,8 @@ export const NODE_WIDTH = 272;
 export const NODE_HEIGHT = 96;
 const GAP_X = 48;
 const GAP_Y = 64;
+/** Conditions show their yes/no outputs below the body. */
+const CONDITION_HEIGHT = 132;
 
 export function outputsOf(node: FlowNode | undefined): Output[] {
     if (!node) return [];
@@ -274,6 +276,10 @@ export function autoLayout(
         const n = byId.get(id);
         return n?.type === 'step' && n.data.step.type === 'condition';
     };
+    // Rendered height when known (conditions are taller than other steps).
+    const heightOf = (id: string) =>
+        byId.get(id)?.measured?.height ??
+        (isCondition(id) ? CONDITION_HEIGHT : NODE_HEIGHT);
     const nextOf = (id: string) =>
         out.get(id)?.get(isCondition(id) ? 'next' : 'out');
 
@@ -289,7 +295,7 @@ export function autoLayout(
         ) {
             guard.add(id);
             let w = NODE_WIDTH;
-            let h = NODE_HEIGHT;
+            let h = heightOf(id);
             if (isCondition(id)) {
                 const yes = measure(out.get(id)?.get('yes'), guard);
                 const no = measure(out.get(id)?.get('no'), guard);
@@ -297,7 +303,7 @@ export function autoLayout(
                 const nw = Math.max(no.width, NODE_WIDTH);
                 w = Math.max(NODE_WIDTH, yw + GAP_X + nw);
                 const branch = Math.max(yes.height, no.height);
-                h = NODE_HEIGHT + (branch ? GAP_Y + branch : 0);
+                h = heightOf(id) + (branch ? GAP_Y + branch : 0);
             }
             measureMemo.set(id, { width: w, height: h });
             width = Math.max(width, w);
@@ -317,7 +323,7 @@ export function autoLayout(
             pos[id] = { x: cx - NODE_WIDTH / 2, y: top };
             const box = measureMemo.get(id) ?? {
                 width: NODE_WIDTH,
-                height: NODE_HEIGHT,
+                height: heightOf(id),
             };
             if (isCondition(id)) {
                 const yes = out.get(id)?.get('yes');
@@ -331,7 +337,7 @@ export function autoLayout(
                     NODE_WIDTH,
                 );
                 const left = cx - (yw + GAP_X + nw) / 2;
-                const by = top + NODE_HEIGHT + GAP_Y;
+                const by = top + heightOf(id) + GAP_Y;
                 place(yes, left + yw / 2, by);
                 place(no, left + yw + GAP_X + nw / 2, by);
             }
@@ -344,7 +350,7 @@ export function autoLayout(
     placed.add(TRIGGER_ID);
     const first = out.get(TRIGGER_ID)?.get('out');
     const tree = measure(first, new Set([TRIGGER_ID]));
-    place(first, 0, NODE_HEIGHT + GAP_Y);
+    place(first, 0, heightOf(TRIGGER_ID) + GAP_Y);
 
     // Whatever is not connected to the trigger: each loose subtree in a
     // column to the right.
