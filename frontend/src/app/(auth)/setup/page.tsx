@@ -9,11 +9,15 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import type { Schemas } from '@/lib/types';
 import { SetupForm } from '../forms';
 
-export const metadata: Metadata = { title: 'Set up Messora' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('auth.setup.title') };
+}
 
 export default async function SetupPage({
     searchParams,
@@ -25,14 +29,13 @@ export default async function SetupPage({
     ).data;
     if (!status.setup_required) redirect('/login');
     const token = (await searchParams).token ?? '';
+    const t = await getT();
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Set up Messora</CardTitle>
-                <CardDescription>
-                    Create the owner account for this installation.
-                </CardDescription>
+                <CardTitle>{t('auth.setup.title')}</CardTitle>
+                <CardDescription>{t('auth.setup.description')}</CardDescription>
             </CardHeader>
             <CardContent>
                 {token ? (
@@ -40,16 +43,13 @@ export default async function SetupPage({
                 ) : (
                     <Alert>
                         <Terminal />
-                        <AlertTitle>Open the setup link</AlertTitle>
+                        <AlertTitle>{t('auth.setup.openLinkTitle')}</AlertTitle>
                         <AlertDescription>
-                            <p>
-                                The one-time link is printed in the API logs on
-                                first start:
-                            </p>
+                            <p>{t('auth.setup.openLinkLogs')}</p>
                             <code className="mt-2 block rounded bg-muted p-2 text-xs">
                                 docker compose logs messora-api | grep setup_url
                             </code>
-                            <p className="mt-2">For a new link run:</p>
+                            <p className="mt-2">{t('auth.setup.newLink')}</p>
                             <code className="mt-2 block rounded bg-muted p-2 text-xs">
                                 docker compose exec messora-api messora setup
                                 token

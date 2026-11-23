@@ -1,5 +1,6 @@
 import type { Messages } from '../en';
 import appearance from './appearance';
+import auth from './auth';
 import common from './common';
 import errors from './errors';
 import nav from './nav';
@@ -13,4 +14,5 @@ export const tr: Messages = {
     appearance,
     settings,
     wizard,
+    auth,
 };

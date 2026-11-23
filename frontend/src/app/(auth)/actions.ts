@@ -10,6 +10,7 @@ import {
     setSessionToken,
 } from '@/lib/server/session';
 import type { ActionResult, Me, Schemas } from '@/lib/types';
+import { getT } from '@/i18n/server';
 
 type SessionCreated = Schemas['SessionCreated'];
 type LoginResult = Schemas['LoginResult'];
@@ -144,7 +145,7 @@ export async function forgotPasswordAction(
                 auth: 'none',
                 body: { email: field(form, 'email') },
             }).then(() => undefined),
-        'If an account exists for this address, we sent a link to reset the password. Check your inbox.',
+        (await getT())('auth.forgot.sent'),
     );
 }
 

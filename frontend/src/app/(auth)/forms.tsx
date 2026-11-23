@@ -10,6 +10,7 @@ import {
 } from '@/components/forms';
 import { Button } from '@/components/ui/button';
 import { FieldGroup } from '@/components/ui/field';
+import { useT } from '@/i18n/client';
 import type { ActionResult } from '@/lib/types';
 import {
     acceptInvitationAction,
@@ -46,9 +47,6 @@ function useAction(action: Action) {
     }, null);
 }
 
-const passwordHint =
-    'At least 12 characters. Avoid common passwords and your e-mail address.';
-
 export function LoginForm({
     next,
     canReset,
@@ -56,6 +54,7 @@ export function LoginForm({
     next: string;
     canReset: boolean;
 }) {
+    const t = useT();
     const [state, action] = useAction(loginAction);
     return (
         <form action={action} className="space-y-4">
@@ -63,9 +62,8 @@ export function LoginForm({
             <FormStatus state={state} />
             <FieldGroup>
                 <TextField
-                    label="E-mail"
+                    label={t('auth.email')}
                     name="email"
-
                     defaultValue={state?.values?.email}
                     type="email"
                     autoComplete="username"
@@ -74,7 +72,7 @@ export function LoginForm({
                     error={fieldError(state, 'email')}
                 />
                 <TextField
-                    label="Password"
+                    label={t('auth.password')}
                     name="password"
                     type="password"
                     autoComplete="current-password"
@@ -82,14 +80,16 @@ export function LoginForm({
                     error={fieldError(state, 'password')}
                 />
             </FieldGroup>
-            <SubmitButton className="w-full">Sign in</SubmitButton>
+            <SubmitButton className="w-full">
+                {t('auth.login.submit')}
+            </SubmitButton>
             {canReset && (
                 <p className="text-center text-sm">
                     <Link
                         href="/forgot-password"
                         className="text-muted-foreground underline-offset-4 hover:underline"
                     >
-                        Forgot your password?
+                        {t('auth.login.forgot')}
                     </Link>
                 </p>
             )}
@@ -98,6 +98,7 @@ export function LoginForm({
 }
 
 export function VerifyForm({ next }: { next: string }) {
+    const t = useT();
     const [state, action] = useAction(verifyMfaAction);
     const [recovery, setRecovery] = useState(false);
     return (
@@ -107,7 +108,7 @@ export function VerifyForm({ next }: { next: string }) {
             {recovery ? (
                 <TextField
                     key="recovery"
-                    label="Recovery code"
+                    label={t('auth.verify.recoveryCode')}
                     name="recovery_code"
                     placeholder="xxxxx-xxxxx"
                     autoComplete="one-time-code"
@@ -118,7 +119,7 @@ export function VerifyForm({ next }: { next: string }) {
             ) : (
                 <TextField
                     key="code"
-                    label="Authenticator code"
+                    label={t('auth.verify.authenticatorCode')}
                     name="code"
                     inputMode="numeric"
                     pattern="\d{6}"
@@ -130,7 +131,9 @@ export function VerifyForm({ next }: { next: string }) {
                     error={fieldError(state, 'code')}
                 />
             )}
-            <SubmitButton className="w-full">Verify</SubmitButton>
+            <SubmitButton className="w-full">
+                {t('auth.verify.submit')}
+            </SubmitButton>
             <Button
                 type="button"
                 variant="link"
@@ -138,14 +141,15 @@ export function VerifyForm({ next }: { next: string }) {
                 onClick={() => setRecovery((v) => !v)}
             >
                 {recovery
-                    ? 'Use the authenticator app instead'
-                    : 'Use a recovery code instead'}
+                    ? t('auth.verify.useApp')
+                    : t('auth.verify.useRecovery')}
             </Button>
         </form>
     );
 }
 
 export function SetupForm({ token }: { token: string }) {
+    const t = useT();
     const [state, action] = useAction(setupAction);
     return (
         <form action={action} className="space-y-4">
@@ -153,18 +157,16 @@ export function SetupForm({ token }: { token: string }) {
             <FormStatus state={state} />
             <FieldGroup>
                 <TextField
-                    label="Organization name"
+                    label={t('auth.setup.organizationName')}
                     name="organization_name"
-
                     defaultValue={state?.values?.organization_name}
-                    placeholder="Acme Inc."
+                    placeholder={t('auth.setup.organizationPlaceholder')}
                     maxLength={120}
                     error={fieldError(state, 'organization_name')}
                 />
                 <TextField
-                    label="Your name"
+                    label={t('auth.yourName')}
                     name="name"
-
                     defaultValue={state?.values?.name}
                     autoComplete="name"
                     required
@@ -172,9 +174,8 @@ export function SetupForm({ token }: { token: string }) {
                     error={fieldError(state, 'name')}
                 />
                 <TextField
-                    label="E-mail"
+                    label={t('auth.email')}
                     name="email"
-
                     defaultValue={state?.values?.email}
                     type="email"
                     autoComplete="username"
@@ -182,17 +183,19 @@ export function SetupForm({ token }: { token: string }) {
                     error={fieldError(state, 'email')}
                 />
                 <TextField
-                    label="Password"
+                    label={t('auth.password')}
                     name="password"
                     type="password"
                     autoComplete="new-password"
                     required
                     minLength={12}
-                    hint={passwordHint}
+                    hint={t('auth.passwordHint')}
                     error={fieldError(state, 'password')}
                 />
             </FieldGroup>
-            <SubmitButton className="w-full">Create owner account</SubmitButton>
+            <SubmitButton className="w-full">
+                {t('auth.setup.submit')}
+            </SubmitButton>
         </form>
     );
 }
@@ -204,6 +207,7 @@ export function AcceptInvitationForm({
     token: string;
     email: string;
 }) {
+    const t = useT();
     const [state, action] = useAction(acceptInvitationAction);
     return (
         <form action={action} className="space-y-4">
@@ -211,16 +215,15 @@ export function AcceptInvitationForm({
             <FormStatus state={state} />
             <FieldGroup>
                 <TextField
-                    label="E-mail"
+                    label={t('auth.email')}
                     name="email_display"
                     value={email}
                     readOnly
                     disabled
                 />
                 <TextField
-                    label="Your name"
+                    label={t('auth.yourName')}
                     name="name"
-
                     defaultValue={state?.values?.name}
                     autoComplete="name"
                     required
@@ -228,30 +231,32 @@ export function AcceptInvitationForm({
                     error={fieldError(state, 'name')}
                 />
                 <TextField
-                    label="Password"
+                    label={t('auth.password')}
                     name="password"
                     type="password"
                     autoComplete="new-password"
                     required
                     minLength={12}
-                    hint={passwordHint}
+                    hint={t('auth.passwordHint')}
                     error={fieldError(state, 'password')}
                 />
             </FieldGroup>
-            <SubmitButton className="w-full">Join</SubmitButton>
+            <SubmitButton className="w-full">
+                {t('auth.invite.submit')}
+            </SubmitButton>
         </form>
     );
 }
 
 export function ForgotPasswordForm() {
+    const t = useT();
     const [state, action] = useAction(forgotPasswordAction);
     return (
         <form action={action} className="space-y-4">
             <FormStatus state={state} />
             <TextField
-                label="E-mail"
+                label={t('auth.email')}
                 name="email"
-
                 defaultValue={state?.values?.email}
                 type="email"
                 autoComplete="username"
@@ -259,28 +264,33 @@ export function ForgotPasswordForm() {
                 autoFocus
                 error={fieldError(state, 'email')}
             />
-            <SubmitButton className="w-full">Send reset link</SubmitButton>
+            <SubmitButton className="w-full">
+                {t('auth.forgot.submit')}
+            </SubmitButton>
         </form>
     );
 }
 
 export function ResetPasswordForm({ token }: { token: string }) {
+    const t = useT();
     const [state, action] = useAction(resetPasswordAction);
     return (
         <form action={action} className="space-y-4">
             <input type="hidden" name="token" value={token} />
             <FormStatus state={state} />
             <TextField
-                label="New password"
+                label={t('auth.newPassword')}
                 name="password"
                 type="password"
                 autoComplete="new-password"
                 required
                 minLength={12}
-                hint={passwordHint}
+                hint={t('auth.passwordHint')}
                 error={fieldError(state, 'password')}
             />
-            <SubmitButton className="w-full">Set new password</SubmitButton>
+            <SubmitButton className="w-full">
+                {t('auth.reset.submit')}
+            </SubmitButton>
         </form>
     );
 }
