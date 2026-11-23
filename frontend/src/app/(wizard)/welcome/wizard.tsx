@@ -107,6 +107,10 @@ export function Wizard({
     });
     const [busy, start] = useTransition();
     const [direction, setDirection] = useState<1 | -1>(1);
+    // The two-factor policy is saved when the wizard finishes: requiring it
+    // for the owner earlier would lock the rest of the wizard until the
+    // owner enrols.
+    const [mfaRoles, setMfaRoles] = useState<RoleKey[] | null>(null);
 
     const go = (i: number) => {
         setDirection(i > index ? 1 : -1);
@@ -132,6 +136,9 @@ export function Wizard({
                 STEPS[STEPS.length - 1]!.key,
                 done,
                 true,
+                mfaRoles && !settings.locked.includes('mfa_required_roles')
+                    ? { mfa_required_roles: mfaRoles }
+                    : {},
             );
             if (notify(r)) {
                 router.push('/');
@@ -388,20 +395,17 @@ export function Wizard({
                                 )}
                                 {step.key === 'security' && (
                                     <SecurityStep
-                                        value={settings.mfa_required_roles}
+                                        value={
+                                            mfaRoles ??
+                                            settings.mfa_required_roles
+                                        }
                                         locked={locked('mfa_required_roles')}
                                         busy={busy}
                                         onBack={() => go(index - 1)}
-                                        onNext={(roles) =>
-                                            advance(() =>
-                                                locked('mfa_required_roles')
-                                                    ? Promise.resolve(true)
-                                                    : patch({
-                                                          mfa_required_roles:
-                                                              roles,
-                                                      }),
-                                            )
-                                        }
+                                        onNext={(roles) => {
+                                            setMfaRoles(roles);
+                                            advance();
+                                        }}
                                     />
                                 )}
                                 {step.key === 'team' && (

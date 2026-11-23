@@ -38,7 +38,9 @@ function freshCode(secret: string) {
 
 test.describe.configure({ mode: 'serial' });
 
-test('owner sets up the installation and enrols two-factor authentication', async ({ page }) => {
+test('owner sets up the installation, runs the wizard and enrols two-factor authentication', async ({
+    page,
+}) => {
     const noErrors = watchErrors(page);
     const setupUrl = process.env.E2E_SETUP_URL;
     expect(setupUrl, 'E2E_SETUP_URL must be set').toBeTruthy();
@@ -51,16 +53,48 @@ test('owner sets up the installation and enrols two-factor authentication', asyn
     await page.getByLabel('Password').fill(OWNER.password);
     await page.getByRole('button', { name: 'Create owner account' }).click();
 
-    // Owners must enrol 2FA before anything else.
-    await expect(page).toHaveURL(/\/account\/security/);
-    await expect(page.getByText('Two-factor authentication is required')).toBeVisible();
+    // The first-run wizard opens; two-factor is not required by default.
+    await expect(page).toHaveURL(/\/welcome/);
+    await page.getByRole('button', { name: 'Start' }).click();
+    const next = () =>
+        page.getByRole('button', { name: 'Save and continue' }).click();
+    const cont = () =>
+        page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page.getByLabel('Organisation name')).toHaveValue(OWNER.org);
+    await next(); // organisation
+    await page.getByRole('radio', { name: /English/ }).click();
+    await next(); // language
+    await expect(page.getByText('Date format')).toBeVisible();
+    await next(); // date and time
+    await page.getByRole('radio', { name: 'Ocean' }).click();
+    await next(); // theme
+    await expect(page.getByText('Outgoing e-mail')).toBeVisible();
+    await cont(); // e-mail
+    await expect(page.getByText('Connect WhatsApp')).toBeVisible();
+    await cont(); // WhatsApp
+    // The workspace requires two-factor for owners and admins; the policy is
+    // saved when the wizard finishes.
+    await page.getByRole('checkbox', { name: 'Owner' }).click();
+    await page.getByRole('checkbox', { name: 'Admin' }).click();
+    await next(); // security
+    await expect(page.getByText('Invite your team')).toBeVisible();
+    await cont(); // team
+    await page.getByRole('button', { name: 'Open the panel' }).click();
+
+    // Now the policy applies to the owner: enrolment comes first.
+    await expect(page).toHaveURL(/\/account\/security\?enroll=1/);
+    await expect(
+        page.getByText('Two-factor authentication is required'),
+    ).toBeVisible();
     await page.goto('/users');
     await expect(page).toHaveURL(/\/account\/security\?enroll=1/);
 
     await page.getByRole('button', { name: 'Set up now' }).click();
     const secret = (await page.locator('code.break-all').innerText()).trim();
     expect(secret).toMatch(/^[A-Z2-7]{16,}$/);
-    await expect(page.getByAltText('QR code for your authenticator app')).toBeVisible();
+    await expect(
+        page.getByAltText('QR code for your authenticator app'),
+    ).toBeVisible();
     await page.getByLabel('Code from the app').fill(totp(secret));
     await page.getByRole('button', { name: 'Turn on' }).click();
 
@@ -71,7 +105,9 @@ test('owner sets up the installation and enrols two-factor authentication', asyn
     await page.getByRole('button', { name: 'I saved them' }).click();
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Welcome, Olivia' })).toBeVisible();
+    await expect(
+        page.getByRole('heading', { name: 'Welcome, Olivia' }),
+    ).toBeVisible();
     await expect(page.getByText('All systems healthy')).toBeVisible();
     await expect(page.getByText(OWNER.org).first()).toBeVisible();
     noErrors();
@@ -79,7 +115,9 @@ test('owner sets up the installation and enrols two-factor authentication', asyn
 
 test('owner invites an agent', async ({ page }) => {
     const noErrors = watchErrors(page);
-    await signIn(page, OWNER.email, OWNER.password, () => state.recovery!.shift()!);
+    await signIn(page, OWNER.email, OWNER.password, () =>
+        state.recovery!.shift()!,
+    );
 
     await page.goto('/users');
     await page.getByRole('button', { name: 'Invite user' }).click();
@@ -98,7 +136,9 @@ test('owner invites an agent', async ({ page }) => {
     noErrors();
 });
 
-test('invitee joins as an agent and sees only what the role allows', async ({ browser }) => {
+test('invitee joins as an agent and sees only what the role allows', async ({
+    browser,
+}) => {
     const context = await browser.newContext();
     const page = await context.newPage();
     const noErrors = watchErrors(page);
@@ -115,7 +155,9 @@ test('invitee joins as an agent and sees only what the role allows', async ({ br
     await page.getByLabel('Password').fill(AGENT.password);
     await page.getByRole('button', { name: 'Join' }).click();
 
-    await expect(page.getByRole('heading', { name: 'Welcome, Ari' })).toBeVisible();
+    await expect(
+        page.getByRole('heading', { name: 'Welcome, Ari' }),
+    ).toBeVisible();
     const nav = page.locator('[data-sidebar="sidebar"]');
     await expect(nav.getByRole('link', { name: 'Overview' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Users' })).toHaveCount(0);
@@ -127,9 +169,13 @@ test('invitee joins as an agent and sees only what the role allows', async ({ br
     await context.close();
 });
 
-test('owner signs in with an authenticator code and creates an API key', async ({ page }) => {
+test('owner signs in with an authenticator code and creates an API key', async ({
+    page,
+}) => {
     const noErrors = watchErrors(page);
-    await signIn(page, OWNER.email, OWNER.password, () => freshCode(state.secret!));
+    await signIn(page, OWNER.email, OWNER.password, () =>
+        freshCode(state.secret!),
+    );
 
     await page.goto('/api-keys');
     await expect(page.getByText('No API keys yet')).toBeVisible();
@@ -143,8 +189,16 @@ test('owner signs in with an authenticator code and creates an API key', async (
     await expect(page.getByRole('cell', { name: /CRM sync/ })).toBeVisible();
 
     await page.goto('/audit');
-    for (const action of ['setup.complete', 'user.mfa_enable', 'invitation.create', 'invitation.accept', 'api_key.create']) {
-        await expect(page.getByRole('button', { name: action }).first()).toBeVisible();
+    for (const action of [
+        'setup.complete',
+        'user.mfa_enable',
+        'invitation.create',
+        'invitation.accept',
+        'api_key.create',
+    ]) {
+        await expect(
+            page.getByRole('button', { name: action }).first(),
+        ).toBeVisible();
     }
     noErrors();
 });
@@ -155,11 +209,18 @@ test('wrong password and unknown e-mail look the same', async ({ page }) => {
         await page.getByLabel('E-mail').fill(email);
         await page.getByLabel('Password').fill('definitely-wrong');
         await page.getByRole('button', { name: 'Sign in' }).click();
-        await expect(page.getByText('E-mail or password is incorrect')).toBeVisible();
+        await expect(
+            page.getByText('E-mail or password is incorrect'),
+        ).toBeVisible();
     }
 });
 
-async function signIn(page: Page, email: string, password: string, secondFactor: () => string) {
+async function signIn(
+    page: Page,
+    email: string,
+    password: string,
+    secondFactor: () => string,
+) {
     await page.goto('/login');
     await page.getByLabel('E-mail').fill(email);
     await page.getByLabel('Password').fill(password);
@@ -167,7 +228,9 @@ async function signIn(page: Page, email: string, password: string, secondFactor:
     await expect(page).toHaveURL(/\/login\/verify/);
     const code = secondFactor();
     if (code.includes('-')) {
-        await page.getByRole('button', { name: 'Use a recovery code instead' }).click();
+        await page
+            .getByRole('button', { name: 'Use a recovery code instead' })
+            .click();
         await page.getByLabel('Recovery code').fill(code);
     } else {
         await page.getByLabel('Authenticator code').fill(code);

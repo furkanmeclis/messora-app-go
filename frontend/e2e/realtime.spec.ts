@@ -25,7 +25,9 @@ test('the panel reconnects after Centrifugo restarts', async ({ page }) => {
     await page.getByLabel('E-mail').fill(AGENT.email);
     await page.getByLabel('Password').fill(AGENT.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('heading', { name: 'Welcome, Ari' })).toBeVisible();
+    await expect(
+        page.getByRole('heading', { name: 'Welcome, Ari' }),
+    ).toBeVisible();
 
     const state = page.getByTestId('realtime-state');
     await expect(state).toHaveText('Live');
@@ -33,22 +35,35 @@ test('the panel reconnects after Centrifugo restarts', async ({ page }) => {
     await state.evaluate((el) => {
         const seen: string[] = [];
         (window as unknown as { rtSeen: string[] }).rtSeen = seen;
-        new MutationObserver(() => seen.push(el.textContent ?? '')).observe(el, {
-            childList: true,
-            characterData: true,
-            subtree: true,
-        });
+        new MutationObserver(() => seen.push(el.textContent ?? '')).observe(
+            el,
+            {
+                childList: true,
+                characterData: true,
+                subtree: true,
+            },
+        );
     });
 
-    execFileSync('docker', ['compose', '-p', PROJECT, 'restart', 'centrifugo'], {
-        cwd: '..',
-        stdio: 'inherit',
-    });
+    execFileSync(
+        'docker',
+        ['compose', '-p', PROJECT, 'restart', 'centrifugo'],
+        {
+            cwd: '..',
+            stdio: 'inherit',
+        },
+    );
     // No reload: the client notices the drop and reconnects with backoff.
     await expect
-        .poll(() => page.evaluate(() => (window as unknown as { rtSeen: string[] }).rtSeen), {
-            timeout: 30_000,
-        })
+        .poll(
+            () =>
+                page.evaluate(
+                    () => (window as unknown as { rtSeen: string[] }).rtSeen,
+                ),
+            {
+                timeout: 30_000,
+            },
+        )
         .toContain('Connecting…');
     await expect(state).toHaveText('Live', { timeout: 60_000 });
     expect(errors, 'browser errors').toEqual([]);

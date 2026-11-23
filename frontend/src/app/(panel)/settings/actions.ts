@@ -37,6 +37,7 @@ export async function completeSetupStepAction(
     step: Schemas['SetupStep'],
     done: Schemas['SetupStep'][],
     finish = false,
+    extra: Patch = {},
 ): Promise<ActionResult<Settings>> {
     const steps = Array.from(new Set([...done, step]));
     const res = await runAction(
@@ -45,6 +46,7 @@ export async function completeSetupStepAction(
                 await api<Settings>('/settings', {
                     method: 'PATCH',
                     body: {
+                        ...extra,
                         setup_steps: steps,
                         ...(finish ? { setup_completed: true } : {}),
                     },

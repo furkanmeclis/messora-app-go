@@ -22,8 +22,15 @@ function sql(query: string): string {
     return execFileSync(
         'docker',
         [
-            'compose', '-p', PROJECT, 'exec', '-T', 'postgres',
-            'sh', '-c', 'psql -v ON_ERROR_STOP=1 -qtA -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
+            'compose',
+            '-p',
+            PROJECT,
+            'exec',
+            '-T',
+            'postgres',
+            'sh',
+            '-c',
+            'psql -v ON_ERROR_STOP=1 -qtA -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
         ],
         { cwd: '..', input: query, encoding: 'utf8' },
     ).trim();
@@ -38,7 +45,9 @@ function announce(conversationId: string) {
          NOTIFY outbox;`);
 }
 
-test('an agent opens a conversation, replies and sees the delivery update', async ({ page }) => {
+test('an agent opens a conversation, replies and sees the delivery update', async ({
+    page,
+}) => {
     // A number whose account is disabled (the worker fails the send right
     // away instead of calling Meta) and a customer who just wrote in.
     const conversationId = sql(`
@@ -59,48 +68,73 @@ test('an agent opens a conversation, replies and sees the delivery update', asyn
     await page.getByLabel('E-mail').fill(AGENT.email);
     await page.getByLabel('Password').fill(AGENT.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('heading', { name: 'Welcome, Ari' })).toBeVisible();
+    await expect(
+        page.getByRole('heading', { name: 'Welcome, Ari' }),
+    ).toBeVisible();
 
     // The sidebar leads to the inbox; the list is keyboard reachable.
     await page.getByRole('link', { name: 'Inbox' }).click();
     await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible();
-    const item = page.getByTestId('conversation-item').filter({ hasText: 'Deniz Müşteri' });
+    const item = page
+        .getByTestId('conversation-item')
+        .filter({ hasText: 'Deniz Müşteri' });
     await expect(item).toContainText('Siparişim nerede?');
     await expect(item.getByTestId('unread-count')).toHaveText('1');
     await item.focus();
     await page.keyboard.press('Enter');
 
     await expect(page.getByTestId('thread-title')).toHaveText('Deniz Müşteri');
-    await expect(page.getByTestId('message').first()).toContainText('Siparişim nerede?');
+    await expect(page.getByTestId('message').first()).toContainText(
+        'Siparişim nerede?',
+    );
     await expect(page.getByText(/24h window until/)).toBeVisible();
     // Opening the conversation marks it read for the team.
-    await expect.poll(() => sql(`SELECT unread_count FROM conversations WHERE id = '${conversationId}'`)).toBe('0');
+    await expect
+        .poll(() =>
+            sql(
+                `SELECT unread_count FROM conversations WHERE id = '${conversationId}'`,
+            ),
+        )
+        .toBe('0');
 
     // Reply with the keyboard shortcut.
     const box = page.getByLabel('Reply');
     await box.fill('Kargoya verildi, yarın elinizde.');
     await box.press('Control+Enter');
-    const reply = page.locator('[data-testid="message"][data-direction="outbound"]');
+    const reply = page.locator(
+        '[data-testid="message"][data-direction="outbound"]',
+    );
     await expect(reply).toContainText('Kargoya verildi');
     await expect(box).toHaveValue('');
-    const messageId = sql(`SELECT id FROM messages WHERE direction = 'outbound' AND body LIKE 'Kargoya verildi%'`);
+    const messageId = sql(
+        `SELECT id FROM messages WHERE direction = 'outbound' AND body LIKE 'Kargoya verildi%'`,
+    );
     expect(messageId).toMatch(/^[0-9a-f-]{36}$/);
 
     // The worker settles the attempt (the seeded account cannot send).
     await expect
-        .poll(() => sql(`SELECT status FROM messages WHERE id = '${messageId}'`), { timeout: 30_000 })
+        .poll(
+            () => sql(`SELECT status FROM messages WHERE id = '${messageId}'`),
+            { timeout: 30_000 },
+        )
         .not.toMatch(/^(pending|sending)$/);
 
     // Meta's delivery receipt arrives: the bubble updates without a reload.
     sql(`UPDATE messages SET status = 'delivered', status_rank = 4, delivered_at = now(), error_code = NULL,
              error_title = NULL, updated_at = now() WHERE id = '${messageId}';`);
     announce(conversationId);
-    await expect(reply).toHaveAttribute('data-status', 'delivered', { timeout: 30_000 });
+    await expect(reply).toHaveAttribute('data-status', 'delivered', {
+        timeout: 30_000,
+    });
     await expect(reply.getByRole('img', { name: 'Delivered' })).toBeVisible();
 
     // Outside the 24-hour window only templates can be sent.
-    sql(`UPDATE conversations SET last_inbound_at = now() - interval '25 hours' WHERE id = '${conversationId}';`);
+    sql(
+        `UPDATE conversations SET last_inbound_at = now() - interval '25 hours' WHERE id = '${conversationId}';`,
+    );
     announce(conversationId);
-    await expect(page.getByTestId('window-closed')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('window-closed')).toBeVisible({
+        timeout: 30_000,
+    });
     await expect(page.getByText('24h window closed')).toBeVisible();
 });

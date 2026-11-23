@@ -144,6 +144,9 @@ const routes: [string, () => string][] = [
     ['/api-keys', () => '/api-keys'],
     ['/audit', () => '/audit'],
     ['/settings', () => '/settings'],
+    ['/settings/appearance', () => '/settings/appearance'],
+    ['/settings/email', () => '/settings/email'],
+    ['/settings/security', () => '/settings/security'],
     ['/settings/webhooks', () => '/settings/webhooks'],
     ['/account/profile', () => '/account/profile'],
     ['/account/security', () => '/account/security'],
@@ -159,3 +162,25 @@ for (const [name, path] of routes) {
         expect(page.url()).not.toMatch(/\/(login|setup)(\?|$)/);
     });
 }
+
+test('desktop mode opens sections in windows', async () => {
+    await page.goto('/');
+    await page
+        .getByRole('button', { name: 'Desktop mode' })
+        .click({ force: true });
+    await page
+        .getByRole('button', { name: 'Contacts', exact: true })
+        .first()
+        .dblclick();
+    const win = page.getByRole('dialog', { name: /Contacts/ });
+    await expect(win).toBeVisible();
+    const frame = page.frameLocator('iframe[title*="Contacts"]');
+    await expect(frame.locator('main h1').first()).toHaveText('Contacts');
+    // The panel chrome is hidden inside a window.
+    await expect(frame.locator('[data-chrome]').first()).toBeHidden();
+    await win.getByRole('button', { name: 'Close' }).click();
+    await expect(win).toHaveCount(0);
+    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Exit desktop mode' }).click();
+    await expect(page.locator('main h1').first()).toBeVisible();
+});
