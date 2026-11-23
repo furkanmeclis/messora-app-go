@@ -7,6 +7,8 @@ const wizard: Messages['wizard'] = {
         "Birkaç adımda çalışma alanınız hazır. Her adım atlanabilir ve sonradan Ayarlar'dan değiştirilebilir.",
     start: 'Başla',
     stepOf: 'Adım {current} / {total}',
+    exit: 'Sonra bitir',
+    saveAndContinue: 'Kaydet ve devam et',
     steps: {
         organization: 'Organizasyon',
         language: 'Dil',
@@ -43,6 +45,17 @@ const wizard: Messages['wizard'] = {
         connected: '{name} bağlandı.',
         openChannels: 'Hesap bağla',
         later: "Hesapları istediğiniz zaman Kanallar'dan bağlayabilirsiniz.",
+        name: 'Hesap adı',
+        namePlaceholder: 'Acme WhatsApp',
+        wabaId: 'WhatsApp Business Hesap ID',
+        appId: 'Uygulama ID',
+        accessToken: "Kalıcı erişim token'ı",
+        appSecret: 'Uygulama gizli anahtarı (app secret)',
+        appSecretHint:
+            "Gelen webhook'ları doğrulamak için kullanılır. Önerilir.",
+        connect: 'Bağla',
+        connecting: 'Bağlanıyor…',
+        guide: 'Bunları nerede bulurum?',
     },
     security: {
         title: 'İki adımlı doğrulama',
@@ -59,6 +72,9 @@ const wizard: Messages['wizard'] = {
         invited: '{count} davet gönderildi',
         linkHint:
             'E-posta kapalı; her davet bağlantısını kopyalayıp kendiniz gönderin:',
+        sentByEmail: 'Davet e-postayla gönderildi',
+        failed: 'Gönderilemedi',
+        copyLink: 'Bağlantıyı kopyala',
     },
     done: {
         title: 'Hazırsınız',

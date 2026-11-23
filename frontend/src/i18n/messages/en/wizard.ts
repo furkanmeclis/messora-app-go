@@ -5,6 +5,8 @@ const wizard = {
         'A few steps and your workspace is ready. Every step can be skipped and changed later in Settings.',
     start: 'Start',
     stepOf: 'Step {current} of {total}',
+    exit: 'Finish later',
+    saveAndContinue: 'Save and continue',
     steps: {
         organization: 'Organisation',
         language: 'Language',
@@ -41,6 +43,16 @@ const wizard = {
         connected: '{name} is connected.',
         openChannels: 'Connect an account',
         later: 'You can connect accounts at any time from Channels.',
+        name: 'Account name',
+        namePlaceholder: 'Acme WhatsApp',
+        wabaId: 'WhatsApp Business Account ID',
+        appId: 'App ID',
+        accessToken: 'Permanent access token',
+        appSecret: 'App secret',
+        appSecretHint: 'Used to verify incoming webhooks. Recommended.',
+        connect: 'Connect',
+        connecting: 'Connecting…',
+        guide: 'Where do I find these?',
     },
     security: {
         title: 'Two-factor authentication',
@@ -57,6 +69,9 @@ const wizard = {
         invited: '{count} invitation sent|{count} invitations sent',
         linkHint:
             'E-mail is off, so copy each invitation link and send it yourself:',
+        sentByEmail: 'Invitation e-mailed',
+        failed: 'Not sent',
+        copyLink: 'Copy link',
     },
     done: {
         title: 'All set',
