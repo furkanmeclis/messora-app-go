@@ -4,6 +4,8 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -236,4 +238,153 @@ func TestAutomationMuteCooldownAndEditing(t *testing.T) {
 	}
 	h.expect(h.do(call{method: "DELETE", path: "/api/v1/automations/" + id, token: token}), 204, "")
 	h.expect(h.do(call{method: "GET", path: "/api/v1/automations/" + id, token: token}), 404, "NOT_FOUND")
+}
+
+// visited reads the trace of an automation's only run through the API.
+func (h *harness) visited(token, automationID string) (status string, ids []string) {
+	h.t.Helper()
+	r := h.do(call{method: "GET", path: "/api/v1/automations/" + automationID + "/runs", token: token})
+	h.expect(r, 200, "")
+	runs := r.list()
+	if len(runs) != 1 {
+		h.t.Fatalf("runs: %s", r.raw)
+	}
+	run := runs[0].(map[string]any)
+	g := h.do(call{method: "GET", path: "/api/v1/automation-runs/" + run["id"].(string), token: token})
+	h.expect(g, 200, "")
+	for _, v := range g.data()["visited"].([]any) {
+		ids = append(ids, v.(string))
+	}
+	if listed := run["visited"].([]any); len(listed) != len(ids) {
+		h.t.Fatalf("list and detail disagree: %s / %s", r.raw, g.raw)
+	}
+	return g.data()["status"].(string), ids
+}
+
+func TestAutomationCanvasIDsLayoutAndRunTrace(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.connect()
+	ctx := context.Background()
+
+	// Step ids must be unique and well-formed.
+	r := h.do(call{method: "POST", path: "/api/v1/automations", token: token, body: map[string]any{
+		"name": "bad", "trigger_type": "message_received",
+		"steps": []any{map[string]any{"id": "x", "type": "add_tag", "tag": "a"}, map[string]any{"id": "x", "type": "add_tag", "tag": "b"}}}})
+	h.expect(r, 422, "VALIDATION_ERROR")
+	if !strings.Contains(string(r.raw), "steps[1].id") {
+		t.Fatalf("duplicate id error: %s", r.raw)
+	}
+	h.expect(h.do(call{method: "POST", path: "/api/v1/automations", token: token, body: map[string]any{
+		"name": "bad", "trigger_type": "message_received",
+		"steps": []any{map[string]any{"id": "trigger", "type": "add_tag", "tag": "a"}}}}), 422, "VALIDATION_ERROR")
+
+	// A branched flow as the canvas saves it: ids plus node positions.
+	r = h.do(call{method: "POST", path: "/api/v1/automations", token: token, body: map[string]any{
+		"name": "Canvas", "active": true, "trigger_type": "message_received",
+		"trigger": map[string]any{"match": "contains", "keywords": []string{"canvas"}},
+		"steps": []any{
+			map[string]any{"id": "tag", "type": "add_tag", "tag": "canvas"},
+			map[string]any{"id": "check", "type": "condition", "if": map[string]any{"field": "contact.var1", "operator": "equals", "value": "gold"},
+				"then": []any{map[string]any{"id": "vip", "type": "add_tag", "tag": "vip"}},
+				"else": []any{
+					map[string]any{"id": "std", "type": "set_field", "field": "var3", "value": "standard"},
+					map[string]any{"id": "std-tag", "type": "add_tag", "tag": "standard"},
+				}},
+			map[string]any{"id": "done", "type": "set_field", "field": "var2", "value": "seen"},
+		},
+		"layout": map[string]any{
+			"trigger": map[string]any{"x": 0, "y": 0}, "tag": map[string]any{"x": 0, "y": 140.5},
+			"check": map[string]any{"x": 0, "y": 280}, "vip": map[string]any{"x": -160, "y": 420},
+			"ghost": map[string]any{"x": 9, "y": 9}, // no such step: dropped
+		},
+	}})
+	h.expect(r, 201, "")
+	id := r.data()["id"].(string)
+	layout := r.data()["layout"].(map[string]any)
+	if len(layout) != 4 || layout["ghost"] != nil || layout["tag"].(map[string]any)["y"] != 140.5 {
+		t.Fatalf("layout: %s", r.raw)
+	}
+	steps := r.data()["steps"].([]any)
+	if steps[1].(map[string]any)["else"].([]any)[1].(map[string]any)["id"] != "std-tag" {
+		t.Fatalf("step ids not kept: %s", r.raw)
+	}
+
+	// Moving nodes is not a new version.
+	r = h.do(call{method: "PATCH", path: "/api/v1/automations/" + id, token: token, body: map[string]any{
+		"layout": map[string]any{"trigger": map[string]any{"x": 5, "y": 5}, "done": map[string]any{"x": 0, "y": 700}}}})
+	h.expect(r, 200, "")
+	if r.data()["version"] != float64(1) || len(r.data()["layout"].(map[string]any)) != 2 {
+		t.Fatalf("layout update: %s", r.raw)
+	}
+
+	// The contact is not gold: the run takes the "no" branch.
+	h.webhook(whatsapptest.InboundText(testPNID, testCustomer, "wamid.canvas-1", "canvas please", "", time.Now()))
+	h.drain()
+	status, trace := h.visited(token, id)
+	if status != "completed" || strings.Join(trace, ",") != "tag,check,std,std-tag,done" {
+		t.Fatalf("trace %s %v", status, trace)
+	}
+
+	// Older clients send steps without ids: the server names them.
+	r = h.do(call{method: "POST", path: "/api/v1/automations", token: token, body: map[string]any{
+		"name": "No ids", "trigger_type": "new_contact",
+		"steps": []any{map[string]any{"type": "add_tag", "tag": "a"},
+			map[string]any{"type": "condition", "if": map[string]any{"field": "message.body", "operator": "is_set"},
+				"then": []any{map[string]any{"type": "add_tag", "tag": "b"}}}}}})
+	h.expect(r, 201, "")
+	named := map[string]bool{}
+	for _, s := range r.data()["steps"].([]any) {
+		named[s.(map[string]any)["id"].(string)] = true
+		for _, c := range asList(s.(map[string]any)["then"]) {
+			named[c.(map[string]any)["id"].(string)] = true
+		}
+	}
+	if len(named) != 3 || named[""] {
+		t.Fatalf("server-assigned ids: %s", r.raw)
+	}
+	var stored string
+	_ = h.pool.QueryRow(ctx, "SELECT steps->1->'then'->0->>'id' FROM automations WHERE id = $1", r.data()["id"]).Scan(&stored)
+	if !named[stored] {
+		t.Fatalf("ids are not stored: %q", stored)
+	}
+
+	// An automation saved before step ids existed (steps and program
+	// without ids, no layout) reads with positional ids, and its runs are
+	// traced with the same ids.
+	legacySteps := []automation.Step{
+		{Type: "add_tag", Tag: "legacy"},
+		{Type: "condition", If: &automation.Condition{Field: "message.body", Operator: "contains", Value: "yes"},
+			Then: []automation.Step{{Type: "set_field", Field: "var4", Value: "yes"}},
+			Else: []automation.Step{{Type: "set_field", Field: "var4", Value: "no"}}},
+	}
+	prog, err := automation.Compile(legacySteps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sj, _ := json.Marshal(legacySteps)
+	pj, _ := json.Marshal(prog)
+	var legacy string
+	if err := h.pool.QueryRow(ctx, `INSERT INTO automations (name, active, trigger_type, trigger, steps, program, layout)
+		VALUES ('Legacy', true, 'message_received', '{"match":"contains","keywords":["legacy"]}', $1, $2, NULL) RETURNING id::text`,
+		sj, pj).Scan(&legacy); err != nil {
+		t.Fatal(err)
+	}
+	g := h.do(call{method: "GET", path: "/api/v1/automations/" + legacy, token: token})
+	h.expect(g, 200, "")
+	ls := g.data()["steps"].([]any)
+	if ls[0].(map[string]any)["id"] != "s0" || ls[1].(map[string]any)["else"].([]any)[0].(map[string]any)["id"] != "s1e0" ||
+		len(g.data()["layout"].(map[string]any)) != 0 {
+		t.Fatalf("legacy automation: %s", g.raw)
+	}
+	h.webhook(whatsapptest.InboundText(testPNID, testCustomer, "wamid.legacy-1", "legacy yes", "", time.Now()))
+	h.drain()
+	status, trace = h.visited(token, legacy)
+	if status != "completed" || strings.Join(trace, ",") != "s0,s1,s1t0" {
+		t.Fatalf("legacy trace %s %v", status, trace)
+	}
+}
+
+func asList(v any) []any {
+	l, _ := v.([]any)
+	return l
 }

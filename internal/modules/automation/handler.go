@@ -45,15 +45,40 @@ func recode(from, to any) error {
 
 func toAPI(a db.Automation, runs int64, last *time.Time) api.Automation {
 	var out api.Automation
+	// Automations saved before step ids existed read with ids derived from
+	// each step's position (stable until the next save stores real ones).
+	var st []Step
+	_ = json.Unmarshal(a.Steps, &st)
+	LegacyIDs(st)
 	steps := []api.AutomationStep{}
-	_ = json.Unmarshal(a.Steps, &steps)
+	_ = recode(st, &steps)
 	var t api.AutomationTrigger
 	_ = json.Unmarshal(a.Trigger, &t)
+	layout := api.AutomationLayout{}
+	if len(a.Layout) > 0 {
+		_ = json.Unmarshal(a.Layout, &layout)
+	}
 	out = api.Automation{Id: a.ID, Name: a.Name, Description: a.Description, Active: a.Active,
-		TriggerType: api.AutomationTriggerType(a.TriggerType), Trigger: t, Steps: steps, Version: int(a.Version),
+		TriggerType: api.AutomationTriggerType(a.TriggerType), Trigger: t, Steps: steps, Layout: layout, Version: int(a.Version),
 		RunCount: runs, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
 	out.LastRunAt = last
 	return out
+}
+
+// layoutJSON validates canvas positions against the steps they belong to.
+func layoutJSON(layout *api.AutomationLayout, steps []byte) ([]byte, error) {
+	var in map[string]Point
+	if err := recode(layout, &in); err != nil {
+		return nil, apperr.Validation("layout", "Invalid layout.")
+	}
+	var st []Step
+	_ = json.Unmarshal(steps, &st)
+	LegacyIDs(st) // positions of a legacy automation use its derived ids
+	clean, err := CleanLayout(in, StepIDs(st))
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(clean)
 }
 
 // definition validates and compiles a trigger and steps.
@@ -71,6 +96,11 @@ func definition(typ string, trig any, steps any) (triggerJSON, stepsJSON, progra
 	if err := recode(steps, &st); err != nil {
 		return nil, nil, nil, apperr.Validation("steps", "Invalid steps.")
 	}
+	if err := ValidateIDs(st); err != nil {
+		return nil, nil, nil, err
+	}
+	// Steps sent without ids (older clients) are named here.
+	AssignIDs(st)
 	prog, err := Compile(st)
 	if err != nil {
 		return nil, nil, nil, err
@@ -114,7 +144,7 @@ func (h *Handler) ListAutomations(w http.ResponseWriter, r *http.Request) {
 	out := make([]api.Automation, len(rows))
 	for i, a := range rows {
 		out[i] = toAPI(db.Automation{ID: a.ID, Name: a.Name, Description: a.Description, Active: a.Active, TriggerType: a.TriggerType,
-			Trigger: a.Trigger, Steps: a.Steps, Program: a.Program, Version: a.Version, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt},
+			Trigger: a.Trigger, Steps: a.Steps, Program: a.Program, Version: a.Version, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Layout: a.Layout},
 			a.RunCount, lastRun(a.HasRun, a.LastRunAt))
 	}
 	httpx.JSON(w, r, http.StatusOK, out)
@@ -139,6 +169,13 @@ func (h *Handler) CreateAutomation(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
+	lj := []byte("{}")
+	if req.Layout != nil {
+		if lj, err = layoutJSON(req.Layout, sj); err != nil {
+			h.fail(w, r, err)
+			return
+		}
+	}
 	p := principal.From(r.Context())
 	desc := ""
 	if req.Description != nil {
@@ -147,7 +184,7 @@ func (h *Handler) CreateAutomation(w http.ResponseWriter, r *http.Request) {
 	var a db.Automation
 	err = h.svc.tx(r.Context(), func(_ pgx.Tx, q *db.Queries) error {
 		a, err = q.InsertAutomation(r.Context(), db.InsertAutomationParams{Name: strings.TrimSpace(req.Name), Description: desc,
-			Active: req.Active != nil && *req.Active, TriggerType: string(req.TriggerType), Trigger: tj, Steps: sj, Program: pj, CreatedBy: &p.ID})
+			Active: req.Active != nil && *req.Active, TriggerType: string(req.TriggerType), Trigger: tj, Steps: sj, Program: pj, Layout: lj, CreatedBy: &p.ID})
 		if err != nil {
 			return err
 		}
@@ -185,7 +222,7 @@ func (h *Handler) GetAutomation(w http.ResponseWriter, r *http.Request, id api.A
 	}
 	httpx.JSON(w, r, http.StatusOK, toAPI(db.Automation{ID: a.ID, Name: a.Name, Description: a.Description, Active: a.Active,
 		TriggerType: a.TriggerType, Trigger: a.Trigger, Steps: a.Steps, Program: a.Program, Version: a.Version,
-		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}, a.RunCount, lastRun(a.HasRun, a.LastRunAt)))
+		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Layout: a.Layout}, a.RunCount, lastRun(a.HasRun, a.LastRunAt)))
 }
 
 func lastRun(has bool, at time.Time) *time.Time {
@@ -230,6 +267,18 @@ func (h *Handler) UpdateAutomation(w http.ResponseWriter, r *http.Request, id ap
 			return
 		}
 		p.TriggerType, p.Trigger, p.Steps, p.Program = &typ, tj, sj, pj
+	}
+	if req.Layout != nil {
+		steps := p.Steps
+		if steps == nil {
+			steps = cur.Steps
+		}
+		lj, err := layoutJSON(req.Layout, steps)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		p.Layout = lj
 	}
 	var a db.Automation
 	err := h.svc.tx(r.Context(), func(_ pgx.Tx, q *db.Queries) error {
@@ -277,7 +326,11 @@ func runToAPI(x db.AutomationRun, phone string) api.AutomationRun {
 	ev := map[string]any{}
 	_ = json.Unmarshal(x.Event, &ev)
 	out := api.AutomationRun{Id: x.ID, AutomationId: x.AutomationID, ContactId: x.ContactID, Status: api.AutomationRunStatus(x.Status),
-		Event: ev, Error: x.Error, ResumeAt: x.ResumeAt, CreatedAt: x.CreatedAt, UpdatedAt: x.UpdatedAt, FinishedAt: x.FinishedAt}
+		Event: ev, Error: x.Error, ResumeAt: x.ResumeAt, CreatedAt: x.CreatedAt, UpdatedAt: x.UpdatedAt, FinishedAt: x.FinishedAt,
+		Visited: []string{}}
+	if len(x.Visited) > 0 {
+		_ = json.Unmarshal(x.Visited, &out.Visited)
+	}
 	if phone != "" {
 		out.Phone = &phone
 	}
@@ -315,7 +368,7 @@ func (h *Handler) ListAutomationRuns(w http.ResponseWriter, r *http.Request, id 
 	out := make([]api.AutomationRun, len(rows))
 	for i, x := range rows {
 		out[i] = runToAPI(db.AutomationRun{ID: x.ID, AutomationID: x.AutomationID, ContactID: x.ContactID, Status: x.Status, Event: x.Event,
-			Error: x.Error, ResumeAt: x.ResumeAt, CreatedAt: x.CreatedAt, UpdatedAt: x.UpdatedAt, FinishedAt: x.FinishedAt}, x.Phone)
+			Error: x.Error, ResumeAt: x.ResumeAt, CreatedAt: x.CreatedAt, UpdatedAt: x.UpdatedAt, FinishedAt: x.FinishedAt, Visited: x.Visited}, x.Phone)
 	}
 	httpx.JSONPage(w, r, http.StatusOK, out, next)
 }

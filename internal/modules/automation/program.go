@@ -5,6 +5,11 @@
 // instructions with forward jumps), so a run's position is a single
 // instruction index that survives restarts and delays. Programs only jump
 // forward, so every run terminates.
+//
+// The panel edits the steps as a tree on a canvas: every step has a stable
+// id, the canvas stores node positions by id (the automation's layout), and
+// each instruction keeps the id of its step so a run records the ids it went
+// through (its trace).
 package automation
 
 import (
@@ -33,6 +38,9 @@ const (
 
 // Step is one action as edited by users.
 type Step struct {
+	// ID names the step for the canvas layout and run traces; unique within
+	// an automation. Optional on input (see AssignIDs).
+	ID   string `json:"id,omitempty"`
 	Type string `json:"type"`
 
 	// reply
@@ -103,6 +111,10 @@ type Instr struct {
 	// Target is where a branch goes when its condition is false, or where
 	// a jump goes.
 	Target int `json:"target,omitempty"`
+	// StepID is the id of the step the instruction comes from (the
+	// condition for a branch; empty for jumps). Runs record it as their
+	// trace. Programs compiled before step ids existed have none.
+	StepID string `json:"step_id,omitempty"`
 }
 
 var (
@@ -156,6 +168,9 @@ func Compile(steps []Step) ([]Instr, error) {
 	if len(steps) == 0 {
 		return nil, bad("steps", "Add at least one step.")
 	}
+	if err := ValidateIDs(steps); err != nil {
+		return nil, err
+	}
 	c := &compiler{}
 	if err := c.block(steps, "steps", 1); err != nil {
 		return nil, err
@@ -190,7 +205,7 @@ func (c *compiler) block(steps []Step, path string, depth int) error {
 				return bad(p, "A condition needs steps in then or else.")
 			}
 			branch := len(c.out)
-			c.out = append(c.out, Instr{Op: "branch", Step: &Step{Type: "condition", If: s.If}})
+			c.out = append(c.out, Instr{Op: "branch", Step: &Step{ID: s.ID, Type: "condition", If: s.If}, StepID: s.ID})
 			if err := c.block(s.Then, p+".then", depth+1); err != nil {
 				return err
 			}
@@ -211,7 +226,7 @@ func (c *compiler) block(steps []Step, path string, depth int) error {
 			return err
 		}
 		s.Then, s.Else, s.If = nil, nil, nil
-		c.out = append(c.out, Instr{Op: "action", Step: &s})
+		c.out = append(c.out, Instr{Op: "action", Step: &s, StepID: s.ID})
 	}
 	return nil
 }

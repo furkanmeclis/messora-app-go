@@ -3941,10 +3941,33 @@ components:
       additionalProperties: true
       properties:
         type: { type: string }
+        id:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          description: >-
+            Stable id of the step (unique within the automation; "trigger" is
+            reserved). Optional: the server assigns one to steps without it.
+            The canvas layout and run traces refer to steps by this id.
+
+    AutomationPoint:
+      type: object
+      required: [x, y]
+      additionalProperties: false
+      properties:
+        x: { type: number, format: double, minimum: -1000000, maximum: 1000000 }
+        y: { type: number, format: double, minimum: -1000000, maximum: 1000000 }
+
+    AutomationLayout:
+      type: object
+      description: >-
+        Canvas positions of the editor's nodes by step id ("trigger" for the
+        trigger node). Positions of unknown ids are dropped on save.
+      maxProperties: 200
+      additionalProperties: { $ref: "#/components/schemas/AutomationPoint" }
 
     Automation:
       type: object
-      required: [id, name, description, active, trigger_type, trigger, steps, version, run_count, created_at, updated_at]
+      required: [id, name, description, active, trigger_type, trigger, steps, layout, version, run_count, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -3954,7 +3977,9 @@ components:
         trigger: { $ref: "#/components/schemas/AutomationTrigger" }
         steps:
           type: array
+          description: Every step has an id (automations saved before ids existed get ids derived from their position).
           items: { $ref: "#/components/schemas/AutomationStep" }
+        layout: { $ref: "#/components/schemas/AutomationLayout" }
         version: { type: integer }
         run_count: { type: integer, format: int64 }
         last_run_at: { type: [string, "null"], format: date-time }
@@ -3976,6 +4001,7 @@ components:
           minItems: 1
           maxItems: 50
           items: { $ref: "#/components/schemas/AutomationStep" }
+        layout: { $ref: "#/components/schemas/AutomationLayout" }
 
     UpdateAutomationRequest:
       type: object
@@ -3992,6 +4018,7 @@ components:
           minItems: 1
           maxItems: 50
           items: { $ref: "#/components/schemas/AutomationStep" }
+        layout: { $ref: "#/components/schemas/AutomationLayout" }
 
     AutomationRunStep:
       type: object
@@ -4005,7 +4032,7 @@ components:
 
     AutomationRun:
       type: object
-      required: [id, automation_id, status, event, created_at, updated_at]
+      required: [id, automation_id, status, event, visited, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         automation_id: { type: string, format: uuid }
@@ -4018,6 +4045,10 @@ components:
         steps:
           type: array
           items: { $ref: "#/components/schemas/AutomationRunStep" }
+        visited:
+          type: array
+          description: Ids of the steps the run executed, in order (run trace for the canvas). Empty for runs started before step ids existed.
+          items: { type: string }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         finished_at: { type: [string, "null"], format: date-time }

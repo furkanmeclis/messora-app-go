@@ -13,7 +13,7 @@ import (
 )
 
 const activeAutomationsFor = `-- name: ActiveAutomationsFor :many
-SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at FROM automations WHERE active AND trigger_type = $1 ORDER BY created_at
+SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout FROM automations WHERE active AND trigger_type = $1 ORDER BY created_at
 `
 
 func (q *Queries) ActiveAutomationsFor(ctx context.Context, triggerType string) ([]Automation, error) {
@@ -38,6 +38,7 @@ func (q *Queries) ActiveAutomationsFor(ctx context.Context, triggerType string) 
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Layout,
 		); err != nil {
 			return nil, err
 		}
@@ -60,6 +61,22 @@ type AdvanceAutomationRunParams struct {
 
 func (q *Queries) AdvanceAutomationRun(ctx context.Context, arg AdvanceAutomationRunParams) error {
 	_, err := q.db.Exec(ctx, advanceAutomationRun, arg.Pc, arg.ID)
+	return err
+}
+
+const appendAutomationRunVisited = `-- name: AppendAutomationRunVisited :exec
+UPDATE automation_runs SET visited = coalesce(visited, '[]'::jsonb) || jsonb_build_array($1::text)
+WHERE id = $2
+`
+
+type AppendAutomationRunVisitedParams struct {
+	StepID string
+	ID     uuid.UUID
+}
+
+// Run trace: the step a run just executed.
+func (q *Queries) AppendAutomationRunVisited(ctx context.Context, arg AppendAutomationRunVisitedParams) error {
+	_, err := q.db.Exec(ctx, appendAutomationRunVisited, arg.StepID, arg.ID)
 	return err
 }
 
@@ -122,7 +139,7 @@ func (q *Queries) FinishAutomationRun(ctx context.Context, arg FinishAutomationR
 }
 
 const getAutomation = `-- name: GetAutomation :one
-SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at FROM automations WHERE id = $1
+SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout FROM automations WHERE id = $1
 `
 
 func (q *Queries) GetAutomation(ctx context.Context, id uuid.UUID) (Automation, error) {
@@ -141,12 +158,13 @@ func (q *Queries) GetAutomation(ctx context.Context, id uuid.UUID) (Automation, 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Layout,
 	)
 	return i, err
 }
 
 const getAutomationRun = `-- name: GetAutomationRun :one
-SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at FROM automation_runs WHERE id = $1
+SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited FROM automation_runs WHERE id = $1
 `
 
 func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error) {
@@ -167,12 +185,13 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (Automatio
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FinishedAt,
+		&i.Visited,
 	)
 	return i, err
 }
 
 const getAutomationWithStats = `-- name: GetAutomationWithStats :one
-SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
        coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
 FROM automations a
 LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
@@ -193,6 +212,7 @@ type GetAutomationWithStatsRow struct {
 	CreatedBy   *uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Layout      []byte
 	RunCount    int64
 	HasRun      bool
 	LastRunAt   time.Time
@@ -214,6 +234,7 @@ func (q *Queries) GetAutomationWithStats(ctx context.Context, id uuid.UUID) (Get
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Layout,
 		&i.RunCount,
 		&i.HasRun,
 		&i.LastRunAt,
@@ -233,9 +254,9 @@ func (q *Queries) HasActiveAutomation(ctx context.Context, triggerType string) (
 }
 
 const insertAutomation = `-- name: InsertAutomation :one
-INSERT INTO automations (name, description, active, trigger_type, trigger, steps, program, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at
+INSERT INTO automations (name, description, active, trigger_type, trigger, steps, program, layout, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout
 `
 
 type InsertAutomationParams struct {
@@ -246,6 +267,7 @@ type InsertAutomationParams struct {
 	Trigger     []byte
 	Steps       []byte
 	Program     []byte
+	Layout      []byte
 	CreatedBy   *uuid.UUID
 }
 
@@ -258,6 +280,7 @@ func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationPara
 		arg.Trigger,
 		arg.Steps,
 		arg.Program,
+		arg.Layout,
 		arg.CreatedBy,
 	)
 	var i Automation
@@ -274,6 +297,7 @@ func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationPara
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Layout,
 	)
 	return i, err
 }
@@ -363,7 +387,7 @@ func (q *Queries) ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) (
 }
 
 const listAutomationRuns = `-- name: ListAutomationRuns :many
-SELECT r.id, r.automation_id, r.automation_version, r.event_key, r.event, r.contact_id, r.status, r.pc, r.steps_executed, r.resume_at, r.error, r.created_at, r.updated_at, r.finished_at, coalesce(c.phone_e164, '')::text AS phone
+SELECT r.id, r.automation_id, r.automation_version, r.event_key, r.event, r.contact_id, r.status, r.pc, r.steps_executed, r.resume_at, r.error, r.created_at, r.updated_at, r.finished_at, r.visited, coalesce(c.phone_e164, '')::text AS phone
 FROM automation_runs r LEFT JOIN contacts c ON c.id = r.contact_id
 WHERE r.automation_id = $1
   AND ($2::uuid IS NULL OR r.id < $2::uuid)
@@ -391,6 +415,7 @@ type ListAutomationRunsRow struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	FinishedAt        *time.Time
+	Visited           []byte
 	Phone             string
 }
 
@@ -418,6 +443,7 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.FinishedAt,
+			&i.Visited,
 			&i.Phone,
 		); err != nil {
 			return nil, err
@@ -431,7 +457,7 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 }
 
 const listAutomations = `-- name: ListAutomations :many
-SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
        coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
 FROM automations a
 LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
@@ -452,6 +478,7 @@ type ListAutomationsRow struct {
 	CreatedBy   *uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Layout      []byte
 	RunCount    int64
 	HasRun      bool
 	LastRunAt   time.Time
@@ -481,6 +508,7 @@ func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, er
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Layout,
 			&i.RunCount,
 			&i.HasRun,
 			&i.LastRunAt,
@@ -496,7 +524,7 @@ func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, er
 }
 
 const lockAutomationRun = `-- name: LockAutomationRun :one
-SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at FROM automation_runs WHERE id = $1 FOR UPDATE
+SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited FROM automation_runs WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error) {
@@ -517,6 +545,7 @@ func (q *Queries) LockAutomationRun(ctx context.Context, id uuid.UUID) (Automati
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FinishedAt,
+		&i.Visited,
 	)
 	return i, err
 }
@@ -630,10 +659,12 @@ UPDATE automations SET
     trigger = coalesce($5, trigger),
     steps = coalesce($6, steps),
     program = coalesce($7, program),
+    -- Moving nodes on the canvas is not a new version: runs continue.
+    layout = coalesce($8, layout),
     version = CASE WHEN $7::jsonb IS NOT NULL OR $5::jsonb IS NOT NULL THEN version + 1 ELSE version END,
     updated_at = now()
-WHERE id = $8
-RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at
+WHERE id = $9
+RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout
 `
 
 type UpdateAutomationParams struct {
@@ -644,6 +675,7 @@ type UpdateAutomationParams struct {
 	Trigger     []byte
 	Steps       []byte
 	Program     []byte
+	Layout      []byte
 	ID          uuid.UUID
 }
 
@@ -656,6 +688,7 @@ func (q *Queries) UpdateAutomation(ctx context.Context, arg UpdateAutomationPara
 		arg.Trigger,
 		arg.Steps,
 		arg.Program,
+		arg.Layout,
 		arg.ID,
 	)
 	var i Automation
@@ -672,6 +705,7 @@ func (q *Queries) UpdateAutomation(ctx context.Context, arg UpdateAutomationPara
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Layout,
 	)
 	return i, err
 }

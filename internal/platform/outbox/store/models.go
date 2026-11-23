@@ -50,6 +50,7 @@ type Automation struct {
 	CreatedBy   pgtype.UUID
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
+	Layout      []byte
 }
 
 type AutomationRun struct {
@@ -67,6 +68,7 @@ type AutomationRun struct {
 	CreatedAt         pgtype.Timestamptz
 	UpdatedAt         pgtype.Timestamptz
 	FinishedAt        pgtype.Timestamptz
+	Visited           []byte
 }
 
 type AutomationRunStep struct {
