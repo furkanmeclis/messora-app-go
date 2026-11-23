@@ -93,3 +93,9 @@
         stroke-dasharray: none;
     }
 }
+
+/* Handles sit above the node card, so they can always be grabbed and
+   dropped on, even where they overlap the card's edge. */
+.react-flow__node .react-flow__handle {
+    z-index: 10;
+}
