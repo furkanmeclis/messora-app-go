@@ -22,11 +22,7 @@ export default async function RootLayout({
 }) {
     const nonce = (await headers()).get('x-nonce') ?? undefined;
     return (
-        <html
-            lang="en"
-            className="font-sans"
-            suppressHydrationWarning
-        >
+        <html lang="en" className="font-sans" suppressHydrationWarning>
             <body className="antialiased">
                 <ThemeProvider nonce={nonce}>
                     <TooltipProvider>{children}</TooltipProvider>

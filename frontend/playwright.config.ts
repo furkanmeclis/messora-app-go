@@ -12,9 +12,7 @@ export default defineConfig({
     retries: 0,
     timeout: 90_000,
     expect: { timeout: 15_000 },
-    reporter: process.env.CI
-        ? [['list'], ['html', { open: 'never' }]]
-        : 'list',
+    reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     use: {
         baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8090',
         trace: 'retain-on-failure',
