@@ -2,6 +2,7 @@ import type { Messages } from '../en';
 import appearance from './appearance';
 import auth from './auth';
 import overview from './overview';
+import inbox from './inbox';
 import common from './common';
 import errors from './errors';
 import nav from './nav';
@@ -17,4 +18,5 @@ export const tr: Messages = {
     wizard,
     auth,
     overview,
+    inbox,
 };

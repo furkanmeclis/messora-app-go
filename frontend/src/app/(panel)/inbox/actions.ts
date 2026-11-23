@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { api } from '@/lib/server/api';
 import { runAction } from '@/lib/server/actions';
+import { getT } from '@/i18n/server';
 import type {
     ActionResult,
     Conversation,
@@ -76,7 +77,9 @@ export async function assignAction(
                 method: 'PUT',
                 body: { assignee_id: assigneeId },
             }).then(() => undefined),
-        assigneeId ? 'Conversation assigned.' : 'Conversation unassigned.',
+        (await getT())(
+            assigneeId ? 'inbox.toast.assigned' : 'inbox.toast.unassigned',
+        ),
     );
     revalidatePath('/inbox');
     return res;
@@ -92,7 +95,9 @@ export async function setStatusAction(
             api<Conversation>(`/conversations/${conversationId}/${status}`, {
                 method: 'POST',
             }).then(() => undefined),
-        status === 'close' ? 'Conversation closed.' : 'Conversation reopened.',
+        (await getT())(
+            status === 'close' ? 'inbox.toast.closed' : 'inbox.toast.reopened',
+        ),
     );
     revalidatePath('/inbox');
     return res;
@@ -157,7 +162,7 @@ export async function addNoteAction(
                     body: { body },
                 })
             ).data,
-        'Note added.',
+        (await getT())('inbox.toast.noteAdded'),
     );
     revalidatePath('/inbox');
     return res;

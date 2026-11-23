@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { RealtimeRefresh } from '@/components/realtime';
+import { getT } from '@/i18n/server';
 import { api, ApiError } from '@/lib/server/api';
 import { can, requireMe } from '@/lib/server/auth';
 import type {
@@ -15,7 +16,10 @@ import type {
 import { PageHeading } from '../panel-header';
 import { ConversationList, InboxFilters, Thread } from './inbox-client';
 
-export const metadata: Metadata = { title: 'Inbox' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('inbox.title') };
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -82,6 +86,7 @@ export default async function InboxPage({
     if (!can(me, 'conversations.read') && !can(me, 'conversations.read_all')) {
         redirect('/');
     }
+    const t = await getT();
     const sp = await searchParams;
     const status =
         sp.status === 'all'
@@ -111,11 +116,11 @@ export default async function InboxPage({
     return (
         <>
             <PageHeading
-                title="Inbox"
+                title={t('inbox.title')}
                 description={
                     can(me, 'conversations.read_all')
-                        ? 'Every conversation with your customers.'
-                        : 'Conversations assigned to you or to nobody.'
+                        ? t('inbox.descriptionAll')
+                        : t('inbox.descriptionOwn')
                 }
             />
             <RealtimeRefresh
@@ -128,7 +133,7 @@ export default async function InboxPage({
             />
             <div className="grid min-h-[70vh] gap-4 lg:grid-cols-[22rem_1fr]">
                 <section
-                    aria-label="Conversations"
+                    aria-label={t('inbox.conversations')}
                     className="flex min-w-0 flex-col gap-3"
                 >
                     <InboxFilters status={status} assignee={assignee} q={q} />
@@ -140,7 +145,10 @@ export default async function InboxPage({
                         selected={selected}
                     />
                 </section>
-                <section aria-label="Conversation" className="min-w-0">
+                <section
+                    aria-label={t('inbox.conversation')}
+                    className="min-w-0"
+                >
                     <Thread
                         key={selected ?? 'none'}
                         selected={selected}
