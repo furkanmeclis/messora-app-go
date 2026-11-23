@@ -29,3 +29,6 @@ coverage.out
 .idea/
 .vscode/
 *.swp
+
+# Repository secrets, pushed with `gh secret set -f secrets.env`
+secrets.env
