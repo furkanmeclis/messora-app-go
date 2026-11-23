@@ -265,7 +265,17 @@ export function NewContactDialog() {
         FormData
     >(createContactAction, null);
 
-    const submit = useSubmit(action);
+    // A key belongs to one request body: the API rejects a changed body
+    // under a used key, so a corrected submission gets a fresh one.
+    const submit = useSubmit((form) => {
+        let k = key;
+        if (state && !state.ok) {
+            k = newIdempotencyKey();
+            setKey(k);
+        }
+        form.set('idempotency_key', k);
+        action(form);
+    });
     useEffect(() => {
         if (state?.ok) router.push(`/contacts/${state.data.id}`);
     }, [state, router]);

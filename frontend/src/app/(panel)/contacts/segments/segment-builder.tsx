@@ -523,6 +523,8 @@ export function SegmentBuilder({
     const [lastOk, setLastOk] = useState<SegmentPreview>();
     const [saving, startSaving] = useTransition();
     const readOnly = !canManage;
+    // Incomplete rules are only flagged once the user tries to save.
+    const [showLocal, setShowLocal] = useState(false);
 
     const local = useMemo(() => localProblems(root), [root]);
     const { definition, paths } = useMemo(() => toDefinition(root), [root]);
@@ -530,12 +532,12 @@ export function SegmentBuilder({
     const rules = countRules(root);
 
     const problems = useMemo(() => {
-        const m = new Map(local);
+        const m = new Map(showLocal ? local : undefined);
         if (apiProblem?.id && !m.has(apiProblem.id)) {
             m.set(apiProblem.id, apiProblem.message);
         }
         return m;
-    }, [local, apiProblem]);
+    }, [local, apiProblem, showLocal]);
 
     // Debounced live preview of the current rules. Results are keyed by
     // the definition they belong to, so a stale answer is never shown.
@@ -590,6 +592,7 @@ export function SegmentBuilder({
 
     const save = (e: React.FormEvent) => {
         e.preventDefault();
+        setShowLocal(true);
         const errs: Record<string, string> = {};
         if (!name.trim()) errs.name = 'Give the segment a name.';
         if (rules === 0) errs.definition = 'Add at least one rule.';
