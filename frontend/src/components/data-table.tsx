@@ -41,8 +41,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Segmented } from '@/components/ui/segmented';
-import { useT } from '@/i18n/client';
-import { NUMBER_LOCALE } from '@/lib/format';
+import { useLocale, useT } from '@/i18n/client';
+import { intlLocale } from '@/i18n/config';
 import { cn } from '@/lib/utils';
 
 export type Column<T> = {
@@ -69,7 +69,6 @@ export function selectionCount(s: Selection) {
     return s.mode === 'ids' ? s.ids.length : s.total - s.exclude.length;
 }
 
-const n = (v: number) => v.toLocaleString(NUMBER_LOCALE);
 const PAGE_SIZES = [25, 50, 100, 200];
 
 /**
@@ -111,6 +110,9 @@ export function DataTable<T>({
     rowTestId?: string;
 }) {
     const t = useT();
+    // The language is fixed per request, so server and browser agree.
+    const numberLocale = intlLocale(useLocale());
+    const n = (v: number) => v.toLocaleString(numberLocale);
     const router = useRouter();
     const pathname = usePathname();
     const params = useSearchParams();
