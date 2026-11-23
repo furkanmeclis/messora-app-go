@@ -10,8 +10,12 @@
 name: messora
 
 x-messora-app: &messora-app
-  image: messora/messora:${MESSORA_VERSION:-dev}
-  pull_policy: never # built once by messora-init below, reused by every backend service
+  # Built locally by default. To run published images instead set, in .env,
+  # MESSORA_IMAGE=ghcr.io/<owner>/messora, MESSORA_WEB_IMAGE=ghcr.io/<owner>/messora-web,
+  # MESSORA_VERSION=0.9.0 and MESSORA_PULL=missing, then `docker compose pull`
+  # and `docker compose up -d --no-build`.
+  image: ${MESSORA_IMAGE:-messora/messora}:${MESSORA_VERSION:-dev}
+  pull_policy: ${MESSORA_PULL:-never} # built once by messora-init below, reused by every backend service
   env_file:
     - path: .env
       required: false
@@ -41,7 +45,7 @@ x-messora-app: &messora-app
 services:
   messora-init:
     <<: *messora-app
-    pull_policy: build
+    pull_policy: ${MESSORA_INIT_PULL:-build}
     build:
       context: .
       args:
@@ -240,7 +244,8 @@ services:
         limits:
           memory: "${MEM_MESSORA_WEB:-512m}"
           cpus: "1"
-    image: messora/messora-web:${MESSORA_VERSION:-dev}
+    image: ${MESSORA_WEB_IMAGE:-messora/messora-web}:${MESSORA_VERSION:-dev}
+    pull_policy: ${MESSORA_INIT_PULL:-build}
     build:
       context: ./frontend
     # No env_file: the web container only gets what it needs, never database
