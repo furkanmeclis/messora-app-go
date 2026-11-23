@@ -7,6 +7,7 @@ import { api } from '@/lib/server/api';
 import { field, runAction } from '@/lib/server/actions';
 import type { ActionResult, Schemas } from '@/lib/types';
 import { isLocale } from '@/i18n/config';
+import { getT } from '@/i18n/server';
 
 // ── Re-authentication ──────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ export async function updateProfileAction(
                     locale: field(form, 'locale'),
                 },
             }).then(() => undefined),
-        'Profile saved.',
+        (await getT())('account.profile.saved'),
     );
     revalidatePath('/', 'layout');
     return res;
@@ -62,7 +63,7 @@ export async function changePasswordAction(
                     new_password: String(form.get('new_password') ?? ''),
                 },
             }).then(() => undefined),
-        'Password changed. Other sessions were signed out.',
+        (await getT())('account.password.changed'),
     );
 }
 
@@ -99,7 +100,7 @@ export async function confirmTotpAction(
 export async function disableTotpAction(): Promise<ActionResult> {
     const res = await runAction(
         () => api('/me/mfa/totp', { method: 'DELETE' }).then(() => undefined),
-        'Two-factor authentication was turned off.',
+        (await getT())('account.twoFactor.turnedOff'),
     );
     revalidatePath('/account/security');
     return res;
@@ -121,7 +122,7 @@ export async function revokeSessionAction(id: string): Promise<ActionResult> {
             api(`/me/sessions/${encodeURIComponent(id)}`, {
                 method: 'DELETE',
             }).then(() => undefined),
-        'Session ended.',
+        (await getT())('account.sessions.ended'),
     );
     revalidatePath('/account/security');
     return res;
@@ -130,7 +131,7 @@ export async function revokeSessionAction(id: string): Promise<ActionResult> {
 export async function revokeOtherSessionsAction(): Promise<ActionResult> {
     const res = await runAction(
         () => api('/me/sessions', { method: 'DELETE' }).then(() => undefined),
-        'All other sessions were signed out.',
+        (await getT())('account.sessions.othersEnded'),
     );
     revalidatePath('/account/security');
     return res;
@@ -148,7 +149,7 @@ export async function updateUserAction(
                 method: 'PATCH',
                 body: patch,
             }).then(() => undefined),
-        'User updated.',
+        (await getT())('users.updated'),
     );
     revalidatePath('/users');
     return res;
@@ -178,7 +179,7 @@ export async function revokeInvitationAction(
             api(`/invitations/${encodeURIComponent(id)}`, {
                 method: 'DELETE',
             }).then(() => undefined),
-        'Invitation revoked.',
+        (await getT())('users.invitationRevoked'),
     );
     revalidatePath('/users');
     return res;
@@ -213,7 +214,7 @@ export async function revokeApiKeyAction(id: string): Promise<ActionResult> {
             api(`/api-keys/${encodeURIComponent(id)}`, {
                 method: 'DELETE',
             }).then(() => undefined),
-        'API key revoked.',
+        (await getT())('apiKeys.revoked'),
     );
     revalidatePath('/api-keys');
     return res;

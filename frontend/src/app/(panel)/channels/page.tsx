@@ -9,6 +9,7 @@ import {
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { PhoneNumber, WebhookSetup, WhatsAppAccount } from '@/lib/types';
+import { getT } from '@/i18n/server';
 import { PageHeading } from '../panel-header';
 import {
     AccountList,
@@ -17,11 +18,15 @@ import {
     WebhookCard,
 } from './channels-client';
 
-export const metadata: Metadata = { title: 'Channels' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('channels.title') };
+}
 
 export default async function ChannelsPage() {
     const me = await requirePermission('channels.read');
     const manage = can(me, 'channels.manage');
+    const t = await getT();
     const [accounts, numbers, webhook] = await Promise.all([
         api<WhatsAppAccount[]>('/channels/accounts').then((r) => r.data),
         api<PhoneNumber[]>('/channels/phone-numbers').then((r) => r.data),
@@ -33,17 +38,16 @@ export default async function ChannelsPage() {
     return (
         <>
             <PageHeading
-                title="Channels"
-                description="WhatsApp Business accounts, their phone numbers and the webhook Meta calls."
+                title={t('channels.title')}
+                description={t('channels.description')}
                 actions={manage ? <ConnectAccountDialog /> : undefined}
             />
             <div className="space-y-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>WhatsApp accounts</CardTitle>
+                        <CardTitle>{t('channels.accounts.title')}</CardTitle>
                         <CardDescription>
-                            Access tokens and app secrets are stored encrypted
-                            and are never shown again.
+                            {t('channels.accounts.description')}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -52,10 +56,9 @@ export default async function ChannelsPage() {
                 </Card>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Phone numbers</CardTitle>
+                        <CardTitle>{t('channels.numbers.title')}</CardTitle>
                         <CardDescription>
-                            The default number sends whenever a request or
-                            campaign names no sender.
+                            {t('channels.numbers.description')}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">

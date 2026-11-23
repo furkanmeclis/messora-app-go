@@ -7,10 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { describeUserAgent } from '@/lib/format';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type { SessionInfo } from '@/lib/types';
 import { revokeOtherSessionsAction, revokeSessionAction } from '../../actions';
 
 export function SessionList({ sessions }: { sessions: SessionInfo[] }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     const others = sessions.filter((s) => !s.current).length;
@@ -22,16 +24,30 @@ export function SessionList({ sessions }: { sessions: SessionInfo[] }) {
                         <Monitor className="size-5 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1 text-sm">
                             <div className="flex items-center gap-2 font-medium">
-                                {describeUserAgent(s.user_agent)}
+                                {describeUserAgent(s.user_agent, {
+                                    unknown: t(
+                                        'account.sessions.unknownDevice',
+                                    ),
+                                    browser: t('account.sessions.browser'),
+                                    on: (browser, os) =>
+                                        t('account.sessions.browserOn', {
+                                            browser,
+                                            os,
+                                        }),
+                                })}
                                 {s.current && (
                                     <Badge variant="secondary">
-                                        This device
+                                        {t('account.sessions.thisDevice')}
                                     </Badge>
                                 )}
                             </div>
                             <div className="truncate text-muted-foreground">
-                                {s.ip ?? 'Unknown address'} · last active{' '}
-                                {formatDateTime(s.last_seen_at)}
+                                {t('account.sessions.lastActive', {
+                                    ip:
+                                        s.ip ??
+                                        t('account.sessions.unknownAddress'),
+                                    time: formatDateTime(s.last_seen_at),
+                                })}
                             </div>
                         </div>
                         {!s.current && (
@@ -48,7 +64,7 @@ export function SessionList({ sessions }: { sessions: SessionInfo[] }) {
                                     )
                                 }
                             >
-                                Sign out
+                                {t('account.sessions.signOut')}
                             </Button>
                         )}
                     </li>
@@ -65,7 +81,7 @@ export function SessionList({ sessions }: { sessions: SessionInfo[] }) {
                         )
                     }
                 >
-                    Sign out all other sessions
+                    {t('account.sessions.signOutOthers')}
                 </Button>
             )}
         </div>

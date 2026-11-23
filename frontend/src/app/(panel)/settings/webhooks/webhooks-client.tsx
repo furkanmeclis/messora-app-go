@@ -79,6 +79,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type { ActionResult, Schemas } from '@/lib/types';
 import {
     createWebhookAction,
@@ -98,13 +99,12 @@ type DeliveryStatus = Schemas['WebhookDeliveryStatus'];
 
 /** Shows a signing secret once, with a copy button. */
 function SecretNotice({ secret }: { secret: string }) {
+    const t = useT();
     return (
         <div className="space-y-3 text-sm">
             <Alert>
                 <AlertDescription>
-                    Copy the signing secret now. For your security it will not
-                    be shown again. Use it to verify the Messora-Signature
-                    header of every request.
+                    {t('webhooks.secret.notice')}
                 </AlertDescription>
             </Alert>
             <div className="flex gap-2">
@@ -112,16 +112,16 @@ function SecretNotice({ secret }: { secret: string }) {
                     readOnly
                     value={secret}
                     className="font-mono text-xs"
-                    aria-label="Signing secret"
+                    aria-label={t('webhooks.secret.label')}
                 />
                 <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    aria-label="Copy secret"
+                    aria-label={t('webhooks.secret.copy')}
                     onClick={() => {
                         void navigator.clipboard.writeText(secret);
-                        toast.success('Secret copied');
+                        toast.success(t('webhooks.secret.copied'));
                     }}
                 >
                     <Copy />
@@ -140,30 +140,33 @@ function EndpointFields({
     endpoint?: Endpoint;
     errors?: Record<string, string>;
 }) {
+    const t = useT();
     const selected = new Set(endpoint?.event_types ?? []);
     return (
         <FieldGroup>
             <TextField
-                label="URL"
+                label={t('webhooks.fields.url')}
                 name="url"
                 type="url"
                 required
                 maxLength={2048}
-                placeholder="https://example.com/hooks/messora"
+                placeholder={t('webhooks.fields.urlPlaceholder')}
                 defaultValue={endpoint?.url}
                 error={errors?.url}
-                hint="HTTPS only. Addresses on private networks are refused."
+                hint={t('webhooks.fields.urlHint')}
             />
             <TextField
-                label="Description"
+                label={t('webhooks.fields.description')}
                 name="description"
                 maxLength={500}
-                placeholder="CRM sync"
+                placeholder={t('webhooks.fields.descriptionPlaceholder')}
                 defaultValue={endpoint?.description}
                 error={errors?.description}
             />
             <fieldset className="space-y-2">
-                <legend className="mb-2 text-sm font-medium">Events</legend>
+                <legend className="mb-2 text-sm font-medium">
+                    {t('webhooks.fields.events')}
+                </legend>
                 {catalogue.map((e) => (
                     <div key={e.type} className="flex items-start gap-2">
                         <Checkbox
@@ -195,7 +198,9 @@ function EndpointFields({
                     name="active"
                     defaultChecked={endpoint?.active ?? true}
                 />
-                <Label htmlFor="endpoint-active">Active</Label>
+                <Label htmlFor="endpoint-active">
+                    {t('webhooks.fields.active')}
+                </Label>
             </div>
         </FieldGroup>
     );
@@ -203,6 +208,7 @@ function EndpointFields({
 
 /** Create dialog; the edit variant is EditEndpointDialog. */
 export function EndpointDialog({ catalogue }: { catalogue: EventInfo[] }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const [idem, setIdem] = useState(newIdempotencyKey);
     const [pending, startTransition] = useTransition();
@@ -232,14 +238,14 @@ export function EndpointDialog({ catalogue }: { catalogue: EventInfo[] }) {
         >
             <DialogTrigger asChild>
                 <Button>
-                    <Plus /> Add endpoint
+                    <Plus /> {t('webhooks.add.button')}
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90svh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Add a webhook endpoint</DialogTitle>
+                    <DialogTitle>{t('webhooks.add.title')}</DialogTitle>
                     <DialogDescription>
-                        Choose the events this URL should receive.
+                        {t('webhooks.add.description')}
                     </DialogDescription>
                 </DialogHeader>
                 {created ? (
@@ -249,7 +255,7 @@ export function EndpointDialog({ catalogue }: { catalogue: EventInfo[] }) {
                             className="w-full"
                             onClick={() => setOpen(false)}
                         >
-                            Done
+                            {t('webhooks.add.done')}
                         </Button>
                     </div>
                 ) : (
@@ -267,7 +273,7 @@ export function EndpointDialog({ catalogue }: { catalogue: EventInfo[] }) {
                             className="w-full"
                             disabled={pending}
                         >
-                            {pending && <Spinner />} Add endpoint
+                            {pending && <Spinner />} {t('webhooks.add.button')}
                         </Button>
                     </form>
                 )}
@@ -287,6 +293,7 @@ function EditEndpointDialog({
     open: boolean;
     onOpenChange: (o: boolean) => void;
 }) {
+    const t = useT();
     const [pending, startTransition] = useTransition();
     const [result, setResult] = useState<ActionResult | null>(null);
     const submit = (form: FormData) =>
@@ -305,9 +312,9 @@ function EditEndpointDialog({
         >
             <DialogContent className="max-h-[90svh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Edit webhook endpoint</DialogTitle>
+                    <DialogTitle>{t('webhooks.edit.title')}</DialogTitle>
                     <DialogDescription>
-                        Changes apply to events emitted from now on.
+                        {t('webhooks.edit.description')}
                     </DialogDescription>
                 </DialogHeader>
                 <form action={submit} className="space-y-4">
@@ -321,7 +328,7 @@ function EditEndpointDialog({
                         }
                     />
                     <Button type="submit" className="w-full" disabled={pending}>
-                        {pending && <Spinner />} Save
+                        {pending && <Spinner />} {t('common.save')}
                     </Button>
                 </form>
             </DialogContent>
@@ -338,6 +345,7 @@ function EndpointRow({
     endpoint: Endpoint;
     catalogue: EventInfo[];
 }) {
+    const t = useT();
     const [pending, startTransition] = useTransition();
     const [editing, setEditing] = useState(false);
     const [logOpen, setLogOpen] = useState(false);
@@ -364,23 +372,25 @@ function EndpointRow({
             </TableCell>
             <TableCell>
                 <div className="flex max-w-xs flex-wrap gap-1">
-                    {endpoint.event_types.map((t) => (
+                    {endpoint.event_types.map((type) => (
                         <Badge
-                            key={t}
+                            key={type}
                             variant="outline"
                             className="font-mono text-xs"
                         >
-                            {t}
+                            {type}
                         </Badge>
                     ))}
                 </div>
             </TableCell>
             <TableCell>
                 {endpoint.active ? (
-                    <Badge variant="secondary">Active</Badge>
+                    <Badge variant="secondary">{t('webhooks.active')}</Badge>
                 ) : (
                     <div className="grid gap-1">
-                        <Badge variant="destructive">Disabled</Badge>
+                        <Badge variant="destructive">
+                            {t('webhooks.disabled')}
+                        </Badge>
                         {endpoint.disabled_reason && (
                             <span className="text-xs text-muted-foreground">
                                 {endpoint.disabled_reason}
@@ -398,14 +408,14 @@ function EndpointRow({
                     variant="outline"
                     onClick={() => setLogOpen(true)}
                 >
-                    <ScrollText /> Deliveries
+                    <ScrollText /> {t('webhooks.deliveries')}
                 </Button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button
                             size="icon"
                             variant="ghost"
-                            aria-label="More actions"
+                            aria-label={t('webhooks.moreActions')}
                             disabled={pending}
                             className="ml-1"
                         >
@@ -414,14 +424,14 @@ function EndpointRow({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => setEditing(true)}>
-                            <Pencil /> Edit
+                            <Pencil /> {t('common.edit')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onSelect={() =>
                                 run(() => sendWebhookTestAction(endpoint.id))
                             }
                         >
-                            <Send /> Send test event
+                            <Send /> {t('webhooks.sendTest')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onSelect={() =>
@@ -433,17 +443,20 @@ function EndpointRow({
                                 )
                             }
                         >
-                            <Webhook /> {endpoint.active ? 'Disable' : 'Enable'}
+                            <Webhook />{' '}
+                            {endpoint.active
+                                ? t('webhooks.disable')
+                                : t('webhooks.enable')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => setConfirm('rotate')}>
-                            <RotateCw /> Rotate secret
+                            <RotateCw /> {t('webhooks.rotateSecret')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             variant="destructive"
                             onSelect={() => setConfirm('delete')}
                         >
-                            <Trash2 /> Delete
+                            <Trash2 /> {t('common.delete')}
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -467,17 +480,19 @@ function EndpointRow({
                         <AlertDialogHeader>
                             <AlertDialogTitle>
                                 {confirm === 'rotate'
-                                    ? 'Rotate the signing secret?'
-                                    : 'Delete this endpoint?'}
+                                    ? t('webhooks.confirmRotateTitle')
+                                    : t('webhooks.confirmDeleteTitle')}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
                                 {confirm === 'rotate'
-                                    ? 'The current secret stops working at once, also for retries of earlier events. Update your receiver right after rotating.'
-                                    : 'Its delivery log is deleted too. Events are no longer sent to this URL.'}
+                                    ? t('webhooks.confirmRotateBody')
+                                    : t('webhooks.confirmDeleteBody')}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>
+                                {t('common.cancel')}
+                            </AlertDialogCancel>
                             <AlertDialogAction
                                 variant={
                                     confirm === 'delete'
@@ -500,7 +515,9 @@ function EndpointRow({
                                     });
                                 }}
                             >
-                                {confirm === 'rotate' ? 'Rotate' : 'Delete'}
+                                {confirm === 'rotate'
+                                    ? t('webhooks.rotate')
+                                    : t('common.delete')}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
@@ -511,7 +528,7 @@ function EndpointRow({
                 >
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>New signing secret</DialogTitle>
+                            <DialogTitle>{t('webhooks.newSecret')}</DialogTitle>
                         </DialogHeader>
                         {secret && <SecretNotice secret={secret} />}
                     </DialogContent>
@@ -528,6 +545,7 @@ export function EndpointTable({
     endpoints: Endpoint[];
     catalogue: EventInfo[];
 }) {
+    const t = useT();
     if (endpoints.length === 0) {
         return (
             <Empty className="py-12">
@@ -535,10 +553,9 @@ export function EndpointTable({
                     <EmptyMedia variant="icon">
                         <Webhook />
                     </EmptyMedia>
-                    <EmptyTitle>No webhook endpoints yet</EmptyTitle>
+                    <EmptyTitle>{t('webhooks.empty')}</EmptyTitle>
                     <EmptyDescription>
-                        Add an endpoint to push messages, conversation changes
-                        and campaign results to another system.
+                        {t('webhooks.emptyHint')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -548,10 +565,10 @@ export function EndpointTable({
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Endpoint</TableHead>
-                    <TableHead>Events</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Secret</TableHead>
+                    <TableHead>{t('webhooks.columns.endpoint')}</TableHead>
+                    <TableHead>{t('webhooks.columns.events')}</TableHead>
+                    <TableHead>{t('webhooks.columns.status')}</TableHead>
+                    <TableHead>{t('webhooks.columns.secret')}</TableHead>
                     <TableHead />
                 </TableRow>
             </TableHeader>
@@ -586,22 +603,23 @@ function DeliveryItem({
     d: Delivery;
     onChange: (d: Delivery) => void;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     const [open, setOpen] = useState(false);
     return (
         <li className="space-y-2 border-b py-3 last:border-b-0">
             <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={STATUS_VARIANT[d.status]}>{d.status}</Badge>
+                <Badge variant={STATUS_VARIANT[d.status]}>
+                    {t(`webhooks.deliveryStatuses.${d.status}`)}
+                </Badge>
                 <span className="font-mono text-xs">{d.event_type}</span>
                 <span className="ml-auto text-xs text-muted-foreground">
                     {formatDateTime(d.last_attempt_at ?? d.created_at)}
                 </span>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span>
-                    {d.attempts} attempt{d.attempts === 1 ? '' : 's'}
-                </span>
+                <span>{t('webhooks.attempts', { count: d.attempts })}</span>
                 {d.last_status_code != null && (
                     <span>HTTP {d.last_status_code}</span>
                 )}
@@ -609,7 +627,11 @@ function DeliveryItem({
                     <span>{d.last_duration_ms} ms</span>
                 )}
                 {d.next_attempt_at && (
-                    <span>Next try {formatDateTime(d.next_attempt_at)}</span>
+                    <span>
+                        {t('webhooks.nextTry', {
+                            time: formatDateTime(d.next_attempt_at),
+                        })}
+                    </span>
                 )}
                 <span className="ml-auto flex gap-1">
                     {(d.last_error || d.last_response_body) && (
@@ -618,7 +640,9 @@ function DeliveryItem({
                             variant="ghost"
                             onClick={() => setOpen((o) => !o)}
                         >
-                            {open ? 'Hide details' : 'Details'}
+                            {open
+                                ? t('webhooks.hideDetails')
+                                : t('webhooks.details')}
                         </Button>
                     )}
                     <Button
@@ -632,14 +656,15 @@ function DeliveryItem({
                             })
                         }
                     >
-                        {pending ? <Spinner /> : <RotateCw />} Redeliver
+                        {pending ? <Spinner /> : <RotateCw />}{' '}
+                        {t('webhooks.redeliver')}
                     </Button>
                 </span>
             </div>
             {open && (
                 <div className="space-y-2 rounded-md bg-muted p-2 text-xs">
                     <div className="font-mono text-muted-foreground">
-                        Event {d.event_id}
+                        {t('webhooks.event', { id: d.event_id })}
                     </div>
                     {d.last_error && (
                         <div className="text-destructive">{d.last_error}</div>
@@ -664,6 +689,7 @@ function DeliveryLog({
     open: boolean;
     onOpenChange: (o: boolean) => void;
 }) {
+    const t = useT();
     const [status, setStatus] = useState<DeliveryStatus | 'all'>('all');
     const [items, setItems] = useState<Delivery[]>([]);
     const [next, setNext] = useState<string | undefined>();
@@ -696,7 +722,7 @@ function DeliveryLog({
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
                 <SheetHeader>
-                    <SheetTitle>Delivery log</SheetTitle>
+                    <SheetTitle>{t('webhooks.log.title')}</SheetTitle>
                     <SheetDescription className="truncate font-mono text-xs">
                         {endpoint.url}
                     </SheetDescription>
@@ -708,15 +734,28 @@ function DeliveryLog({
                             setStatus(v as DeliveryStatus | 'all')
                         }
                     >
-                        <SelectTrigger className="w-40" aria-label="Status">
+                        <SelectTrigger
+                            className="w-40"
+                            aria-label={t('webhooks.log.status')}
+                        >
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All statuses</SelectItem>
-                            <SelectItem value="succeeded">Succeeded</SelectItem>
-                            <SelectItem value="failed">Failed</SelectItem>
-                            <SelectItem value="retrying">Retrying</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="all">
+                                {t('webhooks.log.allStatuses')}
+                            </SelectItem>
+                            <SelectItem value="succeeded">
+                                {t('webhooks.log.succeeded')}
+                            </SelectItem>
+                            <SelectItem value="failed">
+                                {t('webhooks.log.failed')}
+                            </SelectItem>
+                            <SelectItem value="retrying">
+                                {t('webhooks.log.retrying')}
+                            </SelectItem>
+                            <SelectItem value="pending">
+                                {t('webhooks.log.pending')}
+                            </SelectItem>
                         </SelectContent>
                     </Select>
                     <Button
@@ -725,14 +764,14 @@ function DeliveryLog({
                         disabled={loading}
                         onClick={() => load()}
                     >
-                        {loading ? <Spinner /> : <RotateCw />} Refresh
+                        {loading ? <Spinner /> : <RotateCw />}{' '}
+                        {t('webhooks.log.refresh')}
                     </Button>
                 </div>
                 <div className="px-4 pb-4">
                     {items.length === 0 && !loading ? (
                         <p className="py-8 text-center text-sm text-muted-foreground">
-                            No deliveries yet. Send a test event to try the
-                            endpoint.
+                            {t('webhooks.log.empty')}
                         </p>
                     ) : (
                         <ul>
@@ -758,7 +797,7 @@ function DeliveryLog({
                             disabled={loading}
                             onClick={() => load(next)}
                         >
-                            Load more
+                            {t('webhooks.log.loadMore')}
                         </Button>
                     )}
                 </div>

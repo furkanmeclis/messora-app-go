@@ -1,12 +1,16 @@
 import type { Metadata } from 'next';
 import { Card, CardContent } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
 import type { AuditLog } from '@/lib/types';
 import { PageHeading } from '../panel-header';
 import { AuditTable } from './audit-client';
 
-export const metadata: Metadata = { title: 'Audit log' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('audit.title') };
+}
 
 export default async function AuditPage({
     searchParams,
@@ -17,12 +21,15 @@ export default async function AuditPage({
     const action = (await searchParams).action;
     const q = new URLSearchParams({ limit: '50' });
     if (action) q.set('action', action);
-    const first = await api<AuditLog[]>(`/audit-logs?${q}`);
+    const [first, t] = await Promise.all([
+        api<AuditLog[]>(`/audit-logs?${q}`),
+        getT(),
+    ]);
     return (
         <>
             <PageHeading
-                title="Audit log"
-                description="Every security-relevant action, newest first. Entries cannot be changed or deleted."
+                title={t('audit.title')}
+                description={t('audit.description')}
             />
             <Card>
                 <CardContent className="p-0">

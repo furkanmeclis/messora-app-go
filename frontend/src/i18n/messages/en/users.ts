@@ -1,0 +1,47 @@
+const users = {
+    title: 'Users',
+    description: 'People who can sign in to this workspace.',
+    pendingInvitations: 'Pending invitations',
+    invitationsExpire: 'Invitations expire after 7 days.',
+    roles: 'Roles',
+    rolesHint: 'What each role is allowed to do.',
+    permissionCount: '— {count} of {total} permissions',
+    columns: {
+        name: 'Name',
+        role: 'Role',
+        twoFactor: '2FA',
+        lastSignIn: 'Last sign-in',
+        status: 'Status',
+    },
+    roleOf: 'Role of {name}',
+    on: 'On',
+    off: 'Off',
+    disable: 'Disable',
+    enable: 'Enable',
+    you: 'You',
+    statuses: { active: 'active', disabled: 'disabled' },
+    updated: 'User updated.',
+    invite: {
+        button: 'Invite user',
+        title: 'Invite a user',
+        description: 'They receive a link to create their account.',
+        emailed:
+            'We e-mailed an invitation to {email}. You can also share this link:',
+        noEmail:
+            'E-mail is not configured. Share this link with {email} — it is shown only once:',
+        copyLink: 'Copy link',
+        linkCopied: 'Link copied',
+        done: 'Done',
+        email: 'E-mail',
+        role: 'Role',
+        send: 'Send invitation',
+    },
+    invitation: {
+        details: '{role} · invited by {by} · expires {expires}',
+        unknown: 'unknown',
+        expired: 'Expired',
+        revoke: 'Revoke',
+    },
+    invitationRevoked: 'Invitation revoked.',
+};
+export default users;

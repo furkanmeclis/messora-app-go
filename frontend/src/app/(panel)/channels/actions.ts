@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { api } from '@/lib/server/api';
 import { field, runAction } from '@/lib/server/actions';
 import type { ActionResult, SyncResult, WhatsAppAccount } from '@/lib/types';
+import { getT } from '@/i18n/server';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -17,6 +18,7 @@ export async function connectAccountAction(
 ): Promise<ActionResult<WhatsAppAccount>> {
     const appId = field(form, 'app_id');
     const appSecret = String(form.get('app_secret') ?? '').trim();
+    const t = await getT();
     const res = await runAction(
         async () =>
             (
@@ -37,7 +39,7 @@ export async function connectAccountAction(
                     },
                 })
             ).data,
-        'Account connected. Phone numbers and templates were imported.',
+        t('channels.connect.done'),
     );
     revalidatePath('/channels');
     return res;
@@ -60,13 +62,14 @@ export async function updateAccountAction(
     if (patch.access_token) body.access_token = patch.access_token.trim();
     if (patch.app_secret) body.app_secret = patch.app_secret.trim();
     if (patch.status) body.status = patch.status;
+    const t = await getT();
     const message = body.status
         ? body.status === 'disabled'
-            ? 'Account disabled.'
-            : 'Account enabled.'
+            ? t('channels.edit.disabled')
+            : t('channels.edit.enabled')
         : body.access_token || body.app_secret
-          ? 'Credentials updated.'
-          : 'Account updated.';
+          ? t('channels.edit.credentialsUpdated')
+          : t('channels.edit.updated');
     const res = await runAction(
         () =>
             api(`/channels/accounts/${id}`, {
@@ -100,12 +103,13 @@ export async function disconnectAccountAction(
     id: string,
 ): Promise<ActionResult> {
     check(id);
+    const t = await getT();
     const res = await runAction(
         () =>
             api(`/channels/accounts/${id}`, { method: 'DELETE' }).then(
                 () => undefined,
             ),
-        'Account disconnected.',
+        t('channels.disconnect.done'),
     );
     revalidatePath('/channels');
     return res;
@@ -115,12 +119,13 @@ export async function setDefaultNumberAction(
     id: string,
 ): Promise<ActionResult> {
     check(id);
+    const t = await getT();
     const res = await runAction(
         () =>
             api(`/channels/phone-numbers/${id}/default`, {
                 method: 'POST',
             }).then(() => undefined),
-        'Default number changed.',
+        t('channels.numbers.defaultChanged'),
     );
     revalidatePath('/channels');
     return res;

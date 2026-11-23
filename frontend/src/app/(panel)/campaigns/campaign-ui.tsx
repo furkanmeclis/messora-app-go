@@ -1,4 +1,6 @@
 import { Badge } from '@/components/ui/badge';
+import { useT } from '@/i18n/client';
+import type { Translate } from '@/i18n/translate';
 import type { CampaignStatus } from '@/lib/types';
 import { NUMBER_LOCALE } from '@/lib/format';
 
@@ -13,39 +15,37 @@ export const CAMPAIGN_STATUSES: CampaignStatus[] = [
     'failed',
 ];
 
-const STATUS: Record<
+const STATUS_VARIANT: Record<
     CampaignStatus,
-    {
-        label: string;
-        variant: 'default' | 'secondary' | 'destructive' | 'outline';
-    }
+    'default' | 'secondary' | 'destructive' | 'outline'
 > = {
-    draft: { label: 'Draft', variant: 'outline' },
-    scheduled: { label: 'Scheduled', variant: 'outline' },
-    preparing: { label: 'Preparing', variant: 'default' },
-    running: { label: 'Running', variant: 'default' },
-    paused: { label: 'Paused', variant: 'secondary' },
-    completed: { label: 'Completed', variant: 'secondary' },
-    cancelled: { label: 'Cancelled', variant: 'outline' },
-    failed: { label: 'Failed', variant: 'destructive' },
+    draft: 'outline',
+    scheduled: 'outline',
+    preparing: 'default',
+    running: 'default',
+    paused: 'secondary',
+    completed: 'secondary',
+    cancelled: 'outline',
+    failed: 'destructive',
 };
 
-export function statusLabel(s: string): string {
-    return STATUS[s as CampaignStatus]?.label ?? s;
+function isStatus(s: string): s is CampaignStatus {
+    return s in STATUS_VARIANT;
+}
+
+export function statusLabel(t: Translate, s: string): string {
+    return isStatus(s) ? t(`campaigns.statuses.${s}`) : s;
 }
 
 export function CampaignStatusBadge({ status }: { status: string }) {
-    const s = STATUS[status as CampaignStatus] ?? {
-        label: status,
-        variant: 'outline' as const,
-    };
+    const t = useT();
     return (
         <Badge
-            variant={s.variant}
+            variant={isStatus(status) ? STATUS_VARIANT[status] : 'outline'}
             data-testid="campaign-status"
             data-status={status}
         >
-            {s.label}
+            {statusLabel(t, status)}
         </Badge>
     );
 }
@@ -96,12 +96,12 @@ export function summarize(counts: Counts, total: number) {
 }
 
 const SEGMENTS = [
-    { key: 'read', label: 'Read', className: 'bg-emerald-600' },
-    { key: 'delivered', label: 'Delivered', className: 'bg-emerald-400' },
-    { key: 'sent', label: 'Sent', className: 'bg-sky-500' },
-    { key: 'unknown', label: 'Unknown', className: 'bg-amber-400' },
-    { key: 'failed', label: 'Failed', className: 'bg-destructive' },
-    { key: 'skipped', label: 'Skipped', className: 'bg-muted-foreground/40' },
+    { key: 'read', className: 'bg-emerald-600' },
+    { key: 'delivered', className: 'bg-emerald-400' },
+    { key: 'sent', className: 'bg-sky-500' },
+    { key: 'unknown', className: 'bg-amber-400' },
+    { key: 'failed', className: 'bg-destructive' },
+    { key: 'skipped', className: 'bg-muted-foreground/40' },
 ] as const;
 
 /** Stacked bar of what happened to the recipients so far. */
@@ -116,6 +116,7 @@ export function CampaignProgress({
     compact?: boolean;
     label: string;
 }) {
+    const t = useT();
     const s = summarize(counts, total);
     return (
         <div className="space-y-1">
@@ -125,7 +126,11 @@ export function CampaignProgress({
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={s.percent}
-                aria-valuetext={`${s.percent}% processed (${s.done} of ${s.recipients})`}
+                aria-valuetext={t('campaigns.progressValue', {
+                    percent: s.percent,
+                    done: s.done,
+                    total: s.recipients,
+                })}
                 className={`flex w-full overflow-hidden rounded-full bg-muted ${compact ? 'h-1.5' : 'h-3'}`}
             >
                 {s.recipients > 0 &&
@@ -139,15 +144,17 @@ export function CampaignProgress({
                                 style={{
                                     width: `${(v / s.recipients) * 100}%`,
                                 }}
-                                title={`${seg.label}: ${v}`}
+                                title={`${t(`campaigns.counts.${seg.key}`)}: ${v}`}
                             />
                         );
                     })}
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
                 <span>
-                    {s.done.toLocaleString(NUMBER_LOCALE)} /{' '}
-                    {s.recipients.toLocaleString(NUMBER_LOCALE)} processed
+                    {t('campaigns.processed', {
+                        done: s.done.toLocaleString(NUMBER_LOCALE),
+                        total: s.recipients.toLocaleString(NUMBER_LOCALE),
+                    })}
                 </span>
                 <span>{s.percent}%</span>
             </div>
@@ -159,7 +166,7 @@ export function CampaignProgress({
                                 aria-hidden
                                 className={`inline-block size-2 rounded-full ${seg.className}`}
                             />
-                            {seg.label}
+                            {t(`campaigns.counts.${seg.key}`)}
                         </li>
                     ))}
                 </ul>
@@ -170,14 +177,22 @@ export function CampaignProgress({
 
 /** Describes an audience for lists and the review step. */
 export function audienceLabel(
+    t: Translate,
     a: Record<string, unknown>,
     names: Record<string, string> = {},
 ): string {
-    if (a.all) return 'All contacts';
+    if (a.all) return t('campaigns.audience.all');
     if (typeof a.segment_id === 'string')
-        return `Segment: ${names[a.segment_id] ?? 'saved segment'}`;
+        return t('campaigns.audience.segment', {
+            name: names[a.segment_id] ?? t('campaigns.audience.savedSegment'),
+        });
     if (typeof a.group_id === 'string')
-        return `Group: ${names[a.group_id] ?? 'contact group'}`;
-    if (typeof a.tag_id === 'string') return `Tag: ${names[a.tag_id] ?? 'tag'}`;
+        return t('campaigns.audience.group', {
+            name: names[a.group_id] ?? t('campaigns.audience.contactGroup'),
+        });
+    if (typeof a.tag_id === 'string')
+        return t('campaigns.audience.tag', {
+            name: names[a.tag_id] ?? t('campaigns.audience.someTag'),
+        });
     return '—';
 }

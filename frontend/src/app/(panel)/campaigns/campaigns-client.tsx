@@ -24,6 +24,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type { Campaign } from '@/lib/types';
 import { loadCampaignsAction } from './actions';
 import {
@@ -34,9 +35,10 @@ import {
 } from './campaign-ui';
 
 export function StatusFilter({ status }: { status: string }) {
+    const t = useT();
     const items = ['', ...CAMPAIGN_STATUSES];
     return (
-        <nav aria-label="Filter by status">
+        <nav aria-label={t('campaigns.list.filterByStatus')}>
             <ul className="flex flex-wrap gap-1">
                 {items.map((s) => (
                     <li key={s || 'all'}>
@@ -51,7 +53,9 @@ export function StatusFilter({ status }: { status: string }) {
                                 }
                                 aria-current={s === status ? 'page' : undefined}
                             >
-                                {s ? statusLabel(s) : 'All'}
+                                {s
+                                    ? statusLabel(t, s)
+                                    : t('campaigns.list.all')}
                             </Link>
                         </Button>
                     </li>
@@ -87,6 +91,7 @@ export function CampaignList({
     status: string;
     canCreate: boolean;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [items, setItems] = useState(initial);
     const [cursor, setCursor] = useState(initialCursor);
@@ -121,20 +126,25 @@ export function CampaignList({
                         <Megaphone />
                     </EmptyMedia>
                     <EmptyTitle>
-                        {status
-                            ? `No ${statusLabel(status).toLowerCase()} campaigns`
-                            : 'No campaigns yet'}
+                        {status &&
+                        CAMPAIGN_STATUSES.includes(status as Campaign['status'])
+                            ? t(
+                                  `campaigns.list.emptyByStatus.${status as Campaign['status']}`,
+                              )
+                            : t('campaigns.list.emptyTitle')}
                     </EmptyTitle>
                     <EmptyDescription>
                         {status
-                            ? 'Campaigns in other states are under “All”.'
-                            : 'A campaign sends an approved template to a segment, group or tag of your contacts.'}
+                            ? t('campaigns.list.emptyFilteredHint')
+                            : t('campaigns.list.emptyHint')}
                     </EmptyDescription>
                 </EmptyHeader>
                 {canCreate && !status && (
                     <EmptyContent>
                         <Button asChild>
-                            <Link href="/campaigns/new">Create a campaign</Link>
+                            <Link href="/campaigns/new">
+                                {t('campaigns.list.create')}
+                            </Link>
                         </Button>
                     </EmptyContent>
                 )}
@@ -147,11 +157,13 @@ export function CampaignList({
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-64">Progress</TableHead>
-                        <TableHead>Template</TableHead>
-                        <TableHead>When</TableHead>
+                        <TableHead>{t('campaigns.list.name')}</TableHead>
+                        <TableHead>{t('campaigns.list.status')}</TableHead>
+                        <TableHead className="w-64">
+                            {t('campaigns.list.progress')}
+                        </TableHead>
+                        <TableHead>{t('campaigns.list.template')}</TableHead>
+                        <TableHead>{t('campaigns.list.when')}</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -172,14 +184,16 @@ export function CampaignList({
                                 {c.status === 'draft' ||
                                 c.status === 'scheduled' ? (
                                     <span className="text-xs text-muted-foreground">
-                                        Not started
+                                        {t('campaigns.list.notStarted')}
                                     </span>
                                 ) : (
                                     <CampaignProgress
                                         compact
                                         counts={c.counts}
                                         total={c.total_recipients}
-                                        label={`Progress of ${c.name}`}
+                                        label={t('campaigns.list.progressOf', {
+                                            name: c.name,
+                                        })}
                                     />
                                 )}
                             </TableCell>
@@ -192,12 +206,24 @@ export function CampaignList({
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                                 {c.status === 'scheduled'
-                                    ? `Starts ${formatDateTime(c.scheduled_at)}`
+                                    ? t('campaigns.list.starts', {
+                                          date: formatDateTime(c.scheduled_at),
+                                      })
                                     : c.finished_at
-                                      ? `Finished ${formatDateTime(c.finished_at)}`
+                                      ? t('campaigns.list.finished', {
+                                            date: formatDateTime(c.finished_at),
+                                        })
                                       : c.started_at
-                                        ? `Started ${formatDateTime(c.started_at)}`
-                                        : `Created ${formatDateTime(c.created_at)}`}
+                                        ? t('campaigns.list.started', {
+                                              date: formatDateTime(
+                                                  c.started_at,
+                                              ),
+                                          })
+                                        : t('campaigns.list.created', {
+                                              date: formatDateTime(
+                                                  c.created_at,
+                                              ),
+                                          })}
                             </TableCell>
                         </TableRow>
                     ))}
@@ -206,7 +232,7 @@ export function CampaignList({
             {cursor && (
                 <div className="border-t p-3 text-center">
                     <Button variant="outline" onClick={more} disabled={pending}>
-                        {pending && <Spinner />} Load more
+                        {pending && <Spinner />} {t('campaigns.list.loadMore')}
                     </Button>
                 </div>
             )}

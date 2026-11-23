@@ -6,6 +6,7 @@ import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Template, WhatsAppAccount } from '@/lib/types';
 import { TEMPLATE_STATUSES } from '@/lib/templates';
+import { getT } from '@/i18n/server';
 import { PageHeading } from '../panel-header';
 import {
     CreateTemplateDialog,
@@ -13,7 +14,10 @@ import {
     TemplateList,
 } from './templates-client';
 
-export const metadata: Metadata = { title: 'Templates' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('templates.title') };
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -50,18 +54,19 @@ export default async function TemplatesPage({
             ).values(),
         );
     const manage = can(me, 'templates.manage');
+    const t = await getT();
 
     return (
         <>
             <PageHeading
-                title="Templates"
-                description="Message templates approved by Meta can be sent outside the 24-hour window and in campaigns."
+                title={t('templates.title')}
+                description={t('templates.description')}
                 actions={
                     <div className="flex flex-wrap gap-2">
                         {can(me, 'channels.read') && (
                             <Button variant="outline" asChild>
                                 <Link href="/channels">
-                                    <RefreshCw /> Sync from Meta
+                                    <RefreshCw /> {t('templates.syncFromMeta')}
                                 </Link>
                             </Button>
                         )}

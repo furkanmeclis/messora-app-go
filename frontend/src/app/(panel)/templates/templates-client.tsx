@@ -55,6 +55,8 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useLocale, useT } from '@/i18n/client';
+import type { Translate } from '@/i18n/translate';
 import { TEMPLATE_STATUSES, variablesOf } from '@/lib/templates';
 import type { ActionResult, Schemas, Template } from '@/lib/types';
 import { createTemplateAction, deleteTemplateAction } from './actions';
@@ -65,7 +67,15 @@ type Failure = Extract<ActionResult<unknown>, { ok: false }>;
 
 const ALL = 'all';
 
+/** A Meta status in the user's language; unknown values as Meta sends them. */
+function statusLabel(t: Translate, s: string): string {
+    return (TEMPLATE_STATUSES as readonly string[]).includes(s)
+        ? t(`templates.statuses.${s as (typeof TEMPLATE_STATUSES)[number]}`)
+        : s.charAt(0) + s.slice(1).toLowerCase();
+}
+
 export function TemplateStatusBadge({ status }: { status: string }) {
+    const t = useT();
     const s = status.toUpperCase();
     const variant =
         s === 'APPROVED'
@@ -75,7 +85,7 @@ export function TemplateStatusBadge({ status }: { status: string }) {
               : 'outline';
     return (
         <Badge variant={variant} data-status={s}>
-            {s.charAt(0) + s.slice(1).toLowerCase()}
+            {statusLabel(t, s)}
         </Badge>
     );
 }
@@ -91,6 +101,7 @@ export function TemplateFilters({
     account: string;
     status: string;
 }) {
+    const t = useT();
     const router = useRouter();
     const pathname = usePathname();
     const go = (next: { account?: string; status?: string }) => {
@@ -109,11 +120,16 @@ export function TemplateFilters({
                     value={account || ALL}
                     onValueChange={(v) => go({ account: v })}
                 >
-                    <SelectTrigger className="w-56" aria-label="Account">
+                    <SelectTrigger
+                        className="w-56"
+                        aria-label={t('templates.filters.account')}
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value={ALL}>All accounts</SelectItem>
+                        <SelectItem value={ALL}>
+                            {t('templates.filters.allAccounts')}
+                        </SelectItem>
                         {accounts.map((a) => (
                             <SelectItem key={a.id} value={a.id}>
                                 {a.name}
@@ -126,14 +142,19 @@ export function TemplateFilters({
                 value={status || ALL}
                 onValueChange={(v) => go({ status: v })}
             >
-                <SelectTrigger className="w-44" aria-label="Status">
+                <SelectTrigger
+                    className="w-44"
+                    aria-label={t('templates.filters.status')}
+                >
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value={ALL}>All statuses</SelectItem>
+                    <SelectItem value={ALL}>
+                        {t('templates.filters.allStatuses')}
+                    </SelectItem>
                     {TEMPLATE_STATUSES.map((s) => (
                         <SelectItem key={s} value={s}>
-                            {s.charAt(0) + s.slice(1).toLowerCase()}
+                            {statusLabel(t, s)}
                         </SelectItem>
                     ))}
                 </SelectContent>
@@ -144,7 +165,7 @@ export function TemplateFilters({
                     size="sm"
                     onClick={() => router.push(pathname)}
                 >
-                    <X /> Clear filters
+                    <X /> {t('templates.filters.clear')}
                 </Button>
             )}
         </div>
@@ -164,7 +185,25 @@ export function TemplateList({
     filtered: boolean;
     hasAccounts: boolean;
 }) {
+    const t = useT();
+    const locale = useLocale();
     const formatDateTime = useFormatDateTime();
+    const category = (c: string) =>
+        c in CATEGORIES
+            ? t(`templates.categories.${c as Category}`).toLocaleLowerCase(
+                  locale,
+              )
+            : c.toLowerCase();
+    const format = (f: string) =>
+        f === 'POSITIONAL'
+            ? t('templates.list.positional')
+            : f === 'NAMED'
+              ? t('templates.list.named')
+              : f.toLowerCase();
+    const quality = (q: string) =>
+        q in QUALITIES
+            ? t(`templates.list.qualities.${q as keyof typeof QUALITIES}`)
+            : q.toLowerCase();
     if (templates.length === 0) {
         return (
             <Card>
@@ -176,15 +215,15 @@ export function TemplateList({
                             </EmptyMedia>
                             <EmptyTitle>
                                 {filtered
-                                    ? 'No templates match these filters'
-                                    : 'No templates yet'}
+                                    ? t('templates.list.emptyFiltered')
+                                    : t('templates.list.empty')}
                             </EmptyTitle>
                             <EmptyDescription>
                                 {filtered
-                                    ? 'Try another account or status.'
+                                    ? t('templates.list.emptyFilteredHint')
                                     : hasAccounts
-                                      ? 'Create a template here or sync the account to import the ones made in Meta Business Suite.'
-                                      : 'Templates appear once a WhatsApp account is connected in Channels.'}
+                                      ? t('templates.list.emptyHint')
+                                      : t('templates.list.emptyNoAccounts')}
                             </EmptyDescription>
                         </EmptyHeader>
                     </Empty>
@@ -193,45 +232,58 @@ export function TemplateList({
         );
     }
     return (
-        <ul className="grid gap-4 md:grid-cols-2" aria-label="Templates">
-            {templates.map((t) => (
-                <li key={t.id}>
+        <ul
+            className="grid gap-4 md:grid-cols-2"
+            aria-label={t('templates.list.label')}
+        >
+            {templates.map((tpl) => (
+                <li key={tpl.id}>
                     <Card className="h-full" data-testid="template">
                         <CardContent className="space-y-3">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
                                     <h2 className="truncate font-mono text-sm font-medium">
-                                        {t.name}
+                                        {tpl.name}
                                     </h2>
                                     <p className="text-xs text-muted-foreground">
-                                        {t.language} ·{' '}
-                                        {t.category.toLowerCase()} ·{' '}
-                                        {t.parameter_format.toLowerCase()}
-                                        {t.account_name
-                                            ? ` · ${t.account_name}`
+                                        {tpl.language} ·{' '}
+                                        {category(tpl.category)} ·{' '}
+                                        {format(tpl.parameter_format)}
+                                        {tpl.account_name
+                                            ? ` · ${tpl.account_name}`
                                             : ''}
                                     </p>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1">
-                                    <TemplateStatusBadge status={t.status} />
-                                    {manage && <DeleteTemplate template={t} />}
+                                    <TemplateStatusBadge status={tpl.status} />
+                                    {manage && (
+                                        <DeleteTemplate template={tpl} />
+                                    )}
                                 </div>
                             </div>
-                            {t.status.toUpperCase() === 'REJECTED' &&
-                                t.rejected_reason && (
+                            {tpl.status.toUpperCase() === 'REJECTED' &&
+                                tpl.rejected_reason && (
                                     <Alert variant="destructive">
                                         <AlertCircle />
                                         <AlertDescription>
-                                            Rejected: {t.rejected_reason}
+                                            {t('templates.list.rejected', {
+                                                reason: tpl.rejected_reason,
+                                            })}
                                         </AlertDescription>
                                     </Alert>
                                 )}
-                            <TemplatePreview components={t.components} />
+                            <TemplatePreview components={tpl.components} />
                             <p className="text-xs text-muted-foreground">
-                                Synced {formatDateTime(t.synced_at)}
-                                {t.quality_score &&
-                                t.quality_score !== 'UNKNOWN'
-                                    ? ` · quality ${t.quality_score.toLowerCase()}`
+                                {t('templates.list.synced', {
+                                    time: formatDateTime(tpl.synced_at),
+                                })}
+                                {tpl.quality_score &&
+                                tpl.quality_score !== 'UNKNOWN'
+                                    ? t('templates.list.quality', {
+                                          score: quality(
+                                              tpl.quality_score.toUpperCase(),
+                                          ),
+                                      })
                                     : ''}
                             </p>
                         </CardContent>
@@ -243,6 +295,8 @@ export function TemplateList({
 }
 
 function DeleteTemplate({ template }: { template: Template }) {
+    const t = useT();
+    const names = { name: template.name, language: template.language };
     const { guard } = useReauth();
     const [open, setOpen] = useState(false);
     const [pending, startTransition] = useTransition();
@@ -252,7 +306,7 @@ function DeleteTemplate({ template }: { template: Template }) {
                 <Button
                     size="icon-sm"
                     variant="ghost"
-                    aria-label={`Delete ${template.name} (${template.language})`}
+                    aria-label={t('templates.delete.label', names)}
                 >
                     <Trash2 />
                 </Button>
@@ -260,17 +314,15 @@ function DeleteTemplate({ template }: { template: Template }) {
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>
-                        Delete {template.name} ({template.language})?
+                        {t('templates.delete.title', names)}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                        This language version is deleted on Meta as well.
-                        Campaigns that use it can no longer start, and Meta does
-                        not let you reuse the name for 30 days.
+                        {t('templates.delete.description')}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel disabled={pending}>
-                        Cancel
+                        {t('common.cancel')}
                     </AlertDialogCancel>
                     <AlertDialogAction
                         variant="destructive"
@@ -290,7 +342,7 @@ function DeleteTemplate({ template }: { template: Template }) {
                             });
                         }}
                     >
-                        {pending && <Spinner />} Delete
+                        {pending && <Spinner />} {t('common.delete')}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -321,6 +373,24 @@ type Draft = {
     buttons: ButtonDraft[];
 };
 
+const CATEGORIES = { MARKETING: 1, UTILITY: 1, AUTHENTICATION: 1 } as const;
+type Category = keyof typeof CATEGORIES;
+
+const QUALITIES = {
+    HIGH: 1,
+    MEDIUM: 1,
+    LOW: 1,
+    GREEN: 1,
+    YELLOW: 1,
+    RED: 1,
+} as const;
+
+const BUTTON_TYPES: ButtonDraft['type'][] = [
+    'QUICK_REPLY',
+    'URL',
+    'PHONE_NUMBER',
+];
+
 const LANGUAGES = [
     'en_US',
     'en_GB',
@@ -336,21 +406,24 @@ const LANGUAGES = [
 ];
 
 function checkVariables(
+    t: Translate,
     vars: string[],
     format: Draft['format'],
 ): string | null {
     if (format === 'POSITIONAL') {
         const bad = vars.find((v) => !/^[1-9][0-9]*$/.test(v));
         if (bad)
-            return `Positional variables are numbers: use {{1}}, {{2}} … instead of {{${bad}}}.`;
+            return t('templates.validation.positionalNumbers', {
+                variable: `{{${bad}}}`,
+            });
         const nums = vars.map(Number).sort((a, b) => a - b);
         if (nums.some((n, i) => n !== i + 1))
-            return 'Number variables in order without gaps: {{1}}, {{2}}, {{3}} …';
+            return t('templates.validation.positionalOrder');
         return null;
     }
     const bad = vars.find((v) => !/^[a-z_][a-z0-9_]*$/.test(v));
     return bad
-        ? `Named variables use lowercase letters, digits and underscores: {{${bad}}} is not allowed.`
+        ? t('templates.validation.namedChars', { variable: `{{${bad}}}` })
         : null;
 }
 
@@ -425,47 +498,55 @@ function buildComponents(d: Draft): Record<string, unknown>[] {
 }
 
 /** Problems Meta would reject anyway, keyed by form field. */
-function validate(d: Draft): Record<string, string> {
+function validate(t: Translate, d: Draft): Record<string, string> {
     const e: Record<string, string> = {};
-    if (!d.account_id) e.account_id = 'Choose an account.';
+    if (!d.account_id) e.account_id = t('templates.validation.chooseAccount');
     if (!/^[a-z0-9_]{1,512}$/.test(d.name))
-        e.name = 'Use lowercase letters, digits and underscores.';
-    if (d.language.trim().length < 2) e.language = 'Language code, e.g. en_US.';
-    if (!d.body.trim()) e.body = 'Body text is required.';
-    else if (d.body.length > 1024) e.body = 'At most 1024 characters.';
-    const bodyProblem = checkVariables(variablesOf(d.body), d.format);
+        e.name = t('templates.validation.name');
+    if (d.language.trim().length < 2)
+        e.language = t('templates.validation.language');
+    if (!d.body.trim()) e.body = t('templates.validation.bodyRequired');
+    else if (d.body.length > 1024) e.body = t('templates.validation.max1024');
+    const bodyProblem = checkVariables(t, variablesOf(d.body), d.format);
     if (bodyProblem) e.body = bodyProblem;
     const hv = variablesOf(d.header);
-    if (d.header.length > 60) e.header = 'At most 60 characters.';
-    else if (hv.length > 1) e.header = 'A header can have one variable.';
+    if (d.header.length > 60) e.header = t('templates.validation.max60');
+    else if (hv.length > 1)
+        e.header = t('templates.validation.headerOneVariable');
     else if (hv.length === 1) {
-        const p = checkVariables(hv, d.format);
+        const p = checkVariables(t, hv, d.format);
         if (p) e.header = p;
     }
-    if (d.footer.length > 60) e.footer = 'At most 60 characters.';
+    if (d.footer.length > 60) e.footer = t('templates.validation.max60');
     if (variablesOf(d.footer).length > 0)
-        e.footer = 'The footer cannot contain variables.';
+        e.footer = t('templates.validation.footerNoVariables');
     for (const v of hv)
         if (!d.examples[`h:${v}`]?.trim())
-            e[`example-h:${v}`] = 'Meta needs an example value.';
+            e[`example-h:${v}`] = t('templates.validation.exampleRequired');
     for (const v of variablesOf(d.body))
         if (!d.examples[`b:${v}`]?.trim())
-            e[`example-b:${v}`] = 'Meta needs an example value.';
+            e[`example-b:${v}`] = t('templates.validation.exampleRequired');
     d.buttons.forEach((b, i) => {
-        if (!b.text.trim()) e[`button-${i}-text`] = 'Button text is required.';
+        if (!b.text.trim())
+            e[`button-${i}-text`] = t(
+                'templates.validation.buttonTextRequired',
+            );
         if (b.type === 'URL') {
             if (!/^https:\/\/\S+$/.test(b.value.trim()))
-                e[`button-${i}-value`] = 'An https:// address.';
+                e[`button-${i}-value`] = t('templates.validation.https');
             else if (variablesOf(b.value).length > 0) {
                 if (!/\{\{1\}\}$/.test(b.value.trim()))
-                    e[`button-${i}-value`] =
-                        'Only one {{1}}, at the end of the address.';
+                    e[`button-${i}-value`] = t(
+                        'templates.validation.urlVariable',
+                    );
                 else if (!b.example.trim())
-                    e[`button-${i}-example`] = 'Full example address.';
+                    e[`button-${i}-example`] = t(
+                        'templates.validation.urlExample',
+                    );
             }
         }
         if (b.type === 'PHONE_NUMBER' && !/^\+?[0-9 ]{7,20}$/.test(b.value))
-            e[`button-${i}-value`] = 'Phone number in international format.';
+            e[`button-${i}-value`] = t('templates.validation.phone');
     });
     return e;
 }
@@ -483,6 +564,7 @@ const EMPTY: Omit<Draft, 'account_id'> = {
 };
 
 export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
+    const t = useT();
     const { guard } = useReauth();
     const [open, setOpen] = useState(false);
     const [idem, setIdem] = useState(newIdempotencyKey);
@@ -510,7 +592,7 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        const found = validate(d);
+        const found = validate(t, d);
         setErrors(found);
         setFailure(null);
         if (Object.keys(found).length > 0) {
@@ -577,15 +659,14 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button>
-                    <Plus /> New template
+                    <Plus /> {t('templates.create.open')}
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-3xl">
                 <DialogHeader>
-                    <DialogTitle>New template</DialogTitle>
+                    <DialogTitle>{t('templates.create.title')}</DialogTitle>
                     <DialogDescription>
-                        Submitted to Meta for review; it can be sent once it is
-                        approved.
+                        {t('templates.create.description')}
                     </DialogDescription>
                 </DialogHeader>
                 <form
@@ -612,7 +693,7 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                         <FieldGroup>
                             <Field data-invalid={!!errors.account_id}>
                                 <FieldLabel htmlFor="tpl-account_id">
-                                    Account
+                                    {t('templates.create.account')}
                                 </FieldLabel>
                                 <Select
                                     value={d.account_id}
@@ -622,7 +703,11 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                         {...aria('account_id')}
                                         className="w-full"
                                     >
-                                        <SelectValue placeholder="Choose an account" />
+                                        <SelectValue
+                                            placeholder={t(
+                                                'templates.create.chooseAccount',
+                                            )}
+                                        />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {accounts.map((a) => (
@@ -637,13 +722,15 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <Field data-invalid={!!errors.name}>
                                     <FieldLabel htmlFor="tpl-name">
-                                        Name
+                                        {t('templates.create.name')}
                                     </FieldLabel>
                                     <Input
                                         {...aria('name')}
                                         value={d.name}
                                         maxLength={512}
-                                        placeholder="order_update"
+                                        placeholder={t(
+                                            'templates.create.namePlaceholder',
+                                        )}
                                         autoComplete="off"
                                         onChange={(e) =>
                                             set(
@@ -656,13 +743,13 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                     />
                                     {err('name') ?? (
                                         <FieldDescription>
-                                            Lowercase, digits and underscores.
+                                            {t('templates.create.nameHint')}
                                         </FieldDescription>
                                     )}
                                 </Field>
                                 <Field data-invalid={!!errors.language}>
                                     <FieldLabel htmlFor="tpl-language">
-                                        Language
+                                        {t('templates.create.language')}
                                     </FieldLabel>
                                     <Input
                                         {...aria('language')}
@@ -682,7 +769,7 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                 </Field>
                                 <Field>
                                     <FieldLabel htmlFor="tpl-category">
-                                        Category
+                                        {t('templates.create.category')}
                                     </FieldLabel>
                                     <Select
                                         value={d.category}
@@ -700,21 +787,23 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="MARKETING">
-                                                Marketing
-                                            </SelectItem>
-                                            <SelectItem value="UTILITY">
-                                                Utility
-                                            </SelectItem>
-                                            <SelectItem value="AUTHENTICATION">
-                                                Authentication
-                                            </SelectItem>
+                                            {(
+                                                Object.keys(
+                                                    CATEGORIES,
+                                                ) as Category[]
+                                            ).map((c) => (
+                                                <SelectItem key={c} value={c}>
+                                                    {t(
+                                                        `templates.categories.${c}`,
+                                                    )}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </Field>
                                 <Field>
                                     <FieldLabel htmlFor="tpl-format">
-                                        Variables
+                                        {t('templates.create.variables')}
                                     </FieldLabel>
                                     <Select
                                         value={d.format}
@@ -730,10 +819,21 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="POSITIONAL">
-                                                Numbered: {'{{1}}'}, {'{{2}}'}
+                                                {t(
+                                                    'templates.create.numbered',
+                                                    {
+                                                        example: '{{1}}, {{2}}',
+                                                    },
+                                                )}
                                             </SelectItem>
                                             <SelectItem value="NAMED">
-                                                Named: {'{{first_name}}'}
+                                                {t(
+                                                    'templates.create.namedFormat',
+                                                    {
+                                                        example:
+                                                            '{{first_name}}',
+                                                    },
+                                                )}
                                             </SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -741,7 +841,7 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                             </div>
                             <Field data-invalid={!!errors.header}>
                                 <FieldLabel htmlFor="tpl-header">
-                                    Header text (optional)
+                                    {t('templates.create.header')}
                                 </FieldLabel>
                                 <Input
                                     {...aria('header')}
@@ -754,7 +854,9 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                 {err('header')}
                             </Field>
                             <Field data-invalid={!!errors.body}>
-                                <FieldLabel htmlFor="tpl-body">Body</FieldLabel>
+                                <FieldLabel htmlFor="tpl-body">
+                                    {t('templates.create.body')}
+                                </FieldLabel>
                                 <Textarea
                                     {...aria('body')}
                                     value={d.body}
@@ -762,8 +864,12 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                     maxLength={1024}
                                     placeholder={
                                         d.format === 'NAMED'
-                                            ? 'Hello {{first_name}}, your order {{order_id}} has shipped.'
-                                            : 'Hello {{1}}, your order {{2}} has shipped.'
+                                            ? t(
+                                                  'templates.create.bodyPlaceholderNamed',
+                                              )
+                                            : t(
+                                                  'templates.create.bodyPlaceholderPositional',
+                                              )
                                     }
                                     onChange={(e) =>
                                         set('body', e.target.value)
@@ -772,28 +878,42 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                 {err('body') ?? (
                                     <FieldDescription>
                                         {d.format === 'NAMED'
-                                            ? 'Insert variables as {{name}}.'
-                                            : 'Insert variables as {{1}}, {{2}} … in order.'}
+                                            ? t(
+                                                  'templates.create.bodyHintNamed',
+                                              )
+                                            : t(
+                                                  'templates.create.bodyHintPositional',
+                                              )}
                                     </FieldDescription>
                                 )}
                             </Field>
                             {(headerVars.length > 0 || bodyVars.length > 0) && (
                                 <FieldSet>
                                     <FieldLegend variant="label">
-                                        Example values
+                                        {t('templates.create.examples')}
                                     </FieldLegend>
                                     <FieldDescription>
-                                        Meta reviews the template with these.
+                                        {t('templates.create.examplesHint')}
                                     </FieldDescription>
                                     <div className="grid gap-3 sm:grid-cols-2">
                                         {[
                                             ...headerVars.map((v) => ({
                                                 k: `h:${v}`,
-                                                label: `Header {{${v}}}`,
+                                                label: t(
+                                                    'templates.create.exampleHeader',
+                                                    {
+                                                        variable: `{{${v}}}`,
+                                                    },
+                                                ),
                                             })),
                                             ...bodyVars.map((v) => ({
                                                 k: `b:${v}`,
-                                                label: `Body {{${v}}}`,
+                                                label: t(
+                                                    'templates.create.exampleBody',
+                                                    {
+                                                        variable: `{{${v}}}`,
+                                                    },
+                                                ),
                                             })),
                                         ].map(({ k, label }) => (
                                             <Field
@@ -825,13 +945,15 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                             )}
                             <Field data-invalid={!!errors.footer}>
                                 <FieldLabel htmlFor="tpl-footer">
-                                    Footer (optional)
+                                    {t('templates.create.footer')}
                                 </FieldLabel>
                                 <Input
                                     {...aria('footer')}
                                     value={d.footer}
                                     maxLength={60}
-                                    placeholder="Reply STOP to unsubscribe"
+                                    placeholder={t(
+                                        'templates.create.footerPlaceholder',
+                                    )}
                                     onChange={(e) =>
                                         set('footer', e.target.value)
                                     }
@@ -840,7 +962,7 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                             </Field>
                             <FieldSet>
                                 <FieldLegend variant="label">
-                                    Buttons (optional)
+                                    {t('templates.create.buttons')}
                                 </FieldLegend>
                                 {d.buttons.map((b, i) => (
                                     <div
@@ -866,26 +988,35 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                             >
                                                 <SelectTrigger
                                                     className="w-40"
-                                                    aria-label={`Button ${i + 1} type`}
+                                                    aria-label={t(
+                                                        'templates.create.buttonType',
+                                                        { n: i + 1 },
+                                                    )}
                                                 >
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="QUICK_REPLY">
-                                                        Quick reply
-                                                    </SelectItem>
-                                                    <SelectItem value="URL">
-                                                        Website
-                                                    </SelectItem>
-                                                    <SelectItem value="PHONE_NUMBER">
-                                                        Call
-                                                    </SelectItem>
+                                                    {BUTTON_TYPES.map((bt) => (
+                                                        <SelectItem
+                                                            key={bt}
+                                                            value={bt}
+                                                        >
+                                                            {t(
+                                                                `templates.create.buttonTypes.${bt}`,
+                                                            )}
+                                                        </SelectItem>
+                                                    ))}
                                                 </SelectContent>
                                             </Select>
                                             <Input
                                                 {...aria(`button-${i}-text`)}
-                                                aria-label={`Button ${i + 1} text`}
-                                                placeholder="Button text"
+                                                aria-label={t(
+                                                    'templates.create.buttonText',
+                                                    { n: i + 1 },
+                                                )}
+                                                placeholder={t(
+                                                    'templates.create.buttonTextPlaceholder',
+                                                )}
                                                 maxLength={25}
                                                 value={b.text}
                                                 onChange={(e) =>
@@ -908,7 +1039,10 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                                 type="button"
                                                 size="icon"
                                                 variant="ghost"
-                                                aria-label={`Remove button ${i + 1}`}
+                                                aria-label={t(
+                                                    'templates.create.removeButton',
+                                                    { n: i + 1 },
+                                                )}
                                                 onClick={() =>
                                                     set(
                                                         'buttons',
@@ -931,8 +1065,14 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                                     )}
                                                     aria-label={
                                                         b.type === 'URL'
-                                                            ? `Button ${i + 1} address`
-                                                            : `Button ${i + 1} phone number`
+                                                            ? t(
+                                                                  'templates.create.buttonAddress',
+                                                                  { n: i + 1 },
+                                                              )
+                                                            : t(
+                                                                  'templates.create.buttonPhone',
+                                                                  { n: i + 1 },
+                                                              )
                                                     }
                                                     placeholder={
                                                         b.type === 'URL'
@@ -968,7 +1108,10 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                                         {...aria(
                                                             `button-${i}-example`,
                                                         )}
-                                                        aria-label={`Button ${i + 1} example address`}
+                                                        aria-label={t(
+                                                            'templates.create.buttonExample',
+                                                            { n: i + 1 },
+                                                        )}
                                                         placeholder="https://example.com/track/ABC123"
                                                         value={b.example}
                                                         onChange={(e) =>
@@ -1015,7 +1158,8 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                             setNextKey((k) => k + 1);
                                         }}
                                     >
-                                        <Plus /> Add button
+                                        <Plus />{' '}
+                                        {t('templates.create.addButton')}
                                     </Button>
                                 )}
                             </FieldSet>
@@ -1025,11 +1169,17 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                             className="w-full"
                             disabled={pending}
                         >
-                            {pending && <Spinner />} Submit for review
+                            {pending && <Spinner />}{' '}
+                            {t('templates.create.submit')}
                         </Button>
                     </div>
-                    <aside aria-label="Preview" className="space-y-2">
-                        <p className="text-sm font-medium">Preview</p>
+                    <aside
+                        aria-label={t('templates.preview.title')}
+                        className="space-y-2"
+                    >
+                        <p className="text-sm font-medium">
+                            {t('templates.preview.title')}
+                        </p>
                         <TemplatePreview
                             components={components}
                             values={previewValues}

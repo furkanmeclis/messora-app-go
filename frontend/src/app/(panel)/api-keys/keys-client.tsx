@@ -25,9 +25,15 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from '@/components/ui/empty';
-import { FieldGroup } from '@/components/ui/field';
+import {
+    Field,
+    FieldDescription,
+    FieldGroup,
+    FieldLabel,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { NumberField } from '@/components/ui/number-field';
 import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
@@ -38,10 +44,12 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type { ActionResult, ApiKey, Schemas } from '@/lib/types';
 import { createApiKeyAction, revokeApiKeyAction } from '../actions';
 
 export function ApiKeyTable({ keys }: { keys: ApiKey[] }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
     if (keys.length === 0) {
@@ -51,9 +59,9 @@ export function ApiKeyTable({ keys }: { keys: ApiKey[] }) {
                     <EmptyMedia variant="icon">
                         <KeyRound />
                     </EmptyMedia>
-                    <EmptyTitle>No API keys yet</EmptyTitle>
+                    <EmptyTitle>{t('apiKeys.empty')}</EmptyTitle>
                     <EmptyDescription>
-                        Create a key to connect another system to Messora.
+                        {t('apiKeys.emptyHint')}
                     </EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -63,10 +71,10 @@ export function ApiKeyTable({ keys }: { keys: ApiKey[] }) {
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Scopes</TableHead>
-                    <TableHead>Last used</TableHead>
-                    <TableHead>Expires</TableHead>
+                    <TableHead>{t('apiKeys.columns.name')}</TableHead>
+                    <TableHead>{t('apiKeys.columns.scopes')}</TableHead>
+                    <TableHead>{t('apiKeys.columns.lastUsed')}</TableHead>
+                    <TableHead>{t('apiKeys.columns.expires')}</TableHead>
                     <TableHead />
                 </TableRow>
             </TableHeader>
@@ -98,7 +106,7 @@ export function ApiKeyTable({ keys }: { keys: ApiKey[] }) {
                         <TableCell className="text-sm text-muted-foreground">
                             {k.expires_at
                                 ? formatDateTime(k.expires_at)
-                                : 'Never'}
+                                : t('apiKeys.never')}
                         </TableCell>
                         <TableCell className="text-right">
                             <Button
@@ -114,7 +122,7 @@ export function ApiKeyTable({ keys }: { keys: ApiKey[] }) {
                                     )
                                 }
                             >
-                                Revoke
+                                {t('apiKeys.revoke')}
                             </Button>
                         </TableCell>
                     </TableRow>
@@ -129,6 +137,7 @@ export function CreateKeyDialog({
 }: {
     scopes: { key: string; description: string }[];
 }) {
+    const t = useT();
     const { guard } = useReauth();
     const [open, setOpen] = useState(false);
     const [idem, setIdem] = useState(newIdempotencyKey);
@@ -159,22 +168,21 @@ export function CreateKeyDialog({
         >
             <DialogTrigger asChild>
                 <Button>
-                    <Plus /> Create key
+                    <Plus /> {t('apiKeys.create.button')}
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90svh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Create an API key</DialogTitle>
+                    <DialogTitle>{t('apiKeys.create.title')}</DialogTitle>
                     <DialogDescription>
-                        Grant only the scopes the integration needs.
+                        {t('apiKeys.create.description')}
                     </DialogDescription>
                 </DialogHeader>
                 {created ? (
                     <div className="space-y-3 text-sm">
                         <Alert>
                             <AlertDescription>
-                                Copy the key now. For your security it will not
-                                be shown again.
+                                {t('apiKeys.create.copyNow')}
                             </AlertDescription>
                         </Alert>
                         <div className="flex gap-2">
@@ -187,12 +195,14 @@ export function CreateKeyDialog({
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                aria-label="Copy key"
+                                aria-label={t('apiKeys.create.copyKey')}
                                 onClick={() => {
                                     void navigator.clipboard.writeText(
                                         created.secret,
                                     );
-                                    toast.success('Key copied');
+                                    toast.success(
+                                        t('apiKeys.create.keyCopied'),
+                                    );
                                 }}
                             >
                                 <Copy />
@@ -202,35 +212,44 @@ export function CreateKeyDialog({
                             className="w-full"
                             onClick={() => setOpen(false)}
                         >
-                            Done
+                            {t('apiKeys.create.done')}
                         </Button>
                     </div>
                 ) : (
                     <form action={submit} className="space-y-4">
                         <FieldGroup>
                             <TextField
-                                label="Name"
+                                label={t('apiKeys.create.name')}
                                 name="name"
                                 required
                                 maxLength={100}
-                                placeholder="CRM sync"
+                                placeholder={t(
+                                    'apiKeys.create.namePlaceholder',
+                                )}
                                 error={
                                     result && !result.ok
                                         ? result.fieldErrors?.name
                                         : undefined
                                 }
                             />
-                            <TextField
-                                label="Expires after (days)"
-                                name="expires_in_days"
-                                type="number"
-                                min={1}
-                                max={3650}
-                                hint="Leave empty for a key that does not expire."
-                            />
+                            <Field>
+                                <FieldLabel htmlFor="field-expires_in_days">
+                                    {t('apiKeys.create.expiresAfter')}
+                                </FieldLabel>
+                                <NumberField
+                                    id="field-expires_in_days"
+                                    name="expires_in_days"
+                                    min={1}
+                                    max={3650}
+                                    allowEmpty
+                                />
+                                <FieldDescription>
+                                    {t('apiKeys.create.expiresHint')}
+                                </FieldDescription>
+                            </Field>
                             <fieldset className="space-y-2">
                                 <legend className="mb-2 text-sm font-medium">
-                                    Scopes
+                                    {t('apiKeys.create.scopes')}
                                 </legend>
                                 {scopes.map((s) => (
                                     <div
@@ -264,7 +283,8 @@ export function CreateKeyDialog({
                             className="w-full"
                             disabled={pending}
                         >
-                            {pending && <Spinner />} Create key
+                            {pending && <Spinner />}{' '}
+                            {t('apiKeys.create.button')}
                         </Button>
                     </form>
                 )}

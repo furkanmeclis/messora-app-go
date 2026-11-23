@@ -6,13 +6,17 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
 import type { Invitation, RolesAndPermissions, User } from '@/lib/types';
 import { PageHeading } from '../panel-header';
 import { InvitationList, InviteDialog, UserTable } from './users-client';
 
-export const metadata: Metadata = { title: 'Users' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('users.title') };
+}
 
 const RANK: Record<string, number> = {
     owner: 0,
@@ -23,6 +27,7 @@ const RANK: Record<string, number> = {
 
 export default async function UsersPage() {
     const me = await requirePermission('users.manage');
+    const t = await getT();
     const [users, invitations, roles] = await Promise.all([
         api<User[]>('/users').then((r) => r.data),
         api<Invitation[]>('/invitations').then((r) => r.data),
@@ -32,13 +37,16 @@ export default async function UsersPage() {
     // Owners may grant any role; others only less privileged roles.
     const assignable = roles.roles
         .filter((r) => me.user.role.key === 'owner' || r.rank > myRank)
-        .map((r) => ({ key: r.key, name: r.name }));
+        .map((r) => ({
+            key: r.key,
+            name: t(`settings.security.roles.${r.key}`),
+        }));
 
     return (
         <>
             <PageHeading
-                title="Users"
-                description="People who can sign in to this workspace."
+                title={t('users.title')}
+                description={t('users.description')}
                 actions={<InviteDialog roles={assignable} />}
             />
             <div className="space-y-6">
@@ -56,9 +64,11 @@ export default async function UsersPage() {
                 {invitations.length > 0 && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>Pending invitations</CardTitle>
+                            <CardTitle>
+                                {t('users.pendingInvitations')}
+                            </CardTitle>
                             <CardDescription>
-                                Invitations expire after 7 days.
+                                {t('users.invitationsExpire')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -68,19 +78,23 @@ export default async function UsersPage() {
                 )}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Roles</CardTitle>
+                        <CardTitle>{t('users.roles')}</CardTitle>
                         <CardDescription>
-                            What each role is allowed to do.
+                            {t('users.rolesHint')}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm">
                         {roles.roles.map((r) => (
                             <div key={r.key}>
-                                <span className="font-medium">{r.name}</span>
+                                <span className="font-medium">
+                                    {t(`settings.security.roles.${r.key}`)}
+                                </span>
                                 <span className="text-muted-foreground">
                                     {' '}
-                                    — {r.permissions.length} of{' '}
-                                    {roles.permissions.length} permissions
+                                    {t('users.permissionCount', {
+                                        count: r.permissions.length,
+                                        total: roles.permissions.length,
+                                    })}
                                 </span>
                             </div>
                         ))}

@@ -16,6 +16,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useT } from '@/i18n/client';
 import type { AuditLog } from '@/lib/types';
 import { loadAuditPage } from '../actions';
 
@@ -38,6 +39,7 @@ export function AuditTable({
     initialCursor?: string;
     action?: string;
 }) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const router = useRouter();
     const [entries, setEntries] = useState(initial);
@@ -57,14 +59,14 @@ export function AuditTable({
         <div>
             {action && (
                 <div className="flex items-center gap-2 border-b p-3 text-sm">
-                    Filtered by
+                    {t('audit.filteredBy')}
                     <Badge variant="secondary" className="font-mono">
                         {action}
                     </Badge>
                     <Button
                         size="icon"
                         variant="ghost"
-                        aria-label="Clear filter"
+                        aria-label={t('audit.clearFilter')}
                         onClick={() => router.push('/audit')}
                     >
                         <X />
@@ -74,10 +76,10 @@ export function AuditTable({
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>When</TableHead>
-                        <TableHead>Who</TableHead>
-                        <TableHead>Action</TableHead>
-                        <TableHead>Details</TableHead>
+                        <TableHead>{t('audit.columns.when')}</TableHead>
+                        <TableHead>{t('audit.columns.who')}</TableHead>
+                        <TableHead>{t('audit.columns.action')}</TableHead>
+                        <TableHead>{t('audit.columns.details')}</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -87,7 +89,7 @@ export function AuditTable({
                                 colSpan={4}
                                 className="py-10 text-center text-muted-foreground"
                             >
-                                No entries.
+                                {t('audit.empty')}
                             </TableCell>
                         </TableRow>
                     )}
@@ -99,8 +101,8 @@ export function AuditTable({
                             <TableCell className="text-sm">
                                 {e.actor.name ??
                                     (e.actor.type === 'system'
-                                        ? 'System'
-                                        : 'Unknown')}
+                                        ? t('audit.system')
+                                        : t('audit.unknown'))}
                                 {e.ip && (
                                     <div className="text-xs text-muted-foreground">
                                         {e.ip}
@@ -133,7 +135,7 @@ export function AuditTable({
             {cursor && (
                 <div className="border-t p-3 text-center">
                     <Button variant="outline" onClick={more} disabled={pending}>
-                        {pending && <Spinner />} Load more
+                        {pending && <Spinner />} {t('audit.loadMore')}
                     </Button>
                 </div>
             )}

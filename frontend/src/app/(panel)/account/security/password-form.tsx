@@ -8,10 +8,12 @@ import {
     fieldError,
 } from '@/components/forms';
 import { FieldGroup } from '@/components/ui/field';
+import { useT } from '@/i18n/client';
 import type { ActionResult } from '@/lib/types';
 import { changePasswordAction } from '../../actions';
 
 export function PasswordForm() {
+    const t = useT();
     const ref = useRef<HTMLFormElement>(null);
     const [state, action] = useActionState<ActionResult | null, FormData>(
         async (prev, form) => {
@@ -26,7 +28,7 @@ export function PasswordForm() {
             <FormStatus state={state} />
             <FieldGroup>
                 <TextField
-                    label="Current password"
+                    label={t('account.password.current')}
                     name="current_password"
                     type="password"
                     autoComplete="current-password"
@@ -34,17 +36,17 @@ export function PasswordForm() {
                     error={fieldError(state, 'current_password')}
                 />
                 <TextField
-                    label="New password"
+                    label={t('account.password.new')}
                     name="new_password"
                     type="password"
                     autoComplete="new-password"
                     required
                     minLength={12}
-                    hint="At least 12 characters."
+                    hint={t('account.password.newHint')}
                     error={fieldError(state, 'new_password')}
                 />
             </FieldGroup>
-            <SubmitButton>Change password</SubmitButton>
+            <SubmitButton>{t('account.password.submit')}</SubmitButton>
         </form>
     );
 }

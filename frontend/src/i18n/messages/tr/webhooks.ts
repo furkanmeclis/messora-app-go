@@ -1,0 +1,90 @@
+import type { Messages } from '../en';
+
+const webhooks: Messages['webhooks'] = {
+    title: "Webhook'lar",
+    description:
+        'Messora, olaylar gerçekleştiğinde bu adreslere imzalı HTTPS istekleri gönderir. Messora-Signature başlığını uç noktanın gizli anahtarıyla doğrulayın.',
+    secret: {
+        notice: 'İmzalama anahtarını şimdi kopyalayın. Güvenliğiniz için bir daha gösterilmeyecek. Her isteğin Messora-Signature başlığını doğrulamak için bu anahtarı kullanın.',
+        label: 'İmzalama anahtarı',
+        copy: 'Anahtarı kopyala',
+        copied: 'Anahtar kopyalandı',
+    },
+    fields: {
+        url: 'URL',
+        urlPlaceholder: 'https://ornek.com/hooks/messora',
+        urlHint: 'Yalnızca HTTPS. Özel ağlardaki adresler kabul edilmez.',
+        description: 'Açıklama',
+        descriptionPlaceholder: 'CRM senkronizasyonu',
+        events: 'Olaylar',
+        active: 'Etkin',
+    },
+    add: {
+        button: 'Uç nokta ekle',
+        title: 'Webhook uç noktası ekleyin',
+        description: 'Bu adrese gönderilecek olayları seçin.',
+        done: 'Tamam',
+    },
+    edit: {
+        title: 'Webhook uç noktasını düzenle',
+        description: 'Değişiklikler bundan sonra oluşan olaylara uygulanır.',
+    },
+    columns: {
+        endpoint: 'Uç nokta',
+        events: 'Olaylar',
+        status: 'Durum',
+        secret: 'Gizli anahtar',
+    },
+    active: 'Etkin',
+    disabled: 'Devre dışı',
+    deliveries: 'Gönderimler',
+    moreActions: 'Diğer işlemler',
+    sendTest: 'Test olayı gönder',
+    enable: 'Etkinleştir',
+    disable: 'Devre dışı bırak',
+    rotateSecret: 'Anahtarı yenile',
+    confirmRotateTitle: 'İmzalama anahtarı yenilensin mi?',
+    confirmRotateBody:
+        'Mevcut anahtar, önceki olayların yeniden denemeleri dahil hemen geçersiz olur. Yeniledikten hemen sonra alıcı sisteminizi güncelleyin.',
+    confirmDeleteTitle: 'Bu uç nokta silinsin mi?',
+    confirmDeleteBody:
+        'Gönderim kaydı da silinir. Bu adrese artık olay gönderilmez.',
+    rotate: 'Yenile',
+    newSecret: 'Yeni imzalama anahtarı',
+    empty: 'Henüz webhook uç noktası yok',
+    emptyHint:
+        'Mesajları, konuşma değişikliklerini ve kampanya sonuçlarını başka bir sisteme iletmek için bir uç nokta ekleyin.',
+    deliveryStatuses: {
+        succeeded: 'başarılı',
+        failed: 'başarısız',
+        retrying: 'yeniden deneniyor',
+        pending: 'bekliyor',
+        delivering: 'gönderiliyor',
+    },
+    attempts: '{count} deneme|{count} deneme',
+    nextTry: 'Sonraki deneme: {time}',
+    hideDetails: 'Ayrıntıları gizle',
+    details: 'Ayrıntılar',
+    redeliver: 'Yeniden gönder',
+    event: 'Olay {id}',
+    log: {
+        title: 'Gönderim kaydı',
+        status: 'Durum',
+        allStatuses: 'Tüm durumlar',
+        succeeded: 'Başarılı',
+        failed: 'Başarısız',
+        retrying: 'Yeniden deneniyor',
+        pending: 'Bekliyor',
+        refresh: 'Yenile',
+        empty: 'Henüz gönderim yok. Uç noktayı denemek için bir test olayı gönderin.',
+        loadMore: 'Daha fazla yükle',
+    },
+    saved: 'Webhook kaydedildi.',
+    enabled: 'Webhook etkinleştirildi.',
+    disabledToast: 'Webhook devre dışı bırakıldı.',
+    deleted: 'Webhook silindi.',
+    testQueued:
+        'Test olayı kuyruğa alındı. Birazdan gönderim kaydında görünecek.',
+    redeliveryQueued: 'Gönderim yeniden kuyruğa alındı.',
+};
+export default webhooks;

@@ -23,6 +23,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { useT } from '@/i18n/client';
 import type { ActionResult } from '@/lib/types';
 import {
     confirmTotpAction,
@@ -38,12 +39,13 @@ function RecoveryCodes({
     codes: string[];
     onDone: () => void;
 }) {
+    const t = useT();
     const text = codes.join('\n');
     return (
         <div className="space-y-3">
             <p className="text-sm">
-                Save these recovery codes somewhere safe. Each works once if you
-                lose your phone. <strong>They will not be shown again.</strong>
+                {t('account.twoFactor.recoveryIntro')}{' '}
+                <strong>{t('account.twoFactor.recoveryWarning')}</strong>
             </p>
             <pre className="grid grid-cols-2 gap-1 rounded-md bg-muted p-3 font-mono text-sm">
                 {codes.map((c) => (
@@ -56,13 +58,13 @@ function RecoveryCodes({
                     variant="outline"
                     onClick={() => {
                         void navigator.clipboard.writeText(text);
-                        toast.success('Recovery codes copied');
+                        toast.success(t('account.twoFactor.recoveryCopied'));
                     }}
                 >
-                    <Copy /> Copy
+                    <Copy /> {t('common.copy')}
                 </Button>
                 <Button type="button" onClick={onDone}>
-                    I saved them
+                    {t('account.twoFactor.savedThem')}
                 </Button>
             </div>
         </div>
@@ -76,6 +78,7 @@ export function TwoFactorCard({
     enabled: boolean;
     required: boolean;
 }) {
+    const t = useT();
     const router = useRouter();
     const { guard } = useReauth();
     const [pending, startTransition] = useTransition();
@@ -104,14 +107,15 @@ export function TwoFactorCard({
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    Two-factor authentication
+                    {t('account.twoFactor.title')}
                     <Badge variant={enabled ? 'secondary' : 'outline'}>
-                        {enabled ? 'On' : 'Off'}
+                        {enabled
+                            ? t('account.twoFactor.on')
+                            : t('account.twoFactor.off')}
                     </Badge>
                 </CardTitle>
                 <CardDescription>
-                    Sign-in also asks for a code from an authenticator app such
-                    as 1Password, Google Authenticator or Aegis.
+                    {t('account.twoFactor.description')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -122,16 +126,13 @@ export function TwoFactorCard({
                         <div className="flex flex-wrap items-start gap-6">
                             <img
                                 src={setup.qr}
-                                alt="QR code for your authenticator app"
+                                alt={t('account.twoFactor.qrAlt')}
                                 width={180}
                                 height={180}
                                 className="rounded-md border bg-white p-1"
                             />
                             <div className="min-w-0 flex-1 space-y-2 text-sm">
-                                <p>
-                                    Scan the QR code, or enter this key
-                                    manually:
-                                </p>
+                                <p>{t('account.twoFactor.scan')}</p>
                                 <code className="block rounded bg-muted p-2 font-mono break-all">
                                     {setup.secret}
                                 </code>
@@ -140,7 +141,7 @@ export function TwoFactorCard({
                         <form action={confirm} className="max-w-xs space-y-3">
                             <FormStatus state={confirmState} />
                             <TextField
-                                label="Code from the app"
+                                label={t('account.twoFactor.code')}
                                 name="code"
                                 inputMode="numeric"
                                 pattern="\d{6}"
@@ -151,13 +152,15 @@ export function TwoFactorCard({
                                 error={fieldError(confirmState, 'code')}
                             />
                             <div className="flex gap-2">
-                                <SubmitButton>Turn on</SubmitButton>
+                                <SubmitButton>
+                                    {t('account.twoFactor.turnOn')}
+                                </SubmitButton>
                                 <Button
                                     type="button"
                                     variant="ghost"
                                     onClick={() => setSetup(null)}
                                 >
-                                    Cancel
+                                    {t('common.cancel')}
                                 </Button>
                             </div>
                         </form>
@@ -176,7 +179,7 @@ export function TwoFactorCard({
                                 })
                             }
                         >
-                            New recovery codes
+                            {t('account.twoFactor.newCodes')}
                         </Button>
                         <Button
                             variant="outline"
@@ -194,7 +197,7 @@ export function TwoFactorCard({
                                 })
                             }
                         >
-                            Turn off
+                            {t('account.twoFactor.turnOff')}
                         </Button>
                     </div>
                 ) : (
@@ -207,7 +210,10 @@ export function TwoFactorCard({
                             })
                         }
                     >
-                        <ShieldCheck /> {required ? 'Set up now' : 'Turn on'}
+                        <ShieldCheck />{' '}
+                        {required
+                            ? t('account.twoFactor.setUpNow')
+                            : t('account.twoFactor.turnOn')}
                     </Button>
                 )}
             </CardContent>

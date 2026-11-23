@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { api } from '@/lib/server/api';
 import { runAction } from '@/lib/server/actions';
+import { getT } from '@/i18n/server';
 import type {
     ActionResult,
     Campaign,
@@ -75,12 +76,14 @@ export async function startCampaignAction(
     idempotencyKey: string,
 ): Promise<ActionResult<Campaign>> {
     check(id);
+    const t = await getT();
     if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) {
+        const message = t('campaigns.actions.invalidDate');
         return {
             ok: false,
             code: 'VALIDATION_ERROR',
-            message: 'Invalid date.',
-            fieldErrors: { scheduled_at: 'Invalid date.' },
+            message,
+            fieldErrors: { scheduled_at: message },
         };
     }
     const res = await runAction(
@@ -92,16 +95,18 @@ export async function startCampaignAction(
                     idempotencyKey,
                 })
             ).data,
-        scheduledAt ? 'Campaign scheduled.' : 'Campaign started.',
+        scheduledAt
+            ? t('campaigns.actions.scheduled')
+            : t('campaigns.actions.started'),
     );
     revalidatePath('/campaigns');
     return res;
 }
 
 const CONTROL_MESSAGES = {
-    pause: 'Campaign paused. Unsent messages are held.',
-    resume: 'Campaign resumed.',
-    cancel: 'Campaign cancelled.',
+    pause: 'campaigns.actions.paused',
+    resume: 'campaigns.actions.resumed',
+    cancel: 'campaigns.actions.cancelled',
 } as const;
 
 export async function controlCampaignAction(
@@ -110,6 +115,7 @@ export async function controlCampaignAction(
 ): Promise<ActionResult<Campaign>> {
     check(id);
     if (!(op in CONTROL_MESSAGES)) throw new Error('invalid operation');
+    const t = await getT();
     const res = await runAction(
         async () =>
             (
@@ -117,7 +123,7 @@ export async function controlCampaignAction(
                     method: 'POST',
                 })
             ).data,
-        CONTROL_MESSAGES[op],
+        t(CONTROL_MESSAGES[op]),
     );
     revalidatePath('/campaigns');
     return res;
@@ -125,10 +131,11 @@ export async function controlCampaignAction(
 
 export async function deleteCampaignAction(id: string): Promise<ActionResult> {
     check(id);
+    const t = await getT();
     const res = await runAction(
         () =>
             api(`/campaigns/${id}`, { method: 'DELETE' }).then(() => undefined),
-        'Campaign deleted.',
+        t('campaigns.actions.deleted'),
     );
     revalidatePath('/campaigns');
     return res;

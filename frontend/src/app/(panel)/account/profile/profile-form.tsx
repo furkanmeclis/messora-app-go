@@ -16,6 +16,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useT } from '@/i18n/client';
+import { localeNames, locales } from '@/i18n/config';
 import type { ActionResult, User } from '@/lib/types';
 import { updateProfileAction } from '../../actions';
 
@@ -24,12 +26,13 @@ export function ProfileForm({ user }: { user: User }) {
         updateProfileAction,
         null,
     );
+    const t = useT();
     return (
         <form action={action} className="space-y-4">
             <FormStatus state={state} />
             <FieldGroup>
                 <TextField
-                    label="Name"
+                    label={t('account.profile.name')}
                     name="name"
                     defaultValue={user.name}
                     required
@@ -39,23 +42,28 @@ export function ProfileForm({ user }: { user: User }) {
                 />
                 <TimezoneSelect
                     name="timezone"
-                    label="Time zone"
+                    label={t('account.profile.timezone')}
                     defaultValue={user.timezone}
                 />
                 <Field>
-                    <FieldLabel htmlFor="field-locale">Language</FieldLabel>
+                    <FieldLabel htmlFor="field-locale">
+                        {t('account.profile.language')}
+                    </FieldLabel>
                     <Select name="locale" defaultValue={user.locale}>
                         <SelectTrigger id="field-locale" className="w-full">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="en">English</SelectItem>
-                            <SelectItem value="tr">Türkçe</SelectItem>
+                            {locales.map((l) => (
+                                <SelectItem key={l} value={l}>
+                                    {localeNames[l]}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 </Field>
             </FieldGroup>
-            <SubmitButton>Save</SubmitButton>
+            <SubmitButton>{t('common.save')}</SubmitButton>
         </form>
     );
 }

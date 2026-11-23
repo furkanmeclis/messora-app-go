@@ -1,8 +1,14 @@
 import { Skeleton } from '@/components/ui/skeleton';
+import { getT } from '@/i18n/server';
 
-export default function Loading() {
+export default async function Loading() {
+    const t = await getT();
     return (
-        <div className="space-y-6" role="status" aria-label="Loading">
+        <div
+            className="space-y-6"
+            role="status"
+            aria-label={t('campaigns.loading')}
+        >
             <div className="space-y-2">
                 <Skeleton className="h-8 w-48" />
                 <Skeleton className="h-4 w-80 max-w-full" />

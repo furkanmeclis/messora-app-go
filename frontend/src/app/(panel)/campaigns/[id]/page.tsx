@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { api, ApiError } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
+import { getT } from '@/i18n/server';
 import type {
     Campaign,
     CampaignEventItem,
@@ -10,7 +11,10 @@ import type {
 } from '@/lib/types';
 import { CampaignDashboard } from './dashboard';
 
-export const metadata: Metadata = { title: 'Campaign' };
+export async function generateMetadata(): Promise<Metadata> {
+    const t = await getT();
+    return { title: t('campaigns.campaign') };
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
