@@ -12,6 +12,8 @@ const PUBLIC = [
     // The organisation logo appears on the sign-in page.
     '/bff/logo',
     '/bff/favicon',
+    '/bff/manifest',
+    '/offline.html',
 ];
 const SESSION_COOKIES = ['__Host-messora_session', 'messora_session'];
 
@@ -77,6 +79,6 @@ export const config = {
         // Everything except static assets and the upload routes, which
         // stream files of up to 100 MB (a proxy would buffer the body and
         // cut it at 10 MB); they check the session themselves.
-        '/((?!_next/static|_next/image|favicon.ico|robots.txt|bff/contact-imports|bff/media-upload).*)',
+        '/((?!_next/static|_next/image|favicon.ico|robots.txt|bff/contact-imports|bff/media-upload|sw\\.js).*)',
     ],
 };

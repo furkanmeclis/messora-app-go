@@ -22,6 +22,17 @@ export const fallbackAppearance: Appearance = {
     },
     logo: null,
     setup_completed: true,
+    pwa: {
+        enabled: false,
+        name: '',
+        short_name: '',
+        description: '',
+        theme_color: '#4f46e5',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
+        icon: 'brand',
+    },
 };
 
 // Every page needs the appearance, the sign-in page included. One shared

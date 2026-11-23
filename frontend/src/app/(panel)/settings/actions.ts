@@ -20,6 +20,7 @@ export async function saveSettingsAction(
     successKey:
         | 'settings.general.saved'
         | 'appearance.saved'
+        | 'pwa.saved'
         | 'common.saved' = 'settings.general.saved',
 ): Promise<ActionResult<Settings>> {
     const t = await getT();

@@ -7,9 +7,10 @@ import { resolvePalette } from '@/theme/css';
  * The browser tab icon: the organisation logo when one is uploaded,
  * otherwise Messora's mark in the theme's primary colour.
  */
-export async function GET() {
+export async function GET(req: Request) {
     const a = await getAppearance();
-    if (a.logo) {
+    const brand = new URL(req.url).searchParams.has('brand');
+    if (a.logo && !brand) {
         return new NextResponse(null, {
             status: 307,
             headers: {

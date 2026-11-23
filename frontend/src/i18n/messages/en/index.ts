@@ -15,6 +15,7 @@ import shortcuts from './shortcuts';
 import table from './table';
 import desktop from './desktop';
 import contextMenu from './contextMenu';
+import pwa from './pwa';
 import account from './account';
 import apiKeys from './api-keys';
 import audit from './audit';
@@ -40,6 +41,7 @@ export const en = {
     table,
     desktop,
     contextMenu,
+    pwa,
     account,
     apiKeys,
     audit,

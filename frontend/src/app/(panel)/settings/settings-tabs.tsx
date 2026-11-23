@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+    AppWindow,
     Mail,
     Palette,
     ShieldCheck,
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils';
 const ICONS = {
     general: SlidersHorizontal,
     appearance: Palette,
+    pwa: AppWindow,
     email: Mail,
     security: ShieldCheck,
     webhooks: Webhook,

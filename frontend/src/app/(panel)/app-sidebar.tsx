@@ -6,6 +6,7 @@ import { useTransition } from 'react';
 import { useTheme } from 'next-themes';
 import {
     Check,
+    Download,
     ChevronsUpDown,
     Languages,
     LogOut,
@@ -40,6 +41,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { notify } from '@/components/notify';
+import { usePwa } from '@/components/pwa';
 import { useLocale, useT } from '@/i18n/client';
 import { localeNames, locales } from '@/i18n/config';
 import { activeNav, visibleNav, type NavItem } from '@/lib/navigation';
@@ -94,6 +96,7 @@ export function AppSidebar({
     const pathname = usePathname();
     const { theme, setTheme } = useTheme();
     const [switching, startSwitch] = useTransition();
+    const pwa = usePwa();
     const items = visibleNav(permissions, restricted);
     const active = activeNav(pathname)?.id;
 
@@ -233,6 +236,14 @@ export function AppSidebar({
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                                 <DropdownMenuSeparator />
+                                {pwa.canInstall && (
+                                    <DropdownMenuItem
+                                        onSelect={() => void pwa.install()}
+                                    >
+                                        <Download className="size-4" />
+                                        {t('pwa.install')}
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem asChild>
                                     <form action="/logout" method="post">
                                         <button

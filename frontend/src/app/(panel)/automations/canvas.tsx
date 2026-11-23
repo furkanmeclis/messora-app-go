@@ -58,6 +58,9 @@ export function FlowCanvas(
                 'minimap.ariaLabel': t('automations.canvas.minimap'),
             }}
             {...rest}
+            // The minimap only appears when the canvas is wide enough not to
+            // cover the flow itself.
+            className={`@container ${rest.className ?? ''}`}
         >
             <Background variant={BackgroundVariant.Dots} gap={22} size={1.6} />
             <Controls showInteractive={false} position="bottom-left" />
@@ -67,7 +70,7 @@ export function FlowCanvas(
                 zoomable
                 nodeColor={minimapColour}
                 nodeBorderRadius={8}
-                className="hidden sm:block"
+                className="hidden @[60rem]:block"
             />
             {children}
         </ReactFlow>

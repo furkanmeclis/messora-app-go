@@ -85,3 +85,27 @@ func TestOverridesLockFields(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestPWAValidation(t *testing.T) {
+	ok := DefaultPWA()
+	ok.Name, ok.StartURL = "  Acme Inbox  ", "/inbox"
+	if err := ok.Validate(); err != nil || ok.Name != "Acme Inbox" {
+		t.Fatalf("valid PWA rejected: %v %q", err, ok.Name)
+	}
+	for _, mutate := range []func(*PWA){
+		func(p *PWA) { p.ThemeColor = "red" },
+		func(p *PWA) { p.BackgroundColor = "#fff" },
+		func(p *PWA) { p.Display = "browser" },
+		func(p *PWA) { p.Icon = "photo" },
+		func(p *PWA) { p.StartURL = "https://evil.example" },
+		func(p *PWA) { p.StartURL = "//evil.example" },
+		func(p *PWA) { p.StartURL = "/inbox?x=<script>" },
+		func(p *PWA) { p.ShortName = strings.Repeat("a", 21) },
+	} {
+		p := DefaultPWA()
+		mutate(&p)
+		if err := p.Validate(); !errors.Is(err, ErrInvalid) {
+			t.Errorf("accepted %+v", p)
+		}
+	}
+}

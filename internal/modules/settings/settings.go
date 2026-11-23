@@ -32,6 +32,7 @@ type Settings struct {
 	Theme               Theme    `json:"theme"`
 	Logo                *Logo    `json:"logo,omitempty"`
 	Setup               Setup    `json:"setup"`
+	PWA                 PWA      `json:"pwa"`
 
 	// Locked lists the fields set by environment variables (never stored).
 	Locked []string `json:"-"`
@@ -72,6 +73,7 @@ func Defaults() Settings {
 		SessionLifetimeDays: 30,
 		Theme:               DefaultTheme(),
 		Setup:               Setup{Steps: []string{}},
+		PWA:                 DefaultPWA(),
 	}
 }
 
@@ -88,6 +90,7 @@ type Patch struct {
 	Theme               *Theme
 	SetupSteps          *[]string
 	SetupCompleted      *bool
+	PWA                 *PWA
 }
 
 // fields names the patched fields (API names), for lock checks.
@@ -155,6 +158,12 @@ func (s Settings) Apply(p Patch) (Settings, error) {
 			return s, err
 		}
 		s.Theme = *p.Theme
+	}
+	if p.PWA != nil {
+		if err := p.PWA.Validate(); err != nil {
+			return s, err
+		}
+		s.PWA = *p.PWA
 	}
 	if p.SetupSteps != nil {
 		steps := []string{}

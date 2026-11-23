@@ -1,4 +1,5 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import { PwaProvider } from '@/components/pwa';
 import { headers } from 'next/headers';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
@@ -22,11 +23,21 @@ function hash(text: string): string {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-    const { organization_name: org, logo, theme } = await getAppearance();
+    const { organization_name: org, logo, theme, pwa } = await getAppearance();
     // The version changes with the logo or theme, so browsers refetch it.
     const v = encodeURIComponent(logo?.version ?? hash(JSON.stringify(theme)));
     return {
         title: { default: org, template: `%s · ${org}` },
+        ...(pwa.enabled
+            ? {
+                  manifest: '/bff/manifest',
+                  appleWebApp: {
+                      capable: true,
+                      title: pwa.short_name || pwa.name || org,
+                      statusBarStyle: 'default' as const,
+                  },
+              }
+            : {}),
         icons: {
             icon: [
                 {
@@ -38,6 +49,11 @@ export async function generateMetadata(): Promise<Metadata> {
         description: 'Self-hosted WhatsApp Business Cloud API platform',
         robots: { index: false, follow: false },
     };
+}
+
+export async function generateViewport(): Promise<Viewport> {
+    const { pwa } = await getAppearance();
+    return pwa.enabled ? { themeColor: pwa.theme_color } : {};
 }
 
 export default async function RootLayout({
@@ -75,8 +91,10 @@ export default async function RootLayout({
                     defaultTheme={appearance.theme.mode}
                 >
                     <I18nProvider locale={locale}>
-                        <TooltipProvider>{children}</TooltipProvider>
-                        <Toaster richColors position="bottom-right" />
+                        <PwaProvider enabled={appearance.pwa.enabled}>
+                            <TooltipProvider>{children}</TooltipProvider>
+                            <Toaster richColors position="bottom-right" />
+                        </PwaProvider>
                     </I18nProvider>
                 </ThemeProvider>
             </body>

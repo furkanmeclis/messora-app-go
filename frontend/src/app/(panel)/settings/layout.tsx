@@ -22,6 +22,11 @@ export default async function SettingsLayout({
             icon: 'appearance',
         },
         has('settings.read') && {
+            href: '/settings/pwa',
+            label: t('pwa.tab'),
+            icon: 'pwa',
+        },
+        has('settings.read') && {
             href: '/settings/email',
             label: t('settings.tabs.email'),
             icon: 'email',

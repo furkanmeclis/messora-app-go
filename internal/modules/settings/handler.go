@@ -58,6 +58,12 @@ func nonNil(m map[string]string) map[string]string {
 	return m
 }
 
+func pwaToAPI(p PWA) api.PwaSettings {
+	return api.PwaSettings{Enabled: p.Enabled, Name: p.Name, ShortName: p.ShortName, Description: p.Description,
+		ThemeColor: p.ThemeColor, BackgroundColor: p.BackgroundColor, Display: api.PwaSettingsDisplay(p.Display),
+		StartUrl: p.StartURL, Icon: api.PwaSettingsIcon(p.Icon)}
+}
+
 func logoToAPI(l *Logo) *api.LogoInfo {
 	if l == nil {
 		return nil
@@ -82,7 +88,7 @@ func toAPI(s Settings) api.Settings {
 		SessionIdleHours: s.SessionIdleHours, SessionLifetimeDays: s.SessionLifetimeDays,
 		DefaultLocale: api.Locale(s.DefaultLocale), DateFormat: api.DateFormat(s.DateFormat), TimeFormat: api.TimeFormat(s.TimeFormat),
 		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), Setup: api.SetupProgress{Completed: s.Setup.Completed, Steps: steps},
-		Locked: locked}
+		Locked: locked, Pwa: pwaToAPI(s.PWA)}
 }
 
 // GetAppearance implements api.ServerInterface. Every page needs it, the
@@ -95,7 +101,7 @@ func (h *Handler) GetAppearance(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, r, http.StatusOK, api.Appearance{OrganizationName: s.OrganizationName, DefaultLocale: api.Locale(s.DefaultLocale),
 		DefaultTimezone: s.DefaultTimezone, DateFormat: api.DateFormat(s.DateFormat), TimeFormat: api.TimeFormat(s.TimeFormat),
-		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), SetupCompleted: s.Setup.Completed})
+		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), SetupCompleted: s.Setup.Completed, Pwa: pwaToAPI(s.PWA)})
 }
 
 // GetSettings implements api.ServerInterface.
@@ -143,6 +149,12 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 			steps[i] = string(st)
 		}
 		p.SetupSteps = &steps
+	}
+	if req.Pwa != nil {
+		v := PWA{Enabled: req.Pwa.Enabled, Name: req.Pwa.Name, ShortName: req.Pwa.ShortName, Description: req.Pwa.Description,
+			ThemeColor: req.Pwa.ThemeColor, BackgroundColor: req.Pwa.BackgroundColor, Display: string(req.Pwa.Display),
+			StartURL: req.Pwa.StartUrl, Icon: string(req.Pwa.Icon)}
+		p.PWA = &v
 	}
 	if req.Theme != nil {
 		// The look of the whole workspace belongs to its owner.
@@ -205,6 +217,9 @@ func changes(a, b Settings) map[string]any {
 	}
 	if fmt.Sprint(a.Theme) != fmt.Sprint(b.Theme) {
 		out["theme"] = []any{a.Theme, b.Theme}
+	}
+	if a.PWA != b.PWA {
+		out["pwa"] = []any{a.PWA, b.PWA}
 	}
 	if a.Setup.Completed != b.Setup.Completed {
 		out["setup_completed"] = []bool{a.Setup.Completed, b.Setup.Completed}

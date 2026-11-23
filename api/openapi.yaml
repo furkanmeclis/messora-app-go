@@ -2741,7 +2741,7 @@ components:
 
     Settings:
       type: object
-      required: [organization_name, default_timezone, default_locale, date_format, time_format, mfa_required_roles, session_idle_hours, session_lifetime_days, theme, logo, setup, locked]
+      required: [organization_name, default_timezone, default_locale, date_format, time_format, mfa_required_roles, session_idle_hours, session_lifetime_days, theme, logo, setup, pwa, locked]
       properties:
         organization_name: { type: string, minLength: 1, maxLength: 120 }
         default_timezone: { type: string, minLength: 1, maxLength: 64 }
@@ -2754,6 +2754,7 @@ components:
             - { $ref: "#/components/schemas/LogoInfo" }
             - { type: "null" }
         setup: { $ref: "#/components/schemas/SetupProgress" }
+        pwa: { $ref: "#/components/schemas/PwaSettings" }
         locked:
           type: array
           description: Fields set by environment variables; the panel cannot change them.
@@ -2789,6 +2790,22 @@ components:
           maxItems: 8
           items: { $ref: "#/components/schemas/SetupStep" }
         setup_completed: { type: boolean }
+        pwa: { $ref: "#/components/schemas/PwaSettings" }
+
+    PwaSettings:
+      type: object
+      additionalProperties: false
+      required: [enabled, name, short_name, description, theme_color, background_color, display, start_url, icon]
+      properties:
+        enabled: { type: boolean, description: Offer installing the panel as an app. }
+        name: { type: string, maxLength: 60, description: "Empty: the organisation name." }
+        short_name: { type: string, maxLength: 20 }
+        description: { type: string, maxLength: 200 }
+        theme_color: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        background_color: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        display: { type: string, enum: [standalone, fullscreen, minimal-ui] }
+        start_url: { type: string, maxLength: 200, pattern: "^/[A-Za-z0-9/_-]*$" }
+        icon: { type: string, enum: [brand, logo] }
 
     Locale:
       type: string
@@ -2836,7 +2853,7 @@ components:
         wallpaper: { type: string, enum: [aurora, dunes, grid, mesh, plain, waves] }
     Appearance:
       type: object
-      required: [organization_name, default_locale, default_timezone, date_format, time_format, theme, logo, setup_completed]
+      required: [organization_name, default_locale, default_timezone, date_format, time_format, theme, logo, setup_completed, pwa]
       properties:
         organization_name: { type: string }
         default_locale: { $ref: "#/components/schemas/Locale" }
@@ -2849,6 +2866,7 @@ components:
             - { $ref: "#/components/schemas/LogoInfo" }
             - { type: "null" }
         setup_completed: { type: boolean }
+        pwa: { $ref: "#/components/schemas/PwaSettings" }
     AppearanceResponse:
       type: object
       required: [data, meta]

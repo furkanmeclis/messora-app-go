@@ -145,6 +145,7 @@ const routes: [string, () => string][] = [
     ['/audit', () => '/audit'],
     ['/settings', () => '/settings'],
     ['/settings/appearance', () => '/settings/appearance'],
+    ['/settings/pwa', () => '/settings/pwa'],
     ['/settings/email', () => '/settings/email'],
     ['/settings/security', () => '/settings/security'],
     ['/settings/webhooks', () => '/settings/webhooks'],

@@ -1960,6 +1960,7 @@ export interface components {
             theme: components['schemas']['Theme'];
             logo: components['schemas']['LogoInfo'] | null;
             setup: components['schemas']['SetupProgress'];
+            pwa: components['schemas']['PwaSettings'];
             /** @description Fields set by environment variables; the panel cannot change them. */
             locked: string[];
             mfa_required_roles: components['schemas']['RoleKey'][];
@@ -1978,6 +1979,22 @@ export interface components {
             theme?: components['schemas']['Theme'];
             setup_steps?: components['schemas']['SetupStep'][];
             setup_completed?: boolean;
+            pwa?: components['schemas']['PwaSettings'];
+        };
+        PwaSettings: {
+            /** @description Offer installing the panel as an app. */
+            enabled: boolean;
+            /** @description Empty: the organisation name. */
+            name: string;
+            short_name: string;
+            description: string;
+            theme_color: string;
+            background_color: string;
+            /** @enum {string} */
+            display: 'standalone' | 'fullscreen' | 'minimal-ui';
+            start_url: string;
+            /** @enum {string} */
+            icon: 'brand' | 'logo';
         };
         /** @enum {string} */
         Locale: 'en' | 'tr';
@@ -2050,6 +2067,7 @@ export interface components {
             theme: components['schemas']['Theme'];
             logo: components['schemas']['LogoInfo'] | null;
             setup_completed: boolean;
+            pwa: components['schemas']['PwaSettings'];
         };
         AppearanceResponse: {
             data: components['schemas']['Appearance'];
