@@ -100,6 +100,17 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** Her bölüm bir pencerede çalışır (E2E); klavye ile pencere değiştirme; mobilde masaüstü modu kapalıdır.
 
+## Phase 16 — Lisans ve dağıtım
+- **Lisans:** Ed25519 ile imzalı belge; özel anahtar yalnızca sahibin bilgisayarında (`messora-license` CLI), uygulamada yalnızca açık anahtar. Alanlar: lisans ID, müşteri, paket ve limitler, `issued_at`, `expires_at` (boş = süresiz), `updates_until` (boş = süresiz), `check_in` (`online` varsayılan / `offline`).
+- **Durumlar:** aktif → uyarı (son 30 gün) → ek süre (14 gün) → kısıtlı mod (salt okunur: gönderim, kampanya ve otomasyon durur; veriler görünür ve dışa aktarılabilir). Veri hiçbir durumda silinmez; yeni anahtar anında geri açar. Saat geri alınmasına karşı görülen en ileri zaman saklanır.
+- **Erken kapatma:** iptal listesi (`revoke` / `reinstate`, sebebiyle). İptal edilen lisans imaj ve güncelleme alamaz; çevrimiçi lisanslı kurulum günlük yoklamada öğrenir ve 7 gün sonra kısıtlı moda geçer. 30 gün yoklama yapamayan çevrimiçi lisans kısıtlı moda geçer. Yeni anahtar verilince eskisi "yerine geçti" olarak geçersizleşir. Çevrimdışı lisanslar uzaktan kapatılamaz, bu yüzden en fazla 1 yıllık verilir.
+- **Dağıtım:** kod private repoda; imajlar private GHCR'de. Cloudflare Worker kapısı: `docker login` şifresi lisans anahtarıdır; imza, iptal listesi ve güncelleme hakkı (sürüm çıkış tarihi ≤ `updates_until`) kontrol edilir. Ağsız müşteriler için `docker load` arşivi.
+- **Güncelleme kanalı:** Worker'da imzalı sürüm listesi (`stable` / `beta`); panel günde bir kontrol eder; `messora update` önce yedek alır, sonra yeni imajları çekip yeniden başlatır.
+- **Kurulum:** `install` betiği lisansı sorar; sihirbazın ilk adımı lisanstır; Settings → License ekranından değiştirilir. Sihirbazda "hazır içerikle başla" adımı (şablon, örnek otomasyon, etiket setleri).
+- **Defter:** CLI verilen lisansları şifreli yerel defterde tutar (`issue`, `revoke`, `reinstate`, `list`).
+
+**Bitti kriteri:** Süresiz, süreli, süresi dolmuş, iptal edilmiş, yerine geçmiş ve sahte imzalı lisanslar için tablo testleri; kısıtlı modda gönderim API'leri reddeder; Worker iptal edilmiş lisansla imaj çekmeyi reddeder (test); `messora update` yedek alıp güncellemeyi tamamlar (E2E).
+
 ## Sonraki sürümler (v1.x)
 - Passkey (go-webauthn), Embedded Signup
 - Maliyet takibi (Meta pricing alanları)
