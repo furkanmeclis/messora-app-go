@@ -226,6 +226,9 @@ func validateCondition(c *Condition, p string) error {
 	if !condOperators[c.Operator] {
 		return bad(p+".operator", "Unknown operator.")
 	}
+	if c.Field == "contact.tag" && c.Operator != "equals" && c.Operator != "not_equals" && c.Operator != "contains" && c.Operator != "not_contains" {
+		return bad(p+".operator", "Tag conditions are has (equals) or has not (not_equals).")
+	}
 	needsValue := c.Operator != "is_set" && c.Operator != "is_not_set" && c.Operator != "is_true" && c.Operator != "is_false"
 	if needsValue && c.Value == "" {
 		return bad(p+".value", "The condition needs a value.")

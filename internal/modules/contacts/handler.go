@@ -286,7 +286,7 @@ var ExportColumns = []string{"phone", "name", "profile_name", "email", "var1", "
 
 // ExportContacts implements api.ServerInterface. Rows are streamed.
 func (h *Handler) ExportContacts(w http.ResponseWriter, r *http.Request, p api.ExportContactsParams) {
-	f, err := h.filter(r, p.Q, p.TagId, p.GroupId, p.SegmentId, nil)
+	f, err := h.filter(r, p.Q, p.TagId, p.GroupId, p.SegmentId, p.OptedOut)
 	if err != nil {
 		h.fail(w, r, err)
 		return

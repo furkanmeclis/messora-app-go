@@ -60,6 +60,15 @@ func TestAutomationRunsOncePerWebhookAndBranches(t *testing.T) {
 			map[string]any{"type": "set_field", "field": "var2", "value": "contacted"},
 		}})
 
+	// Listing and reading an automation that never ran (regression: NULL
+	// last-run time made the list fail).
+	r0 := h.do(call{method: "GET", path: "/api/v1/automations", token: token})
+	h.expect(r0, 200, "")
+	if first := r0.list()[0].(map[string]any); first["run_count"] != float64(0) || first["last_run_at"] != nil {
+		t.Fatalf("never-run automation: %s", r0.raw)
+	}
+	h.expect(h.do(call{method: "GET", path: "/api/v1/automations/" + id, token: token}), 200, "")
+
 	// The same message delivered twice (different envelopes, Meta retry).
 	at := time.Now()
 	h.webhook(whatsapptest.InboundText(testPNID, testCustomer, "wamid.auto-1", "Fiyat nedir?", "Ayşe Kaya", at))
@@ -87,6 +96,9 @@ func TestAutomationRunsOncePerWebhookAndBranches(t *testing.T) {
 	}
 
 	// Run log through the API.
+	if g := h.do(call{method: "GET", path: "/api/v1/automations/" + id, token: token}); g.data()["run_count"] != float64(1) || g.data()["last_run_at"] == nil {
+		t.Fatalf("automation stats: %s", g.raw)
+	}
 	r := h.do(call{method: "GET", path: "/api/v1/automations/" + id + "/runs", token: token})
 	h.expect(r, 200, "")
 	run := r.list()[0].(map[string]any)["id"].(string)

@@ -276,3 +276,6 @@ UPDATE messages SET meta_status = @meta_status, updated_at = now() WHERE id = @i
 
 -- name: ContactHasMessages :one
 SELECT EXISTS (SELECT 1 FROM messages WHERE contact_id = @contact_id);
+
+-- name: CountCampaignsForAccount :one
+SELECT count(*) FROM campaigns c JOIN phone_numbers p ON p.id = c.phone_number_id WHERE p.account_id = @account_id;

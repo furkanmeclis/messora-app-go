@@ -171,6 +171,56 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (Automatio
 	return i, err
 }
 
+const getAutomationWithStats = `-- name: GetAutomationWithStats :one
+SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+       coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
+FROM automations a
+LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
+           FROM automation_runs WHERE automation_id = $1 GROUP BY automation_id) s ON s.automation_id = a.id
+WHERE a.id = $1
+`
+
+type GetAutomationWithStatsRow struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	Active      bool
+	TriggerType string
+	Trigger     []byte
+	Steps       []byte
+	Program     []byte
+	Version     int32
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	RunCount    int64
+	HasRun      bool
+	LastRunAt   time.Time
+}
+
+func (q *Queries) GetAutomationWithStats(ctx context.Context, id uuid.UUID) (GetAutomationWithStatsRow, error) {
+	row := q.db.QueryRow(ctx, getAutomationWithStats, id)
+	var i GetAutomationWithStatsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Active,
+		&i.TriggerType,
+		&i.Trigger,
+		&i.Steps,
+		&i.Program,
+		&i.Version,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RunCount,
+		&i.HasRun,
+		&i.LastRunAt,
+	)
+	return i, err
+}
+
 const hasActiveAutomation = `-- name: HasActiveAutomation :one
 SELECT EXISTS (SELECT 1 FROM automations WHERE active AND trigger_type = $1)
 `
@@ -381,10 +431,12 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 }
 
 const listAutomations = `-- name: ListAutomations :many
-SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at,
-       (SELECT count(*) FROM automation_runs r WHERE r.automation_id = a.id) AS run_count,
-       (SELECT max(r.created_at) FROM automation_runs r WHERE r.automation_id = a.id)::timestamptz AS last_run_at
-FROM automations a ORDER BY a.created_at
+SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+       coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
+FROM automations a
+LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
+           FROM automation_runs GROUP BY automation_id) s ON s.automation_id = a.id
+ORDER BY a.created_at
 `
 
 type ListAutomationsRow struct {
@@ -401,9 +453,12 @@ type ListAutomationsRow struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	RunCount    int64
+	HasRun      bool
 	LastRunAt   time.Time
 }
 
+// The LEFT JOIN makes run statistics nullable: an automation may never
+// have run.
 func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, error) {
 	rows, err := q.db.Query(ctx, listAutomations)
 	if err != nil {
@@ -427,6 +482,7 @@ func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, er
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RunCount,
+			&i.HasRun,
 			&i.LastRunAt,
 		); err != nil {
 			return nil, err

@@ -24,10 +24,22 @@ RETURNING *;
 SELECT * FROM automations WHERE id = @id;
 
 -- name: ListAutomations :many
-SELECT a.*,
-       (SELECT count(*) FROM automation_runs r WHERE r.automation_id = a.id) AS run_count,
-       (SELECT max(r.created_at) FROM automation_runs r WHERE r.automation_id = a.id)::timestamptz AS last_run_at
-FROM automations a ORDER BY a.created_at;
+-- The LEFT JOIN makes run statistics nullable: an automation may never
+-- have run.
+SELECT a.*, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+       coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
+FROM automations a
+LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
+           FROM automation_runs GROUP BY automation_id) s ON s.automation_id = a.id
+ORDER BY a.created_at;
+
+-- name: GetAutomationWithStats :one
+SELECT a.*, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+       coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
+FROM automations a
+LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
+           FROM automation_runs WHERE automation_id = @id GROUP BY automation_id) s ON s.automation_id = a.id
+WHERE a.id = @id;
 
 -- name: DeleteAutomation :execrows
 DELETE FROM automations WHERE id = @id;

@@ -177,6 +177,11 @@ func (s *Service) validate(ctx context.Context, in Input) error {
 				return apperr.Validation("audience.group_id", "Unknown group.")
 			}
 		}
+		if in.Audience.TagID != nil {
+			if _, err := s.q.GetTag(ctx, *in.Audience.TagID); errors.Is(err, pgx.ErrNoRows) {
+				return apperr.Validation("audience.tag_id", "Unknown tag.")
+			}
+		}
 	}
 	if in.PhoneNumberID != nil {
 		if _, err := s.q.GetPhoneNumber(ctx, *in.PhoneNumberID); errors.Is(err, pgx.ErrNoRows) {

@@ -300,6 +300,22 @@ func (q *Queries) GetSegment(ctx context.Context, id uuid.UUID) (Segment, error)
 	return i, err
 }
 
+const getTag = `-- name: GetTag :one
+SELECT id, name, color, created_at FROM tags WHERE id = $1
+`
+
+func (q *Queries) GetTag(ctx context.Context, id uuid.UUID) (Tag, error) {
+	row := q.db.QueryRow(ctx, getTag, id)
+	var i Tag
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Color,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertConsentEvent = `-- name: InsertConsentEvent :one
 INSERT INTO consent_events (contact_id, kind, source, note, actor_id)
 VALUES ($1, $2, $3, $4, $5)

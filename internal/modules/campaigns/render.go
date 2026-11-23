@@ -130,6 +130,11 @@ func Render(p Params, c db.Contact, name, language string) (whatsapp.Template, s
 		t.Components = append(t.Components, whatsapp.TemplateComponent{Type: "body", Parameters: ps})
 	}
 	for i, b := range p.Buttons {
+		// Buttons[i] belongs to the template's button i; an empty entry is a
+		// button without a dynamic part (quick reply, static URL, phone).
+		if strings.TrimSpace(b) == "" {
+			continue
+		}
 		v, miss := fill(b, c, p.Fallback)
 		if miss != "" {
 			return t, miss

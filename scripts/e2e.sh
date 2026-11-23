@@ -13,6 +13,8 @@ cd "$(dirname "$0")/.."
 PORT="${E2E_PORT:-8090}"
 PROJECT="${E2E_PROJECT:-messora-e2e}"
 export HTTP_PORT="$PORT" HTTPS_PORT="$((PORT + 363))" PUBLIC_APP_URL="http://localhost:$PORT" SITE_ADDRESS=":80"
+# Separate image tags per project, so parallel runs never test each other's build.
+export MESSORA_VERSION="${MESSORA_VERSION:-$PROJECT}"
 compose() { docker compose -p "$PROJECT" "$@"; }
 
 cleanup() {

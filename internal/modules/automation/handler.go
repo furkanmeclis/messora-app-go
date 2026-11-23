@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -42,7 +43,7 @@ func recode(from, to any) error {
 	return json.Unmarshal(b, to)
 }
 
-func toAPI(a db.Automation, runs int64, last any) api.Automation {
+func toAPI(a db.Automation, runs int64, last *time.Time) api.Automation {
 	var out api.Automation
 	steps := []api.AutomationStep{}
 	_ = json.Unmarshal(a.Steps, &steps)
@@ -51,9 +52,7 @@ func toAPI(a db.Automation, runs int64, last any) api.Automation {
 	out = api.Automation{Id: a.ID, Name: a.Name, Description: a.Description, Active: a.Active,
 		TriggerType: api.AutomationTriggerType(a.TriggerType), Trigger: t, Steps: steps, Version: int(a.Version),
 		RunCount: runs, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
-	if ts, ok := last.(interface{ IsZero() bool }); ok && !ts.IsZero() {
-		_ = recode(last, &out.LastRunAt)
-	}
+	out.LastRunAt = last
 	return out
 }
 
@@ -116,7 +115,7 @@ func (h *Handler) ListAutomations(w http.ResponseWriter, r *http.Request) {
 	for i, a := range rows {
 		out[i] = toAPI(db.Automation{ID: a.ID, Name: a.Name, Description: a.Description, Active: a.Active, TriggerType: a.TriggerType,
 			Trigger: a.Trigger, Steps: a.Steps, Program: a.Program, Version: a.Version, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt},
-			a.RunCount, a.LastRunAt)
+			a.RunCount, lastRun(a.HasRun, a.LastRunAt))
 	}
 	httpx.JSON(w, r, http.StatusOK, out)
 }
@@ -176,9 +175,24 @@ func (h *Handler) load(w http.ResponseWriter, r *http.Request, id uuid.UUID) (db
 
 // GetAutomation implements api.ServerInterface.
 func (h *Handler) GetAutomation(w http.ResponseWriter, r *http.Request, id api.AutomationId) {
-	if a, ok := h.load(w, r, id); ok {
-		httpx.JSON(w, r, http.StatusOK, toAPI(a, 0, nil))
+	a, err := h.svc.q.GetAutomationWithStats(r.Context(), id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = apperr.NotFound("Automation not found.")
 	}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, toAPI(db.Automation{ID: a.ID, Name: a.Name, Description: a.Description, Active: a.Active,
+		TriggerType: a.TriggerType, Trigger: a.Trigger, Steps: a.Steps, Program: a.Program, Version: a.Version,
+		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}, a.RunCount, lastRun(a.HasRun, a.LastRunAt)))
+}
+
+func lastRun(has bool, at time.Time) *time.Time {
+	if !has {
+		return nil
+	}
+	return &at
 }
 
 // UpdateAutomation implements api.ServerInterface.

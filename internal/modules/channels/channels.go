@@ -240,6 +240,11 @@ func (s *Service) Disconnect(ctx context.Context, id uuid.UUID) error {
 		if n > 0 {
 			return apperr.Conflict("ACCOUNT_HAS_MESSAGES", "This account has message history; disable it instead.")
 		}
+		if c, err := q.CountCampaignsForAccount(ctx, id); err != nil {
+			return err
+		} else if c > 0 {
+			return apperr.Conflict("ACCOUNT_HAS_CAMPAIGNS", "Campaigns use this account's numbers; delete them or disable the account instead.")
+		}
 		rows, err := q.DeleteWhatsAppAccount(ctx, id)
 		if err != nil {
 			return err

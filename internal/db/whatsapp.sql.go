@@ -143,6 +143,17 @@ func (q *Queries) ContactHasMessages(ctx context.Context, contactID uuid.UUID) (
 	return exists, err
 }
 
+const countCampaignsForAccount = `-- name: CountCampaignsForAccount :one
+SELECT count(*) FROM campaigns c JOIN phone_numbers p ON p.id = c.phone_number_id WHERE p.account_id = $1
+`
+
+func (q *Queries) CountCampaignsForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCampaignsForAccount, accountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countMessagesForAccount = `-- name: CountMessagesForAccount :one
 SELECT count(*) FROM messages m JOIN phone_numbers p ON p.id = m.phone_number_id WHERE p.account_id = $1
 `

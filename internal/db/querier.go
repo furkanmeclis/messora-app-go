@@ -43,6 +43,7 @@ type Querier interface {
 	ContactHasTag(ctx context.Context, arg ContactHasTagParams) (bool, error)
 	ContactTags(ctx context.Context, contactID uuid.UUID) ([]Tag, error)
 	CountActiveOwners(ctx context.Context) (int64, error)
+	CountCampaignsForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountHeld(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountInFlight(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountMessagesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
@@ -96,6 +97,7 @@ type Querier interface {
 	GetAssignableUser(ctx context.Context, id uuid.UUID) (GetAssignableUserRow, error)
 	GetAutomation(ctx context.Context, id uuid.UUID) (Automation, error)
 	GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
+	GetAutomationWithStats(ctx context.Context, id uuid.UUID) (GetAutomationWithStatsRow, error)
 	GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 	GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error)
@@ -115,6 +117,7 @@ type Querier interface {
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
 	GetSegment(ctx context.Context, id uuid.UUID) (Segment, error)
 	GetSetting(ctx context.Context, key string) ([]byte, error)
+	GetTag(ctx context.Context, id uuid.UUID) (Tag, error)
 	GetTemplate(ctx context.Context, id uuid.UUID) (MessageTemplate, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
@@ -173,6 +176,8 @@ type Querier interface {
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
 	ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) ([]AutomationRunStep, error)
 	ListAutomationRuns(ctx context.Context, arg ListAutomationRunsParams) ([]ListAutomationRunsRow, error)
+	// The LEFT JOIN makes run statistics nullable: an automation may never
+	// have run.
 	ListAutomations(ctx context.Context) ([]ListAutomationsRow, error)
 	ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) ([]CampaignEvent, error)
 	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)

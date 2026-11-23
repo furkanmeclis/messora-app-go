@@ -4358,6 +4358,7 @@ export interface operations {
         parameters: {
             query?: {
                 format?: 'csv' | 'xlsx';
+                opted_out?: boolean;
                 q?: string;
                 tag_id?: string;
                 group_id?: string;

@@ -188,3 +188,6 @@ UPDATE contact_imports SET cancel_requested = true,
     updated_at = now()
 WHERE id = @id AND status IN ('uploaded', 'queued', 'running')
 RETURNING *;
+
+-- name: GetTag :one
+SELECT * FROM tags WHERE id = @id;
