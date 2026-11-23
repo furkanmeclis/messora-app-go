@@ -194,6 +194,7 @@ func (s *Service) CheckIn(ctx context.Context) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Messora/"+s.o.Version)
 	res, err := s.o.HTTP.Do(req)
 	if err != nil {
 		return fmt.Errorf("licensing: gate unreachable: %w", err)

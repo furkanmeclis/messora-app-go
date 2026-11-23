@@ -108,7 +108,7 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 - Kişiler tablosu: numaralı sayfalar, sıralama, sütun ve yoğunluk seçimi, satır/sayfa/tüm eşleşenleri seçme ve toplu işlemler (etiket, grup, izin, silme) için `POST /contacts/bulk`.
 - Profil ve güvenlik sayfaları yeniden tasarlandı; sekme, durum ve rol ikonları.
 
-## Phase 16 — Lisans ve dağıtım
+## Phase 16 — Lisans ve dağıtım ✅ (repo gizli yapılması hariç; ayrıntılar docs/LICENSING.md)
 - **Lisans:** Ed25519 ile imzalı belge; özel anahtar yalnızca sahibin bilgisayarında (`messora-license` CLI), uygulamada yalnızca açık anahtar. Alanlar: lisans ID, müşteri, paket ve limitler, `issued_at`, `expires_at` (boş = süresiz), `updates_until` (boş = süresiz), `check_in` (`online` varsayılan / `offline`).
 - **Durumlar:** aktif → uyarı (son 30 gün) → ek süre (14 gün) → kısıtlı mod (salt okunur: gönderim, kampanya ve otomasyon durur; veriler görünür ve dışa aktarılabilir). Veri hiçbir durumda silinmez; yeni anahtar anında geri açar. Saat geri alınmasına karşı görülen en ileri zaman saklanır.
 - **Erken kapatma:** iptal listesi (`revoke` / `reinstate`, sebebiyle). İptal edilen lisans imaj ve güncelleme alamaz; çevrimiçi lisanslı kurulum günlük yoklamada öğrenir ve 7 gün sonra kısıtlı moda geçer. 30 gün yoklama yapamayan çevrimiçi lisans kısıtlı moda geçer. Yeni anahtar verilince eskisi "yerine geçti" olarak geçersizleşir. Çevrimdışı lisanslar uzaktan kapatılamaz, bu yüzden en fazla 1 yıllık verilir.
