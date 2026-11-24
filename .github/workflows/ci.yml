@@ -217,12 +217,16 @@ jobs:
         run: |
           dir="$RUNNER_TEMP/install"; mkdir -p "$dir"
           go run ./cmd/messora-license install-compose --registry messora --version dev > "$dir/compose.yml"
-          ! grep -qE 'build:|\./deployments' "$dir/compose.yml"
+          if grep -qE 'build:|\./deployments' "$dir/compose.yml"; then
+            echo "install file still refers to the repository"; exit 1
+          fi
           printf 'HTTP_PORT=8089\nHTTPS_PORT=8449\nPUBLIC_APP_URL=http://localhost:8089\n' > "$dir/.env"
           cd "$dir"
           export COMPOSE_PROJECT_NAME=messora-install
           docker compose up -d --wait --wait-timeout 300
           "$GITHUB_WORKSPACE/scripts/stack-smoke.sh" http://localhost:8089
+          # Caddy must receive its own {$VAR} placeholders, not Compose's.
+          # shellcheck disable=SC2016
           docker compose exec -T caddy cat /etc/caddy/Caddyfile | grep -qF 'trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}'
           docker compose down -v
       - name: Logs on failure
