@@ -65,7 +65,7 @@ jobs:
         run: make api-check
       - run: make vuln
       - name: Go dependency licenses
-        run: go run github.com/google/go-licenses/v2@v2.0.1 check ./cmd/... ./internal/... --disallowed_types=forbidden,restricted
+        run: go run github.com/google/go-licenses/v2@v2.0.1 check ./cmd/... ./internal/... --disallowed_types=forbidden,restricted --ignore github.com/furkanmeclis/messora-app-go
 
   migrations:
     name: SQL migrations · safety lint

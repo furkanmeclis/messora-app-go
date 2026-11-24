@@ -119,6 +119,14 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** Süresiz, süreli, süresi dolmuş, iptal edilmiş, yerine geçmiş ve sahte imzalı lisanslar için tablo testleri; kısıtlı modda gönderim API'leri reddeder; Worker iptal edilmiş lisansla imaj çekmeyi reddeder (test); `messora update` yedek alıp güncellemeyi tamamlar (E2E).
 
+## Phase 16b — Meta bağlantısı ve mesajlaşma ekranlarının sağlamlaştırılması
+- **Kalıcı Meta bağlantısı:** token kopmalarına kalıcı çözüm. Kurulumda kalıcı System User token'ı rehberi; `debug_token` ile doğrulama (süre, izinler, WABA erişimi); kısa ömürlü token verilirse uzun ömürlüye otomatik çevirme; bitişe yaklaşınca uyarı; hesap silinmeden token yenileme; token hatasında (OAuth 190) hesabın "yeniden bağlan" durumuna geçmesi ve yöneticiye bildirim.
+- **Şablon yönetimi:** WhatsApp görünümünde önizleme (başlık, gövde, altbilgi, butonlar); durum, kategori ve dil filtreleri; arama; senkronizasyon; değişken ve örnek gösterimi; şablon oluşturma.
+- **Kampanya oluşturma:** her değişken için kişi alanı veya sabit metin eşlemesi, sonradan değiştirilebilir; isimli (`{{ad}}`) ve sıralı (`{{1}}`) değişkenler; görsel, video ve belge başlıklı şablonlar için medya yükleme veya URL; canlı önizleme; gönderim öncesi doğrulama.
+- **Gelen kutusu:** yeniden tasarım; şablon gönderiminde değişken ve medya; ekler, filtreler, arama, atama, okundu bilgisi.
+
+**Bitti kriteri:** görselli ve değişkenli şablonla kampanya ve gelen kutusu gönderimi uçtan uca testli (E2E ve Meta sözleşme testi); süresi dolan veya iptal edilen token'da hesap durumu ve bildirim testli.
+
 ## Sonraki sürümler (v1.x)
 - Passkey (go-webauthn), Embedded Signup
 - Maliyet takibi (Meta pricing alanları)

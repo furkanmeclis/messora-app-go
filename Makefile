@@ -50,7 +50,7 @@ tidy-check: ## Fail if go.mod/go.sum are not tidy
 
 .PHONY: licenses
 licenses: ## Fail on dependencies with forbidden or restricted licenses
-	go run $(GO_LICENSES) check ./cmd/... ./internal/... --disallowed_types=forbidden,restricted
+	go run $(GO_LICENSES) check ./cmd/... ./internal/... --disallowed_types=forbidden,restricted --ignore github.com/furkanmeclis/messora-app-go
 	cd frontend && npx -y $(NPM_LICENSES) --production --excludePrivatePackages \
 	  --excludePackagesStartingWith "@img/sharp-libvips" --onlyAllow "$(NPM_ALLOWED_LICENSES)" >/dev/null
 
