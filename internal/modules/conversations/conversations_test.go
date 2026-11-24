@@ -152,7 +152,7 @@ func TestMediaHeaders(t *testing.T) {
 
 func TestReplyInput(t *testing.T) {
 	preview := true
-	in, err := replyInput(api.ReplyRequest{Type: "text", Text: &struct {
+	in, _, err := replyInput(api.ReplyRequest{Type: "text", Text: &struct {
 		Body       string `json:"body"`
 		PreviewUrl *bool  `json:"preview_url,omitempty"`
 	}{Body: "Merhaba", PreviewUrl: &preview}})
@@ -160,16 +160,17 @@ func TestReplyInput(t *testing.T) {
 		t.Fatalf("text: %+v %v", in, err)
 	}
 	comps := []map[string]any{{"type": "body", "parameters": []any{map[string]any{"type": "text", "text": "42"}}}}
-	in, err = replyInput(api.ReplyRequest{Type: "template", Template: &struct {
-		Components *[]map[string]any `json:"components,omitempty"`
-		Language   string            `json:"language"`
-		Name       string            `json:"name"`
+	in, params, err := replyInput(api.ReplyRequest{Type: "template", Template: &struct {
+		Components *[]map[string]any   `json:"components,omitempty"`
+		Language   string              `json:"language"`
+		Name       string              `json:"name"`
+		Params     *api.CampaignParams `json:"params,omitempty"`
 	}{Name: "order_update", Language: "en", Components: &comps}})
-	if err != nil || in.Template == nil || in.Template.Name != "order_update" || len(in.Template.Components) != 1 {
+	if err != nil || params != nil || in.Template == nil || in.Template.Name != "order_update" || len(in.Template.Components) != 1 {
 		t.Fatalf("template: %+v %v", in, err)
 	}
 	link := "https://example.com/a.jpg"
-	in, _ = replyInput(api.ReplyRequest{Type: "image", Media: &api.MediaRef{Link: &link}})
+	in, _, _ = replyInput(api.ReplyRequest{Type: "image", Media: &api.MediaRef{Link: &link}})
 	if in.Media == nil || in.Media.Link != link {
 		t.Fatalf("media: %+v", in)
 	}

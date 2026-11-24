@@ -217,6 +217,7 @@ type Querier interface {
 	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]ListWebhookDeliveriesRow, error)
 	ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, error)
 	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
+	ListWhatsAppAccountsToCheck(ctx context.Context) ([]WhatsappAccount, error)
 	LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
 	LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	// ── Conversations (inbox) ───────────────────────────────────────────────────
@@ -237,6 +238,7 @@ type Querier interface {
 	MarkWebhookProcessed(ctx context.Context, id uuid.UUID) error
 	MarkWhatsAppAccountError(ctx context.Context, arg MarkWhatsAppAccountErrorParams) error
 	MarkWhatsAppAccountSynced(ctx context.Context, id uuid.UUID) error
+	MarkWhatsAppTokenNotified(ctx context.Context, id uuid.UUID) error
 	MuteContactAutomations(ctx context.Context, arg MuteContactAutomationsParams) error
 	// Waiting runs whose resume task may have been lost.
 	OverdueWaitingRuns(ctx context.Context) ([]uuid.UUID, error)
@@ -244,6 +246,8 @@ type Querier interface {
 	// cannot double-count. Returns whether a cancel was requested.
 	ProgressContactImport(ctx context.Context, arg ProgressContactImportParams) (bool, error)
 	QueueContactImport(ctx context.Context, arg QueueContactImportParams) (ContactImport, error)
+	// A working token was stored: an account flagged by Meta errors is usable again.
+	ReactivateWhatsAppAccount(ctx context.Context, id uuid.UUID) error
 	RecentRunForContact(ctx context.Context, arg RecentRunForContactParams) (bool, error)
 	// Counts consecutive failures and locks the account for lock_minutes once
 	// max_failures is reached. An expired lock starts a fresh count.
@@ -274,6 +278,8 @@ type Querier interface {
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
 	SetWebhookEndpointSecret(ctx context.Context, arg SetWebhookEndpointSecretParams) (WebhookEndpoint, error)
+	// Records what Meta's debug_token said about the stored token.
+	SetWhatsAppTokenInfo(ctx context.Context, arg SetWhatsAppTokenInfoParams) (WhatsappAccount, error)
 	// Pending for longer than expected: its send task may have been lost.
 	StalePendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
 	StalePreparingCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)

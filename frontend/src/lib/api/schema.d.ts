@@ -677,6 +677,26 @@ export interface paths {
         patch: operations['updateWhatsAppAccount'];
         trace?: never;
     };
+    '/channels/accounts/{accountId}/check': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check the access token with Meta now (validity, permissions, expiry)
+         * @description Re-validates the stored token. A token Meta refuses flags the account; a working token brings a flagged account back into service.
+         */
+        post: operations['checkWhatsAppAccount'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/channels/accounts/{accountId}/sync': {
         parameters: {
             query?: never;
@@ -2391,6 +2411,23 @@ export interface components {
             last_synced_at?: string | null;
             /** Format: date-time */
             created_at: string;
+            token: components['schemas']['WhatsAppTokenHealth'];
+        };
+        /** @description What Meta's debug_token reported about the stored access token. */
+        WhatsAppTokenHealth: {
+            /** @description SYSTEM_USER (never expires), USER, … — null when Meta could not be asked. */
+            type: string | null;
+            /**
+             * Format: date-time
+             * @description Null means the token never expires.
+             */
+            expires_at: string | null;
+            /** Format: date-time */
+            data_access_expires_at: string | null;
+            scopes: string[];
+            /** Format: date-time */
+            checked_at: string | null;
+            warning: string | null;
         };
         ConnectWhatsAppAccountRequest: {
             name: string;
@@ -2403,6 +2440,7 @@ export interface components {
             name?: string;
             access_token?: string;
             app_secret?: string;
+            app_id?: string;
             /** @enum {string} */
             status?: 'active' | 'disabled';
         };
@@ -4550,6 +4588,29 @@ export interface operations {
         };
         responses: {
             /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['WhatsAppAccountResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    checkWhatsAppAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components['parameters']['AccountId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account after the check */
             200: {
                 headers: {
                     [name: string]: unknown;

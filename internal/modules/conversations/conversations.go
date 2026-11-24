@@ -14,6 +14,7 @@ package conversations
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
@@ -188,7 +190,11 @@ func (s *Service) Messages(ctx context.Context, p *principal.Principal, id uuid.
 
 // Reply queues a message in the conversation, from its number. The window
 // and opt-out rules are messaging.Queue's.
-func (s *Service) Reply(ctx context.Context, p *principal.Principal, id uuid.UUID, in messaging.SendInput) (db.Message, error) {
+//
+// With params, a template is filled the way campaigns fill it: the values
+// are checked against the template, then placeholders such as
+// {{first_name}} are resolved from the conversation's contact.
+func (s *Service) Reply(ctx context.Context, p *principal.Principal, id uuid.UUID, in messaging.SendInput, params *campaigns.Params) (db.Message, error) {
 	c, err := s.load(ctx, s.q, p, id)
 	if err != nil {
 		return db.Message{}, err
@@ -196,6 +202,33 @@ func (s *Service) Reply(ctx context.Context, p *principal.Principal, id uuid.UUI
 	ct, err := s.q.GetContact(ctx, c.ContactID)
 	if err != nil {
 		return db.Message{}, err
+	}
+	if params != nil {
+		if in.Template == nil {
+			return db.Message{}, apperr.Validation("template", "Template parameters need a template.")
+		}
+		if len(in.Template.Components) > 0 {
+			return db.Message{}, apperr.Validation("template.params", "Send either params or components, not both.")
+		}
+		pn, err := s.q.GetPhoneNumber(ctx, c.PhoneNumberID)
+		if err != nil {
+			return db.Message{}, err
+		}
+		t, err := s.q.FindApprovedTemplate(ctx, db.FindApprovedTemplateParams{AccountID: pn.AccountID, Name: in.Template.Name, Language: in.Template.Language.Code})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Message{}, apperr.Validation("template.name", "This template is not available on the conversation's WhatsApp account.")
+		}
+		if err != nil {
+			return db.Message{}, err
+		}
+		if err := campaigns.CheckParams(campaigns.ShapeOf(t.Components, t.ParameterFormat), *params); err != nil {
+			return db.Message{}, err
+		}
+		tpl, missing := campaigns.Render(*params, ct, t.Name, t.Language)
+		if missing != "" {
+			return db.Message{}, apperr.Validation("template.params", fmt.Sprintf("{{%s}} is empty for this contact; type a value or add a fallback.", missing))
+		}
+		in.Template = &tpl
 	}
 	in.To, in.PhoneNumberID, in.CreatedBy = ct.PhoneE164, &c.PhoneNumberID, &p.ID
 	in.Source = "api"

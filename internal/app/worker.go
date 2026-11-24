@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/licensing"
 
 	"github.com/google/uuid"
@@ -88,6 +89,14 @@ func RunWorker(ctx context.Context) error {
 	registerMessaging(mux, svc.messaging)
 	registerCampaigns(mux, svc.campaigns, svc.messaging, log)
 	registerAutomations(mux, svc.automation, log)
+	mux.HandleFunc(channels.TypeTokenCheck, func(ctx context.Context, _ *asynq.Task) error {
+		// Problems are recorded on the accounts; a failed run is simply
+		// repeated by the next one.
+		if err := svc.channels.CheckTokens(ctx); err != nil {
+			log.WarnContext(ctx, "whatsapp token check", "err", err)
+		}
+		return nil
+	})
 	mux.HandleFunc(licensing.TypeCheckIn, func(ctx context.Context, _ *asynq.Task) error {
 		// A failed check-in is retried by the next run; the licence allows
 		// 30 days without one.

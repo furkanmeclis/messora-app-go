@@ -495,16 +495,23 @@ type WebhookEvent struct {
 }
 
 type WhatsappAccount struct {
-	ID             pgtype.UUID
-	Name           string
-	WabaID         string
-	AppID          *string
-	AccessTokenEnc []byte
-	AppSecretEnc   []byte
-	Status         string
-	LastError      *string
-	LastSyncedAt   pgtype.Timestamptz
-	CreatedBy      pgtype.UUID
-	CreatedAt      pgtype.Timestamptz
-	UpdatedAt      pgtype.Timestamptz
+	ID                       pgtype.UUID
+	Name                     string
+	WabaID                   string
+	AppID                    *string
+	AccessTokenEnc           []byte
+	AppSecretEnc             []byte
+	Status                   string
+	LastError                *string
+	LastSyncedAt             pgtype.Timestamptz
+	CreatedBy                pgtype.UUID
+	CreatedAt                pgtype.Timestamptz
+	UpdatedAt                pgtype.Timestamptz
+	TokenType                *string
+	TokenExpiresAt           pgtype.Timestamptz
+	TokenDataAccessExpiresAt pgtype.Timestamptz
+	TokenScopes              []string
+	TokenCheckedAt           pgtype.Timestamptz
+	TokenWarning             *string
+	TokenNotifiedAt          pgtype.Timestamptz
 }

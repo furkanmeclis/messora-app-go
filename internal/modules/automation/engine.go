@@ -290,7 +290,12 @@ func (s *Service) exec(ctx context.Context, tx pgx.Tx, q *db.Queries, in Instr, 
 		if st.Type == "reply" {
 			in.Type, in.Text = "text", &whatsapp.Text{Body: text(st.Text)}
 		} else {
-			tpl, missing := campaigns.Render(campaigns.Params{Header: st.Template.Header, Body: st.Template.Body}, c, st.Template.Name, st.Template.Language)
+			// A template whose header media or variables are not filled
+			// would fail at Meta; skip it with the reason instead.
+			if err := checkTemplateStep(ctx, q, ev.PhoneNumberID, *st.Template); err != nil {
+				return stepResult{outcome: "skipped", next: next, detail: map[string]any{"reason": "template_params", "message": err.Error()}}
+			}
+			tpl, missing := campaigns.Render(st.Template.Params(), c, st.Template.Name, st.Template.Language)
 			if missing != "" {
 				return stepResult{outcome: "skipped", next: next, detail: map[string]any{"reason": "missing_" + missing}}
 			}
@@ -609,4 +614,22 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// checkTemplateStep verifies a template step's values against the template
+// on the sender's account. Without a known sender (the default number is
+// used) or template, Meta has the last word.
+func checkTemplateStep(ctx context.Context, q *db.Queries, phoneNumberID *uuid.UUID, ref TemplateRef) error {
+	if phoneNumberID == nil {
+		return nil
+	}
+	pn, err := q.GetPhoneNumber(ctx, *phoneNumberID)
+	if err != nil {
+		return nil //nolint:nilerr // unknown sender: the send itself reports it
+	}
+	t, err := q.FindApprovedTemplate(ctx, db.FindApprovedTemplateParams{AccountID: pn.AccountID, Name: ref.Name, Language: ref.Language})
+	if err != nil {
+		return nil //nolint:nilerr // unknown template: the send itself reports it
+	}
+	return campaigns.CheckParams(campaigns.ShapeOf(t.Components, t.ParameterFormat), ref.Params())
 }

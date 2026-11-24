@@ -78,6 +78,7 @@ import {
     syncAccountAction,
     updateAccountAction,
 } from './actions';
+import { AccountProblem, SystemUserGuide, TokenHealth } from './token-health';
 
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
 
@@ -190,6 +191,7 @@ export function ConnectAccountDialog() {
                     noValidate={false}
                 >
                     <ErrorBanner error={error} shown={CONNECT_FIELDS} />
+                    <SystemUserGuide />
                     <FieldGroup>
                         <TextField
                             label={t('channels.connect.name')}
@@ -385,7 +387,22 @@ function AccountRow({
                     </div>
                 )}
             </div>
-            {a.last_error && (
+            <AccountProblem
+                account={a}
+                action={
+                    manage ? (
+                        <CredentialsDialog
+                            account={a}
+                            trigger={
+                                <Button size="sm" variant="destructive">
+                                    <KeyRound /> {t('channels.token.replace')}
+                                </Button>
+                            }
+                        />
+                    ) : undefined
+                }
+            />
+            {a.last_error && a.status !== 'error' && (
                 <Alert variant="destructive">
                     <AlertTriangle />
                     <AlertTitle>{t('channels.accounts.lastError')}</AlertTitle>
@@ -394,6 +411,9 @@ function AccountRow({
                         <p>{t('channels.accounts.lastErrorHint')}</p>
                     </AlertDescription>
                 </Alert>
+            )}
+            {a.status !== 'disabled' && (
+                <TokenHealth account={a} manage={manage} />
             )}
             {syncResult && (
                 <p className="text-sm text-muted-foreground" role="status">
@@ -407,7 +427,13 @@ function AccountRow({
     );
 }
 
-function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
+function CredentialsDialog({
+    account,
+    trigger,
+}: {
+    account: WhatsAppAccount;
+    trigger?: React.ReactNode;
+}) {
     const t = useT();
     const { guard } = useReauth();
     const [open, setOpen] = useState(false);
@@ -421,7 +447,13 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
         const name = String(form.get('name') ?? '').trim();
         const token = String(form.get('access_token') ?? '').trim();
         const secret = String(form.get('app_secret') ?? '').trim();
-        if (name === account.name && !token && !secret) {
+        const appId = String(form.get('app_id') ?? '').trim();
+        if (
+            name === account.name &&
+            !token &&
+            !secret &&
+            (!appId || appId === account.app_id)
+        ) {
             setOpen(false);
             return;
         }
@@ -431,6 +463,8 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
                     name: name !== account.name ? name : undefined,
                     access_token: token || undefined,
                     app_secret: secret || undefined,
+                    app_id:
+                        appId && appId !== account.app_id ? appId : undefined,
                 }),
             );
             if (r.ok) {
@@ -452,11 +486,13 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
             }}
         >
             <DialogTrigger asChild>
-                <Button size="sm" variant="outline">
-                    <KeyRound /> {t('channels.edit.open')}
-                </Button>
+                {trigger ?? (
+                    <Button size="sm" variant="outline">
+                        <KeyRound /> {t('channels.edit.open')}
+                    </Button>
+                )}
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90svh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>
                         {t('channels.edit.title', { name: account.name })}
@@ -468,8 +504,9 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
                 <form onSubmit={submit} className="space-y-4">
                     <ErrorBanner
                         error={error}
-                        shown={['name', 'access_token', 'app_secret']}
+                        shown={['name', 'access_token', 'app_secret', 'app_id']}
                     />
+                    <SystemUserGuide defaultOpen={account.status === 'error'} />
                     <FieldGroup>
                         <TextField
                             label={t('channels.edit.name')}
@@ -489,6 +526,18 @@ function CredentialsDialog({ account }: { account: WhatsAppAccount }) {
                             autoComplete="off"
                             id={`acc-token-${account.id}`}
                             error={fe('access_token')}
+                            hint={t('channels.edit.accessTokenHint')}
+                        />
+                        <TextField
+                            label={t('channels.connect.appId')}
+                            name="app_id"
+                            inputMode="numeric"
+                            pattern="[0-9]{1,32}"
+                            autoComplete="off"
+                            defaultValue={account.app_id ?? ''}
+                            id={`acc-app-${account.id}`}
+                            error={fe('app_id')}
+                            hint={t('channels.edit.appIdHint')}
                         />
                         <TextField
                             label={t('channels.edit.appSecret')}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -130,6 +131,26 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 		return nil, err
 	}
 	ch := channels.New(pool, sealer, wa, cfg.Meta.AppSecret.Reveal(), log)
+	// Token problems reach the owners and admins by e-mail (when SMTP is
+	// set up); the panel shows them regardless.
+	ch.SetNotifier(func(ctx context.Context, subject, body string) {
+		if !mail.Enabled() {
+			return
+		}
+		users, err := q.ListUsersWithRole(ctx)
+		if err != nil {
+			log.ErrorContext(ctx, "list admins for a channel notice", "err", err)
+			return
+		}
+		for _, u := range users {
+			if u.Status != "active" || (u.RoleKey != "owner" && u.RoleKey != "admin") {
+				continue
+			}
+			if err := mail.Send(ctx, mailer.Message{To: u.Email, Subject: subject, Body: body}); err != nil {
+				log.ErrorContext(ctx, "channel notice e-mail failed", "user_id", u.ID, "err", err)
+			}
+		}
+	})
 	media := messaging.NewMediaStore(cfg.MediaDir)
 	msg := messaging.New(pool, ch, media, log)
 	cts := contacts.New(pool, cfg.MediaDir, log)

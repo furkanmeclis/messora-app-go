@@ -146,3 +146,24 @@ func backoff(attempt int, base, limit time.Duration) time.Duration {
 	}
 	return min(d, limit)
 }
+
+// AccountProblemReason explains, for the panel, why Meta refused an
+// account's credentials and what fixes it.
+func AccountProblemReason(e *APIError) string {
+	const fix = " Replace the access token under Channels (a System User token never expires)."
+	switch {
+	case e.Code == codeTokenExpired && e.Subcode == 463:
+		return "The access token has expired." + fix
+	case e.Code == codeTokenExpired && (e.Subcode == 460 || e.Subcode == 467 || e.Subcode == 458):
+		return "The access token was invalidated (password change, logout, or the app's access was removed)." + fix
+	case e.Code == codeTokenExpired:
+		return "Meta rejected the access token." + fix
+	case e.Code == codePermission || (e.Code >= 200 && e.Code <= 299):
+		return "The access token lacks a permission (whatsapp_business_messaging and whatsapp_business_management are required, with access to this WhatsApp Business Account)."
+	case e.Code == codeAccountRestrict, e.Code == codeRestrictedNumber:
+		return "Meta has restricted this WhatsApp Business Account; check Business Manager."
+	case e.Code == codeRegistration:
+		return "The phone number is not registered for the Cloud API; register it under Channels."
+	}
+	return e.Error()
+}

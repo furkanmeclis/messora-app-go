@@ -29,6 +29,30 @@ UPDATE whatsapp_accounts SET
 WHERE id = @id
 RETURNING *;
 
+-- name: SetWhatsAppTokenInfo :one
+-- Records what Meta's debug_token said about the stored token.
+UPDATE whatsapp_accounts SET
+    token_type                   = sqlc.narg(token_type),
+    token_expires_at             = sqlc.narg(token_expires_at),
+    token_data_access_expires_at = sqlc.narg(token_data_access_expires_at),
+    token_scopes                 = sqlc.narg(token_scopes)::text[],
+    token_warning                = sqlc.narg(token_warning),
+    token_checked_at             = now(),
+    updated_at                   = now()
+WHERE id = @id
+RETURNING *;
+
+-- name: ReactivateWhatsAppAccount :exec
+-- A working token was stored: an account flagged by Meta errors is usable again.
+UPDATE whatsapp_accounts SET status = 'active', last_error = NULL, token_notified_at = NULL, updated_at = now()
+WHERE id = @id AND status = 'error';
+
+-- name: MarkWhatsAppTokenNotified :exec
+UPDATE whatsapp_accounts SET token_notified_at = now() WHERE id = @id;
+
+-- name: ListWhatsAppAccountsToCheck :many
+SELECT * FROM whatsapp_accounts WHERE status <> 'disabled' ORDER BY created_at;
+
 -- name: MarkWhatsAppAccountError :exec
 UPDATE whatsapp_accounts SET status = 'error', last_error = @last_error, updated_at = now()
 WHERE id = @id AND status = 'active';

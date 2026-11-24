@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -79,6 +80,17 @@ type TemplateRef struct {
 	Language string          `json:"language"`
 	Body     json.RawMessage `json:"body,omitempty"`
 	Header   json.RawMessage `json:"header,omitempty"`
+	// Buttons, Fallback and HeaderMedia mean what they mean in campaigns:
+	// URL button suffixes by button position, values for empty
+	// placeholders, and the image/video/document of a media header.
+	Buttons     []string               `json:"buttons,omitempty"`
+	Fallback    map[string]string      `json:"fallback,omitempty"`
+	HeaderMedia *campaigns.HeaderMedia `json:"header_media,omitempty"`
+}
+
+// Params is the template's values in the campaign format.
+func (t TemplateRef) Params() campaigns.Params {
+	return campaigns.Params{Header: t.Header, Body: t.Body, Buttons: t.Buttons, Fallback: t.Fallback, HeaderMedia: t.HeaderMedia}
 }
 
 // Condition compares a value of the event or contact.

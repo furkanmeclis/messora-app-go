@@ -801,6 +801,25 @@ paths:
         "204": { description: Disconnected }
         default: { $ref: "#/components/responses/Error" }
 
+  /channels/accounts/{accountId}/check:
+    post:
+      operationId: checkWhatsAppAccount
+      tags: [channels]
+      summary: Check the access token with Meta now (validity, permissions, expiry)
+      description: >-
+        Re-validates the stored token. A token Meta refuses flags the account;
+        a working token brings a flagged account back into service.
+      security: [{ session: [channels.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountId" }
+      responses:
+        "200":
+          description: The account after the check
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsAppAccountResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /channels/accounts/{accountId}/sync:
     post:
       operationId: syncWhatsAppAccount
@@ -932,6 +951,34 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MessageResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /templates/samples:
+    post:
+      operationId: uploadTemplateSample
+      tags: [templates]
+      summary: Upload the example file of a media-header template
+      description: >-
+        Meta reviews media-header templates with an example file. Send it as
+        the raw body; the returned handle goes into the header component as
+        example.header_handle. Needs the account's App ID. Images (JPEG, PNG)
+        up to 5 MB, video (MP4) up to 16 MB, documents (PDF) up to 100 MB.
+      security: [{ session: [templates.manage] }]
+      x-messora-raw-body: 104857600
+      parameters:
+        - { name: account_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: filename, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 240 } }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "201":
+          description: Uploaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateSampleResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /media:
@@ -3220,7 +3267,7 @@ components:
 
     WhatsAppAccount:
       type: object
-      required: [id, name, waba_id, status, app_secret_configured, created_at]
+      required: [id, name, waba_id, status, app_secret_configured, created_at, token]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -3231,6 +3278,19 @@ components:
         app_secret_configured: { type: boolean }
         last_synced_at: { type: [string, "null"], format: date-time }
         created_at: { type: string, format: date-time }
+        token: { $ref: "#/components/schemas/WhatsAppTokenHealth" }
+
+    WhatsAppTokenHealth:
+      type: object
+      description: What Meta's debug_token reported about the stored access token.
+      required: [type, expires_at, data_access_expires_at, scopes, checked_at, warning]
+      properties:
+        type: { type: [string, "null"], description: "SYSTEM_USER (never expires), USER, … — null when Meta could not be asked." }
+        expires_at: { type: [string, "null"], format: date-time, description: Null means the token never expires. }
+        data_access_expires_at: { type: [string, "null"], format: date-time }
+        scopes: { type: array, items: { type: string } }
+        checked_at: { type: [string, "null"], format: date-time }
+        warning: { type: [string, "null"] }
 
     ConnectWhatsAppAccountRequest:
       type: object
@@ -3251,6 +3311,7 @@ components:
         name: { type: string, minLength: 1, maxLength: 120 }
         access_token: { type: string, minLength: 20, maxLength: 1024, writeOnly: true }
         app_secret: { type: string, minLength: 8, maxLength: 256, writeOnly: true }
+        app_id: { type: string, pattern: "^[0-9]{1,32}$" }
         status: { type: string, enum: [active, disabled] }
 
     SyncResult:
@@ -3769,9 +3830,10 @@ components:
         opted_out: { type: boolean }
     ConversationPhoneNumber:
       type: object
-      required: [id, display_phone_number, verified_name]
+      required: [id, display_phone_number, verified_name, account_id]
       properties:
         id: { type: string, format: uuid }
+        account_id: { type: string, format: uuid, description: The WhatsApp account the number belongs to (its templates can be sent). }
         display_phone_number: { type: string }
         verified_name: { type: string }
     UserRef:
@@ -3891,6 +3953,14 @@ components:
               type: array
               maxItems: 20
               items: { type: object, additionalProperties: true }
+              description: Raw Meta components. Prefer params.
+            params:
+              $ref: "#/components/schemas/CampaignParams"
+              description: >-
+                Values for the template's variables, header media and URL
+                buttons, in the campaign format; placeholders such as
+                {{first_name}} are filled from the conversation's contact.
+                Checked against the template before sending.
         media: { $ref: "#/components/schemas/MediaRef" }
     AssignConversationRequest:
       type: object
@@ -4388,6 +4458,17 @@ components:
         filename: { type: string }
         size: { type: integer, format: int64 }
         expires_at: { type: string, format: date-time }
+    TemplateSample:
+      type: object
+      required: [handle, mime_type, size]
+      properties:
+        handle: { type: string, description: "For example.header_handle of the template's header." }
+        mime_type: { type: string }
+        size: { type: integer, format: int64 }
+    TemplateSampleResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/TemplateSample" }, meta: { $ref: "#/components/schemas/Meta" } }
     UploadedMediaResponse:
       type: object
       required: [data, meta]

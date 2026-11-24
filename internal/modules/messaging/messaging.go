@@ -431,7 +431,11 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 		})
 	default:
 		if se.AccountProblem {
-			s.ch.FlagAccountProblem(bg, sender.Account.ID, title)
+			if se.API != nil {
+				s.ch.AccountRefused(bg, sender.Account.ID, se.API)
+			} else {
+				s.ch.FlagAccountProblem(bg, sender.Account.ID, title)
+			}
 		}
 		return s.markFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title})
 	}

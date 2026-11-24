@@ -55,12 +55,80 @@ type Server struct {
 	media     map[string][]byte
 	mediaType map[string]string
 	tokens    map[string]bool // accepted access tokens; empty = accept all
+	tokenInfo map[string]TokenInfo
+	exchanged map[string]string // short-lived token → long-lived token
+}
+
+// TokenInfo scripts debug_token for one token. The zero value of a token
+// that was never scripted is a valid, permanent System User token with
+// both WhatsApp scopes on every asset.
+type TokenInfo struct {
+	Invalid   bool
+	Error     string
+	Type      string
+	ExpiresAt int64 // unix seconds, 0 = never
+	Scopes    []string
+	Targets   map[string][]string
+}
+
+// SetTokenInfo scripts what debug_token reports for token.
+func (s *Server) SetTokenInfo(token string, info TokenInfo) {
+	s.mu.Lock()
+	s.tokenInfo[token] = info
+	s.mu.Unlock()
+}
+
+// AllowExchange makes oauth/access_token trade short for long.
+func (s *Server) AllowExchange(short, long string) {
+	s.mu.Lock()
+	s.exchanged[short] = long
+	s.mu.Unlock()
+}
+
+func (s *Server) debugToken(w http.ResponseWriter, r *http.Request) {
+	tok := r.URL.Query().Get("input_token")
+	s.mu.Lock()
+	info, scripted := s.tokenInfo[tok]
+	restricted := len(s.tokens) > 0 && !s.tokens[tok]
+	s.mu.Unlock()
+	if !scripted {
+		info = TokenInfo{Type: "SYSTEM_USER", Invalid: restricted}
+		if restricted {
+			info.Error = "Error validating access token: Session has expired"
+		}
+	}
+	if info.Type == "" {
+		info.Type = "SYSTEM_USER"
+	}
+	if info.Scopes == nil {
+		info.Scopes = []string{"whatsapp_business_management", "whatsapp_business_messaging"}
+	}
+	granular := []map[string]any{}
+	for scope, ids := range info.Targets {
+		granular = append(granular, map[string]any{"scope": scope, "target_ids": ids})
+	}
+	data := map[string]any{"app_id": "1234", "type": info.Type, "is_valid": !info.Invalid,
+		"expires_at": info.ExpiresAt, "data_access_expires_at": 0, "scopes": info.Scopes, "granular_scopes": granular}
+	if info.Invalid {
+		data["error"] = map[string]any{"code": 190, "subcode": 463, "message": info.Error}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": data})
+}
+
+func (s *Server) exchange(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	long, ok := s.exchanged[r.URL.Query().Get("fb_exchange_token")]
+	s.mu.Unlock()
+	if !ok {
+		graphError(w, http.StatusBadRequest, 190, "Invalid OAuth access token")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"access_token": long, "token_type": "bearer", "expires_in": 5183944})
 }
 
 // New starts a mock Graph API.
 func New() *Server {
-	s := &Server{numbers: map[string][]whatsapp.PhoneNumber{}, templates: map[string][]whatsapp.TemplateInfo{},
-		media: map[string][]byte{}, mediaType: map[string]string{}, tokens: map[string]bool{}}
+	s := newServer()
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
 	return s
 }
@@ -68,9 +136,14 @@ func New() *Server {
 // NewHandler returns the mock as an http.Handler for embedding in another
 // server (E2E stack).
 func NewHandler() (*Server, http.Handler) {
-	s := &Server{numbers: map[string][]whatsapp.PhoneNumber{}, templates: map[string][]whatsapp.TemplateInfo{},
-		media: map[string][]byte{}, mediaType: map[string]string{}, tokens: map[string]bool{}}
+	s := newServer()
 	return s, http.HandlerFunc(s.serve)
+}
+
+func newServer() *Server {
+	return &Server{numbers: map[string][]whatsapp.PhoneNumber{}, templates: map[string][]whatsapp.TemplateInfo{},
+		media: map[string][]byte{}, mediaType: map[string]string{}, tokens: map[string]bool{},
+		tokenInfo: map[string]TokenInfo{}, exchanged: map[string]string{}}
 }
 
 // Script queues behaviors for the next send requests (FIFO); once exhausted
@@ -136,6 +209,30 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) < 2 || !strings.HasPrefix(parts[0], "v") {
 		http.NotFound(w, r)
+		return
+	}
+	// Token endpoints authenticate with an app token, not the inspected one.
+	switch parts[1] {
+	case "debug_token":
+		s.debugToken(w, r)
+		return
+	case "oauth":
+		s.exchange(w, r)
+		return
+	}
+	// Resumable upload: POST /{app}/uploads opens a session, POST
+	// /upload:<id> takes the bytes and returns the handle.
+	if strings.HasPrefix(parts[1], "upload:") && r.Method == http.MethodPost {
+		data, _ := io.ReadAll(r.Body)
+		if r.Header.Get("file_offset") != "0" || len(data) == 0 {
+			graphError(w, http.StatusBadRequest, 100, "Invalid upload")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"h": "4::mock-handle-" + parts[1][len("upload:"):]})
+		return
+	}
+	if len(parts) == 3 && parts[2] == "uploads" && r.Method == http.MethodPost {
+		writeJSON(w, http.StatusOK, map[string]any{"id": newID("upload:")})
 		return
 	}
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")

@@ -365,7 +365,13 @@ func (s *Service) checkTemplate(ctx context.Context, q *db.Queries, c db.Campaig
 	if t.Status != "APPROVED" {
 		return apperr.Validation("template_name", fmt.Sprintf("The template is %s; only approved templates can be sent.", t.Status))
 	}
-	return nil
+	var params Params
+	if len(c.TemplateParams) > 0 {
+		if err := json.Unmarshal(c.TemplateParams, &params); err != nil {
+			return apperr.Validation("template_params", "The template parameters are malformed.")
+		}
+	}
+	return CheckParams(ShapeOf(t.Components, t.ParameterFormat), params)
 }
 
 // Pause stops dispatching; queued messages that are not yet sending are

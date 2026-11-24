@@ -49,6 +49,7 @@ export type AccountPatch = {
     name?: string;
     access_token?: string;
     app_secret?: string;
+    app_id?: string;
     status?: 'active' | 'disabled';
 };
 
@@ -61,6 +62,7 @@ export async function updateAccountAction(
     if (patch.name !== undefined) body.name = patch.name.trim();
     if (patch.access_token) body.access_token = patch.access_token.trim();
     if (patch.app_secret) body.app_secret = patch.app_secret.trim();
+    if (patch.app_id) body.app_id = patch.app_id.trim();
     if (patch.status) body.status = patch.status;
     const t = await getT();
     const message = body.status
@@ -78,6 +80,24 @@ export async function updateAccountAction(
                 timeoutMs: 30_000,
             }).then(() => undefined),
         message,
+    );
+    revalidatePath('/channels');
+    return res;
+}
+
+/** Asks Meta about the stored token now (validity, permissions, expiry). */
+export async function checkAccountAction(
+    id: string,
+): Promise<ActionResult<WhatsAppAccount>> {
+    check(id);
+    const res = await runAction(
+        async () =>
+            (
+                await api<WhatsAppAccount>(`/channels/accounts/${id}/check`, {
+                    method: 'POST',
+                    timeoutMs: 60_000,
+                })
+            ).data,
     );
     revalidatePath('/channels');
     return res;

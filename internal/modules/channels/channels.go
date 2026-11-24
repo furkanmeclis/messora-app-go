@@ -34,6 +34,7 @@ type Service struct {
 	wa        *whatsapp.Client
 	log       *slog.Logger
 	envSecret string // META_APP_SECRET, also accepted for webhook signatures
+	notify    Notifier
 }
 
 // New returns the service.
@@ -92,6 +93,11 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 	if _, err := s.q.GetWhatsAppAccountByWABA(ctx, in.WABAID); err == nil {
 		return db.WhatsappAccount{}, apperr.Conflict("ACCOUNT_EXISTS", "This WhatsApp Business Account is already connected.")
 	}
+	rep, err := s.inspectToken(ctx, in.WABAID, in.AppID, in.AppSecret, in.AccessToken)
+	if err != nil {
+		return db.WhatsappAccount{}, asValidation(err)
+	}
+	in.AccessToken = rep.token
 	numbers, err := s.wa.ListPhoneNumbers(ctx, in.WABAID, in.AccessToken)
 	if err != nil {
 		return db.WhatsappAccount{}, metaFailure(err)
@@ -115,6 +121,9 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 			return err
 		}
 		if err := upsertNumbers(ctx, q, id, numbers); err != nil {
+			return err
+		}
+		if acc, err = s.saveTokenInfo(ctx, q, id, rep); err != nil {
 			return err
 		}
 		return audit.Record(ctx, q, audit.Entry{Action: "channel.connect", EntityType: "whatsapp_account", EntityID: &id,
@@ -177,8 +186,15 @@ func upsertNumbers(ctx context.Context, q *db.Queries, account uuid.UUID, number
 	return nil
 }
 
-// Update changes the name or rotates credentials (validated against Meta).
-func (s *Service) Update(ctx context.Context, id uuid.UUID, name, accessToken, appSecret, status *string) (db.WhatsappAccount, error) {
+// UpdateInput is a partial change to an account; nil fields stay as they are.
+type UpdateInput struct {
+	Name, AccessToken, AppSecret, AppID, Status *string
+}
+
+// Update changes the name or rotates credentials. A new token is checked
+// with Meta (validity, permissions, expiry) and, when it works, brings an
+// account that Meta had refused back into service.
+func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (db.WhatsappAccount, error) {
 	acc, err := s.q.GetWhatsAppAccount(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return acc, apperr.NotFound("WhatsApp account not found.")
@@ -186,43 +202,73 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, name, accessToken, a
 	if err != nil {
 		return acc, err
 	}
-	p := db.UpdateWhatsAppAccountParams{ID: id, Status: status}
+	p := db.UpdateWhatsAppAccountParams{ID: id, Status: in.Status}
 	changes := map[string]any{}
-	if name != nil {
-		n := strings.TrimSpace(*name)
+	if in.Name != nil {
+		n := strings.TrimSpace(*in.Name)
 		if n == "" {
 			return acc, apperr.Validation("name", "Name is required.")
 		}
 		p.Name, changes["name"] = &n, n
 	}
-	if accessToken != nil {
-		if len(*accessToken) < 20 {
+	appID, appSecret := s.appCredentials(acc)
+	if in.AppID != nil {
+		a := strings.TrimSpace(*in.AppID)
+		if !digits.MatchString(a) {
+			return acc, apperr.Validation("app_id", "App ID must be numeric.")
+		}
+		p.AppID, appID, changes["app_id"] = &a, a, a
+	}
+	if in.AppSecret != nil {
+		if p.AppSecretEnc, err = s.sealer.Seal([]byte(*in.AppSecret), secretAD(id)); err != nil {
+			return acc, err
+		}
+		appSecret, changes["app_secret"] = *in.AppSecret, "rotated"
+	}
+	var rep *tokenReport
+	var numbers []whatsapp.PhoneNumber
+	if in.AccessToken != nil {
+		tok := strings.TrimSpace(*in.AccessToken)
+		if len(tok) < 20 {
 			return acc, apperr.Validation("access_token", "Access token looks too short.")
 		}
-		if _, err := s.wa.ListPhoneNumbers(ctx, acc.WabaID, *accessToken); err != nil {
+		r, err := s.inspectToken(ctx, acc.WabaID, appID, appSecret, tok)
+		if err != nil {
+			return acc, asValidation(err)
+		}
+		if numbers, err = s.wa.ListPhoneNumbers(ctx, acc.WabaID, r.token); err != nil {
 			return acc, metaFailure(err)
 		}
-		if p.AccessTokenEnc, err = s.sealer.Seal([]byte(*accessToken), tokenAD(id)); err != nil {
+		if p.AccessTokenEnc, err = s.sealer.Seal([]byte(r.token), tokenAD(id)); err != nil {
 			return acc, err
 		}
-		changes["access_token"] = "rotated"
+		rep, changes["access_token"] = &r, "rotated"
 	}
-	if appSecret != nil {
-		if p.AppSecretEnc, err = s.sealer.Seal([]byte(*appSecret), secretAD(id)); err != nil {
-			return acc, err
-		}
-		changes["app_secret"] = "rotated"
-	}
-	if status != nil {
-		if *status != "active" && *status != "disabled" {
+	if in.Status != nil {
+		if *in.Status != "active" && *in.Status != "disabled" {
 			return acc, apperr.Validation("status", "Status must be active or disabled.")
 		}
-		changes["status"] = *status
+		changes["status"] = *in.Status
 	}
 	err = s.tx(ctx, func(q *db.Queries) error {
-		acc, err = q.UpdateWhatsAppAccount(ctx, p)
-		if err != nil {
+		if acc, err = q.UpdateWhatsAppAccount(ctx, p); err != nil {
 			return err
+		}
+		if rep != nil {
+			if err := upsertNumbers(ctx, q, id, numbers); err != nil {
+				return err
+			}
+			if acc, err = s.saveTokenInfo(ctx, q, id, *rep); err != nil {
+				return err
+			}
+			// The new token works: lift the "Meta refused" flag at once
+			// instead of failing every send until the next sync.
+			if err := q.ReactivateWhatsAppAccount(ctx, id); err != nil {
+				return err
+			}
+			if acc, err = q.GetWhatsAppAccount(ctx, id); err != nil {
+				return err
+			}
 		}
 		return audit.Record(ctx, q, audit.Entry{Action: "channel.update", EntityType: "whatsapp_account", EntityID: &id, Changes: changes})
 	})
@@ -366,6 +412,7 @@ func (s *Service) CreateTemplate(ctx context.Context, in TemplateInput) (db.Mess
 		"parameter_format": in.ParameterFormat, "components": in.Components})
 	metaID, status, err := s.wa.CreateTemplate(ctx, acc.WabaID, token, body)
 	if err != nil {
+		s.flag(ctx, acc.ID, err)
 		return db.MessageTemplate{}, metaFailure(err)
 	}
 	if status == "" {
@@ -402,6 +449,7 @@ func (s *Service) DeleteTemplate(ctx context.Context, id uuid.UUID) error {
 		var api *whatsapp.APIError
 		// Already gone on Meta's side: just drop the local copy.
 		if !errors.As(err, &api) || api.Code != 100 {
+			s.flag(ctx, acc.ID, err)
 			return metaFailure(err)
 		}
 	}
@@ -484,7 +532,7 @@ func (s *Service) flag(ctx context.Context, id uuid.UUID, err error) {
 	var api *whatsapp.APIError
 	if errors.As(err, &api) {
 		if se := whatsapp.Classify(api, 0); se.AccountProblem {
-			s.FlagAccountProblem(ctx, id, api.Error())
+			s.FlagAccountProblem(ctx, id, whatsapp.AccountProblemReason(api))
 		}
 	}
 }
@@ -514,8 +562,22 @@ func (s *Service) EnsureFromEnv(ctx context.Context, wabaID, token, appID, appSe
 	if wabaID == "" || token == "" {
 		return nil
 	}
-	if _, err := s.q.GetWhatsAppAccountByWABA(ctx, wabaID); err == nil {
-		return nil
+	if acc, err := s.q.GetWhatsAppAccountByWABA(ctx, wabaID); err == nil {
+		// Already connected: apply a token changed in .env (it used to be
+		// ignored, so the stored token silently kept expiring).
+		cur, err := s.sealer.Open(acc.AccessTokenEnc, tokenAD(acc.ID))
+		if err != nil || string(cur) == token {
+			return nil
+		}
+		in := UpdateInput{AccessToken: &token}
+		if appSecret != "" {
+			in.AppSecret = &appSecret
+		}
+		if appID != "" {
+			in.AppID = &appID
+		}
+		_, err = s.Update(ctx, acc.ID, in)
+		return err
 	}
 	_, err := s.Connect(ctx, AccountInput{Name: "WhatsApp " + wabaID, WABAID: wabaID, AppID: appID, AccessToken: token, AppSecret: appSecret}, nil)
 	var ae *apperr.Error

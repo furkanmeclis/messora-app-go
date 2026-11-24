@@ -87,7 +87,7 @@ func (q *Queries) GetConversationByThread(ctx context.Context, arg GetConversati
 
 const getConversationRow = `-- name: GetConversationRow :one
 SELECT c.id, c.contact_id, c.phone_number_id, c.status, c.assignee_id, c.last_message_id, c.last_message_at, c.last_inbound_at, c.unread_count, c.closed_at, c.created_at, c.updated_at, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at,
-       pn.display_phone_number, pn.verified_name,
+       pn.display_phone_number, pn.verified_name, pn.account_id AS phone_account_id,
        m.direction AS last_direction, m.type AS last_type, m.body AS last_body, m.status AS last_status,
        u.name AS assignee_name
 FROM conversations c
@@ -117,6 +117,7 @@ type GetConversationRowRow struct {
 	OptedOutAt         *time.Time
 	DisplayPhoneNumber string
 	VerifiedName       string
+	PhoneAccountID     uuid.UUID
 	LastDirection      *string
 	LastType           *string
 	LastBody           *string
@@ -146,6 +147,7 @@ func (q *Queries) GetConversationRow(ctx context.Context, id uuid.UUID) (GetConv
 		&i.OptedOutAt,
 		&i.DisplayPhoneNumber,
 		&i.VerifiedName,
+		&i.PhoneAccountID,
 		&i.LastDirection,
 		&i.LastType,
 		&i.LastBody,
@@ -249,7 +251,7 @@ func (q *Queries) ListConversationEvents(ctx context.Context, arg ListConversati
 
 const listConversations = `-- name: ListConversations :many
 SELECT c.id, c.contact_id, c.phone_number_id, c.status, c.assignee_id, c.last_message_id, c.last_message_at, c.last_inbound_at, c.unread_count, c.closed_at, c.created_at, c.updated_at, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at,
-       pn.display_phone_number, pn.verified_name,
+       pn.display_phone_number, pn.verified_name, pn.account_id AS phone_account_id,
        m.direction AS last_direction, m.type AS last_type, m.body AS last_body, m.status AS last_status,
        u.name AS assignee_name
 FROM conversations c
@@ -304,6 +306,7 @@ type ListConversationsRow struct {
 	OptedOutAt         *time.Time
 	DisplayPhoneNumber string
 	VerifiedName       string
+	PhoneAccountID     uuid.UUID
 	LastDirection      *string
 	LastType           *string
 	LastBody           *string
@@ -353,6 +356,7 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 			&i.OptedOutAt,
 			&i.DisplayPhoneNumber,
 			&i.VerifiedName,
+			&i.PhoneAccountID,
 			&i.LastDirection,
 			&i.LastType,
 			&i.LastBody,

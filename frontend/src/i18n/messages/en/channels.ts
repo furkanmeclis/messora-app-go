@@ -29,7 +29,7 @@ const channels = {
         disable: 'Disable',
         lastError: 'Last error',
         lastErrorHint:
-            'Sending fails fast until a successful sync or new credentials.',
+            'Sending fails fast until the connection check passes or the token is replaced.',
         viewTemplates: 'View templates',
     },
     connect: {
@@ -53,12 +53,16 @@ const channels = {
         done: 'Account connected. Phone numbers and templates were imported.',
     },
     edit: {
-        open: 'Edit / rotate',
+        open: 'Edit / replace token',
         title: 'Edit {name}',
         description:
             'Leave a secret empty to keep the current one. A new token is checked with Meta first.',
         name: 'Name',
         accessToken: 'New access token',
+        accessTokenHint:
+            'Checked with Meta first (validity, permissions, expiry). A working token reactivates the account immediately.',
+        appIdHint:
+            "With the App ID and secret, Messora can read the token's expiry and turn short-lived user tokens into 60-day tokens.",
         appSecret: 'New app secret',
         secretConfigured: 'An app secret is configured.',
         noSecret: 'No app secret yet: webhooks are rejected until you add one.',
@@ -66,6 +70,33 @@ const channels = {
         enabled: 'Account enabled.',
         credentialsUpdated: 'Credentials updated.',
         updated: 'Account updated.',
+    },
+    token: {
+        permanent: 'Permanent token',
+        until: 'Valid until {date}',
+        expired: 'Token expired',
+        unknown: 'Token not checked',
+        systemUser: 'System User token',
+        type: '{type} token',
+        checkedAt: 'Checked {date}',
+        neverChecked: 'Never checked',
+        check: 'Check connection',
+        checkOk: 'The connection works.',
+        checkFailed: 'Meta refused the token; see the account.',
+        replace: 'Replace token',
+        problemTitle: 'Meta refused this account',
+        problemHint:
+            'Nothing can be sent from it until the token is replaced. Messages already queued fail with this reason.',
+    },
+    guide: {
+        title: 'Get a token that never expires',
+        why: 'Tokens copied from the App Dashboard or Graph Explorer expire within hours or days, and the account then stops sending. A System User token does not expire.',
+        step1: 'Open Meta Business Settings → Users → System users and add a system user with the Admin role.',
+        step2: 'Assign assets: your WhatsApp account (Full control) and your Meta app.',
+        step3: 'Click "Generate new token", choose your app and set Token expiration to "Never".',
+        step4: 'Tick the permissions whatsapp_business_messaging and whatsapp_business_management.',
+        step5: 'Copy the token and paste it here. Messora checks it with Meta before saving.',
+        open: 'Open System users in Business Settings',
     },
     disconnect: {
         open: 'Disconnect',

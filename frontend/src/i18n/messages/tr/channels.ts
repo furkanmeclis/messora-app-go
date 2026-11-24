@@ -31,7 +31,7 @@ const channels: Messages['channels'] = {
         disable: 'Devre dışı bırak',
         lastError: 'Son hata',
         lastErrorHint:
-            'Başarılı bir eşitleme yapılana veya yeni kimlik bilgileri girilene kadar gönderimler hemen başarısız olur.',
+            'Bağlantı kontrolü başarılı olana veya token değiştirilene kadar gönderimler hemen başarısız olur.',
         viewTemplates: 'Şablonları görüntüle',
     },
     connect: {
@@ -55,12 +55,16 @@ const channels: Messages['channels'] = {
         done: 'Hesap bağlandı. Telefon numaraları ve şablonlar içe aktarıldı.',
     },
     edit: {
-        open: 'Düzenle / yenile',
+        open: 'Düzenle / token değiştir',
         title: '{name} hesabını düzenle',
         description:
             'Mevcut gizli bilgiyi korumak için alanı boş bırakın. Yeni belirteç önce Meta ile doğrulanır.',
         name: 'Ad',
         accessToken: 'Yeni erişim belirteci',
+        accessTokenHint:
+            'Önce Meta ile kontrol edilir (geçerlilik, izinler, süre). Çalışan bir token hesabı hemen yeniden etkinleştirir.',
+        appIdHint:
+            "App ID ve gizli anahtar girilirse Messora token'ın bitiş tarihini okuyabilir ve kısa ömürlü kullanıcı token'larını 60 günlük token'a çevirir.",
         appSecret: 'Yeni uygulama gizli anahtarı',
         secretConfigured: 'Uygulama gizli anahtarı tanımlı.',
         noSecret:
@@ -69,6 +73,33 @@ const channels: Messages['channels'] = {
         enabled: 'Hesap etkinleştirildi.',
         credentialsUpdated: 'Kimlik bilgileri güncellendi.',
         updated: 'Hesap güncellendi.',
+    },
+    token: {
+        permanent: 'Kalıcı token',
+        until: '{date} tarihine kadar geçerli',
+        expired: "Token'ın süresi doldu",
+        unknown: 'Token kontrol edilmedi',
+        systemUser: 'System User token',
+        type: '{type} token',
+        checkedAt: 'Kontrol: {date}',
+        neverChecked: 'Hiç kontrol edilmedi',
+        check: 'Bağlantıyı kontrol et',
+        checkOk: 'Bağlantı çalışıyor.',
+        checkFailed: "Meta token'ı reddetti; hesaba bakın.",
+        replace: "Token'ı değiştir",
+        problemTitle: 'Meta bu hesabı reddetti',
+        problemHint:
+            'Token değiştirilene kadar bu hesaptan gönderim yapılamaz. Sıradaki mesajlar bu sebeple başarısız olur.',
+    },
+    guide: {
+        title: 'Süresi hiç dolmayan token alın',
+        why: "Uygulama panelinden veya Graph Explorer'dan kopyalanan token'lar birkaç saat ya da gün içinde dolar ve hesap gönderimi durdurur. System User token'ının süresi dolmaz.",
+        step1: 'Meta İşletme Ayarları → Kullanıcılar → Sistem kullanıcıları bölümünü açın ve Yönetici rolüyle bir sistem kullanıcısı ekleyin.',
+        step2: 'Varlık atayın: WhatsApp hesabınız (Tam kontrol) ve Meta uygulamanız.',
+        step3: '"Yeni token oluştur"a tıklayın, uygulamanızı seçin ve token süresini "Hiçbir zaman" yapın.',
+        step4: 'whatsapp_business_messaging ve whatsapp_business_management izinlerini işaretleyin.',
+        step5: "Token'ı kopyalayıp buraya yapıştırın. Messora kaydetmeden önce Meta ile kontrol eder.",
+        open: 'İşletme Ayarları → Sistem kullanıcılarını aç',
     },
     disconnect: {
         open: 'Bağlantıyı kes',

@@ -14,6 +14,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
@@ -42,7 +43,7 @@ func conversationToAPI(c db.ListConversationsRow, now time.Time) api.Conversatio
 	out := api.Conversation{Id: c.ID, Status: api.ConversationStatus(c.Status), UnreadCount: c.UnreadCount,
 		Contact: api.ConversationContact{Id: c.ContactID, Phone: c.PhoneE164, Name: c.ContactName, ProfileName: c.ProfileName,
 			OptedOut: c.OptedOutAt != nil},
-		PhoneNumber:   api.ConversationPhoneNumber{Id: c.PhoneNumberID, DisplayPhoneNumber: c.DisplayPhoneNumber, VerifiedName: c.VerifiedName},
+		PhoneNumber:   api.ConversationPhoneNumber{Id: c.PhoneNumberID, AccountId: c.PhoneAccountID, DisplayPhoneNumber: c.DisplayPhoneNumber, VerifiedName: c.VerifiedName},
 		LastMessageAt: c.LastMessageAt, LastInboundAt: c.LastInboundAt, WindowOpen: open, WindowExpiresAt: expires,
 		ClosedAt: c.ClosedAt, CreatedAt: c.CreatedAt}
 	if c.AssigneeID != nil {
@@ -181,12 +182,12 @@ func (h *Handler) ReplyToConversation(w http.ResponseWriter, r *http.Request, id
 		h.fail(w, r, err)
 		return
 	}
-	in, err := replyInput(req)
+	in, params, err := replyInput(req)
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	m, err := h.svc.Reply(r.Context(), principal.From(r.Context()), id, in)
+	m, err := h.svc.Reply(r.Context(), principal.From(r.Context()), id, in, params)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -196,8 +197,9 @@ func (h *Handler) ReplyToConversation(w http.ResponseWriter, r *http.Request, id
 
 // replyInput maps the request onto messaging's input; validation of the
 // content itself is messaging's.
-func replyInput(req api.ReplyRequest) (messaging.SendInput, error) {
+func replyInput(req api.ReplyRequest) (messaging.SendInput, *campaigns.Params, error) {
 	in := messaging.SendInput{Type: string(req.Type)}
+	var params *campaigns.Params
 	if req.ReplyTo != nil {
 		in.ReplyTo = *req.ReplyTo
 	}
@@ -209,14 +211,21 @@ func replyInput(req api.ReplyRequest) (messaging.SendInput, error) {
 		if t.Components != nil {
 			raw, _ := json.Marshal(*t.Components)
 			if err := json.Unmarshal(raw, &in.Template.Components); err != nil {
-				return in, apperr.Validation("template.components", "Components do not match Meta's format.")
+				return in, nil, apperr.Validation("template.components", "Components do not match Meta's format.")
+			}
+		}
+		if t.Params != nil {
+			raw, _ := json.Marshal(*t.Params)
+			params = &campaigns.Params{}
+			if err := json.Unmarshal(raw, params); err != nil {
+				return in, nil, apperr.Validation("template.params", "The template parameters are malformed.")
 			}
 		}
 	}
 	if m := req.Media; m != nil {
 		in.Media = &whatsapp.Media{ID: deref(m.Id), Link: deref(m.Link), Caption: deref(m.Caption), Filename: deref(m.Filename)}
 	}
-	return in, nil
+	return in, params, nil
 }
 
 // AssignConversation implements api.ServerInterface.

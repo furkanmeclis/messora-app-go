@@ -70,6 +70,7 @@ import {
     setOwnLocaleAction,
     type SentInvitation,
 } from './actions';
+import { SystemUserGuide } from '../../(panel)/channels/token-health';
 
 const STEPS: { key: SetupStep; icon: typeof Building2 }[] = [
     { key: 'organization', icon: Building2 },
@@ -820,6 +821,7 @@ function WhatsAppStep({
                 </ul>
             )}
             <div className="space-y-4 rounded-2xl border bg-muted/20 p-4">
+                <SystemUserGuide />
                 <div className="grid gap-4 sm:grid-cols-2">
                     {field('name', t('wizard.whatsapp.name'), {
                         placeholder: t('wizard.whatsapp.namePlaceholder'),

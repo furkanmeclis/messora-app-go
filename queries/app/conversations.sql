@@ -32,7 +32,7 @@ SELECT * FROM conversations WHERE id = @id;
 
 -- name: GetConversationRow :one
 SELECT c.*, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at,
-       pn.display_phone_number, pn.verified_name,
+       pn.display_phone_number, pn.verified_name, pn.account_id AS phone_account_id,
        m.direction AS last_direction, m.type AS last_type, m.body AS last_body, m.status AS last_status,
        u.name AS assignee_name
 FROM conversations c
@@ -46,7 +46,7 @@ WHERE c.id = @id;
 -- see_all is false for users who may only read conversations assigned to
 -- them or to nobody (conversations.read without conversations.read_all).
 SELECT c.*, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at,
-       pn.display_phone_number, pn.verified_name,
+       pn.display_phone_number, pn.verified_name, pn.account_id AS phone_account_id,
        m.direction AS last_direction, m.type AS last_type, m.body AS last_body, m.status AS last_status,
        u.name AS assignee_name
 FROM conversations c

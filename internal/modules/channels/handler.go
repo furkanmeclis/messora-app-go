@@ -30,7 +30,26 @@ func NewHandler(svc *Service, publicURL, verifyToken string, log *slog.Logger) *
 func accountToAPI(a db.WhatsappAccount) api.WhatsAppAccount {
 	return api.WhatsAppAccount{Id: a.ID, Name: a.Name, WabaId: a.WabaID, AppId: a.AppID,
 		Status: api.WhatsAppAccountStatus(a.Status), LastError: a.LastError, AppSecretConfigured: len(a.AppSecretEnc) > 0,
-		LastSyncedAt: a.LastSyncedAt, CreatedAt: a.CreatedAt}
+		LastSyncedAt: a.LastSyncedAt, CreatedAt: a.CreatedAt, Token: tokenToAPI(a)}
+}
+
+func tokenToAPI(a db.WhatsappAccount) api.WhatsAppTokenHealth {
+	scopes := a.TokenScopes
+	if scopes == nil {
+		scopes = []string{}
+	}
+	return api.WhatsAppTokenHealth{Type: a.TokenType, ExpiresAt: a.TokenExpiresAt, DataAccessExpiresAt: a.TokenDataAccessExpiresAt,
+		Scopes: scopes, CheckedAt: a.TokenCheckedAt, Warning: a.TokenWarning}
+}
+
+// CheckWhatsAppAccount implements api.ServerInterface.
+func (h *Handler) CheckWhatsAppAccount(w http.ResponseWriter, r *http.Request, id api.AccountId) {
+	acc, err := h.svc.CheckToken(r.Context(), id)
+	if err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, accountToAPI(acc))
 }
 
 func templateToAPI(t db.MessageTemplate, account string) api.Template {
@@ -90,7 +109,7 @@ func (h *Handler) UpdateWhatsAppAccount(w http.ResponseWriter, r *http.Request, 
 		s := string(*req.Status)
 		status = &s
 	}
-	acc, err := h.svc.Update(r.Context(), id, req.Name, req.AccessToken, req.AppSecret, status)
+	acc, err := h.svc.Update(r.Context(), id, UpdateInput{Name: req.Name, AccessToken: req.AccessToken, AppSecret: req.AppSecret, AppID: req.AppId, Status: status})
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return
@@ -204,4 +223,14 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// UploadTemplateSample implements api.ServerInterface; the body is the file.
+func (h *Handler) UploadTemplateSample(w http.ResponseWriter, r *http.Request, p api.UploadTemplateSampleParams) {
+	handle, mime, size, err := h.svc.UploadTemplateSample(r.Context(), p.AccountId, p.Filename, r.Header.Get("Content-Type"), r.Body)
+	if err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	httpx.JSON(w, r, http.StatusCreated, api.TemplateSample{Handle: handle, MimeType: mime, Size: size})
 }
