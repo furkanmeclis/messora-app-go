@@ -587,6 +587,35 @@ func (q *Queries) ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([
 	return items, nil
 }
 
+const listContactAttributeKeys = `-- name: ListContactAttributeKeys :many
+SELECT k::text AS key
+FROM contacts, jsonb_object_keys(attributes) AS k
+WHERE jsonb_typeof(attributes) = 'object'
+GROUP BY k
+ORDER BY count(*) DESC, k
+LIMIT 200
+`
+
+func (q *Queries) ListContactAttributeKeys(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listContactAttributeKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		items = append(items, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listContactGroups = `-- name: ListContactGroups :many
 
 SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, (SELECT count(*) FROM contact_group_members m WHERE m.group_id = g.id) AS member_count

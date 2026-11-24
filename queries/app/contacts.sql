@@ -191,3 +191,11 @@ RETURNING *;
 
 -- name: GetTag :one
 SELECT * FROM tags WHERE id = @id;
+
+-- name: ListContactAttributeKeys :many
+SELECT k::text AS key
+FROM contacts, jsonb_object_keys(attributes) AS k
+WHERE jsonb_typeof(attributes) = 'object'
+GROUP BY k
+ORDER BY count(*) DESC, k
+LIMIT 200;

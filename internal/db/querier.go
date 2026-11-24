@@ -187,6 +187,7 @@ type Querier interface {
 	ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) ([]CampaignEvent, error)
 	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
 	ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([]ConsentEvent, error)
+	ListContactAttributeKeys(ctx context.Context) ([]string, error)
 	// ── Groups ──────────────────────────────────────────────────────────────────
 	ListContactGroups(ctx context.Context) ([]ListContactGroupsRow, error)
 	ListContactImports(ctx context.Context) ([]ContactImport, error)

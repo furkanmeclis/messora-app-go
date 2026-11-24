@@ -1070,6 +1070,25 @@ paths:
               schema: { $ref: "#/components/schemas/ContactResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /contacts/attribute-keys:
+    get:
+      operationId: listContactAttributeKeys
+      tags: [contacts]
+      summary: Custom attribute keys in use (for {{attr:key}} placeholders)
+      security: [{ session: [contacts.read] }, { apiKey: [contacts.read] }]
+      responses:
+        "200":
+          description: Keys, most used first (at most 200)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { type: string } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        default: { $ref: "#/components/responses/Error" }
+
   /contacts/bulk:
     post:
       operationId: bulkContacts

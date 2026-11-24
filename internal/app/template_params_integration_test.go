@@ -150,3 +150,15 @@ func TestTemplateSampleUpload(t *testing.T) {
 		t.Fatalf("sample: %s", r.raw)
 	}
 }
+
+func TestContactAttributeKeys(t *testing.T) {
+	h := newHarness(t)
+	owner, _ := h.setupOwner()
+	_, _ = h.pool.Exec(context.Background(), `INSERT INTO contacts (phone_e164, name, source, attributes) VALUES
+		('+905550000001', 'A', 'manual', '{"city":"Ankara","plan":"gold"}'), ('+905550000002', 'B', 'manual', '{"city":"İzmir"}')`)
+	r := h.do(call{method: "GET", path: "/api/v1/contacts/attribute-keys", token: owner})
+	h.expect(r, 200, "")
+	if keys := r.list(); len(keys) != 2 || keys[0] != "city" || keys[1] != "plan" {
+		t.Fatalf("keys: %s", r.raw)
+	}
+}

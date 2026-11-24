@@ -413,6 +413,19 @@ func s(p *string) string {
 
 // ── Tags ────────────────────────────────────────────────────────────────────
 
+// ListContactAttributeKeys implements api.ServerInterface.
+func (h *Handler) ListContactAttributeKeys(w http.ResponseWriter, r *http.Request) {
+	keys, err := h.svc.q.ListContactAttributeKeys(r.Context())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if keys == nil {
+		keys = []string{}
+	}
+	httpx.JSON(w, r, http.StatusOK, keys)
+}
+
 // ListTags implements api.ServerInterface.
 func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.svc.q.ListTags(r.Context())
