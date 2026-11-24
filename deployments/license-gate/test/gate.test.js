@@ -114,3 +114,24 @@ test('registry needs a licence and honours the update window', async () => {
     assert.equal((await get('/v2/messora/blobs/sha256:' + 'b'.repeat(64), key)).status, 404);
     assert.equal((await get('/v2/../secret/manifests/1.0.0', key)).status, 404);
 });
+
+test('install file needs a licence', async () => {
+    const lic = await keypair();
+    const gk = await keypair();
+    const env = memoryEnv(lic, gk);
+    const file = 'name: messora\n';
+    env.r2.set('install/stable/compose.yml', { body: new TextEncoder().encode(file), size: file.length });
+    env.r2.set('install/2.0.0/compose.yml', { body: new TextEncoder().encode(file), size: file.length });
+    env.kv.set('release:2.0.0', JSON.stringify({ released_at: '2027-06-01T00:00:00Z' }));
+    const key = await issue(lic.k.privateKey, { v: 1, id: 'lic_3', kid: 'k1', iat: '2026-01-01T00:00:00Z', chk: 'offline', upd: '2026-12-31T23:59:59Z' });
+    const get = (path, password) =>
+        gate.fetch(new Request('https://gate' + path, { headers: password ? { authorization: 'Basic ' + btoa('x:' + password) } : {} }), env, ctx);
+    let r = await get('/install/latest/compose.yml');
+    assert.equal(r.status, 401);
+    assert.match(r.headers.get('www-authenticate'), /Basic/);
+    r = await get('/install/latest/compose.yml', key);
+    assert.equal(r.status, 200);
+    assert.equal(await r.text(), file);
+    assert.equal((await get('/install/2.0.0/compose.yml', key)).status, 403);
+    assert.equal((await get('/install/../secret/compose.yml', key)).status, 404);
+});

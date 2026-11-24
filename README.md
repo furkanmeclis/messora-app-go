@@ -35,6 +35,11 @@ duplicate sends, and explicit handling of "did it go out?" uncertainty — see
 
 ## Quick start
 
+**Installing for a customer?** Follow [docs/INSTALL.md](docs/INSTALL.md):
+one downloaded file and a licence key, no repository access.
+
+The steps below build from source, for development.
+
 Requirements: a Linux or macOS host with **Docker Engine 26+ and Docker
 Compose 2.24+**. You do not need Go, Node.js, PostgreSQL, Redis or Centrifugo
 installed.

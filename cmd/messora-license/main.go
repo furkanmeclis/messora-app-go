@@ -48,6 +48,7 @@ const usage = `messora-license: issue and revoke Messora licences
   gate-deploy [--dir D]      deploy the Worker with the current public keys
   publish VERSION [--channel stable] [--notes TEXT] [--released YYYY-MM-DD]
                              copy a release from GHCR into the R2 registry
+  install-compose --version V  print the customer install file (compose.yml)
 `
 
 func main() {
@@ -65,7 +66,7 @@ func main() {
 	cmds := map[string]func(licensetool.Store, []string) error{
 		"keygen": keygen, "pubkeys": pubkeys, "issue": issue, "list": list, "show": show,
 		"revoke": revoke, "cloudflare": cloudflare, "backup": backup, "restore": restore,
-		"gate-secret": gateSecret, "gate-deploy": gateDeploy, "publish": publish,
+		"gate-secret": gateSecret, "gate-deploy": gateDeploy, "publish": publish, "install-compose": installCompose,
 	}
 	fn, ok := cmds[os.Args[1]]
 	if !ok {

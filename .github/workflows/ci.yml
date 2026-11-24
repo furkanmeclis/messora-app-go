@@ -208,11 +208,29 @@ jobs:
           docker inspect "$c" --format '{{json .State}}'; exit 1
       - name: Backup, destroy, fresh install, restore (separate project)
         run: ./scripts/backup-restore-test.sh
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: Customer install file brings up a working stack on its own
+        # The file customers download (no repository, no build): generated
+        # for the images built above, started in an empty directory.
+        run: |
+          dir="$RUNNER_TEMP/install"; mkdir -p "$dir"
+          go run ./cmd/messora-license install-compose --registry messora --version dev > "$dir/compose.yml"
+          ! grep -qE 'build:|\./deployments' "$dir/compose.yml"
+          printf 'HTTP_PORT=8089\nHTTPS_PORT=8449\nPUBLIC_APP_URL=http://localhost:8089\n' > "$dir/.env"
+          cd "$dir"
+          export COMPOSE_PROJECT_NAME=messora-install
+          docker compose up -d --wait --wait-timeout 300
+          "$GITHUB_WORKSPACE/scripts/stack-smoke.sh" http://localhost:8089
+          docker compose exec -T caddy cat /etc/caddy/Caddyfile | grep -qF 'trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}'
+          docker compose down -v
       - name: Logs on failure
         if: failure()
         run: |
           docker compose logs --no-color
           docker compose -p messora-br logs --no-color --tail 200 || true
+          docker compose -p messora-install -f "$RUNNER_TEMP/install/compose.yml" logs --no-color --tail 200 || true
       - if: always()
         run: docker compose down -v
 

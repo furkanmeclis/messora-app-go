@@ -52,6 +52,13 @@ MESSORA_WEB_IMAGE=messora-license-gate.messora-license-gate.workers.dev/messora-
 Installations override the gate with `LICENSE_GATE_URL`; leave it empty to
 disable check-in (online licences then lapse after 30 days).
 
+- `/install/<version|latest>/compose.yml` is the customer install file. It
+  is generated from `docker-compose.yml` at every release by
+  `messora-license publish` (`messora-license install-compose` prints it):
+  the build sections are removed, the Caddyfile is inlined and the images
+  point at the gate. It is behind the same licence check. Customers never
+  need the repository; see [INSTALL.md](INSTALL.md).
+
 ## Issuing (the issuer's Mac)
 
 `go install ./cmd/messora-license`. Signing keys live in the login Keychain

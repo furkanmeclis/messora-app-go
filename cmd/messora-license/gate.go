@@ -293,6 +293,21 @@ func publish(st licensetool.Store, args []string) error {
 			return err
 		}
 	}
+	// The install file customers download (served by the gate).
+	gateURL := cfg.Cloudflare.WorkerURL
+	if gateURL == "" {
+		gateURL = license.DefaultGateURL
+	}
+	install, err := buildInstallCompose(".", gateURL, version)
+	if err != nil {
+		return fmt.Errorf("install file (run from the repository root): %w", err)
+	}
+	for _, key := range []string{"install/" + version + "/compose.yml", "install/" + *channel + "/compose.yml"} {
+		delete(done, key)
+		if err := put(key, install, "application/yaml"); err != nil {
+			return err
+		}
+	}
 	rel, _ := json.Marshal(license.Release{Version: version, ReleasedAt: at, Channel: *channel, Notes: *notes})
 	if err := kvPut(cfg, "release:"+version, string(rel)); err != nil {
 		return err
@@ -302,4 +317,32 @@ func publish(st licensetool.Store, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Published %s on %s.\n", version, *channel)
 	return nil
+}
+
+// installCompose prints the customer install file for a version.
+func installCompose(_ licensetool.Store, args []string) error {
+	fs := flag.NewFlagSet("install-compose", flag.ExitOnError)
+	registry := fs.String("registry", license.DefaultGateURL, "image registry (host or URL)")
+	version := fs.String("version", "", "release version, e.g. 0.10.0")
+	dir := fs.String("dir", ".", "repository root")
+	_ = fs.Parse(args)
+	out, err := buildInstallCompose(*dir, *registry, *version)
+	if err != nil {
+		return err
+	}
+	_, err = os.Stdout.Write(out)
+	return err
+}
+
+func buildInstallCompose(dir, registry, version string) ([]byte, error) {
+	compose, err := os.ReadFile(filepath.Join(dir, "docker-compose.yml")) //nolint:gosec // repository file
+	if err != nil {
+		return nil, err
+	}
+	caddy, err := os.ReadFile(filepath.Join(dir, "deployments", "caddy", "Caddyfile")) //nolint:gosec // repository file
+	if err != nil {
+		return nil, err
+	}
+	registry = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(registry, "https://"), "http://"), "/")
+	return licensetool.InstallCompose(compose, caddy, registry, strings.TrimPrefix(version, "v"))
 }

@@ -225,12 +225,43 @@ async function registry(request, env, url) {
     return new Response(request.method === 'HEAD' ? null : body, { headers });
 }
 
+// ---- install file ----------------------------------------------------------
+
+// GET /install/<version|stable>/compose.yml — the customer install file,
+// behind the same licence check as the registry. A pinned version outside
+// the licence's update window is refused, like its images.
+async function installFile(request, env, url) {
+    const m = url.pathname.match(/^\/install\/([A-Za-z0-9_.-]{1,64})\/compose\.yml$/);
+    if (!m) return json(404, { error: 'not found' });
+    const auth = await registryAuth(request, env);
+    if (auth.error) {
+        const res = auth.error;
+        return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json', 'WWW-Authenticate': 'Basic realm="Messora install"' } });
+    }
+    let ref = m[1];
+    if (ref === 'latest') ref = 'stable';
+    if (/^\d+\.\d+\.\d+$/.test(ref) && auth.lic.upd) {
+        const rel = await env.KV.get('release:' + ref);
+        if (!rel || Date.parse(JSON.parse(rel).released_at) > Date.parse(auth.lic.upd)) {
+            return json(403, { error: `Version ${ref} was released after your update period.` });
+        }
+    }
+    const obj = await env.R2.get(`install/${ref}/compose.yml`);
+    if (!obj) return json(404, { error: 'not found' });
+    return new Response(obj.body, {
+        headers: { 'content-type': 'application/yaml', 'content-disposition': 'attachment; filename="compose.yml"', 'cache-control': 'no-store' },
+    });
+}
+
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
         try {
             if (url.pathname === '/v1/check-in' && request.method === 'POST') {
                 return await checkIn(request, env, ctx);
+            }
+            if (url.pathname.startsWith('/install/') && request.method === 'GET') {
+                return await installFile(request, env, url);
             }
             if ((url.pathname === '/v2/' || url.pathname.startsWith('/v2/')) && ['GET', 'HEAD'].includes(request.method)) {
                 return await registry(request, env, url);
