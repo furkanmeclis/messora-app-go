@@ -13,6 +13,12 @@ on:
         description: Published version to copy into the licence registry (e.g. 0.9.0)
         required: true
 
+# docker/build-push-action uploads a build record per build; it only fills
+# the artifact quota.
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: false
+  DOCKER_BUILD_SUMMARY: false
+
 permissions:
   contents: read
 
