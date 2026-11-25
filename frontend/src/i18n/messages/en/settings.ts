@@ -7,6 +7,27 @@ const settings = {
         email: 'E-mail',
         security: 'Security',
         webhooks: 'Webhooks',
+        metaRates: 'Meta rate card',
+    },
+    metaRates: {
+        title: 'Meta rate card',
+        description:
+            'Meta publishes its per-message prices only as a rate card, not through an API. Import it here so every billable message is priced in your account’s currency; Meta’s own daily totals are fetched separately for comparison.',
+        hint: 'CSV file, at most 2 MB. Rows replace earlier ones with the same currency, market, category, tier and date.',
+        format: 'File format',
+        formatHelp:
+            'Columns: market, countries (ISO codes separated by spaces or ;), category (marketing, utility, authentication, authentication-international, service), price, currency, effective_from (YYYY-MM-DD), optionally tier_lower and tier_upper (message number within the month) and source. Copy the prices from Meta’s published rate card; the values below are placeholders.',
+        imported: '{rates} rates imported for {markets} countries.',
+        importFailed: 'The rate card was not imported.',
+        empty: 'No rates yet. Until a rate card is imported, message costs are not calculated.',
+        market: 'Market',
+        category: 'Category',
+        price: 'Price per message',
+        tier: 'Monthly tier',
+        validity: 'Valid',
+        since: 'from {from}',
+        between: '{from} – {to}',
+        importedAt: 'Imported',
     },
     general: {
         organization: 'Organisation',
