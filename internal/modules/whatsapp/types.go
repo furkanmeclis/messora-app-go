@@ -76,23 +76,62 @@ type TemplateLanguage struct {
 	Code string `json:"code"`
 }
 
-// TemplateComponent fills header, body or button parameters.
+// TemplateComponent fills header, body, button, limited-time-offer or
+// carousel parameters.
 type TemplateComponent struct {
-	Type       string              `json:"type"`               // header | body | button
-	SubType    string              `json:"sub_type,omitempty"` // url | quick_reply (buttons)
+	Type       string              `json:"type"`               // header | body | button | limited_time_offer | carousel
+	SubType    string              `json:"sub_type,omitempty"` // url | quick_reply | copy_code | flow (buttons)
 	Index      string              `json:"index,omitempty"`    // button index, "0"…
-	Parameters []TemplateParameter `json:"parameters"`
+	Parameters []TemplateParameter `json:"parameters,omitempty"`
+	// Cards of a media card carousel (type carousel).
+	Cards []TemplateCard `json:"cards,omitempty"`
+}
+
+// TemplateCard fills one card of a carousel: the card's header, body and
+// button parameters.
+type TemplateCard struct {
+	CardIndex  int                 `json:"card_index"`
+	Components []TemplateComponent `json:"components"`
 }
 
 // TemplateParameter is one variable value.
 type TemplateParameter struct {
-	Type          string `json:"type"` // text | image | video | document | payload
+	Type          string `json:"type"` // text | image | video | document | location | payload | coupon_code | limited_time_offer | action
 	ParameterName string `json:"parameter_name,omitempty"`
 	Text          string `json:"text,omitempty"`
 	Payload       string `json:"payload,omitempty"`
 	Image         *Media `json:"image,omitempty"`
 	Video         *Media `json:"video,omitempty"`
 	Document      *Media `json:"document,omitempty"`
+	// Location fills a location header.
+	Location *TemplateLocation `json:"location,omitempty"`
+	// CouponCode fills a copy code button.
+	CouponCode string `json:"coupon_code,omitempty"`
+	// LimitedTimeOffer carries the offer's end (limited-time offer templates).
+	LimitedTimeOffer *LimitedTimeOffer `json:"limited_time_offer,omitempty"`
+	// Action opens the Flow of a Flow button.
+	Action *FlowAction `json:"action,omitempty"`
+}
+
+// TemplateLocation is a location header's place. Meta documents latitude
+// and longitude as decimal-degree strings.
+type TemplateLocation struct {
+	Latitude  string `json:"latitude"`
+	Longitude string `json:"longitude"`
+	Name      string `json:"name,omitempty"`
+	Address   string `json:"address,omitempty"`
+}
+
+// LimitedTimeOffer is the send-time part of a limited-time offer: when the
+// offer code expires, as Unix milliseconds.
+type LimitedTimeOffer struct {
+	ExpirationTimeMS int64 `json:"expiration_time_ms"`
+}
+
+// FlowAction is the send-time part of a Flow button.
+type FlowAction struct {
+	FlowToken      string         `json:"flow_token,omitempty"`
+	FlowActionData map[string]any `json:"flow_action_data,omitempty"`
 }
 
 // SendResult is Meta's acceptance of a message (not delivery).
