@@ -734,9 +734,10 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 			return err
 		}
 		if offer != nil && offerEnded(*offer, time.Now()) {
-			// The offer ended mid-campaign: stop with the reason; the
-			// remaining recipients wait for a decision (remove the offer and
-			// resume, or cancel).
+			// The offer ended mid-campaign: stop with the reason. The
+			// remaining recipients wait; resuming is refused while the
+			// ended offer is linked, so the campaign is cancelled or
+			// recreated with a running offer.
 			_, err := s.transition(ctx, q, tx, id, "paused", []string{"running"}, "paused", offerExpiredDetail(*offer), nil, nil)
 			return err
 		}

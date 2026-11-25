@@ -184,6 +184,7 @@ function initialState(
 /** Which wizard step an API field error belongs to. */
 function stepOf(field: string): number {
     if (field === 'name' || field === 'phone_number_id') return 0;
+    if (field === 'offer_id') return 1;
     if (field.startsWith('template_params')) return 2;
     if (field.startsWith('template')) return 1;
     if (field.startsWith('audience')) return 3;

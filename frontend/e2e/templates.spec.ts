@@ -108,11 +108,15 @@ test('the builder makes a limited-time offer template and checks Meta’s limits
     const builder = page.getByTestId('template-builder');
     await builder.getByRole('radio', { name: /Limited-time offer/ }).click();
     // Marketing only: the category is fixed.
-    await expect(builder.getByLabel('Category')).toBeDisabled();
+    await expect(
+        builder.getByRole('combobox', { name: 'Category' }),
+    ).toBeDisabled();
 
-    await builder.getByLabel('Account').click();
+    await builder.getByRole('combobox', { name: 'Account' }).click();
     await page.getByRole('option', { name: ACCOUNT }).click();
-    await builder.getByLabel('Name').fill(`e2e_offer_${TAG}`);
+    await builder
+        .getByRole('textbox', { name: 'Name', exact: true })
+        .fill(`e2e_offer_${TAG}`);
     await builder.getByLabel('Offer text').fill('Ends tonight, hurry up!');
     const body = builder.getByLabel('Body', { exact: true });
     await body.fill('Hello ');
@@ -158,15 +162,17 @@ test('the carousel builder keeps cards identical and previews them side by side'
     await page.goto('/templates/new');
     const builder = page.getByTestId('template-builder');
     await builder.getByRole('radio', { name: /Carousel/ }).click();
-    const cards = page.getByTestId('preview-cards').locator('li');
+    const cards = page.getByTestId('preview-cards').locator(':scope > li');
     await expect(cards).toHaveCount(2);
     await builder.getByTestId('add-card').click();
     await expect(cards).toHaveCount(3);
     await builder.getByLabel('Body', { exact: true }).fill('Our picks for you');
     // Every card needs its sample image before Meta's review.
-    await builder.getByLabel('Account').click();
+    await builder.getByRole('combobox', { name: 'Account' }).click();
     await page.getByRole('option', { name: ACCOUNT }).click();
-    await builder.getByLabel('Name').fill(`e2e_cards_${TAG}`);
+    await builder
+        .getByRole('textbox', { name: 'Name', exact: true })
+        .fill(`e2e_cards_${TAG}`);
     await page.getByTestId('template-submit').click();
     await expect(page.locator('#tpl-card-0-media-error')).toBeVisible();
     noErrors();
