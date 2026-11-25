@@ -15,7 +15,9 @@ import (
 	"net/http"
 	"net/mail"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -36,6 +38,22 @@ const (
 	SchemePanel   = "panel"
 	SchemeSession = "session"
 	SchemeAPIKey  = "apiKey"
+)
+
+// Default request budgets per minute (GCRA, burst = rate). They are
+// published in the API documentation, so change them together with it.
+const (
+	SessionPerMinute   = 600
+	APIKeyPerMinute    = 300
+	AnonymousPerMinute = 120
+)
+
+// Rate-limit response headers (IETF draft-ietf-httpapi-ratelimit-headers).
+const (
+	HeaderRateLimitLimit     = "RateLimit-Limit"
+	HeaderRateLimitRemaining = "RateLimit-Remaining"
+	HeaderRateLimitReset     = "RateLimit-Reset"
+	HeaderRateLimitPolicy    = "RateLimit-Policy"
 )
 
 // APIKeyPrefix distinguishes API keys from session tokens in the bearer header.
@@ -172,7 +190,7 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 		}
 		r = r.WithContext(ctx)
 
-		if err := g.rateLimit(r, p); err != nil {
+		if err := g.rateLimit(w, r, p); err != nil {
 			httpx.WriteError(w, r, err, g.o.Logger)
 			return
 		}
@@ -305,7 +323,9 @@ func bearer(r *http.Request) string {
 	return ""
 }
 
-func (g *Guard) rateLimit(r *http.Request, p *principal.Principal) error {
+// rateLimit consumes one request from the caller's budget and reports the
+// budget in the RateLimit-* headers (on 429 too, next to Retry-After).
+func (g *Guard) rateLimit(w http.ResponseWriter, r *http.Request, p *principal.Principal) error {
 	if g.o.Limiter == nil {
 		return nil
 	}
@@ -331,10 +351,19 @@ func (g *Guard) rateLimit(r *http.Request, p *principal.Principal) error {
 		g.o.Logger.WarnContext(r.Context(), "rate limiter unavailable; allowing request", "err", err)
 		return nil // fail open: Redis outages must not take the panel down
 	}
+	h := w.Header()
+	h.Set(HeaderRateLimitLimit, strconv.Itoa(max(lim.Burst, 1)))
+	h.Set(HeaderRateLimitRemaining, strconv.Itoa(res.Remaining))
+	h.Set(HeaderRateLimitReset, strconv.Itoa(ceilSeconds(res.Reset)))
+	h.Set(HeaderRateLimitPolicy, fmt.Sprintf("%d;w=%d", lim.Rate, ceilSeconds(lim.Period)))
 	if !res.Allowed {
 		return apperr.RateLimited("RATE_LIMITED", "Too many requests", res.RetryAfter)
 	}
 	return nil
+}
+
+func ceilSeconds(d time.Duration) int {
+	return int((d + time.Second - 1) / time.Second)
 }
 
 // validationError converts kin-openapi errors into a 422 with field details.

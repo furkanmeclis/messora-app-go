@@ -62,3 +62,24 @@ func TestConcurrentCallersNeverExceedBurst(t *testing.T) {
 		t.Fatalf("allowed %d, want exactly 10", allowed.Load())
 	}
 }
+
+func TestRemainingAndReset(t *testing.T) {
+	ctx := context.Background()
+	l := ratelimit.New(testutil.Redis(t), "rl")
+	lim := ratelimit.Limit{Rate: 4, Period: time.Minute, Burst: 4} // one cell every 15 s
+
+	for want := 3; want >= 0; want-- {
+		r, err := l.Allow(ctx, "k", lim)
+		if err != nil || !r.Allowed || r.Remaining != want {
+			t.Fatalf("want %d remaining: %+v %v", want, r, err)
+		}
+		// Each used cell takes 15 s to come back.
+		if full := time.Duration(4-want) * 15 * time.Second; r.Reset > full || r.Reset < full-time.Second {
+			t.Fatalf("reset %v, want about %v", r.Reset, full)
+		}
+	}
+	r, _ := l.Allow(ctx, "k", lim)
+	if r.Allowed || r.Remaining != 0 || r.Reset < 59*time.Second || r.RetryAfter < 14*time.Second {
+		t.Fatalf("over the limit: %+v", r)
+	}
+}

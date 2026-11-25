@@ -25,6 +25,10 @@ func PerMinute(n int) Limit { return Limit{Rate: n, Period: time.Minute, Burst: 
 type Result struct {
 	Allowed    bool
 	RetryAfter time.Duration
+	// Remaining is how many more events the caller could make right now.
+	Remaining int
+	// Reset is the time until the full burst is available again.
+	Reset time.Duration
 }
 
 var gcra = goredis.NewScript(`
@@ -37,10 +41,10 @@ if tat < now then tat = now end
 local new_tat = tat + interval
 local allow_at = new_tat - tolerance
 if now < allow_at then
-  return {0, allow_at - now}
+  return {0, math.ceil(allow_at - now), 0, math.ceil(tat - now)}
 end
 redis.call('SET', KEYS[1], new_tat, 'PX', math.ceil(new_tat - now) + 1)
-return {1, 0}
+return {1, 0, math.floor((tolerance - (new_tat - now)) / interval), math.ceil(new_tat - now)}
 `)
 
 // Limiter checks limits under a key prefix.
@@ -68,10 +72,15 @@ func (l *Limiter) Allow(ctx context.Context, key string, lim Limit) (Result, err
 	if err != nil {
 		return Result{}, err
 	}
-	if res[0] == 1 {
-		return Result{Allowed: true}, nil
+	if len(res) < 4 {
+		return Result{}, fmt.Errorf("ratelimit: unexpected reply %v", res)
 	}
-	return Result{Allowed: false, RetryAfter: time.Duration(res[1]) * time.Millisecond}, nil
+	return Result{
+		Allowed:    res[0] == 1,
+		RetryAfter: time.Duration(res[1]) * time.Millisecond,
+		Remaining:  max(int(res[2]), 0),
+		Reset:      time.Duration(res[3]) * time.Millisecond,
+	}, nil
 }
 
 // Reset clears the counter for key (e.g. after a successful login).
