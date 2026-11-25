@@ -127,9 +127,11 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** görselli ve değişkenli şablonla kampanya ve gelen kutusu gönderimi uçtan uca testli (E2E ve Meta sözleşme testi); süresi dolan veya iptal edilen token'da hesap durumu ve bildirim testli.
 
+## Phase 16C — Gelişmiş kampanya yönetimi, AI otomasyonu ve sohbet zekâsı (planlandı)
+Teknik analiz, doğrulanmış Meta/AI sağlayıcı gerçekleri, mimari riskler ve iş paketleri (P0–P10): **docs/PHASE-16C.md**. Phase 17 bu faz tamamlanmadan başlamaz.
+
 ## Sonraki sürümler (v1.x)
 - Passkey (go-webauthn), Embedded Signup
-- Maliyet takibi (Meta pricing alanları)
 - Centrifugo Redis engine (çoklu node), `messages` partition ve arşivleme, `campaign_stats` sharding
 - S3 uyumlu medya depolama
 - Özel rol editörü
