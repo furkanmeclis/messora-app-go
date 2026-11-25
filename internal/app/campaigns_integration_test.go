@@ -72,6 +72,11 @@ func (h *harness) pump(ctx context.Context, workers int) int {
 			err = h.svc.automation.Evaluate(ctx, ev)
 		case "task:" + automation.TypeRun, "task:" + automation.TypeResume:
 			err = h.svc.automation.Run(ctx, id("run_id"))
+		case "task:" + messaging.TypeUserPreference:
+			var up messaging.UserPreferenceEvent
+			raw, _ := json.Marshal(e.payload)
+			_ = json.Unmarshal(raw, &up)
+			err = h.svc.messaging.ApplyUserPreference(ctx, up)
 		default:
 			return // realtime and other events
 		}
