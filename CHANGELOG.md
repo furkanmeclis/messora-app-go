@@ -6,6 +6,35 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 16b: Meta connection and messaging screens
+
+- WhatsApp access tokens are checked with Meta when connected, replaced and
+  every six hours: validity, permissions, access to the account, type and
+  expiry. Channels shows the token's lifetime with **Check connection**, and
+  a step-by-step guide to System User tokens (also in the setup wizard).
+  Owners and admins are e-mailed before a token expires and when Meta
+  refuses it. Short-lived user tokens become long-lived ones when the app
+  secret is known.
+- Templates with image, video and document headers work in campaigns, inbox
+  replies and automations; every variable is mapped to a contact field or
+  fixed text, with a value for contacts that lack it, and a WhatsApp-style
+  preview shows what a real contact receives. Values are checked against the
+  template before anything is sent.
+- The inbox is redesigned: a full-height three-pane layout, search as you
+  type, an unread filter, day separators, and template replies with
+  variables and media, limited to the conversation's account.
+- The templates page: search and filters, real sync from Meta, details,
+  "use in a campaign", and creating media-header templates (the example file
+  is uploaded to Meta).
+
+### Fixed
+
+- Replacing the token of an account Meta had refused now reactivates it at
+  once (it stayed in error until a manual sync), and a token changed in
+  `.env` is applied on restart.
+- Editing a campaign kept its header media; URL buttons other than the first
+  can carry variables.
+
 ## [0.10.0] - 2026-11-23
 
 First licensed release. Images are also served from the licence registry

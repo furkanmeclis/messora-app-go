@@ -29,8 +29,11 @@ export type EditorOptions = {
     templates: {
         name: string;
         language: string;
+        parameter_format: string;
         components: Record<string, unknown>[];
     }[];
+    /** Custom attribute keys for {{attr:key}} mapping. */
+    attributeKeys: string[];
     /** Null when the user list is not visible (assign to me / unassign). */
     users: Option[] | null;
     me: Option;
@@ -75,44 +78,56 @@ export async function loadNames(me: Me) {
 
 export async function loadEditorOptions(me: Me): Promise<EditorOptions> {
     const contacts = can(me, 'contacts.read');
-    const [names, tags, groups, templates, users] = await Promise.all([
-        loadNames(me),
-        optional(
-            contacts,
-            async () =>
-                (await api<Schemas['Tag'][]>('/tags')).data.map((t) => t.name),
-            [] as string[],
-        ),
-        optional(
-            contacts,
-            async () =>
-                (await api<Schemas['Group'][]>('/groups')).data.map((g) => ({
-                    id: g.id,
-                    label: g.name,
-                })),
-            [] as Option[],
-        ),
-        optional(
-            can(me, 'templates.read'),
-            async () =>
-                (await api<Template[]>('/templates?status=APPROVED')).data.map(
-                    (t) => ({
+    const [names, tags, groups, templates, users, attributeKeys] =
+        await Promise.all([
+            loadNames(me),
+            optional(
+                contacts,
+                async () =>
+                    (await api<Schemas['Tag'][]>('/tags')).data.map(
+                        (t) => t.name,
+                    ),
+                [] as string[],
+            ),
+            optional(
+                contacts,
+                async () =>
+                    (await api<Schemas['Group'][]>('/groups')).data.map(
+                        (g) => ({
+                            id: g.id,
+                            label: g.name,
+                        }),
+                    ),
+                [] as Option[],
+            ),
+            optional(
+                can(me, 'templates.read'),
+                async () =>
+                    (
+                        await api<Template[]>('/templates?status=APPROVED')
+                    ).data.map((t) => ({
                         name: t.name,
                         language: t.language,
+                        parameter_format: t.parameter_format,
                         components: t.components,
-                    }),
-                ),
-            [] as EditorOptions['templates'],
-        ),
-        optional<Option[] | null>(
-            can(me, 'users.manage'),
-            async () =>
-                (await api<User[]>('/users')).data
-                    .filter((u) => u.status === 'active')
-                    .map((u) => ({ id: u.id, label: u.name })),
-            null,
-        ),
-    ]);
+                    })),
+                [] as EditorOptions['templates'],
+            ),
+            optional<Option[] | null>(
+                can(me, 'users.manage'),
+                async () =>
+                    (await api<User[]>('/users')).data
+                        .filter((u) => u.status === 'active')
+                        .map((u) => ({ id: u.id, label: u.name })),
+                null,
+            ),
+            optional(
+                can(me, 'contacts.read'),
+                async () =>
+                    (await api<string[]>('/contacts/attribute-keys')).data,
+                [] as string[],
+            ),
+        ]);
     return {
         ...names,
         tags,
@@ -121,5 +136,6 @@ export async function loadEditorOptions(me: Me): Promise<EditorOptions> {
         users,
         me: { id: me.user.id, label: me.user.name },
         canReadTemplates: can(me, 'templates.read'),
+        attributeKeys,
     };
 }

@@ -1,24 +1,35 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import {
     AlertCircle,
+    ArrowLeft,
     Check,
     CheckCheck,
     Clock,
+    ExternalLink,
     FileText,
     HelpCircle,
     Inbox as InboxIcon,
+    LayoutTemplate,
     MessageSquare,
-    Search,
     Paperclip,
+    Search,
+    Send,
+    X,
 } from 'lucide-react';
 import { newIdempotencyKey, notify } from '@/components/notify';
+import {
+    ParamIssues,
+    TemplateParamsEditor,
+} from '@/components/template-params';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import {
     Empty,
     EmptyDescription,
@@ -26,8 +37,14 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from '@/components/ui/empty';
+import { FileDrop } from '@/components/ui/file-drop';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import {
     Select,
     SelectContent,
@@ -39,17 +56,24 @@ import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
-    useFormatTimeLabel,
+    useDisplayPrefs,
+    useFormatDate,
     useFormatDateTime,
+    useFormatTimeLabel,
 } from '@/components/display-preferences';
-import { FileDrop } from '@/components/ui/file-drop';
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from '@/components/ui/popover';
+import { formatTime } from '@/lib/format';
+import { WhatsAppPreview } from '@/components/whatsapp-preview';
 import { useT } from '@/i18n/client';
 import type { MessageKey, Translate } from '@/i18n/translate';
+import {
+    emptyValues,
+    issuesOf,
+    paramsFromValues,
+    shapeOf,
+    templateKey,
+    type ParamValues,
+    type SampleContact,
+} from '@/lib/templates';
 import { cn } from '@/lib/utils';
 import type { Conversation, InboxMessage, Template } from '@/lib/types';
 import type { ThreadData } from './page';
@@ -86,6 +110,46 @@ function inboxHref(query: string, extra: Record<string, string>): string {
     return s ? `/inbox?${s}` : '/inbox';
 }
 
+const TONES = [
+    'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+    'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+    'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+    'bg-teal-500/15 text-teal-700 dark:text-teal-300',
+];
+
+function initials(name: string): string {
+    const parts = name.replace(/^\+/, '').trim().split(/\s+/);
+    if (/^\d/.test(parts[0] ?? '')) return '#';
+    return (
+        ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toLocaleUpperCase() ||
+        '?'
+    );
+}
+
+function ContactAvatar({
+    name,
+    id,
+    className,
+}: {
+    name: string;
+    id: string;
+    className?: string;
+}) {
+    let h = 0;
+    for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return (
+        <Avatar className={cn('size-9', className)}>
+            <AvatarFallback
+                className={cn('text-xs font-semibold', TONES[h % TONES.length])}
+            >
+                {initials(name)}
+            </AvatarFallback>
+        </Avatar>
+    );
+}
+
 // ── Filters ────────────────────────────────────────────────────────────────
 
 const STATUSES = [
@@ -102,58 +166,64 @@ const ASSIGNEES = [
 export function InboxFilters({
     status,
     assignee,
+    unread,
     q,
 }: {
     status: string;
     assignee: string;
+    unread: boolean;
     q: string;
 }) {
     const t = useT();
+    const router = useRouter();
+    const [text, setText] = useState(q);
     const base = new URLSearchParams();
     if (status !== 'open') base.set('status', status);
     if (assignee) base.set('assignee', assignee);
+    if (unread) base.set('unread', '1');
     if (q) base.set('q', q);
     const query = base.toString();
+
+    // Search as you type (after a short pause).
+    useEffect(() => {
+        if (text.trim() === q) return;
+        const id = setTimeout(
+            () => router.replace(inboxHref(query, { q: text.trim(), c: '' })),
+            300,
+        );
+        return () => clearTimeout(id);
+    }, [text, q, query, router]);
+
     const pill = (active: boolean) =>
         cn(
-            'rounded-md px-2.5 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'rounded-full px-2.5 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring',
             active
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:bg-muted',
         );
     return (
-        <div className="space-y-2">
+        <div className="space-y-2 border-b p-3">
             <form
-                action="/inbox"
-                method="get"
                 role="search"
-                className="flex gap-2"
+                className="relative"
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    router.replace(inboxHref(query, { q: text.trim(), c: '' }));
+                }}
             >
-                {status !== 'open' && (
-                    <input type="hidden" name="status" value={status} />
-                )}
-                {assignee && (
-                    <input type="hidden" name="assignee" value={assignee} />
-                )}
                 <Label htmlFor="inbox-search" className="sr-only">
                     {t('inbox.filters.searchLabel')}
                 </Label>
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                     id="inbox-search"
-                    name="q"
-                    defaultValue={q}
+                    value={text}
                     maxLength={100}
                     data-search
+                    className="pl-8"
                     placeholder={t('inbox.filters.searchPlaceholder')}
+                    onChange={(e) => setText(e.target.value)}
                 />
-                <Button
-                    type="submit"
-                    variant="outline"
-                    size="icon"
-                    aria-label={t('common.search')}
-                >
-                    <Search />
-                </Button>
             </form>
             <nav
                 aria-label={t('inbox.filters.status')}
@@ -172,6 +242,16 @@ export function InboxFilters({
                         {t(label)}
                     </Link>
                 ))}
+                <Link
+                    href={inboxHref(query, {
+                        unread: unread ? '' : '1',
+                        c: '',
+                    })}
+                    aria-current={unread ? 'page' : undefined}
+                    className={pill(unread)}
+                >
+                    {t('inbox.filters.unread')}
+                </Link>
             </nav>
             <nav
                 aria-label={t('inbox.filters.assignee')}
@@ -218,7 +298,7 @@ export function ConversationList({
 
     if (items.length === 0) {
         return (
-            <Empty className="rounded-lg border py-12">
+            <Empty className="flex-1 py-12">
                 <EmptyHeader>
                     <EmptyMedia variant="icon">
                         <InboxIcon />
@@ -232,100 +312,129 @@ export function ConversationList({
         );
     }
     return (
-        <div className="flex flex-col gap-2">
-            <ul
-                className="divide-y rounded-lg border"
-                data-testid="conversation-list"
-            >
-                {items.map((c) => (
-                    <li key={c.id}>
-                        <Link
-                            href={inboxHref(query, { c: c.id })}
-                            aria-current={
-                                c.id === selected ? 'true' : undefined
-                            }
-                            data-testid="conversation-item"
-                            className={cn(
-                                'flex flex-col gap-1 px-3 py-2.5 outline-none hover:bg-muted/60 focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
-                                c.id === selected && 'bg-muted',
-                            )}
-                        >
-                            <span className="flex items-center justify-between gap-2">
-                                <span
-                                    className={cn(
-                                        'truncate text-sm',
-                                        c.unread_count > 0 && 'font-semibold',
-                                    )}
-                                >
-                                    {displayName(c.contact)}
-                                </span>
-                                <time
-                                    dateTime={c.last_message_at}
-                                    className="shrink-0 text-xs text-muted-foreground tabular-nums"
-                                >
-                                    {timeLabel(c.last_message_at)}
-                                </time>
-                            </span>
-                            <span className="flex items-center justify-between gap-2">
-                                <span className="truncate text-xs text-muted-foreground">
-                                    {c.last_message
-                                        ? (c.last_message.direction ===
-                                          'outbound'
-                                              ? t('inbox.list.you')
-                                              : '') +
-                                          (c.last_message.body ||
-                                              `[${c.last_message.type}]`)
-                                        : '—'}
-                                </span>
-                                <span className="flex shrink-0 items-center gap-1">
-                                    {c.status === 'closed' && (
-                                        <Badge variant="outline">
-                                            {t('inbox.filters.closed')}
-                                        </Badge>
-                                    )}
-                                    {c.unread_count > 0 && (
-                                        <Badge
-                                            aria-label={t('inbox.list.unread', {
-                                                count: c.unread_count,
-                                            })}
-                                            data-testid="unread-count"
+        <div className="min-h-0 flex-1 overflow-y-auto">
+            <ul data-testid="conversation-list">
+                {items.map((c) => {
+                    const name = displayName(c.contact);
+                    const last = c.last_message;
+                    return (
+                        <li key={c.id}>
+                            <Link
+                                href={inboxHref(query, { c: c.id })}
+                                aria-current={
+                                    c.id === selected ? 'true' : undefined
+                                }
+                                data-testid="conversation-item"
+                                className={cn(
+                                    'flex gap-3 border-b px-3 py-2.5 outline-none hover:bg-muted/60 focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                                    c.id === selected && 'bg-muted',
+                                )}
+                            >
+                                <ContactAvatar
+                                    name={name}
+                                    id={c.contact.id}
+                                    className="mt-0.5"
+                                />
+                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                    <span className="flex items-center justify-between gap-2">
+                                        <span
+                                            className={cn(
+                                                'truncate text-sm',
+                                                c.unread_count > 0 &&
+                                                    'font-semibold',
+                                            )}
                                         >
-                                            {c.unread_count}
-                                        </Badge>
+                                            {name}
+                                        </span>
+                                        <time
+                                            dateTime={c.last_message_at}
+                                            className={cn(
+                                                'shrink-0 text-xs tabular-nums',
+                                                c.unread_count > 0
+                                                    ? 'font-medium text-primary'
+                                                    : 'text-muted-foreground',
+                                            )}
+                                        >
+                                            {timeLabel(c.last_message_at)}
+                                        </time>
+                                    </span>
+                                    <span className="flex items-center justify-between gap-2">
+                                        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                                            {last?.direction === 'outbound' && (
+                                                <CheckCheck className="size-3.5 shrink-0" />
+                                            )}
+                                            <span className="truncate">
+                                                {last
+                                                    ? (last.direction ===
+                                                      'outbound'
+                                                          ? t('inbox.list.you')
+                                                          : '') +
+                                                      (last.body ||
+                                                          `[${kindLabel(t, last.type)}]`)
+                                                    : '—'}
+                                            </span>
+                                        </span>
+                                        <span className="flex shrink-0 items-center gap-1">
+                                            {c.status === 'closed' && (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="h-4 px-1.5 text-[10px]"
+                                                >
+                                                    {t('inbox.filters.closed')}
+                                                </Badge>
+                                            )}
+                                            {c.unread_count > 0 && (
+                                                <Badge
+                                                    className="h-5 min-w-5 rounded-full px-1.5"
+                                                    aria-label={t(
+                                                        'inbox.list.unread',
+                                                        {
+                                                            count: c.unread_count,
+                                                        },
+                                                    )}
+                                                    data-testid="unread-count"
+                                                >
+                                                    {c.unread_count}
+                                                </Badge>
+                                            )}
+                                        </span>
+                                    </span>
+                                    {c.assignee && (
+                                        <span className="truncate text-[11px] text-muted-foreground">
+                                            {t('inbox.list.assignedTo', {
+                                                name: c.assignee.name,
+                                            })}
+                                        </span>
                                     )}
                                 </span>
-                            </span>
-                            {c.assignee && (
-                                <span className="text-xs text-muted-foreground">
-                                    {t('inbox.list.assignedTo', {
-                                        name: c.assignee.name,
-                                    })}
-                                </span>
-                            )}
-                        </Link>
-                    </li>
-                ))}
+                            </Link>
+                        </li>
+                    );
+                })}
             </ul>
             {next && (
-                <Button
-                    variant="outline"
-                    disabled={pending}
-                    onClick={() =>
-                        startTransition(async () => {
-                            const r = await moreConversationsAction(
-                                query,
-                                next,
-                            );
-                            if (notify(r)) {
-                                setMore((m) => [...m, ...r.data.items]);
-                                setCursor(r.data.next);
-                                setLoaded(true);
-                            }
-                        })
-                    }
-                >
-                    {pending && <Spinner />} {t('inbox.list.loadMore')}
-                </Button>
+                <div className="p-3">
+                    <Button
+                        variant="outline"
+                        className="w-full"
+                        disabled={pending}
+                        onClick={() =>
+                            startTransition(async () => {
+                                const r = await moreConversationsAction(
+                                    query,
+                                    next,
+                                );
+                                if (notify(r)) {
+                                    setMore((m) => [...m, ...r.data.items]);
+                                    setCursor(r.data.next);
+                                    setLoaded(true);
+                                }
+                            })
+                        }
+                    >
+                        {pending && <Spinner />} {t('inbox.list.loadMore')}
+                    </Button>
+                </div>
             )}
         </div>
     );
@@ -390,20 +499,20 @@ function MediaView({
             />
         );
     }
-    if (m.type === 'video') {
+    if (m.type === 'video')
         return <video src={src} controls className="max-h-72 rounded-md" />;
-    }
-    if (m.type === 'audio') {
+    if (m.type === 'audio')
         return <audio src={src} controls aria-label={t('inbox.media.voice')} />;
-    }
     return (
         <a
             href={src}
-            className="flex items-center gap-2 underline underline-offset-2"
+            className="flex items-center gap-2 rounded-md bg-black/5 p-2 underline-offset-2 hover:underline dark:bg-white/10"
             download={md.filename || undefined}
         >
-            <FileText className="size-4" />{' '}
-            {md.filename || t('inbox.media.download')}
+            <FileText className="size-5 shrink-0" />{' '}
+            <span className="truncate">
+                {md.filename || t('inbox.media.download')}
+            </span>
         </a>
     );
 }
@@ -415,8 +524,10 @@ function Bubble({
     conversationId: string;
     m: InboxMessage;
 }) {
+    const prefs = useDisplayPrefs();
     const formatDateTime = useFormatDateTime();
     const out = m.direction === 'outbound';
+    const at = m.direction === 'inbound' ? m.occurred_at : m.created_at;
     return (
         <li
             className={cn('flex', out ? 'justify-end' : 'justify-start')}
@@ -426,8 +537,11 @@ function Bubble({
         >
             <div
                 className={cn(
-                    'max-w-[80%] space-y-1 rounded-lg px-3 py-2 text-sm',
-                    out ? 'bg-primary text-primary-foreground' : 'bg-muted',
+                    'max-w-[78%] space-y-1 rounded-lg px-2.5 py-1.5 text-sm shadow-sm',
+                    out
+                        ? 'rounded-tr-none bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]'
+                        : 'rounded-tl-none bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]',
+                    m.status === 'failed' && 'ring-1 ring-destructive/60',
                 )}
             >
                 <MediaView conversationId={conversationId} m={m} />
@@ -438,15 +552,14 @@ function Bubble({
                     <p className="italic opacity-80">[{m.type}]</p>
                 )}
                 {m.status === 'failed' && m.error_title && (
-                    <p className="text-xs opacity-90">{m.error_title}</p>
+                    <p className="flex items-start gap-1 text-xs text-destructive">
+                        <AlertCircle className="mt-0.5 size-3 shrink-0" />
+                        {m.error_title}
+                    </p>
                 )}
-                <p className="flex items-center justify-end gap-1 text-[11px] opacity-75">
-                    <time dateTime={m.created_at}>
-                        {formatDateTime(
-                            m.direction === 'inbound'
-                                ? m.occurred_at
-                                : m.created_at,
-                        )}
+                <p className="flex items-center justify-end gap-1 text-[11px] opacity-60">
+                    <time dateTime={at} title={formatDateTime(at)}>
+                        {formatTime(at, prefs)}
                     </time>
                     {out && <Ticks status={m.status} />}
                 </p>
@@ -463,6 +576,7 @@ export function Thread({
     canReply,
     canAssign,
     canNote,
+    backHref,
 }: {
     selected?: string;
     data: ThreadData | null;
@@ -471,11 +585,12 @@ export function Thread({
     canReply: boolean;
     canAssign: boolean;
     canNote: boolean;
+    backHref: string;
 }) {
     const t = useT();
     if (!selected || !data) {
         return (
-            <Empty className="h-full rounded-lg border py-16">
+            <Empty className="h-full">
                 <EmptyHeader>
                     <EmptyMedia variant="icon">
                         <MessageSquare />
@@ -495,13 +610,14 @@ export function Thread({
         );
     }
     return (
-        <div className="grid gap-4 xl:grid-cols-[1fr_16rem]">
+        <div className="grid h-full min-h-0 xl:grid-cols-[1fr_18rem]">
             <ThreadMain
                 data={data}
                 me={me}
                 users={users}
                 canReply={canReply}
                 canAssign={canAssign}
+                backHref={backHref}
             />
             <ContactPanel data={data} canNote={canNote} />
         </div>
@@ -514,21 +630,26 @@ function ThreadMain({
     users,
     canReply,
     canAssign,
+    backHref,
 }: {
     data: ThreadData;
     me: string;
     users: UserOption[];
     canReply: boolean;
     canAssign: boolean;
+    backHref: string;
 }) {
     const t = useT();
+    const router = useRouter();
     const formatDateTime = useFormatDateTime();
+    const formatDate = useFormatDate();
     const c = data.conversation;
     const [older, setOlder] = useState<InboxMessage[]>([]);
     const [olderCursor, setOlderCursor] = useState<string | undefined>();
     const [loadedOlder, setLoadedOlder] = useState(false);
     const [pending, startTransition] = useTransition();
     const scroller = useRef<HTMLDivElement>(null);
+    const [today] = useState(() => Date.now());
 
     // The API pages newest first; the thread reads oldest first.
     const recentIds = new Set(data.messages.map((m) => m.id));
@@ -540,27 +661,49 @@ function ThreadMain({
     const newest = data.messages[0]?.id;
 
     // Opening a conversation (or a new customer message while it is open)
-    // marks it read for the team.
+    // marks it read for the team; the list's badge follows.
     useEffect(() => {
-        if (c.unread_count > 0) void markReadAction(c.id);
-    }, [c.id, c.unread_count]);
+        if (c.unread_count > 0)
+            void markReadAction(c.id).then(() => router.refresh());
+    }, [c.id, c.unread_count, router]);
 
     useEffect(() => {
         const el = scroller.current;
         if (el) el.scrollTop = el.scrollHeight;
     }, [newest]);
 
+    const dayLabel = (iso: string) => {
+        const d = formatDate(iso);
+        if (d === formatDate(new Date(today).toISOString()))
+            return t('inbox.thread.today');
+        if (d === formatDate(new Date(today - 86_400_000).toISOString()))
+            return t('inbox.thread.yesterday');
+        return d;
+    };
+    const name = displayName(c.contact);
+
     return (
-        <Card className="flex min-h-[70vh] flex-col gap-0 py-0">
-            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 border-b py-3">
-                <div className="min-w-0">
-                    <CardTitle
-                        className="truncate text-base"
+        <div className="flex min-h-0 flex-col border-r">
+            <header className="flex flex-wrap items-center gap-3 border-b px-3 py-2.5">
+                <Button
+                    asChild
+                    size="icon"
+                    variant="ghost"
+                    className="lg:hidden"
+                >
+                    <Link href={backHref} aria-label={t('inbox.thread.back')}>
+                        <ArrowLeft />
+                    </Link>
+                </Button>
+                <ContactAvatar name={name} id={c.contact.id} />
+                <div className="min-w-0 flex-1">
+                    <h2
+                        className="truncate text-sm font-semibold"
                         data-testid="thread-title"
                     >
-                        {displayName(c.contact)}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">
+                        {name}
+                    </h2>
+                    <p className="truncate text-xs text-muted-foreground">
                         {t('inbox.thread.via', {
                             phone: c.contact.phone,
                             channel:
@@ -568,45 +711,42 @@ function ThreadMain({
                                 c.phone_number.display_phone_number,
                         })}
                     </p>
-                    <div className="mt-1 flex flex-wrap gap-1">
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                    {c.window_open && c.window_expires_at ? (
                         <Badge
-                            variant={
-                                c.status === 'open' ? 'secondary' : 'outline'
-                            }
+                            variant="secondary"
+                            title={t('inbox.thread.windowHint')}
+                            className="gap-1"
                         >
-                            {c.status === 'open'
-                                ? t('inbox.filters.open')
-                                : t('inbox.filters.closed')}
+                            <Clock className="size-3" />
+                            {t('inbox.thread.windowUntil', {
+                                time: formatDateTime(c.window_expires_at),
+                            })}
                         </Badge>
-                        {c.window_open && c.window_expires_at ? (
-                            <Badge
-                                variant="secondary"
-                                title={t('inbox.thread.windowHint')}
-                            >
-                                {t('inbox.thread.windowUntil', {
-                                    time: formatDateTime(c.window_expires_at),
-                                })}
-                            </Badge>
-                        ) : (
-                            <Badge variant="outline">
-                                {t('inbox.thread.windowClosed')}
-                            </Badge>
-                        )}
-                        {c.contact.opted_out && (
-                            <Badge variant="destructive">
-                                {t('inbox.thread.optedOut')}
-                            </Badge>
-                        )}
-                    </div>
+                    ) : (
+                        <Badge variant="outline">
+                            {t('inbox.thread.windowClosed')}
+                        </Badge>
+                    )}
+                    {c.contact.opted_out && (
+                        <Badge variant="destructive">
+                            {t('inbox.thread.optedOut')}
+                        </Badge>
+                    )}
+                    {c.status === 'closed' && (
+                        <Badge variant="outline">
+                            {t('inbox.filters.closed')}
+                        </Badge>
+                    )}
                 </div>
                 {canAssign && (
                     <ConversationActions c={c} me={me} users={users} />
                 )}
-            </CardHeader>
+            </header>
             <div
                 ref={scroller}
-                className="flex-1 overflow-y-auto p-4"
-                style={{ maxHeight: '60vh' }}
+                className="min-h-0 flex-1 overflow-y-auto bg-[#efeae2] px-3 py-4 dark:bg-[#0b141a]"
                 tabIndex={0}
                 aria-label={t('inbox.thread.messages')}
             >
@@ -614,7 +754,7 @@ function ThreadMain({
                     <div className="mb-3 text-center">
                         <Button
                             size="sm"
-                            variant="outline"
+                            variant="secondary"
                             disabled={pending}
                             onClick={() =>
                                 startTransition(async () => {
@@ -639,26 +779,80 @@ function ThreadMain({
                     </div>
                 )}
                 <ol
-                    className="space-y-2"
+                    className="mx-auto max-w-3xl space-y-1.5"
                     aria-live="polite"
                     data-testid="thread"
                 >
-                    {messages.map((m) => (
-                        <Bubble key={m.id} conversationId={c.id} m={m} />
-                    ))}
+                    {messages.map((m, i) => {
+                        const at =
+                            m.direction === 'inbound'
+                                ? m.occurred_at
+                                : m.created_at;
+                        const prev = messages[i - 1];
+                        const prevAt =
+                            prev &&
+                            (prev.direction === 'inbound'
+                                ? prev.occurred_at
+                                : prev.created_at);
+                        const newDay =
+                            !prev || formatDate(prevAt) !== formatDate(at);
+                        return (
+                            <MessageWithDay
+                                key={m.id}
+                                day={newDay ? dayLabel(at) : null}
+                            >
+                                <Bubble conversationId={c.id} m={m} />
+                            </MessageWithDay>
+                        );
+                    })}
                 </ol>
             </div>
-            <div className="border-t p-3">
+            <div className="border-t bg-background p-3">
                 {canReply ? (
-                    <ReplyBox c={c} templates={data.templates} />
+                    <ReplyBox
+                        c={c}
+                        templates={data.templates}
+                        contact={sampleOf(data)}
+                    />
                 ) : (
                     <p className="text-sm text-muted-foreground">
                         {t('inbox.thread.cannotReply')}
                     </p>
                 )}
             </div>
-        </Card>
+        </div>
     );
+}
+
+function MessageWithDay({
+    day,
+    children,
+}: {
+    day: string | null;
+    children: React.ReactNode;
+}) {
+    return (
+        <>
+            {day && (
+                <li className="flex justify-center py-1" aria-hidden>
+                    <span className="rounded-md bg-white/90 px-2.5 py-0.5 text-[11px] font-medium text-[#54656f] shadow-sm dark:bg-[#182229] dark:text-[#8696a0]">
+                        {day}
+                    </span>
+                </li>
+            )}
+            {children}
+        </>
+    );
+}
+
+function sampleOf(data: ThreadData): SampleContact {
+    const c = data.contact;
+    const name =
+        data.conversation.contact.name ||
+        data.conversation.contact.profile_name;
+    return c
+        ? { ...c, name: c.name || c.profile_name }
+        : { name, phone: data.conversation.contact.phone };
 }
 
 function ConversationActions({
@@ -677,11 +871,10 @@ function ConversationActions({
         [me, t('inbox.thread.me')],
     ]);
     for (const u of users) if (!options.has(u.id)) options.set(u.id, u.name);
-    if (c.assignee && !options.has(c.assignee.id)) {
+    if (c.assignee && !options.has(c.assignee.id))
         options.set(c.assignee.id, c.assignee.name);
-    }
     return (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
             <Select
                 value={c.assignee?.id ?? 'none'}
                 disabled={pending}
@@ -694,7 +887,8 @@ function ConversationActions({
                 }
             >
                 <SelectTrigger
-                    className="w-40"
+                    size="sm"
+                    className="w-36"
                     aria-label={t('inbox.filters.assignee')}
                 >
                     <SelectValue />
@@ -733,27 +927,32 @@ function ConversationActions({
 function ReplyBox({
     c,
     templates,
+    contact,
 }: {
     c: Conversation;
     templates: Template[];
+    contact: SampleContact;
 }) {
     const t = useT();
     const [mode, setMode] = useState(c.window_open ? 'text' : 'template');
     const [text, setText] = useState('');
-    const [template, setTemplate] = useState('');
     const [pending, startTransition] = useTransition();
     const key = useRef(newIdempotencyKey());
     const [attachOpen, setAttachOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
 
-    const send = (reply: Parameters<typeof replyAction>[1]) =>
+    const send = (
+        reply: Parameters<typeof replyAction>[1],
+        after?: () => void,
+    ) =>
         startTransition(async () => {
             const r = await replyAction(c.id, reply, key.current);
             if (notify(r)) {
                 key.current = newIdempotencyKey();
                 setText('');
                 setFile(null);
+                after?.();
             }
         });
     const sendText = async () => {
@@ -800,10 +999,10 @@ function ReplyBox({
         <Tabs value={mode} onValueChange={setMode}>
             <TabsList>
                 <TabsTrigger value="text">
-                    {t('inbox.reply.message')}
+                    <MessageSquare /> {t('inbox.reply.message')}
                 </TabsTrigger>
                 <TabsTrigger value="template">
-                    {t('inbox.reply.template')}
+                    <LayoutTemplate /> {t('inbox.reply.template')}
                 </TabsTrigger>
             </TabsList>
             <TabsContent value="text" className="space-y-2">
@@ -830,7 +1029,7 @@ function ReplyBox({
                             <PopoverTrigger asChild>
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="ghost"
                                     size="icon"
                                     aria-label={t('inbox.reply.attach')}
                                 >
@@ -856,15 +1055,16 @@ function ReplyBox({
                                         variant="secondary"
                                         className="max-w-full truncate"
                                     >
-                                        {file.name}
+                                        <FileText /> {file.name}
                                     </Badge>
                                     <Button
                                         type="button"
                                         variant="ghost"
                                         size="sm"
+                                        aria-label={t('common.remove')}
                                         onClick={() => setFile(null)}
                                     >
-                                        {t('common.remove')}
+                                        <X />
                                     </Button>
                                 </div>
                             )}
@@ -873,6 +1073,7 @@ function ReplyBox({
                                 value={text}
                                 maxLength={file ? 1024 : 4096}
                                 rows={2}
+                                className="max-h-48 min-h-10 resize-none"
                                 placeholder={
                                     file
                                         ? t('inbox.reply.captionPlaceholder')
@@ -892,70 +1093,145 @@ function ReplyBox({
                         </div>
                         <Button
                             type="submit"
+                            size="icon"
+                            aria-label={t('inbox.reply.send')}
                             disabled={
                                 pending || uploading || (!text.trim() && !file)
                             }
                         >
-                            {(pending || uploading) && <Spinner />}{' '}
-                            {t('inbox.reply.send')}
+                            {pending || uploading ? <Spinner /> : <Send />}
                         </Button>
                     </form>
                 )}
             </TabsContent>
-            <TabsContent value="template" className="space-y-2">
-                {c.contact.opted_out && (
-                    <Alert variant="destructive">
-                        <AlertCircle />
-                        <AlertDescription>
-                            {t('inbox.reply.optedOut')}
-                        </AlertDescription>
-                    </Alert>
-                )}
-                {templates.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                        {t('inbox.reply.noTemplates')}
-                    </p>
-                ) : (
-                    <div className="flex items-center gap-2">
-                        <Select value={template} onValueChange={setTemplate}>
-                            <SelectTrigger
-                                className="w-64"
-                                aria-label={t('inbox.reply.template')}
-                            >
-                                <SelectValue
-                                    placeholder={t(
-                                        'inbox.reply.chooseTemplate',
-                                    )}
-                                />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {templates.map((tpl) => (
-                                    <SelectItem
-                                        key={tpl.id}
-                                        value={`${tpl.name}|${tpl.language}`}
-                                    >
-                                        {tpl.name} ({tpl.language})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button
-                            disabled={
-                                pending || !template || c.contact.opted_out
+            <TabsContent value="template">
+                <TemplateComposer
+                    c={c}
+                    templates={templates}
+                    contact={contact}
+                    pending={pending}
+                    onSend={(reply, done) => send(reply, done)}
+                />
+            </TabsContent>
+        </Tabs>
+    );
+}
+
+/** Pick a template, fill its values for this customer, see it, send it. */
+function TemplateComposer({
+    c,
+    templates,
+    contact,
+    pending,
+    onSend,
+}: {
+    c: Conversation;
+    templates: Template[];
+    contact: SampleContact;
+    pending: boolean;
+    onSend: (
+        reply: Parameters<typeof replyAction>[1],
+        done: () => void,
+    ) => void;
+}) {
+    const t = useT();
+    const [chosen, setChosen] = useState('');
+    const [values, setValues] = useState<ParamValues>(emptyValues);
+    const [tried, setTried] = useState(false);
+    const template = templates.find((x) => templateKey(x) === chosen);
+    const shape = useMemo(
+        () => (template ? shapeOf(template) : null),
+        [template],
+    );
+    const attributeKeys = Object.keys(contact.attributes ?? {});
+
+    if (c.contact.opted_out) {
+        return (
+            <Alert variant="destructive">
+                <AlertCircle />
+                <AlertDescription>{t('inbox.reply.optedOut')}</AlertDescription>
+            </Alert>
+        );
+    }
+    if (templates.length === 0) {
+        return (
+            <p className="text-sm text-muted-foreground">
+                {t('inbox.reply.noTemplates')}
+            </p>
+        );
+    }
+    const issues = shape ? issuesOf(values, shape) : [];
+    return (
+        <div className="space-y-3">
+            <Combobox
+                aria-label={t('inbox.reply.template')}
+                value={chosen}
+                onValueChange={(v) => {
+                    setChosen(v);
+                    setValues(emptyValues());
+                    setTried(false);
+                }}
+                placeholder={t('inbox.reply.chooseTemplate')}
+                searchPlaceholder={t('campaigns.wizard.searchTemplates')}
+                emptyText={t('campaigns.wizard.noTemplateMatch')}
+                options={templates.map((x) => ({
+                    value: templateKey(x),
+                    label: `${x.name} (${x.language})`,
+                    keywords: `${x.name} ${x.language} ${x.category}`,
+                }))}
+            />
+            {template && shape && (
+                <div className="grid max-h-[45svh] gap-4 overflow-y-auto md:grid-cols-[1fr_17rem]">
+                    <div className="space-y-3">
+                        <TemplateParamsEditor
+                            shape={shape}
+                            value={values}
+                            onChange={setValues}
+                            attributeKeys={attributeKeys}
+                            phoneNumberId={c.phone_number.id}
+                        />
+                        {tried && <ParamIssues shape={shape} value={values} />}
+                    </div>
+                    <div className="space-y-2">
+                        <WhatsAppPreview
+                            components={template.components}
+                            params={values}
+                            contact={contact}
+                            mediaSrc={
+                                values.mediaPreview ??
+                                values.media?.link ??
+                                shape.exampleMedia
                             }
+                            mediaName={values.media?.filename}
+                        />
+                        <Button
+                            className="w-full"
+                            disabled={pending}
                             onClick={() => {
-                                const [name = '', language = ''] =
-                                    template.split('|');
-                                send({ type: 'template', name, language });
+                                setTried(true);
+                                if (issues.length > 0) return;
+                                onSend(
+                                    {
+                                        type: 'template',
+                                        name: template.name,
+                                        language: template.language,
+                                        params: paramsFromValues(values, shape),
+                                    },
+                                    () => {
+                                        setChosen('');
+                                        setValues(emptyValues());
+                                        setTried(false);
+                                    },
+                                );
                             }}
                         >
-                            {pending && <Spinner />}{' '}
+                            {pending ? <Spinner /> : <Send />}{' '}
                             {t('inbox.reply.sendTemplate')}
                         </Button>
                     </div>
-                )}
-            </TabsContent>
-        </Tabs>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -973,159 +1249,161 @@ function ContactPanel({
     const { contact, notes, events } = data;
     const [note, setNote] = useState('');
     const [pending, startTransition] = useTransition();
+    const name = displayName(data.conversation.contact);
     return (
-        <aside className="space-y-4" aria-label={t('inbox.panel.customer')}>
-            <Card className="gap-3 py-4">
-                <CardHeader className="px-4">
-                    <CardTitle className="text-sm">
-                        {t('inbox.panel.customer')}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 px-4 text-sm">
-                    <p className="font-medium">
-                        {displayName(data.conversation.contact)}
-                    </p>
-                    <p className="text-muted-foreground">
+        <aside
+            className="hidden min-h-0 space-y-5 overflow-y-auto p-4 xl:block"
+            aria-label={t('inbox.panel.customer')}
+        >
+            <div className="flex flex-col items-center gap-2 text-center">
+                <ContactAvatar
+                    name={name}
+                    id={data.conversation.contact.id}
+                    className="size-16 text-base"
+                />
+                <div>
+                    <p className="font-semibold">{name}</p>
+                    <p className="text-sm text-muted-foreground">
                         {data.conversation.contact.phone}
                     </p>
                     {contact?.email && (
-                        <p className="text-muted-foreground">{contact.email}</p>
+                        <p className="text-sm text-muted-foreground">
+                            {contact.email}
+                        </p>
                     )}
-                    <p>
-                        {t('inbox.panel.consent')}{' '}
-                        {data.conversation.contact.opted_out ? (
-                            <Badge variant="destructive">
-                                {t('inbox.thread.optedOut')}
+                </div>
+                {data.conversation.contact.opted_out ? (
+                    <Badge variant="destructive">
+                        {t('inbox.thread.optedOut')}
+                    </Badge>
+                ) : (
+                    <Badge variant="secondary">
+                        {t('inbox.panel.subscribed')}
+                    </Badge>
+                )}
+                {contact && (
+                    <Button asChild size="sm" variant="outline">
+                        <Link href={`/contacts/${contact.id}`}>
+                            <ExternalLink /> {t('inbox.panel.openContact')}
+                        </Link>
+                    </Button>
+                )}
+            </div>
+            {contact && contact.tags.length > 0 && (
+                <section className="space-y-1.5">
+                    <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                        {t('inbox.panel.tags')}
+                    </h3>
+                    <div className="flex flex-wrap gap-1">
+                        {contact.tags.map((tag) => (
+                            <Badge key={tag.id} variant="outline">
+                                {tag.name}
                             </Badge>
-                        ) : (
-                            <Badge variant="secondary">
-                                {t('inbox.panel.subscribed')}
-                            </Badge>
-                        )}
-                    </p>
-                    {contact && contact.tags.length > 0 && (
-                        <div
-                            className="flex flex-wrap gap-1"
-                            aria-label={t('inbox.panel.tags')}
-                        >
-                            {contact.tags.map((tag) => (
-                                <Badge key={tag.id} variant="outline">
-                                    {tag.name}
-                                </Badge>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-            {contact && (
-                <Card className="gap-3 py-4">
-                    <CardHeader className="px-4">
-                        <CardTitle className="text-sm">
-                            {t('inbox.panel.notes')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 px-4 text-sm">
-                        {canNote && (
-                            <form
-                                className="space-y-2"
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    if (!note.trim()) return;
-                                    startTransition(async () => {
-                                        if (
-                                            notify(
-                                                await addNoteAction(
-                                                    contact.id,
-                                                    note.trim(),
-                                                ),
-                                            )
-                                        ) {
-                                            setNote('');
-                                        }
-                                    });
-                                }}
-                            >
-                                <Label htmlFor="note" className="sr-only">
-                                    {t('inbox.panel.newNote')}
-                                </Label>
-                                <Textarea
-                                    id="note"
-                                    rows={2}
-                                    maxLength={5000}
-                                    value={note}
-                                    placeholder={t(
-                                        'inbox.panel.notePlaceholder',
-                                    )}
-                                    onChange={(e) => setNote(e.target.value)}
-                                />
-                                <Button
-                                    size="sm"
-                                    type="submit"
-                                    disabled={pending || !note.trim()}
-                                >
-                                    {t('inbox.panel.addNote')}
-                                </Button>
-                            </form>
-                        )}
-                        {notes.length === 0 ? (
-                            <p className="text-muted-foreground">
-                                {t('inbox.panel.noNotes')}
-                            </p>
-                        ) : (
-                            <ul className="space-y-2">
-                                {notes.slice(0, 5).map((n) => (
-                                    <li key={n.id}>
-                                        <p className="whitespace-pre-wrap">
-                                            {n.body}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {n.author_name} ·{' '}
-                                            {formatDateTime(n.created_at)}
-                                        </p>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </CardContent>
-                </Card>
+                        ))}
+                    </div>
+                </section>
             )}
-            <Card className="gap-3 py-4">
-                <CardHeader className="px-4">
-                    <CardTitle className="text-sm">
-                        {t('inbox.panel.history')}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 text-sm">
-                    {events.length === 0 ? (
-                        <p className="text-muted-foreground">
-                            {t('inbox.panel.noHistory')}
+            {contact && (
+                <section className="space-y-2">
+                    <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                        {t('inbox.panel.notes')}
+                    </h3>
+                    {canNote && (
+                        <form
+                            className="space-y-2"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!note.trim()) return;
+                                startTransition(async () => {
+                                    if (
+                                        notify(
+                                            await addNoteAction(
+                                                contact.id,
+                                                note.trim(),
+                                            ),
+                                        )
+                                    )
+                                        setNote('');
+                                });
+                            }}
+                        >
+                            <Label htmlFor="note" className="sr-only">
+                                {t('inbox.panel.newNote')}
+                            </Label>
+                            <Textarea
+                                id="note"
+                                rows={2}
+                                maxLength={5000}
+                                value={note}
+                                placeholder={t('inbox.panel.notePlaceholder')}
+                                onChange={(e) => setNote(e.target.value)}
+                            />
+                            <Button
+                                size="sm"
+                                type="submit"
+                                disabled={pending || !note.trim()}
+                            >
+                                {t('inbox.panel.addNote')}
+                            </Button>
+                        </form>
+                    )}
+                    {notes.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                            {t('inbox.panel.noNotes')}
                         </p>
                     ) : (
-                        <ul className="space-y-1.5">
-                            {events.slice(0, 10).map((e) => (
-                                <li key={e.id}>
-                                    {t(`inbox.panel.events.${e.kind}`)}
-                                    {e.assignee
-                                        ? t('inbox.panel.to', {
-                                              name: e.assignee.name,
-                                          })
-                                        : ''}
-                                    <span className="block text-xs text-muted-foreground">
-                                        {e.actor_type === 'system'
-                                            ? t('inbox.panel.byCustomer')
-                                            : t('inbox.panel.by', {
-                                                  name:
-                                                      e.actor_name ??
-                                                      t('inbox.panel.apiKey'),
-                                              })}{' '}
-                                        · {formatDateTime(e.created_at)}
-                                    </span>
+                        <ul className="space-y-2 text-sm">
+                            {notes.slice(0, 5).map((n) => (
+                                <li
+                                    key={n.id}
+                                    className="rounded-md bg-amber-500/10 p-2"
+                                >
+                                    <p className="whitespace-pre-wrap">
+                                        {n.body}
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {n.author_name} ·{' '}
+                                        {formatDateTime(n.created_at)}
+                                    </p>
                                 </li>
                             ))}
                         </ul>
                     )}
-                </CardContent>
-            </Card>
+                </section>
+            )}
+            <section className="space-y-2">
+                <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    {t('inbox.panel.history')}
+                </h3>
+                {events.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                        {t('inbox.panel.noHistory')}
+                    </p>
+                ) : (
+                    <ol className="space-y-2 border-l pl-3 text-sm">
+                        {events.slice(0, 10).map((e) => (
+                            <li key={e.id}>
+                                {t(`inbox.panel.events.${e.kind}`)}
+                                {e.assignee
+                                    ? t('inbox.panel.to', {
+                                          name: e.assignee.name,
+                                      })
+                                    : ''}
+                                <span className="block text-xs text-muted-foreground">
+                                    {e.actor_type === 'system'
+                                        ? t('inbox.panel.byCustomer')
+                                        : t('inbox.panel.by', {
+                                              name:
+                                                  e.actor_name ??
+                                                  t('inbox.panel.apiKey'),
+                                          })}{' '}
+                                    · {formatDateTime(e.created_at)}
+                                </span>
+                            </li>
+                        ))}
+                    </ol>
+                )}
+            </section>
         </aside>
     );
 }

@@ -6,6 +6,7 @@ const templates: Messages['templates'] = {
         "Meta'nın onayladığı mesaj şablonları 24 saatlik pencerenin dışında ve kampanyalarda gönderilebilir.",
     loading: 'Yükleniyor',
     syncFromMeta: "Meta'dan eşitle",
+    synced: 'Eşitlendi: {count} şablon.',
     statuses: {
         APPROVED: 'Onaylandı',
         PENDING: 'Onay bekliyor',
@@ -26,6 +27,22 @@ const templates: Messages['templates'] = {
         clear: 'Filtreleri temizle',
     },
     list: {
+        search: 'Şablon ara',
+        category: 'Kategori',
+        allCategories: 'Tüm kategoriler',
+        language: 'Dil',
+        allLanguages: 'Tüm diller',
+        headerType: 'Başlık',
+        allHeaders: 'Tüm başlıklar',
+        mediaHeader: 'Görsel, video veya belge',
+        count: '{count} şablon',
+        useInCampaign: 'Kampanyada kullan',
+        details: 'Ayrıntılar',
+        status: 'Durum',
+        parameterFormat: 'Değişkenler',
+        qualityLabel: 'Kalite',
+        syncedLabel: 'Eşitlendi',
+        variables: 'Değişkenler ve örnekler',
         label: 'Şablonlar',
         emptyFiltered: 'Bu filtrelere uyan şablon yok',
         empty: 'Henüz şablon yok',
@@ -74,6 +91,16 @@ const templates: Messages['templates'] = {
         },
     },
     create: {
+        headerKinds: {
+            NONE: 'Yok',
+            TEXT: 'Metin',
+            IMAGE: 'Görsel',
+            VIDEO: 'Video',
+            DOCUMENT: 'Belge',
+        },
+        sampleHint:
+            'Meta incelemesi için örnek dosya (JPEG/PNG, MP4 veya PDF).',
+        sampleUploaded: 'Örnek yüklendi: {name}',
         open: 'Yeni şablon',
         title: 'Yeni şablon',
         description:
@@ -121,6 +148,8 @@ const templates: Messages['templates'] = {
         submitted: 'Şablon incelemeye gönderildi.',
     },
     validation: {
+        headerText: 'Başlık metnini yazın.',
+        headerSample: 'Başlık için örnek bir dosya yükleyin.',
         chooseAccount: 'Bir hesap seçin.',
         name: 'Küçük harf, rakam ve alt çizgi kullanın.',
         language: 'Dil kodu, ör. tr veya en_US.',

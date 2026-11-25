@@ -1,7 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Template, WhatsAppAccount } from '@/lib/types';
@@ -10,6 +7,7 @@ import { getT } from '@/i18n/server';
 import { PageHeading } from '../panel-header';
 import {
     CreateTemplateDialog,
+    SyncTemplatesButton,
     TemplateFilters,
     TemplateList,
 } from './templates-client';
@@ -63,12 +61,8 @@ export default async function TemplatesPage({
                 description={t('templates.description')}
                 actions={
                     <div className="flex flex-wrap gap-2">
-                        {can(me, 'channels.read') && (
-                            <Button variant="outline" asChild shortcut="s">
-                                <Link href="/channels">
-                                    <RefreshCw /> {t('templates.syncFromMeta')}
-                                </Link>
-                            </Button>
+                        {can(me, 'channels.manage') && accounts && (
+                            <SyncTemplatesButton accounts={accounts} />
                         )}
                         {manage && accounts && accounts.length > 0 && (
                             <CreateTemplateDialog accounts={accounts} />
@@ -85,6 +79,7 @@ export default async function TemplatesPage({
                 <TemplateList
                     templates={templates}
                     manage={manage}
+                    canCampaign={can(me, 'campaigns.create')}
                     filtered={!!(account || status)}
                     hasAccounts={accountOptions.length > 0 || !!account}
                 />

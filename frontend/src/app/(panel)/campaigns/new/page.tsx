@@ -10,8 +10,14 @@ export async function generateMetadata(): Promise<Metadata> {
     return { title: t('campaigns.newCampaign') };
 }
 
-export default async function NewCampaignPage() {
+export default async function NewCampaignPage({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | undefined>>;
+}) {
     const me = await requirePermission('campaigns.create');
+    // "Use in a campaign" from the templates page: name|language.
+    const template = ((await searchParams).template ?? '').slice(0, 600);
     const [data, t] = await Promise.all([loadWizardData(me), getT()]);
     return (
         <>
@@ -19,7 +25,7 @@ export default async function NewCampaignPage() {
                 title={t('campaigns.newCampaign')}
                 description={t('campaigns.newDescription')}
             />
-            <CampaignWizard data={data} />
+            <CampaignWizard data={data} initialTemplate={template} />
         </>
     );
 }

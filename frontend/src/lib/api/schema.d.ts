@@ -820,6 +820,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/templates/samples': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload the example file of a media-header template
+         * @description Meta reviews media-header templates with an example file. Send it as the raw body; the returned handle goes into the header component as example.header_handle. Needs the account's App ID. Images (JPEG, PNG) up to 5 MB, video (MP4) up to 16 MB, documents (PDF) up to 100 MB.
+         */
+        post: operations['uploadTemplateSample'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/media': {
         parameters: {
             query?: never;
@@ -869,6 +889,23 @@ export interface paths {
         put?: never;
         /** Add a contact */
         post: operations['createContact'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contacts/attribute-keys': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Custom attribute keys in use (for {{attr:key}} placeholders) */
+        get: operations['listContactAttributeKeys'];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2887,6 +2924,11 @@ export interface components {
         ConversationPhoneNumber: {
             /** Format: uuid */
             id: string;
+            /**
+             * Format: uuid
+             * @description The WhatsApp account the number belongs to (its templates can be sent).
+             */
+            account_id: string;
             display_phone_number: string;
             verified_name: string;
         };
@@ -3006,9 +3048,12 @@ export interface components {
             template?: {
                 name: string;
                 language: string;
+                /** @description Raw Meta components. Prefer params. */
                 components?: {
                     [key: string]: unknown;
                 }[];
+                /** @description Values for the template's variables, header media and URL buttons, in the campaign format; placeholders such as {{first_name}} are filled from the conversation's contact. Checked against the template before sending. */
+                params?: components['schemas']['CampaignParams'];
             };
             media?: components['schemas']['MediaRef'];
         };
@@ -3449,6 +3494,17 @@ export interface components {
             size: number;
             /** Format: date-time */
             expires_at: string;
+        };
+        TemplateSample: {
+            /** @description For example.header_handle of the template's header. */
+            handle: string;
+            mime_type: string;
+            /** Format: int64 */
+            size: number;
+        };
+        TemplateSampleResponse: {
+            data: components['schemas']['TemplateSample'];
+            meta: components['schemas']['Meta'];
         };
         UploadedMediaResponse: {
             data: components['schemas']['UploadedMedia'];
@@ -4809,6 +4865,34 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    uploadTemplateSample: {
+        parameters: {
+            query: {
+                account_id: string;
+                filename: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/octet-stream': string;
+            };
+        };
+        responses: {
+            /** @description Uploaded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TemplateSampleResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     uploadMedia: {
         parameters: {
             query: {
@@ -4918,6 +5002,30 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['ContactResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listContactAttributeKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Keys, most used first (at most 200) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': {
+                        data: string[];
+                        meta: components['schemas']['Meta'];
+                    };
                 };
             };
             default: components['responses']['Error'];

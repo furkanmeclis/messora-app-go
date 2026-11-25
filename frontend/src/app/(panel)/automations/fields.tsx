@@ -38,6 +38,9 @@ import {
     TRIGGER_TYPES,
     type TriggerForm,
 } from './model';
+import { TemplateParamsEditor } from '@/components/template-params';
+import { paramsFromValues, shapeOf, valuesFromParams } from '@/lib/templates';
+import type { CampaignParams, Template } from '@/lib/types';
 
 export type StepPatch = (
     fn: (s: EditorStep) => EditorStep,
@@ -643,44 +646,72 @@ function TemplateFields({ step, edit, errors, options, readOnly }: Props) {
                     </p>
                 </div>
             )}
-            {(['header', 'body'] as const).map((part) =>
-                spec[part].names.length ? (
-                    <fieldset key={part} className="grid gap-3">
-                        <legend className="mb-1 text-sm font-medium">
-                            {t(mk(`automations.fields.${part}Variables`))}
-                        </legend>
-                        {spec[part].names.map((n, i) => (
-                            <PlaceholderText
-                                key={n}
-                                id={id(`${part}-${n}`)}
-                                label={`{{${n}}}`}
-                                value={readVar(
-                                    tpl[part],
-                                    spec[part].named,
-                                    n,
-                                    i,
-                                )}
-                                onChange={(v) =>
-                                    setTpl(
-                                        {
-                                            [part]: writeVar(
-                                                tpl[part],
-                                                spec[part],
-                                                n,
-                                                i,
-                                                v,
-                                            ),
-                                        },
-                                        `${part}-${n}`,
-                                    )
-                                }
-                                readOnly={readOnly}
-                                maxLength={1024}
-                            />
-                        ))}
-                    </fieldset>
-                ) : null,
+            {known && (
+                <TemplateParamsEditor
+                    shape={shapeOf(known as unknown as Template)}
+                    value={valuesFromParams(
+                        tpl as CampaignParams,
+                        shapeOf(known as unknown as Template),
+                    )}
+                    onChange={(v) => {
+                        const p = paramsFromValues(
+                            v,
+                            shapeOf(known as unknown as Template),
+                        );
+                        setTpl(
+                            {
+                                header: p.header,
+                                body: p.body,
+                                buttons: p.buttons,
+                                fallback: p.fallback,
+                                header_media: p.header_media,
+                            },
+                            'params',
+                        );
+                    }}
+                    attributeKeys={options.attributeKeys}
+                    disabled={readOnly}
+                />
             )}
+            {!known &&
+                (['header', 'body'] as const).map((part) =>
+                    spec[part].names.length ? (
+                        <fieldset key={part} className="grid gap-3">
+                            <legend className="mb-1 text-sm font-medium">
+                                {t(mk(`automations.fields.${part}Variables`))}
+                            </legend>
+                            {spec[part].names.map((n, i) => (
+                                <PlaceholderText
+                                    key={n}
+                                    id={id(`${part}-${n}`)}
+                                    label={`{{${n}}}`}
+                                    value={readVar(
+                                        tpl[part],
+                                        spec[part].named,
+                                        n,
+                                        i,
+                                    )}
+                                    onChange={(v) =>
+                                        setTpl(
+                                            {
+                                                [part]: writeVar(
+                                                    tpl[part],
+                                                    spec[part],
+                                                    n,
+                                                    i,
+                                                    v,
+                                                ),
+                                            },
+                                            `${part}-${n}`,
+                                        )
+                                    }
+                                    readOnly={readOnly}
+                                    maxLength={1024}
+                                />
+                            ))}
+                        </fieldset>
+                    ) : null,
+                )}
             <p className="text-xs text-muted-foreground">
                 {t('automations.fields.templateHint')}
             </p>

@@ -322,6 +322,74 @@ test('a paused campaign resumes and its dashboard follows it live', async ({
     noErrors();
 });
 
+test('image-header templates: the wizard takes the image and keeps it on edit', async ({
+    page,
+}) => {
+    const noErrors = watchErrors(page);
+    // The channel was seeded by the previous test.
+    sql(`
+        INSERT INTO message_templates (account_id, meta_template_id, name, language, category, status, components)
+        SELECT account_id, 'e2e-photo-${TAG}', 'e2e_photo', 'tr', 'MARKETING', 'APPROVED',
+               '[{"type":"HEADER","format":"IMAGE"},{"type":"BODY","text":"Merhaba {{1}}!"},
+                 {"type":"BUTTONS","buttons":[{"type":"QUICK_REPLY","text":"Dur"},{"type":"URL","text":"Bak","url":"https://shop.test/{{1}}"}]}]'::jsonb
+        FROM phone_numbers WHERE phone_number_id = '9002${TAG}';`);
+    const name = `E2E photo ${TAG}`;
+    await signIn(page);
+    await page.goto('/campaigns/new');
+    await page.getByLabel('Name', { exact: true }).fill(name);
+    await page.getByRole('combobox', { name: 'Sender' }).click();
+    await page.getByRole('option', { name: new RegExp(`555 ${TAG}`) }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('combobox', { name: 'Template' }).click();
+    await page.getByRole('option', { name: /e2e_photo/ }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    // Nothing filled: the image, the variable and the button are asked for.
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page.getByText('Add the header image.')).toBeVisible();
+    await page.getByRole('radio', { name: 'Link' }).click();
+    await page.getByLabel('Link').fill('https://cdn.example.com/kampanya.jpg');
+    await page.getByRole('combobox', { name: 'Body {{1}}' }).click();
+    await page.getByRole('option', { name: 'Full name' }).click();
+    await page.getByRole('radio', { name: 'Fixed text' }).last().click();
+    await page
+        .getByRole('textbox', { name: 'Button 2: end of the address' })
+        .fill('yaz-indirimi');
+    await expect(
+        page.getByTestId('template-preview').locator('img'),
+    ).toHaveAttribute('src', 'https://cdn.example.com/kampanya.jpg');
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('radio', { name: 'All contacts' }).check();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('button', { name: 'Save draft' }).click();
+    await expect(page).toHaveURL(/\/campaigns\/[0-9a-f-]{36}$/);
+
+    const params = JSON.parse(
+        sql(
+            `SELECT template_params::text FROM campaigns WHERE name = '${name}'`,
+        ),
+    );
+    expect(params).toEqual({
+        body: ['{{name}}'],
+        buttons: ['', 'yaz-indirimi'],
+        header_media: {
+            type: 'image',
+            link: 'https://cdn.example.com/kampanya.jpg',
+            filename: undefined,
+        },
+    });
+
+    // Editing keeps the image (it used to be dropped).
+    const id = page.url().split('/').pop();
+    await page.goto(`/campaigns/${id}/edit`);
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page.getByTestId('param-media')).toContainText(
+        'https://cdn.example.com/kampanya.jpg',
+    );
+    noErrors();
+});
+
 test('the wizard saves a draft with mapped variables, which can be deleted', async ({
     page,
 }) => {
@@ -345,16 +413,19 @@ test('the wizard saves a draft with mapped variables, which can be deleted', asy
     );
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Placeholder chips insert contact data; a fallback covers empty names.
-    const value = page.getByRole('textbox', { name: 'Body {{1}}' });
+    // Each variable maps to a contact field; a value covers empty names.
     await page.getByRole('button', { name: 'Next' }).click();
-    await expect(page.getByText('Required.')).toBeVisible();
-    await page.getByRole('button', { name: '{{first_name}}' }).click();
-    await expect(value).toHaveValue('{{first_name}}');
+    await expect(page.getByText('Body {{1}} needs a value.')).toBeVisible();
+    await page.getByRole('combobox', { name: 'Body {{1}}' }).click();
+    await page.getByRole('option', { name: 'First name' }).click();
+    // The preview shows a real contact's value, not the placeholder.
     await expect(page.getByTestId('template-preview')).toContainText(
-        'Hi {{first_name}}, our sale',
+        'our sale starts today',
     );
-    await page.getByLabel('If {{first_name}} is empty').fill('there');
+    await expect(page.getByTestId('template-preview')).not.toContainText(
+        '{{1}}',
+    );
+    await page.getByLabel('If empty: First name').fill('there');
     await page.getByRole('button', { name: 'Next' }).click();
 
     await expect(

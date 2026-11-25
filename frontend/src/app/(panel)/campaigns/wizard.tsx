@@ -18,7 +18,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -50,10 +49,26 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { useT } from '@/i18n/client';
 import type { Translate } from '@/i18n/translate';
-import { slotsOf, templateKey } from '@/lib/templates';
+import {
+    emptyValues,
+    fieldOf,
+    issuesOf,
+    isMediaHeader,
+    paramsFromValues,
+    shapeOf,
+    templateKey,
+    valuesFromParams,
+    type ParamValues,
+    type SampleContact,
+} from '@/lib/templates';
+import {
+    ParamIssues,
+    TemplateParamsEditor,
+} from '@/components/template-params';
+import { WhatsAppPreview } from '@/components/whatsapp-preview';
+import { Combobox } from '@/components/ui/combobox';
 import { formatInZone, utcToZoned, zonedToUtc } from '@/lib/timezone';
 import type { ActionResult, Campaign, Template } from '@/lib/types';
-import { TemplatePreview } from '../templates/template-preview';
 import {
     audienceEstimateAction,
     saveCampaignAction,
@@ -72,11 +87,7 @@ type State = {
     /** '' = the default number. */
     phoneNumberId: string;
     template: string;
-    header: Record<string, string>;
-    body: Record<string, string>;
-    /** Button position → value for dynamic URL buttons. */
-    buttons: Record<string, string>;
-    fallback: Record<string, string>;
+    params: ParamValues;
     audienceKind: AudienceKind;
     audienceId: string;
     windowSize: string;
@@ -100,53 +111,34 @@ function categoryLabel(t: Translate, category: string): string {
     return (c ? t(`templates.categories.${c}`) : category).toLowerCase();
 }
 
-const PLACEHOLDERS = [
-    'name',
-    'first_name',
-    'phone',
-    'email',
-    'var1',
-    'var2',
-    'var3',
-    'var4',
-    'var5',
-];
-const PLACEHOLDER_RE = /\{\{\s*([a-z0-9_]+(?::[A-Za-z0-9_ .-]+)?)\s*\}\}/g;
-
-function placeholdersIn(values: string[]): string[] {
-    const out: string[] = [];
-    for (const v of values) {
-        for (const m of v.matchAll(PLACEHOLDER_RE)) {
-            if (!out.includes(m[1]!)) out.push(m[1]!);
-        }
-    }
-    return out;
-}
-
 /** At least a minute ahead (the API starts anything sooner right away). */
 function isFuture(at: Date): boolean {
     return at.getTime() > Date.now() + 60_000;
 }
 
-function toRecord(
-    v: string[] | Record<string, string> | undefined,
-): Record<string, string> {
-    if (!v) return {};
-    if (Array.isArray(v))
-        return Object.fromEntries(v.map((x, i) => [String(i + 1), x]));
-    return { ...v };
-}
-
-function initialState(c: Campaign | undefined, timezone: string): State {
+function initialState(
+    c: Campaign | undefined,
+    timezone: string,
+    templates: Template[],
+    numbers: WizardData['numbers'],
+    initialTemplate?: string,
+): State {
     if (!c) {
+        // Preselected from the templates page: also pick a sender of the
+        // template's account (templates are per account).
+        const pre = initialTemplate
+            ? templates.find((x) => templateKey(x) === initialTemplate)
+            : undefined;
+        const def = numbers?.find((n) => n.is_default);
+        const sender =
+            pre && def?.account_id !== pre.account_id
+                ? numbers?.find((n) => n.account_id === pre.account_id)
+                : undefined;
         return {
             name: '',
-            phoneNumberId: '',
-            template: '',
-            header: {},
-            body: {},
-            buttons: {},
-            fallback: {},
+            phoneNumberId: sender?.id ?? '',
+            template: pre ? templateKey(pre) : '',
+            params: emptyValues(),
             audienceKind: 'segment',
             audienceId: '',
             windowSize: '',
@@ -162,7 +154,9 @@ function initialState(c: Campaign | undefined, timezone: string): State {
           : a.tag_id
             ? 'tag'
             : 'segment';
-    const p = c.template_params ?? {};
+    const tpl = templates.find(
+        (x) => x.name === c.template_name && x.language === c.template_language,
+    );
     return {
         name: c.name,
         phoneNumberId: c.phone_number_id,
@@ -170,12 +164,10 @@ function initialState(c: Campaign | undefined, timezone: string): State {
             name: c.template_name,
             language: c.template_language,
         }),
-        header: toRecord(p.header),
-        body: toRecord(p.body),
-        buttons: Object.fromEntries(
-            (p.buttons ?? []).map((v, i) => [String(i), v]),
-        ),
-        fallback: { ...(p.fallback ?? {}) },
+        // Everything stored is kept on edit, header media included.
+        params: tpl
+            ? valuesFromParams(c.template_params, shapeOf(tpl))
+            : emptyValues(),
         audienceKind: kind,
         audienceId: a.segment_id ?? a.group_id ?? a.tag_id ?? '',
         windowSize: c.window_size ? String(c.window_size) : '',
@@ -196,15 +188,23 @@ function stepOf(field: string): number {
 export function CampaignWizard({
     data,
     campaign,
+    initialTemplate,
 }: {
     data: WizardData;
     campaign?: Campaign;
+    initialTemplate?: string;
 }) {
     const t = useT();
     const router = useRouter();
     const { guard } = useReauth();
     const [s, setS] = useState<State>(() =>
-        initialState(campaign, data.timezone),
+        initialState(
+            campaign,
+            data.timezone,
+            data.templates,
+            data.numbers,
+            initialTemplate,
+        ),
     );
     const [step, setStep] = useState(0);
     const [savedId, setSavedId] = useState<string | null>(campaign?.id ?? null);
@@ -239,20 +239,13 @@ export function CampaignWizard({
     const template: Template | undefined = templates.find(
         (t) => templateKey(t) === s.template,
     );
-    const slots = template ? slotsOf(template) : null;
-    const buttonGap =
-        !!slots &&
-        slots.urlButtons.length > 0 &&
-        slots.urlButtons.some((pos, i) => pos !== i);
-
-    const usedValues = slots
-        ? [
-              ...slots.header.map((v) => s.header[v] ?? ''),
-              ...slots.body.map((v) => s.body[v] ?? ''),
-              ...slots.urlButtons.map((p) => s.buttons[String(p)] ?? ''),
-          ]
-        : [];
-    const usedPlaceholders = placeholdersIn(usedValues);
+    const shape = useMemo(
+        () => (template ? shapeOf(template) : null),
+        [template],
+    );
+    const sample: SampleContact | undefined = data.sample
+        ? { ...data.sample, name: data.sample.name || data.sample.profile_name }
+        : undefined;
 
     const names: Record<string, string> = {};
     for (const x of data.segments ?? []) names[x.id] = x.name;
@@ -311,18 +304,11 @@ export function CampaignWizard({
         if (i === 1) {
             if (!template)
                 e.template = t('campaigns.wizard.errors.chooseTemplate');
-            else if (slots?.mediaHeader)
-                e.template = t('campaigns.wizard.errors.mediaHeader');
+            else if (shape?.header === 'location')
+                e.template = t('params.issues.location');
         }
-        if (i === 2 && slots) {
-            const required = t('campaigns.wizard.errors.required');
-            for (const v of slots.header)
-                if (!s.header[v]?.trim()) e[`header.${v}`] = required;
-            for (const v of slots.body)
-                if (!s.body[v]?.trim()) e[`body.${v}`] = required;
-            for (const p of slots.urlButtons)
-                if (!s.buttons[String(p)]?.trim()) e[`button.${p}`] = required;
-            if (buttonGap) e.buttons = t('campaigns.wizard.errors.buttonGap');
+        if (i === 2 && shape && issuesOf(s.params, shape).length > 0) {
+            e.params = t('params.issues.title');
         }
         if (i === 3) {
             if (s.audienceKind !== 'all' && !s.audienceId)
@@ -366,24 +352,8 @@ export function CampaignWizard({
 
     // ── Saving ──────────────────────────────────────────────────────────
     function buildInput(): CampaignInput | null {
-        if (!template || !slots) return null;
-        const pick = (vars: string[], src: Record<string, string>) =>
-            slots.named
-                ? Object.fromEntries(vars.map((v) => [v, src[v]?.trim() ?? '']))
-                : vars.map((v) => src[v]?.trim() ?? '');
-        const params: CampaignInput['template_params'] = {};
-        if (slots.header.length) params.header = pick(slots.header, s.header);
-        if (slots.body.length) params.body = pick(slots.body, s.body);
-        if (slots.urlButtons.length)
-            params.buttons = slots.urlButtons.map(
-                (p) => s.buttons[String(p)]?.trim() ?? '',
-            );
-        const fallback = Object.fromEntries(
-            usedPlaceholders
-                .map((k) => [k, s.fallback[k]?.trim() ?? ''] as const)
-                .filter(([, v]) => v),
-        );
-        if (Object.keys(fallback).length) params.fallback = fallback;
+        if (!template || !shape) return null;
+        const params = paramsFromValues(s.params, shape);
         const audience: CampaignInput['audience'] =
             s.audienceKind === 'all'
                 ? { all: true }
@@ -476,6 +446,14 @@ export function CampaignWizard({
         });
 
     // ── Rendering helpers ───────────────────────────────────────────────
+    /** A value as the review shows it: the field's name or the text. */
+    const describe = (v: string | undefined) => {
+        const f = fieldOf(v);
+        if (!f) return v?.trim() || '—';
+        return f.startsWith('attr:')
+            ? t('params.attribute', { key: f.slice(5) })
+            : t(`params.fields.${f as 'name'}`);
+    };
     const err = (k: string) =>
         errors[k] ? (
             <p
@@ -502,6 +480,7 @@ export function CampaignWizard({
                 'window_size',
                 'scheduled_at',
                 'buttons',
+                'params',
             ].includes(k) && !/^(header|body|button)\./.test(k),
     );
 
@@ -713,45 +692,57 @@ export function CampaignWizard({
                                         </AlertDescription>
                                     </Alert>
                                 ) : (
-                                    <Select
+                                    <Combobox
+                                        id="cw-template"
                                         value={template ? s.template : ''}
                                         onValueChange={(v) =>
                                             setS((p) => ({
                                                 ...p,
                                                 template: v,
-                                                header: {},
-                                                body: {},
-                                                buttons: {},
+                                                params: emptyValues(),
                                             }))
                                         }
-                                    >
-                                        <SelectTrigger
-                                            id="cw-template"
-                                            className="w-full"
-                                            {...aria('template')}
-                                        >
-                                            <SelectValue
-                                                placeholder={t(
-                                                    'campaigns.wizard.chooseTemplate',
-                                                )}
-                                            />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {templates.map((tpl) => (
-                                                <SelectItem
-                                                    key={tpl.id}
-                                                    value={templateKey(tpl)}
-                                                >
-                                                    {tpl.name} ({tpl.language})
-                                                    ·{' '}
-                                                    {categoryLabel(
+                                        placeholder={t(
+                                            'campaigns.wizard.chooseTemplate',
+                                        )}
+                                        searchPlaceholder={t(
+                                            'campaigns.wizard.searchTemplates',
+                                        )}
+                                        emptyText={t(
+                                            'campaigns.wizard.noTemplateMatch',
+                                        )}
+                                        options={templates.map((tpl) => {
+                                            const sh = shapeOf(tpl);
+                                            const vars =
+                                                sh.headerVars.length +
+                                                sh.bodyVars.length +
+                                                sh.urlButtons.length;
+                                            return {
+                                                value: templateKey(tpl),
+                                                label: `${tpl.name} (${tpl.language})`,
+                                                keywords: `${tpl.name} ${tpl.language} ${tpl.category}`,
+                                                hint: [
+                                                    categoryLabel(
                                                         t,
                                                         tpl.category,
-                                                    )}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                                    ),
+                                                    isMediaHeader(sh.header)
+                                                        ? t(
+                                                              `params.media.${sh.header}`,
+                                                          )
+                                                        : null,
+                                                    vars > 0
+                                                        ? t(
+                                                              'campaigns.wizard.variableCount',
+                                                              { count: vars },
+                                                          )
+                                                        : null,
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(' · '),
+                                            };
+                                        })}
+                                    />
                                 )}
                                 {err('template') ??
                                     err('template_name') ??
@@ -762,8 +753,9 @@ export function CampaignWizard({
                                     <p className="text-sm font-medium">
                                         {t('campaigns.wizard.preview')}
                                     </p>
-                                    <TemplatePreview
+                                    <WhatsAppPreview
                                         components={template.components}
+                                        mediaSrc={shape?.exampleMedia}
                                     />
                                 </div>
                             )}
@@ -771,159 +763,50 @@ export function CampaignWizard({
                     )}
 
                     {step === 2 &&
-                        (!slots ? (
+                        (!shape || !template ? (
                             <p className="text-sm text-muted-foreground">
                                 {t('campaigns.wizard.chooseTemplateFirst')}
                             </p>
                         ) : (
-                            <div className="grid gap-6 md:grid-cols-[1fr_18rem]">
-                                <div className="space-y-6">
-                                    {slots.header.length +
-                                        slots.body.length +
-                                        slots.urlButtons.length ===
-                                        0 && (
-                                        <p className="text-sm text-muted-foreground">
-                                            {t('campaigns.wizard.noVariables')}
-                                        </p>
-                                    )}
-                                    {slots.header.map((v) => (
-                                        <VariableInput
-                                            key={`h-${v}`}
-                                            id={`header.${v}`}
-                                            label={t(
-                                                'campaigns.wizard.headerVar',
-                                                {
-                                                    var: v,
-                                                },
-                                            )}
-                                            value={s.header[v] ?? ''}
-                                            error={
-                                                errors[`header.${v}`] ??
-                                                errors[`template_params.header`]
-                                            }
-                                            onChange={(x) =>
-                                                set('header', {
-                                                    ...s.header,
-                                                    [v]: x,
-                                                })
-                                            }
+                            <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+                                <div className="space-y-4">
+                                    <TemplateParamsEditor
+                                        shape={shape}
+                                        value={s.params}
+                                        onChange={(v) => set('params', v)}
+                                        attributeKeys={data.attributeKeys}
+                                        phoneNumberId={sender?.id}
+                                    />
+                                    {errors.params && (
+                                        <ParamIssues
+                                            shape={shape}
+                                            value={s.params}
                                         />
-                                    ))}
-                                    {slots.body.map((v) => (
-                                        <VariableInput
-                                            key={`b-${v}`}
-                                            id={`body.${v}`}
-                                            label={t(
-                                                'campaigns.wizard.bodyVar',
-                                                {
-                                                    var: v,
-                                                },
-                                            )}
-                                            value={s.body[v] ?? ''}
-                                            error={errors[`body.${v}`]}
-                                            onChange={(x) =>
-                                                set('body', {
-                                                    ...s.body,
-                                                    [v]: x,
-                                                })
-                                            }
-                                        />
-                                    ))}
-                                    {slots.urlButtons.map((p) => (
-                                        <VariableInput
-                                            key={`u-${p}`}
-                                            id={`button.${p}`}
-                                            label={t(
-                                                'campaigns.wizard.websiteButton',
-                                                {
-                                                    n: p + 1,
-                                                },
-                                            )}
-                                            value={s.buttons[String(p)] ?? ''}
-                                            error={errors[`button.${p}`]}
-                                            onChange={(x) =>
-                                                set('buttons', {
-                                                    ...s.buttons,
-                                                    [String(p)]: x,
-                                                })
-                                            }
-                                        />
-                                    ))}
-                                    {errors.buttons && (
-                                        <Alert variant="destructive">
-                                            <AlertCircle />
-                                            <AlertDescription role="alert">
-                                                {errors.buttons}
-                                            </AlertDescription>
-                                        </Alert>
-                                    )}
-                                    {usedPlaceholders.length > 0 && (
-                                        <FieldSet>
-                                            <FieldLegend variant="label">
-                                                {t(
-                                                    'campaigns.wizard.fallbacks',
-                                                )}
-                                            </FieldLegend>
-                                            <FieldDescription>
-                                                {t(
-                                                    'campaigns.wizard.fallbacksHint',
-                                                )}
-                                            </FieldDescription>
-                                            <div className="grid gap-3 sm:grid-cols-2">
-                                                {usedPlaceholders.map((k) => (
-                                                    <Field key={k}>
-                                                        <FieldLabel
-                                                            htmlFor={`cw-fallback-${k}`}
-                                                        >
-                                                            {t(
-                                                                'campaigns.wizard.ifEmpty',
-                                                                {
-                                                                    key: k,
-                                                                },
-                                                            )}
-                                                        </FieldLabel>
-                                                        <Input
-                                                            id={`cw-fallback-${k}`}
-                                                            value={
-                                                                s.fallback[k] ??
-                                                                ''
-                                                            }
-                                                            maxLength={1024}
-                                                            placeholder={t(
-                                                                'campaigns.wizard.skipContact',
-                                                            )}
-                                                            onChange={(e) =>
-                                                                set(
-                                                                    'fallback',
-                                                                    {
-                                                                        ...s.fallback,
-                                                                        [k]: e
-                                                                            .target
-                                                                            .value,
-                                                                    },
-                                                                )
-                                                            }
-                                                        />
-                                                    </Field>
-                                                ))}
-                                            </div>
-                                        </FieldSet>
                                     )}
                                 </div>
-                                {template && (
-                                    <div className="space-y-2">
-                                        <p className="text-sm font-medium">
-                                            {t('campaigns.wizard.preview')}
-                                        </p>
-                                        <TemplatePreview
-                                            components={template.components}
-                                            values={{
-                                                header: s.header,
-                                                body: s.body,
-                                            }}
-                                        />
-                                    </div>
-                                )}
+                                <div className="space-y-2 lg:sticky lg:top-20 lg:self-start">
+                                    <p className="text-sm font-medium">
+                                        {sample
+                                            ? t('params.preview.as', {
+                                                  name:
+                                                      sample.name ||
+                                                      data.sample?.phone ||
+                                                      '',
+                                              })
+                                            : t('campaigns.wizard.preview')}
+                                    </p>
+                                    <WhatsAppPreview
+                                        components={template.components}
+                                        params={s.params}
+                                        contact={sample}
+                                        mediaSrc={
+                                            s.params.mediaPreview ??
+                                            s.params.media?.link ??
+                                            shape.exampleMedia
+                                        }
+                                        mediaName={s.params.media?.filename}
+                                    />
+                                </div>
                             </div>
                         ))}
 
@@ -1027,34 +910,45 @@ export function CampaignWizard({
                                         ? `${template.name} (${template.language})`
                                         : '—'}
                                 </dd>
-                                {slots &&
+                                {shape &&
                                     [
-                                        ...slots.header.map((v) => [
-                                            t('campaigns.wizard.headerVar', {
-                                                var: v,
-                                            }),
-                                            s.header[v],
+                                        ...(isMediaHeader(shape.header)
+                                            ? [
+                                                  [
+                                                      t('params.media.title', {
+                                                          kind: t(
+                                                              `params.media.${shape.header}`,
+                                                          ).toLowerCase(),
+                                                      }),
+                                                      s.params.media?.link ??
+                                                          s.params.media
+                                                              ?.filename ??
+                                                          (s.params.media?.id
+                                                              ? t(
+                                                                    'params.media.uploaded',
+                                                                )
+                                                              : '—'),
+                                                  ],
+                                              ]
+                                            : []),
+                                        ...shape.headerVars.map((v) => [
+                                            t('params.header', { name: v }),
+                                            describe(s.params.header[v]),
                                         ]),
-                                        ...slots.body.map((v) => [
-                                            t('campaigns.wizard.bodyVar', {
-                                                var: v,
-                                            }),
-                                            s.body[v],
+                                        ...shape.bodyVars.map((v) => [
+                                            t('params.body', { name: v }),
+                                            describe(s.params.body[v]),
                                         ]),
-                                        ...slots.urlButtons.map((p) => [
-                                            t('campaigns.wizard.button', {
-                                                n: p + 1,
-                                            }),
-                                            s.buttons[String(p)],
+                                        ...shape.urlButtons.map((p) => [
+                                            t('params.button', { n: p + 1 }),
+                                            describe(s.params.buttons[p]),
                                         ]),
                                     ].map(([k, v]) => (
                                         <div key={k} className="contents">
                                             <dt className="text-muted-foreground">
                                                 {k}
                                             </dt>
-                                            <dd className="font-mono break-all">
-                                                {v}
-                                            </dd>
+                                            <dd className="break-all">{v}</dd>
                                         </div>
                                     ))}
                                 <dt className="text-muted-foreground">
@@ -1382,89 +1276,6 @@ function AudiencePicker({
             {error && (
                 <p
                     id="cw-audience-error"
-                    role="alert"
-                    className="text-sm text-destructive"
-                >
-                    {error}
-                </p>
-            )}
-        </Field>
-    );
-}
-
-/** A variable's value with placeholder chips that insert at the cursor. */
-function VariableInput({
-    id,
-    label,
-    value,
-    error,
-    onChange,
-}: {
-    id: string;
-    label: string;
-    value: string;
-    error?: string;
-    onChange: (v: string) => void;
-}) {
-    const t = useT();
-    const ref = useRef<HTMLInputElement>(null);
-    const inputId = `cw-${id}`;
-    const insert = (token: string, caretBack = 0) => {
-        const el = ref.current;
-        const start = el?.selectionStart ?? value.length;
-        const end = el?.selectionEnd ?? value.length;
-        const next = value.slice(0, start) + token + value.slice(end);
-        onChange(next);
-        const caret = start + token.length - caretBack;
-        requestAnimationFrame(() => {
-            el?.focus();
-            el?.setSelectionRange(caret, caret);
-        });
-    };
-    return (
-        <Field data-invalid={!!error}>
-            <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
-            <Input
-                ref={ref}
-                id={inputId}
-                value={value}
-                maxLength={1024}
-                placeholder={t('campaigns.wizard.variablePlaceholder')}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={`${inputId}-chips${error ? ` ${inputId}-error` : ''}`}
-                onChange={(e) => onChange(e.target.value)}
-            />
-            <div
-                id={`${inputId}-chips`}
-                className="flex flex-wrap gap-1"
-                role="group"
-                aria-label={t('campaigns.wizard.insertInto', { label })}
-            >
-                {PLACEHOLDERS.map((p) => (
-                    <Badge key={p} asChild variant="outline">
-                        <button
-                            type="button"
-                            className="cursor-pointer font-mono hover:bg-muted"
-                            onClick={() => insert(`{{${p}}}`)}
-                        >
-                            {`{{${p}}}`}
-                        </button>
-                    </Badge>
-                ))}
-                <Badge asChild variant="outline">
-                    <button
-                        type="button"
-                        className="cursor-pointer font-mono hover:bg-muted"
-                        aria-label={t('campaigns.wizard.insertAttribute')}
-                        onClick={() => insert('{{attr:}}', 2)}
-                    >
-                        {'{{attr:key}}'}
-                    </button>
-                </Badge>
-            </div>
-            {error && (
-                <p
-                    id={`${inputId}-error`}
                     role="alert"
                     className="text-sm text-destructive"
                 >

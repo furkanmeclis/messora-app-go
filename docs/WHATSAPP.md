@@ -15,7 +15,29 @@ version `v26.0`, configurable with `META_GRAPH_API_VERSION`).
    and templates are imported. Tokens and app secrets are encrypted with
    `APP_ENCRYPTION_KEY` and never returned by the API.
 3. Alternatively set `META_WABA_ID`, `META_ACCESS_TOKEN` (and `META_APP_ID`,
-   `META_APP_SECRET`) in `.env`; the account is connected on first start.
+   `META_APP_SECRET`) in `.env`; the account is connected on first start,
+   and a changed `META_ACCESS_TOKEN` replaces the stored token on restart.
+
+### Keeping the connection alive
+
+Tokens copied from the App Dashboard ("temporary access token") or Graph
+Explorer expire within hours or a day; the account then stops sending. Use a
+**System User** token with *Token expiration: Never* (Business Settings →
+Users → System users → Generate new token). The panel walks through it.
+
+Messora asks Meta about every token (`debug_token`) when it is connected or
+replaced, and again every six hours:
+
+- invalid tokens, missing `whatsapp_business_messaging` /
+  `whatsapp_business_management` permissions and tokens without access to
+  the WABA are refused with the reason;
+- the token's type and expiry are shown under Channels; an expiring token is
+  flagged, and owners and admins are e-mailed a week before it stops working
+  (and when Meta refuses it), at most once a day;
+- with the App ID and app secret, a short-lived user token is exchanged for a
+  long-lived (about 60 days) one automatically;
+- replacing the token of a flagged account brings it back into service at
+  once; **Check connection** re-validates on demand.
 
 ## Webhooks
 
@@ -58,7 +80,7 @@ retries:
 | Accepted | Meta returned a message ID | `sent`; webhooks advance it |
 | Definitely not sent | connection refused, DNS failure, `130429` throughput, `131056` pair rate, `131000`/`131016`/`133004` transient, HTTP 429 | back to `pending`, retried with backoff (up to 8 attempts) |
 | Rejected | `131047` outside 24 h window, `131026` undeliverable, `132xxx` template errors | `failed` with Meta's code |
-| Account problem | `0`/`190` token, `10`/`200-299` permission, `368`/`131031` restriction | `failed`; the account is flagged `error` and further sends fail fast until a successful sync or credential rotation |
+| Account problem | `0`/`190` token, `10`/`200-299` permission, `368`/`131031` restriction | `failed`; the account is flagged `error` with a readable reason (expired, invalidated, missing permission), owners and admins are e-mailed, and further sends fail fast until the connection check passes or the token is replaced |
 | **Unknown** | timeout after the request was written, connection reset, gateway 5xx without Meta's error body, worker crash mid-send | `unknown`; **never re-sent automatically** |
 
 Unknown messages are reconciled by the status webhook: Messora puts its own
@@ -133,7 +155,8 @@ Run only with a Meta **test** number and recipients who agreed to receive test
 messages.
 
 1. Create a Meta app with the WhatsApp product; note the test number's phone
-   number ID, the WABA ID, a temporary or system-user token and the app secret.
+   number ID, the WABA ID, a System User token and the app secret (a
+   temporary token works for a quick test but expires within a day).
 2. Expose Messora over public HTTPS (`SITE_ADDRESS=your.domain`).
 3. Connect the account in the panel; confirm the number and templates appear.
 4. In the Meta App dashboard subscribe the webhook with the values from
@@ -145,3 +168,24 @@ messages.
 7. Send the `hello_world` template to a recipient who has not written in 24 h.
 8. Send an image from the phone; the file appears under the media volume.
 9. Rotate the token in the panel; sending keeps working.
+
+## Templates with variables and media
+
+Campaigns, inbox replies and automation steps fill a template the same way
+(`template_params`, or `template.params` on an inbox reply):
+
+| Field | Fills |
+|---|---|
+| `header` / `body` | variables: a list for `{{1}}` templates, an object for named ones. Values are fixed text or contact placeholders: `{{name}}`, `{{first_name}}`, `{{phone}}`, `{{email}}`, `{{var1}}`…`{{var5}}`, `{{attr:<key>}}` |
+| `buttons` | the dynamic end of URL buttons, by button position (`["", "summer-sale"]` fills button 2) |
+| `fallback` | a value for a placeholder that is empty for a contact; without it the contact is skipped |
+| `header_media` | the image, video or document of a media header: an uploaded media `id` (kept 30 days by Meta) or a public `https` `link` |
+
+Before a campaign starts (and before an inbox reply or automation step is
+sent) the values are checked against the template: a missing header image,
+variable or URL button suffix is reported instead of failing at Meta for
+every recipient. Templates with a location header cannot be sent yet.
+
+Creating a media-header template needs an example file for Meta's review:
+the panel uploads it with `POST /api/v1/templates/samples` (Meta's Resumable
+Upload API, which needs the account's App ID).

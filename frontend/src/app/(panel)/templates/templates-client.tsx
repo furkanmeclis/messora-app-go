@@ -2,7 +2,20 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { AlertCircle, FileText, Plus, Trash2, X } from 'lucide-react';
+import {
+    AlertCircle,
+    Braces,
+    FileText,
+    Image as ImageIcon,
+    Info,
+    Megaphone,
+    Plus,
+    RefreshCw,
+    Search,
+    Trash2,
+    X,
+} from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { newIdempotencyKey, notify } from '@/components/notify';
 import { useReauth } from '@/components/reauth';
@@ -57,12 +70,29 @@ import { Textarea } from '@/components/ui/textarea';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useLocale, useT } from '@/i18n/client';
 import type { Translate } from '@/i18n/translate';
-import { TEMPLATE_STATUSES, variablesOf } from '@/lib/templates';
+import {
+    TEMPLATE_STATUSES,
+    isMediaHeader,
+    parseComponents,
+    shapeOf,
+    templateKey,
+    variablesOf,
+} from '@/lib/templates';
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet';
+import { syncAccountAction } from '../channels/actions';
 import { STATUS_TONE, TEMPLATE_STATUS_ICON } from '@/lib/status-icons';
 import { Layers } from 'lucide-react';
 import type { ActionResult, Schemas, Template } from '@/lib/types';
 import { createTemplateAction, deleteTemplateAction } from './actions';
-import { TemplatePreview } from './template-preview';
+import { WhatsAppPreview } from '@/components/whatsapp-preview';
+import { FileDrop } from '@/components/ui/file-drop';
+import { Segmented } from '@/components/ui/segmented';
 
 type Option = { id: string; name: string };
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
@@ -184,33 +214,49 @@ export function TemplateFilters({
 export function TemplateList({
     templates,
     manage,
+    canCampaign,
     filtered,
     hasAccounts,
 }: {
     templates: Template[];
     manage: boolean;
+    canCampaign: boolean;
     filtered: boolean;
     hasAccounts: boolean;
 }) {
     const t = useT();
     const locale = useLocale();
-    const formatDateTime = useFormatDateTime();
+    const [q, setQ] = useState('');
+    const [cat, setCat] = useState('all');
+    const [lang, setLang] = useState('all');
+    const [head, setHead] = useState('all');
+    const [open, setOpen] = useState<Template | null>(null);
     const category = (c: string) =>
         c in CATEGORIES
             ? t(`templates.categories.${c as Category}`).toLocaleLowerCase(
                   locale,
               )
             : c.toLowerCase();
-    const format = (f: string) =>
-        f === 'POSITIONAL'
-            ? t('templates.list.positional')
-            : f === 'NAMED'
-              ? t('templates.list.named')
-              : f.toLowerCase();
-    const quality = (q: string) =>
-        q in QUALITIES
-            ? t(`templates.list.qualities.${q as keyof typeof QUALITIES}`)
-            : q.toLowerCase();
+    const languages = [...new Set(templates.map((x) => x.language))].sort();
+    const shown = templates.filter((x) => {
+        const sh = shapeOf(x);
+        if (
+            q &&
+            !`${x.name} ${x.language}`
+                .toLowerCase()
+                .includes(q.trim().toLowerCase())
+        )
+            return false;
+        if (cat !== 'all' && x.category.toUpperCase() !== cat) return false;
+        if (lang !== 'all' && x.language !== lang) return false;
+        if (
+            head !== 'all' &&
+            (head === 'media' ? !isMediaHeader(sh.header) : sh.header !== head)
+        )
+            return false;
+        return true;
+    });
+
     if (templates.length === 0) {
         return (
             <Card>
@@ -238,66 +284,353 @@ export function TemplateList({
             </Card>
         );
     }
+    const select = (
+        label: string,
+        value: string,
+        onChange: (v: string) => void,
+        options: [string, string][],
+    ) => (
+        <Select value={value} onValueChange={onChange}>
+            <SelectTrigger className="w-40" aria-label={label}>
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+                {options.map(([v, l]) => (
+                    <SelectItem key={v} value={v}>
+                        {l}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    );
     return (
-        <ul
-            className="grid gap-4 md:grid-cols-2"
-            aria-label={t('templates.list.label')}
-        >
-            {templates.map((tpl) => (
-                <li key={tpl.id}>
-                    <Card className="h-full" data-testid="template">
-                        <CardContent className="space-y-3">
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                    <h2 className="truncate font-mono text-sm font-medium">
-                                        {tpl.name}
-                                    </h2>
-                                    <p className="text-xs text-muted-foreground">
-                                        {tpl.language} ·{' '}
-                                        {category(tpl.category)} ·{' '}
-                                        {format(tpl.parameter_format)}
-                                        {tpl.account_name
-                                            ? ` · ${tpl.account_name}`
-                                            : ''}
-                                    </p>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-1">
-                                    <TemplateStatusBadge status={tpl.status} />
-                                    {manage && (
-                                        <DeleteTemplate template={tpl} />
-                                    )}
-                                </div>
-                            </div>
-                            {tpl.status.toUpperCase() === 'REJECTED' &&
-                                tpl.rejected_reason && (
-                                    <Alert variant="destructive">
-                                        <AlertCircle />
-                                        <AlertDescription>
-                                            {t('templates.list.rejected', {
-                                                reason: tpl.rejected_reason,
-                                            })}
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
-                            <TemplatePreview components={tpl.components} />
-                            <p className="text-xs text-muted-foreground">
-                                {t('templates.list.synced', {
-                                    time: formatDateTime(tpl.synced_at),
-                                })}
-                                {tpl.quality_score &&
-                                tpl.quality_score !== 'UNKNOWN'
-                                    ? t('templates.list.quality', {
-                                          score: quality(
-                                              tpl.quality_score.toUpperCase(),
-                                          ),
-                                      })
+        <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-full sm:w-64">
+                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        aria-label={t('templates.list.search')}
+                        placeholder={t('templates.list.search')}
+                        className="pl-8"
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                    />
+                </div>
+                {select(t('templates.list.category'), cat, setCat, [
+                    ['all', t('templates.list.allCategories')],
+                    ...(Object.keys(CATEGORIES) as Category[]).map(
+                        (c) =>
+                            [c, t(`templates.categories.${c}`)] as [
+                                string,
+                                string,
+                            ],
+                    ),
+                ])}
+                {languages.length > 1 &&
+                    select(t('templates.list.language'), lang, setLang, [
+                        ['all', t('templates.list.allLanguages')],
+                        ...languages.map((l) => [l, l] as [string, string]),
+                    ])}
+                {select(t('templates.list.headerType'), head, setHead, [
+                    ['all', t('templates.list.allHeaders')],
+                    ['none', t('templates.create.headerKinds.NONE')],
+                    ['text', t('templates.create.headerKinds.TEXT')],
+                    ['media', t('templates.list.mediaHeader')],
+                ])}
+                <span
+                    className="ml-auto text-sm text-muted-foreground"
+                    role="status"
+                >
+                    {t('templates.list.count', { count: shown.length })}
+                </span>
+            </div>
+            {shown.length === 0 ? (
+                <p className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
+                    {t('templates.list.emptyFiltered')}
+                </p>
+            ) : (
+                <ul
+                    className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3"
+                    aria-label={t('templates.list.label')}
+                >
+                    {shown.map((tpl) => {
+                        const sh = shapeOf(tpl);
+                        const vars =
+                            sh.headerVars.length +
+                            sh.bodyVars.length +
+                            sh.urlButtons.length;
+                        return (
+                            <li key={tpl.id}>
+                                <Card
+                                    className="flex h-full flex-col gap-3 py-4"
+                                    data-testid="template"
+                                >
+                                    <CardContent className="flex flex-1 flex-col gap-3 px-4">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <h2 className="truncate font-mono text-sm font-medium">
+                                                    {tpl.name}
+                                                </h2>
+                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                    <Badge variant="outline">
+                                                        {tpl.language}
+                                                    </Badge>
+                                                    <Badge variant="outline">
+                                                        {category(tpl.category)}
+                                                    </Badge>
+                                                    {isMediaHeader(
+                                                        sh.header,
+                                                    ) && (
+                                                        <Badge variant="secondary">
+                                                            <ImageIcon />{' '}
+                                                            {t(
+                                                                `params.media.${sh.header}`,
+                                                            )}
+                                                        </Badge>
+                                                    )}
+                                                    {vars > 0 && (
+                                                        <Badge variant="secondary">
+                                                            <Braces />{' '}
+                                                            {t(
+                                                                'campaigns.wizard.variableCount',
+                                                                { count: vars },
+                                                            )}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <TemplateStatusBadge
+                                                status={tpl.status}
+                                            />
+                                        </div>
+                                        {tpl.status.toUpperCase() ===
+                                            'REJECTED' &&
+                                            tpl.rejected_reason && (
+                                                <Alert variant="destructive">
+                                                    <AlertCircle />
+                                                    <AlertDescription>
+                                                        {t(
+                                                            'templates.list.rejected',
+                                                            {
+                                                                reason: tpl.rejected_reason,
+                                                            },
+                                                        )}
+                                                    </AlertDescription>
+                                                </Alert>
+                                            )}
+                                        <WhatsAppPreview
+                                            components={tpl.components}
+                                            mediaSrc={sh.exampleMedia}
+                                            className="flex-1"
+                                        />
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {canCampaign &&
+                                                tpl.status.toUpperCase() ===
+                                                    'APPROVED' && (
+                                                    <Button asChild size="sm">
+                                                        <Link
+                                                            href={`/campaigns/new?template=${encodeURIComponent(templateKey(tpl))}`}
+                                                        >
+                                                            <Megaphone />{' '}
+                                                            {t(
+                                                                'templates.list.useInCampaign',
+                                                            )}
+                                                        </Link>
+                                                    </Button>
+                                                )}
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => setOpen(tpl)}
+                                            >
+                                                <Info />{' '}
+                                                {t('templates.list.details')}
+                                            </Button>
+                                            {manage && (
+                                                <span className="ml-auto">
+                                                    <DeleteTemplate
+                                                        template={tpl}
+                                                    />
+                                                </span>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+            <TemplateDetails template={open} onClose={() => setOpen(null)} />
+        </div>
+    );
+}
+
+function TemplateDetails({
+    template,
+    onClose,
+}: {
+    template: Template | null;
+    onClose: () => void;
+}) {
+    const t = useT();
+    const formatDateTime = useFormatDateTime();
+    const tpl = template;
+    const sh = tpl ? shapeOf(tpl) : null;
+    const p = tpl ? parseComponents(tpl.components) : null;
+    const quality = (q: string) =>
+        q in QUALITIES
+            ? t(`templates.list.qualities.${q as keyof typeof QUALITIES}`)
+            : q.toLowerCase();
+    return (
+        <Sheet open={!!tpl} onOpenChange={(o) => !o && onClose()}>
+            <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+                {tpl && sh && p && (
+                    <>
+                        <SheetHeader>
+                            <SheetTitle className="font-mono">
+                                {tpl.name}
+                            </SheetTitle>
+                            <SheetDescription>
+                                {tpl.language} · {tpl.category.toLowerCase()}
+                                {tpl.account_name
+                                    ? ` · ${tpl.account_name}`
                                     : ''}
-                            </p>
-                        </CardContent>
-                    </Card>
-                </li>
-            ))}
-        </ul>
+                            </SheetDescription>
+                        </SheetHeader>
+                        <div className="space-y-5 px-4 pb-6">
+                            <WhatsAppPreview
+                                components={tpl.components}
+                                mediaSrc={sh.exampleMedia}
+                            />
+                            <dl className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-1.5 text-sm">
+                                <dt className="text-muted-foreground">
+                                    {t('templates.list.status')}
+                                </dt>
+                                <dd>
+                                    <TemplateStatusBadge status={tpl.status} />
+                                </dd>
+                                <dt className="text-muted-foreground">
+                                    {t('templates.list.headerType')}
+                                </dt>
+                                <dd>
+                                    {t(
+                                        `templates.create.headerKinds.${(sh.header === 'location' ? 'NONE' : sh.header.toUpperCase()) as 'NONE'}`,
+                                    )}
+                                </dd>
+                                <dt className="text-muted-foreground">
+                                    {t('templates.list.parameterFormat')}
+                                </dt>
+                                <dd>
+                                    {sh.named
+                                        ? t('templates.list.named')
+                                        : t('templates.list.positional')}
+                                </dd>
+                                {tpl.quality_score &&
+                                    tpl.quality_score !== 'UNKNOWN' && (
+                                        <>
+                                            <dt className="text-muted-foreground">
+                                                {t(
+                                                    'templates.list.qualityLabel',
+                                                )}
+                                            </dt>
+                                            <dd>
+                                                {quality(
+                                                    tpl.quality_score.toUpperCase(),
+                                                )}
+                                            </dd>
+                                        </>
+                                    )}
+                                <dt className="text-muted-foreground">
+                                    {t('templates.list.syncedLabel')}
+                                </dt>
+                                <dd>{formatDateTime(tpl.synced_at)}</dd>
+                            </dl>
+                            {(sh.headerVars.length > 0 ||
+                                sh.bodyVars.length > 0 ||
+                                sh.urlButtons.length > 0) && (
+                                <section className="space-y-2">
+                                    <h3 className="text-sm font-medium">
+                                        {t('templates.list.variables')}
+                                    </h3>
+                                    <ul className="space-y-1 text-sm">
+                                        {[
+                                            ...sh.headerVars.map((v) => [
+                                                `header:${v}`,
+                                                t('params.header', { name: v }),
+                                            ]),
+                                            ...sh.bodyVars.map((v) => [
+                                                `body:${v}`,
+                                                t('params.body', { name: v }),
+                                            ]),
+                                            ...sh.urlButtons.map((i) => [
+                                                `button:${i}`,
+                                                t('params.button', {
+                                                    n: i + 1,
+                                                }),
+                                            ]),
+                                        ].map(([k, label]) => (
+                                            <li
+                                                key={k}
+                                                className="flex justify-between gap-3 rounded-md bg-muted/40 px-2 py-1"
+                                            >
+                                                <span>{label}</span>
+                                                <span className="truncate text-muted-foreground">
+                                                    {sh.examples[k!] ?? '—'}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </section>
+                            )}
+                            {tpl.rejected_reason && (
+                                <Alert variant="destructive">
+                                    <AlertCircle />
+                                    <AlertDescription>
+                                        {t('templates.list.rejected', {
+                                            reason: tpl.rejected_reason,
+                                        })}
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
+                    </>
+                )}
+            </SheetContent>
+        </Sheet>
+    );
+}
+
+/** Pulls templates (and numbers) from Meta for every account. */
+export function SyncTemplatesButton({ accounts }: { accounts: Option[] }) {
+    const t = useT();
+    const router = useRouter();
+    const { guard } = useReauth();
+    const [pending, start] = useTransition();
+    return (
+        <Button
+            variant="outline"
+            shortcut="s"
+            disabled={pending || accounts.length === 0}
+            onClick={() =>
+                start(async () => {
+                    let templates = 0;
+                    for (const a of accounts) {
+                        const r = await guard(() => syncAccountAction(a.id));
+                        if (!r.ok) {
+                            toast.error(`${a.name}: ${r.message}`);
+                            continue;
+                        }
+                        templates += r.data.templates;
+                    }
+                    toast.success(t('templates.synced', { count: templates }));
+                    router.refresh();
+                })
+            }
+        >
+            {pending ? <Spinner /> : <RefreshCw />}{' '}
+            {t('templates.syncFromMeta')}
+        </Button>
     );
 }
 
@@ -373,11 +706,24 @@ type Draft = {
     language: string;
     category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
     format: 'POSITIONAL' | 'NAMED';
+    headerKind: HeaderDraftKind;
     header: string;
+    /** Meta's handle of the uploaded example (media headers). */
+    headerHandle: string;
+    headerFile: string;
+    headerPreview?: string;
     body: string;
     footer: string;
     examples: Record<string, string>;
     buttons: ButtonDraft[];
+};
+
+type HeaderDraftKind = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+
+const SAMPLE_ACCEPT: Record<'IMAGE' | 'VIDEO' | 'DOCUMENT', string> = {
+    IMAGE: 'image/jpeg,image/png',
+    VIDEO: 'video/mp4',
+    DOCUMENT: 'application/pdf',
 };
 
 const CATEGORIES = { MARKETING: 1, UTILITY: 1, AUTHENTICATION: 1 } as const;
@@ -439,7 +785,16 @@ function buildComponents(d: Draft): Record<string, unknown>[] {
     const named = d.format === 'NAMED';
     const ex = (v: string) => d.examples[v] ?? '';
     const out: Record<string, unknown>[] = [];
-    const header = d.header.trim();
+    const header = d.headerKind === 'TEXT' ? d.header.trim() : '';
+    if (d.headerKind !== 'NONE' && d.headerKind !== 'TEXT') {
+        out.push({
+            type: 'HEADER',
+            format: d.headerKind,
+            ...(d.headerHandle
+                ? { example: { header_handle: [d.headerHandle] } }
+                : {}),
+        });
+    }
     if (header) {
         const vars = variablesOf(header);
         const c: Record<string, unknown> = {
@@ -516,8 +871,13 @@ function validate(t: Translate, d: Draft): Record<string, string> {
     else if (d.body.length > 1024) e.body = t('templates.validation.max1024');
     const bodyProblem = checkVariables(t, variablesOf(d.body), d.format);
     if (bodyProblem) e.body = bodyProblem;
-    const hv = variablesOf(d.header);
-    if (d.header.length > 60) e.header = t('templates.validation.max60');
+    const hv = d.headerKind === 'TEXT' ? variablesOf(d.header) : [];
+    if (d.headerKind === 'TEXT' && !d.header.trim())
+        e.header = t('templates.validation.headerText');
+    if (d.headerKind !== 'NONE' && d.headerKind !== 'TEXT' && !d.headerHandle)
+        e.header = t('templates.validation.headerSample');
+    if (d.headerKind === 'TEXT' && d.header.length > 60)
+        e.header = t('templates.validation.max60');
     else if (hv.length > 1)
         e.header = t('templates.validation.headerOneVariable');
     else if (hv.length === 1) {
@@ -563,7 +923,10 @@ const EMPTY: Omit<Draft, 'account_id'> = {
     language: 'en_US',
     category: 'MARKETING',
     format: 'POSITIONAL',
+    headerKind: 'NONE',
     header: '',
+    headerHandle: '',
+    headerFile: '',
     body: '',
     footer: '',
     examples: {},
@@ -586,7 +949,63 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
     const set = <K extends keyof Draft>(k: K, v: Draft[K]) =>
         setD((p) => ({ ...p, [k]: v }));
 
-    const headerVars = useMemo(() => variablesOf(d.header), [d.header]);
+    const headerVars = useMemo(
+        () => (d.headerKind === 'TEXT' ? variablesOf(d.header) : []),
+        [d.header, d.headerKind],
+    );
+    const [uploading, setUploading] = useState(false);
+    const uploadSample = async (file: File | null) => {
+        if (!file || d.headerKind === 'NONE' || d.headerKind === 'TEXT') return;
+        if (!d.account_id) {
+            setErrors((e) => ({
+                ...e,
+                header: t('templates.validation.chooseAccount'),
+            }));
+            return;
+        }
+        setUploading(true);
+        try {
+            const q = new URLSearchParams({
+                account_id: d.account_id,
+                filename: file.name,
+            });
+            const res = await fetch(`/bff/template-sample?${q}`, {
+                method: 'POST',
+                body: file,
+                headers: {
+                    'Content-Type': file.type || 'application/octet-stream',
+                },
+            });
+            const out = (await res.json().catch(() => null)) as {
+                data?: { handle: string };
+                error?: { message?: string };
+            } | null;
+            if (!res.ok || !out?.data?.handle) {
+                setErrors((e) => ({
+                    ...e,
+                    header:
+                        out?.error?.message ?? t('common.somethingWentWrong'),
+                }));
+                return;
+            }
+            setErrors((e) => {
+                const next = { ...e };
+                delete next.header;
+                return next;
+            });
+            setD((p) => ({
+                ...p,
+                headerHandle: out.data!.handle,
+                headerFile: file.name,
+                headerPreview:
+                    p.headerKind === 'DOCUMENT'
+                        ? undefined
+                        : URL.createObjectURL(file),
+            }));
+        } finally {
+            setUploading(false);
+        }
+    };
     const bodyVars = useMemo(() => variablesOf(d.body), [d.body]);
     const components = useMemo(() => buildComponents(d), [d]);
     const previewValues = useMemo(() => {
@@ -850,14 +1269,74 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                                 <FieldLabel htmlFor="tpl-header">
                                     {t('templates.create.header')}
                                 </FieldLabel>
-                                <Input
-                                    {...aria('header')}
-                                    value={d.header}
-                                    maxLength={60}
-                                    onChange={(e) =>
-                                        set('header', e.target.value)
+                                <Segmented
+                                    aria-label={t('templates.create.header')}
+                                    value={d.headerKind}
+                                    onValueChange={(k) =>
+                                        setD((p) => ({
+                                            ...p,
+                                            headerKind: k,
+                                            headerHandle: '',
+                                            headerFile: '',
+                                            headerPreview: undefined,
+                                        }))
                                     }
+                                    options={(
+                                        [
+                                            'NONE',
+                                            'TEXT',
+                                            'IMAGE',
+                                            'VIDEO',
+                                            'DOCUMENT',
+                                        ] as const
+                                    ).map((k) => ({
+                                        value: k,
+                                        label: t(
+                                            `templates.create.headerKinds.${k}`,
+                                        ),
+                                    }))}
                                 />
+                                {d.headerKind === 'TEXT' && (
+                                    <Input
+                                        {...aria('header')}
+                                        value={d.header}
+                                        maxLength={60}
+                                        onChange={(e) =>
+                                            set('header', e.target.value)
+                                        }
+                                    />
+                                )}
+                                {(d.headerKind === 'IMAGE' ||
+                                    d.headerKind === 'VIDEO' ||
+                                    d.headerKind === 'DOCUMENT') && (
+                                    <div className="space-y-1">
+                                        <FileDrop
+                                            compact
+                                            accept={SAMPLE_ACCEPT[d.headerKind]}
+                                            disabled={uploading}
+                                            onFile={uploadSample}
+                                            hint={
+                                                uploading ? (
+                                                    <>
+                                                        <Spinner />{' '}
+                                                        {t(
+                                                            'params.media.uploading',
+                                                        )}
+                                                    </>
+                                                ) : d.headerFile ? (
+                                                    t(
+                                                        'templates.create.sampleUploaded',
+                                                        { name: d.headerFile },
+                                                    )
+                                                ) : (
+                                                    t(
+                                                        'templates.create.sampleHint',
+                                                    )
+                                                )
+                                            }
+                                        />
+                                    </div>
+                                )}
                                 {err('header')}
                             </Field>
                             <Field data-invalid={!!errors.body}>
@@ -1187,9 +1666,11 @@ export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
                         <p className="text-sm font-medium">
                             {t('templates.preview.title')}
                         </p>
-                        <TemplatePreview
+                        <WhatsAppPreview
                             components={components}
-                            values={previewValues}
+                            literal={previewValues}
+                            mediaSrc={d.headerPreview}
+                            mediaName={d.headerFile}
                         />
                     </aside>
                 </form>

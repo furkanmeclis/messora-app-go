@@ -6,6 +6,7 @@ import { runAction } from '@/lib/server/actions';
 import { getT } from '@/i18n/server';
 import type {
     ActionResult,
+    CampaignParams,
     Conversation,
     InboxMessage,
     Note,
@@ -19,7 +20,12 @@ function check(id: string) {
 
 export type Reply =
     | { type: 'text'; body: string }
-    | { type: 'template'; name: string; language: string }
+    | {
+          type: 'template';
+          name: string;
+          language: string;
+          params?: CampaignParams;
+      }
     | {
           type: 'image' | 'video' | 'audio' | 'document';
           id: string;
@@ -40,7 +46,11 @@ export async function replyAction(
             : reply.type === 'template'
               ? {
                     type: 'template',
-                    template: { name: reply.name, language: reply.language },
+                    template: {
+                        name: reply.name,
+                        language: reply.language,
+                        ...(reply.params ? { params: reply.params } : {}),
+                    },
                 }
               : {
                     type: reply.type,
@@ -135,12 +145,16 @@ export async function moreConversationsAction(
     cursor: string,
 ): Promise<ActionResult<{ items: Conversation[]; next?: string }>> {
     check(cursor);
+    // query is the page's own parameters (status absent = open).
     const given = new URLSearchParams(query);
     const q = new URLSearchParams();
-    for (const k of ['status', 'assignee', 'q', 'unread']) {
+    const status = given.get('status') ?? 'open';
+    if (status === 'open' || status === 'closed') q.set('status', status);
+    for (const k of ['assignee', 'q']) {
         const v = given.get(k);
         if (v) q.set(k, v);
     }
+    if (given.get('unread')) q.set('unread', 'true');
     q.set('cursor', cursor);
     q.set('limit', '50');
     return runAction(async () => {

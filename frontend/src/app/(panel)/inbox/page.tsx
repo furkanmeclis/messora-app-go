@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { RealtimeRefresh } from '@/components/realtime';
 import { getT } from '@/i18n/server';
+import { cn } from '@/lib/utils';
 import { api, ApiError } from '@/lib/server/api';
 import { can, requireMe } from '@/lib/server/auth';
 import type {
@@ -46,8 +47,12 @@ async function loadThread(
         ]);
         const contactId = conversation.data.contact.id;
         const [templates, contact, notes] = await Promise.all([
+            // Only the templates of the account the conversation's number
+            // belongs to can be sent from it.
             perms.includes('templates.read')
-                ? api<Template[]>('/templates?status=APPROVED')
+                ? api<Template[]>(
+                      `/templates?status=APPROVED&account_id=${conversation.data.phone_number.account_id}`,
+                  )
                       .then((r) => r.data)
                       .catch(() => [])
                 : Promise.resolve([] as Template[]),
@@ -97,10 +102,19 @@ export default async function InboxPage({
     const assignee =
         sp.assignee === 'me' || sp.assignee === 'unassigned' ? sp.assignee : '';
     const q = (sp.q ?? '').trim().slice(0, 100);
+    const unread = sp.unread === '1' || sp.unread === 'true';
     const query = new URLSearchParams();
     if (status !== 'all') query.set('status', status);
     if (assignee) query.set('assignee', assignee);
+    if (unread) query.set('unread', 'true');
     if (q) query.set('q', q);
+    // Links in the page keep the UI's own parameters.
+    const ui = new URLSearchParams();
+    if (status !== 'open') ui.set('status', status);
+    if (assignee) ui.set('assignee', assignee);
+    if (unread) ui.set('unread', '1');
+    if (q) ui.set('q', q);
+    const backHref = ui.toString() ? `/inbox?${ui}` : '/inbox';
 
     const selected = sp.c && UUID.test(sp.c) ? sp.c : undefined;
     const [list, thread, users] = await Promise.all([
@@ -131,23 +145,34 @@ export default async function InboxPage({
                     'message.status',
                 ]}
             />
-            <div className="grid min-h-[70vh] gap-4 lg:grid-cols-[22rem_1fr]">
+            <div className="grid h-[calc(100svh-11rem)] min-h-[34rem] overflow-hidden rounded-xl border bg-card lg:grid-cols-[22rem_1fr]">
                 <section
                     aria-label={t('inbox.conversations')}
-                    className="flex min-w-0 flex-col gap-3"
+                    className={cn(
+                        'flex min-h-0 min-w-0 flex-col border-r',
+                        selected && 'hidden lg:flex',
+                    )}
                 >
-                    <InboxFilters status={status} assignee={assignee} q={q} />
+                    <InboxFilters
+                        status={status}
+                        assignee={assignee}
+                        unread={unread}
+                        q={q}
+                    />
                     <ConversationList
                         key={query.toString()}
                         initial={list.data}
                         initialCursor={list.nextCursor}
-                        query={query.toString()}
+                        query={ui.toString()}
                         selected={selected}
                     />
                 </section>
                 <section
                     aria-label={t('inbox.conversation')}
-                    className="min-w-0"
+                    className={cn(
+                        'min-h-0 min-w-0',
+                        !selected && 'hidden lg:block',
+                    )}
                 >
                     <Thread
                         key={selected ?? 'none'}
@@ -158,6 +183,7 @@ export default async function InboxPage({
                         canReply={can(me, 'conversations.reply')}
                         canAssign={can(me, 'conversations.assign')}
                         canNote={can(me, 'contacts.update')}
+                        backHref={backHref}
                     />
                 </section>
             </div>

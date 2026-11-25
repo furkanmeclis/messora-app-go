@@ -15,6 +15,7 @@ const inbox = {
         everyone: 'Everyone',
         mine: 'Mine',
         unassigned: 'Unassigned',
+        unread: 'Unread',
     },
     list: {
         empty: 'No conversations',
@@ -57,6 +58,9 @@ const inbox = {
         me: 'Me',
         close: 'Close',
         reopen: 'Reopen',
+        back: 'Back to conversations',
+        today: 'Today',
+        yesterday: 'Yesterday',
     },
     reply: {
         message: 'Message',
@@ -78,6 +82,7 @@ const inbox = {
     },
     panel: {
         customer: 'Customer',
+        openContact: 'Open contact',
         consent: 'Consent:',
         subscribed: 'Subscribed',
         tags: 'Tags',

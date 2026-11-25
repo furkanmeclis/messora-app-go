@@ -137,4 +137,39 @@ test('an agent opens a conversation, replies and sees the delivery update', asyn
         timeout: 30_000,
     });
     await expect(page.getByText('24h window closed')).toBeVisible();
+
+    // Outside the window a template goes out, filled for this customer:
+    // an image header, one variable from the contact, one fixed text.
+    sql(`INSERT INTO message_templates (account_id, meta_template_id, name, language, category, status, components)
+         SELECT account_id, 'e2e-inbox-offer', 'e2e_inbox_offer', 'tr', 'UTILITY', 'APPROVED',
+                '[{"type":"HEADER","format":"IMAGE"},{"type":"BODY","text":"Merhaba {{1}}, {{2}} hazır."}]'::jsonb
+         FROM phone_numbers WHERE phone_number_id = '900000000002';`);
+    await page.reload();
+    await page.getByRole('tab', { name: 'Template' }).click();
+    await page.getByRole('combobox', { name: 'Template' }).click();
+    await page.getByRole('option', { name: /e2e_inbox_offer/ }).click();
+    await page.getByRole('radio', { name: 'Link' }).click();
+    await page.getByLabel('Link').fill('https://cdn.example.com/siparis.jpg');
+    await page.getByRole('combobox', { name: 'Body {{1}}' }).click();
+    await page.getByRole('option', { name: 'Full name' }).click();
+    await page.getByRole('radio', { name: 'Fixed text' }).nth(1).click();
+    await page.getByRole('textbox', { name: 'Body {{2}}' }).fill('siparişiniz');
+    await expect(page.getByTestId('template-preview')).toContainText(
+        'Merhaba Deniz Müşteri, siparişiniz hazır.',
+    );
+    await page.getByRole('button', { name: 'Send template' }).click();
+    await expect
+        .poll(() =>
+            sql(
+                `SELECT payload::text FROM messages WHERE type = 'template' AND contact_id =
+                 (SELECT contact_id FROM conversations WHERE id = '${conversationId}')`,
+            ),
+        )
+        .toContain('https://cdn.example.com/siparis.jpg');
+    const payload = sql(
+        `SELECT payload::text FROM messages WHERE type = 'template' AND contact_id =
+         (SELECT contact_id FROM conversations WHERE id = '${conversationId}')`,
+    );
+    expect(payload).toContain('Deniz Müşteri');
+    expect(payload).toContain('siparişiniz');
 });

@@ -17,6 +17,7 @@ const inbox: Messages['inbox'] = {
         everyone: 'Herkes',
         mine: 'Bana atananlar',
         unassigned: 'Atanmamış',
+        unread: 'Okunmamış',
     },
     list: {
         empty: 'Konuşma yok',
@@ -59,6 +60,9 @@ const inbox: Messages['inbox'] = {
         me: 'Ben',
         close: 'Kapat',
         reopen: 'Yeniden aç',
+        back: 'Konuşmalara dön',
+        today: 'Bugün',
+        yesterday: 'Dün',
     },
     reply: {
         message: 'Mesaj',
@@ -80,6 +84,7 @@ const inbox: Messages['inbox'] = {
     },
     panel: {
         customer: 'Müşteri',
+        openContact: 'Kişiyi aç',
         consent: 'İzin durumu:',
         subscribed: 'Abone',
         tags: 'Etiketler',

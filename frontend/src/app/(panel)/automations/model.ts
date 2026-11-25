@@ -301,6 +301,14 @@ export type EditorStep = {
         language: string;
         body?: TemplateVars;
         header?: TemplateVars;
+        buttons?: string[];
+        fallback?: Record<string, string>;
+        header_media?: {
+            type: 'image' | 'video' | 'document';
+            id?: string;
+            link?: string;
+            filename?: string;
+        };
     };
     tag?: string;
     group_id?: string;
@@ -376,6 +384,19 @@ export function stepFromApi(raw: AutomationStep, id: string): EditorStep {
                   language: str(tpl.language) ?? '',
                   body: vars(tpl.body),
                   header: vars(tpl.header),
+                  buttons: Array.isArray(tpl.buttons)
+                      ? tpl.buttons.map((x) => String(x ?? ''))
+                      : undefined,
+                  fallback:
+                      tpl.fallback && typeof tpl.fallback === 'object'
+                          ? (tpl.fallback as Record<string, string>)
+                          : undefined,
+                  header_media:
+                      tpl.header_media && typeof tpl.header_media === 'object'
+                          ? (tpl.header_media as NonNullable<
+                                EditorStep['template']
+                            >['header_media'])
+                          : undefined,
               }
             : undefined,
         tag: str(s.tag),
@@ -437,6 +458,10 @@ export function stepToApi(s: EditorStep): AutomationStep {
             const header = cleanVars(tpl.header);
             if (body) out.body = body;
             if (header) out.header = header;
+            if (tpl.buttons?.some((b) => b.trim())) out.buttons = tpl.buttons;
+            if (tpl.fallback && Object.keys(tpl.fallback).length)
+                out.fallback = tpl.fallback;
+            if (tpl.header_media) out.header_media = tpl.header_media;
             return { id, type, template: out };
         }
         case 'add_tag':
