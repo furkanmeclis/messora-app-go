@@ -1,0 +1,14 @@
+{
+  "id": "x",
+  "object": "chat.completion",
+  "model": "deepseek-v4-pro",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok", "tool_calls": [
+    {"id": "call_0", "type": "function", "function": {"name": "order_status", "arguments": "{\"order_id\":\"A-17\"}"}}
+  ]}, "finish_reason": "tool_calls"}],
+  "usage": {
+    "prompt_tokens": 400,
+    "completion_tokens": 90,
+    "prompt_tokens_details": {"prompt_cache_hit_tokens": 100, "prompt_cache_miss_tokens": 300},
+    "completion_tokens_details": {"reasoning_tokens": 60}
+  }
+}

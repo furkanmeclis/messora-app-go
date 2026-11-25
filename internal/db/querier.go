@@ -24,6 +24,7 @@ type Querier interface {
 	// Monotonic status transition from a webhook; see the messages table comment.
 	ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatusParams) (Message, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
+	AutomationExists(ctx context.Context, id uuid.UUID) (bool, error)
 	CampaignMessageStats(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMessageStatsRow, error)
 	CampaignRecipientStats(ctx context.Context, campaignID uuid.UUID) ([]CampaignRecipientStatsRow, error)
 	CampaignsUsingOffer(ctx context.Context, offerID *uuid.UUID) ([]CampaignsUsingOfferRow, error)
@@ -81,6 +82,9 @@ type Querier interface {
 	// Meta withheld the message for ecosystem health (131049): it waits outside
 	// any campaign window until next_attempt_at.
 	DeferMessage(ctx context.Context, arg DeferMessageParams) error
+	DeleteAIPrice(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteAIProfile(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteAIProvider(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteAutomation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteCampaign(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteContact(ctx context.Context, id uuid.UUID) (int64, error)
@@ -96,6 +100,7 @@ type Querier interface {
 	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DeleteSegment(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSetting(ctx context.Context, key string) error
+	DeleteStaleAIModels(ctx context.Context, arg DeleteStaleAIModelsParams) (int64, error)
 	DeleteTag(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTemplate(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTemplatesNotSynced(ctx context.Context, arg DeleteTemplatesNotSyncedParams) (int64, error)
@@ -118,6 +123,11 @@ type Querier interface {
 	FinishAutomationRun(ctx context.Context, arg FinishAutomationRunParams) error
 	FinishContactImport(ctx context.Context, arg FinishContactImportParams) error
 	FinishWebhookDelivery(ctx context.Context, arg FinishWebhookDeliveryParams) (int64, error)
+	GetAIModel(ctx context.Context, arg GetAIModelParams) (AiModel, error)
+	GetAIPrice(ctx context.Context, id uuid.UUID) (GetAIPriceRow, error)
+	GetAIProfile(ctx context.Context, id uuid.UUID) (AiProfile, error)
+	GetAIProfileForNumber(ctx context.Context, phoneNumberID *uuid.UUID) (AiProfile, error)
+	GetAIProvider(ctx context.Context, id uuid.UUID) (AiProvider, error)
 	GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetActiveSessionByTokenHashRow, error)
 	// Conversations can only be assigned to active users who can read them.
@@ -165,6 +175,11 @@ type Querier interface {
 	HoldIfCampaignStopped(ctx context.Context, id uuid.UUID) (string, error)
 	// Running campaigns whose dispatcher has not moved for a while.
 	IdleRunningCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
+	InsertAIPrice(ctx context.Context, arg InsertAIPriceParams) (InsertAIPriceRow, error)
+	InsertAIPriceIfAbsent(ctx context.Context, arg InsertAIPriceIfAbsentParams) (int64, error)
+	InsertAIProfile(ctx context.Context, arg InsertAIProfileParams) (AiProfile, error)
+	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AiProvider, error)
+	InsertAIUsage(ctx context.Context, arg InsertAIUsageParams) (uuid.UUID, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
 	InsertAutomation(ctx context.Context, arg InsertAutomationParams) (Automation, error)
 	// No row when this automation already ran for this event.
@@ -210,6 +225,12 @@ type Querier interface {
 	// The newest recorded preference of a number for a category: webhooks may
 	// arrive out of order, only the latest choice counts.
 	LatestMetaUserPreference(ctx context.Context, arg LatestMetaUserPreferenceParams) (MetaUserPreference, error)
+	ListAIModels(ctx context.Context) ([]ListAIModelsRow, error)
+	ListAIPrices(ctx context.Context) ([]ListAIPricesRow, error)
+	ListAIPricesForKind(ctx context.Context, providerKind string) ([]ListAIPricesForKindRow, error)
+	ListAIProfiles(ctx context.Context) ([]ListAIProfilesRow, error)
+	ListAIProviders(ctx context.Context) ([]AiProvider, error)
+	ListAIUsage(ctx context.Context, lim int32) ([]AiUsage, error)
 	ListActiveWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	ListApiKeys(ctx context.Context) ([]ListApiKeysRow, error)
 	ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, error)
@@ -273,6 +294,7 @@ type Querier interface {
 	// Serializes changes that could remove an owner, so two concurrent
 	// demotions cannot both pass the "at least one owner" check.
 	LockOwnerChanges(ctx context.Context) error
+	MarkAIModelsSynced(ctx context.Context, id uuid.UUID) error
 	MarkConversationRead(ctx context.Context, id uuid.UUID) (Conversation, error)
 	MarkMediaFailed(ctx context.Context, arg MarkMediaFailedParams) error
 	MarkMediaStored(ctx context.Context, arg MarkMediaStoredParams) error
@@ -295,6 +317,7 @@ type Querier interface {
 	MuteContactAutomations(ctx context.Context, arg MuteContactAutomationsParams) error
 	// Waiting runs whose resume task may have been lost.
 	OverdueWaitingRuns(ctx context.Context) ([]uuid.UUID, error)
+	PhoneNumberExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// Counters are absolute (the worker keeps the totals), so a retried batch
 	// cannot double-count. Returns whether a cancel was requested.
 	ProgressContactImport(ctx context.Context, arg ProgressContactImportParams) (bool, error)
@@ -319,6 +342,7 @@ type Querier interface {
 	RevokeInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
+	SetAIProviderStatus(ctx context.Context, arg SetAIProviderStatusParams) (AiProvider, error)
 	// The messaging limit is the business portfolio's: every number shares it.
 	SetAccountMessagingLimit(ctx context.Context, arg SetAccountMessagingLimitParams) error
 	SetCampaignOffer(ctx context.Context, arg SetCampaignOfferParams) error
@@ -369,6 +393,9 @@ type Querier interface {
 	TouchConversation(ctx context.Context, arg TouchConversationParams) (Conversation, error)
 	TouchMessage(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
+	UpdateAIPrice(ctx context.Context, arg UpdateAIPriceParams) (UpdateAIPriceRow, error)
+	UpdateAIProfile(ctx context.Context, arg UpdateAIProfileParams) (AiProfile, error)
+	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AiProvider, error)
 	UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error)
 	UpdateCampaignDraft(ctx context.Context, arg UpdateCampaignDraftParams) (Campaign, error)
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
@@ -382,6 +409,8 @@ type Querier interface {
 	UpdateTemplateStatusByMetaID(ctx context.Context, arg UpdateTemplateStatusByMetaIDParams) (int64, error)
 	UpdateWebhookEndpoint(ctx context.Context, arg UpdateWebhookEndpointParams) (WebhookEndpoint, error)
 	UpdateWhatsAppAccount(ctx context.Context, arg UpdateWhatsAppAccountParams) (WhatsappAccount, error)
+	UpsertAIModel(ctx context.Context, arg UpsertAIModelParams) error
+	UpsertAIPrice(ctx context.Context, arg UpsertAIPriceParams) (UpsertAIPriceRow, error)
 	// ── Contacts ────────────────────────────────────────────────────────────────
 	UpsertContactByPhone(ctx context.Context, arg UpsertContactByPhoneParams) (Contact, error)
 	// ── Daily cost (pricing_analytics) ──────────────────────────────────────────

@@ -67,6 +67,10 @@ func RunAPI(ctx context.Context) error {
 	}
 
 	announceSetup(ctx, svc, log)
+	if err := svc.ai.EnsureSeed(ctx); err != nil {
+		// Not fatal: prices can be imported or entered in the panel.
+		log.Error("could not store the seed AI prices", "err", err)
+	}
 	if err := svc.channels.EnsureFromEnv(ctx, cfg.Meta.WABAID, cfg.Meta.AccessToken.Reveal(), cfg.Meta.AppID, cfg.Meta.AppSecret.Reveal()); err != nil {
 		// Not fatal: the account can be connected from the panel.
 		log.Error("could not connect the WhatsApp account from META_* settings", "err", err)

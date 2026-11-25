@@ -1,0 +1,68 @@
+[
+  {
+    "provider_kind": "anthropic",
+    "model_pattern": "claude-opus-5-5",
+    "input": "4",
+    "cached_input": "0.20",
+    "output": "20",
+    "source_url": "https://docs.claude.com/en/docs/about-claude/pricing",
+    "notes": "List price per 1M tokens. Cache-write prices not seeded: confirm on the pricing page."
+  },
+  {
+    "provider_kind": "anthropic",
+    "model_pattern": "claude-sonnet-5-5",
+    "input": "2",
+    "cached_input": "0.10",
+    "output": "10",
+    "source_url": "https://docs.claude.com/en/docs/about-claude/pricing",
+    "notes": "List price per 1M tokens. Cache-write prices not seeded: confirm on the pricing page."
+  },
+  {
+    "provider_kind": "anthropic",
+    "model_pattern": "claude-haiku-5-5",
+    "input": "0.10",
+    "output": "0.50",
+    "source_url": "https://docs.claude.com/en/docs/about-claude/pricing",
+    "notes": "Price for prompts up to 100K tokens. Prompts over 100K tokens cost more: add the higher price as a threshold rule (input_tokens_over 100000) after checking the pricing page."
+  },
+  {
+    "provider_kind": "openai",
+    "model_pattern": "gpt-6.2-sol",
+    "input": "2",
+    "cached_input": "0.10",
+    "output": "10",
+    "source_url": "https://openai.com/api/pricing/",
+    "notes": "Inputs over 272K tokens cost more and cache writes are billed: add them after checking the pricing page."
+  },
+  {
+    "provider_kind": "openai",
+    "model_pattern": "gpt-6-luna",
+    "input": "0.10",
+    "output": "0.50",
+    "source_url": "https://openai.com/api/pricing/",
+    "notes": "Inputs over 272K tokens cost more: add the threshold after checking the pricing page."
+  },
+  {
+    "provider_kind": "gemini",
+    "model_pattern": "gemini-4-hydrogen",
+    "input": "1.50",
+    "output": "7.50",
+    "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+    "notes": "Google has announced price changes from 2026-12-01 and 2027-01-01 for some models: add rows with those effective dates after checking the pricing page."
+  },
+  {
+    "provider_kind": "deepseek",
+    "model_pattern": "deepseek-flash",
+    "input": "0.15",
+    "cached_input": "0.003",
+    "output": "0.60",
+    "rules": {
+      "windows": [
+        { "label": "peak", "weekdays": [1, 2, 3, 4, 5], "start": "01:00", "end": "04:00", "multiplier": "2" },
+        { "label": "peak", "weekdays": [1, 2, 3, 4, 5], "start": "06:00", "end": "10:00", "multiplier": "2" }
+      ]
+    },
+    "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+    "notes": "Off-peak price (cache miss 0.15, cache hit 0.003, output 0.60). Peak hours 01:00-04:00 and 06:00-10:00 UTC Monday to Friday cost 2x."
+  }
+]

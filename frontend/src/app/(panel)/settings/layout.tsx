@@ -51,6 +51,11 @@ export default async function SettingsLayout({
             label: t('settings.tabs.metaRates'),
             icon: 'metaRates',
         },
+        has('ai.read') && {
+            href: '/settings/ai',
+            label: t('ai.tab'),
+            icon: 'ai',
+        },
         has('webhooks.manage') && {
             href: '/settings/webhooks',
             label: t('settings.tabs.webhooks'),

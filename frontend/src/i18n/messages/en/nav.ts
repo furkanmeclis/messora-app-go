@@ -15,6 +15,7 @@ const nav = {
     failedJobs: 'Failed jobs',
     settings: 'Settings',
     webhooks: 'Webhooks',
+    aiProfiles: 'AI profiles',
     profile: 'Profile',
     security: 'Security',
     toggleSidebar: 'Toggle sidebar',

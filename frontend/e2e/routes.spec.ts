@@ -160,6 +160,11 @@ const routes: [string, () => string][] = [
     ['/settings/security', () => '/settings/security'],
     ['/settings/license', () => '/settings/license'],
     ['/settings/webhooks', () => '/settings/webhooks'],
+    ['/settings/ai', () => '/settings/ai'],
+    ['/settings/ai/providers', () => '/settings/ai/providers'],
+    ['/settings/ai/models', () => '/settings/ai/models'],
+    ['/ai-profiles', () => '/ai-profiles'],
+    ['/ai-profiles/new', () => '/ai-profiles/new'],
     ['/account/profile', () => '/account/profile'],
     ['/account/security', () => '/account/security'],
 ];

@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
@@ -116,6 +117,10 @@ func RunWorker(ctx context.Context) error {
 		return nil
 	})
 	registerWebhooks(mux, svc.webhooks, log)
+	mux.HandleFunc(ai.TypeModelSync, func(ctx context.Context, _ *asynq.Task) error {
+		// Per-provider failures are logged; the next daily run repeats them.
+		return svc.ai.SyncAll(ctx)
+	})
 	mux.HandleFunc(contacts.TypeImport, func(ctx context.Context, t *asynq.Task) error {
 		var p struct {
 			ImportID uuid.UUID `json:"import_id"`

@@ -15,6 +15,9 @@ PROJECT="${E2E_PROJECT:-messora-e2e}"
 export HTTP_PORT="$PORT" HTTPS_PORT="$((PORT + 363))" PUBLIC_APP_URL="http://localhost:$PORT" SITE_ADDRESS=":80"
 # Separate image tags per project, so parallel runs never test each other's build.
 export MESSORA_VERSION="${MESSORA_VERSION:-$PROJECT}"
+# The AI specs use the scriptable fake provider, which only runs outside
+# production (see docs/AI.md).
+export APP_ENV="${E2E_APP_ENV:-development}" AI_FAKE_PROVIDER=true
 compose() { docker compose -p "$PROJECT" "$@"; }
 
 cleanup() {

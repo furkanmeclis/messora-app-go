@@ -11,6 +11,7 @@ import {
     ReceiptText,
     ShieldCheck,
     SlidersHorizontal,
+    Sparkles,
     Webhook,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ const ICONS = {
     license: KeyRound,
     webhooks: Webhook,
     metaRates: ReceiptText,
+    ai: Sparkles,
 } as const;
 
 export function SettingsTabs({

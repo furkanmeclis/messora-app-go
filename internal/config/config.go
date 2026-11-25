@@ -79,6 +79,10 @@ type Config struct {
 
 	Meta MetaConfig
 
+	// AIFakeProvider enables the scriptable "fake" AI provider
+	// (AI_FAKE_PROVIDER); refused in production.
+	AIFakeProvider bool
+
 	// MediaDir stores downloaded WhatsApp media (a volume in Compose).
 	MediaDir string
 
@@ -244,8 +248,9 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 			AccessToken:  Secret(l.str("META_ACCESS_TOKEN", "")),
 			WABAID:       l.str("META_WABA_ID", ""),
 		},
-		MediaDir:  l.str("MEDIA_DIR", "/var/lib/messora/media"),
-		Workspace: map[string]string{},
+		AIFakeProvider: l.bool("AI_FAKE_PROVIDER", false),
+		MediaDir:       l.str("MEDIA_DIR", "/var/lib/messora/media"),
+		Workspace:      map[string]string{},
 	}
 	cfg.LicenseGateURL = l.str("LICENSE_GATE_URL", license.DefaultGateURL)
 	for name, env := range WorkspaceEnv {
@@ -295,6 +300,9 @@ func (c *Config) Validate(role Role) error {
 	case EnvDevelopment, EnvProduction, EnvTest:
 	default:
 		errs = append(errs, fmt.Errorf("APP_ENV must be one of development, production, test (got %q)", c.Env))
+	}
+	if c.AIFakeProvider && c.Env == EnvProduction {
+		errs = append(errs, errors.New("AI_FAKE_PROVIDER is only allowed with APP_ENV=development or test"))
 	}
 	switch c.LogFormat {
 	case "json", "text":

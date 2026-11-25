@@ -57,6 +57,7 @@ var sensitiveKeys = []string{
 	"password", "passwd", "secret", "token", "authorization", "cookie",
 	"api_key", "apikey", "access_token", "app_secret", "hmac", "dsn",
 	"database_url", "redis_url", "encryption_key", "private_key",
+	"x-api-key", "x-goog-api-key", "api-key",
 }
 
 // contentKeys hold customer content or personal data; their values are dropped.

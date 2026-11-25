@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
@@ -35,6 +36,7 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "whatsapp_token_check", Every: 6 * time.Hour, TaskType: channels.TypeTokenCheck},
 		{Name: "whatsapp_signal_sync", Every: time.Hour, TaskType: channels.TypeSignalSync},
 		{Name: "meta_cost_reconcile", Every: 24 * time.Hour, TaskType: channels.TypeCostReconcile},
+		{Name: "ai_model_sync", Every: 24 * time.Hour, TaskType: ai.TypeModelSync},
 	}
 }
 

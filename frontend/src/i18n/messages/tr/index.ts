@@ -30,6 +30,7 @@ import users from './users';
 import webhooks from './webhooks';
 import consent from './consent';
 import offers from './offers';
+import ai from './ai';
 
 export const tr: Messages = {
     common,
@@ -58,6 +59,7 @@ export const tr: Messages = {
     webhooks,
     consent,
     offers,
+    ai,
     auth,
     overview,
     inbox,

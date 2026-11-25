@@ -25,6 +25,10 @@ x-messora-app: &messora-app
     POSTGRES_HOST: postgres
     REDIS_ADDR: redis:6379
     CENTRIFUGO_API_URL: http://centrifugo:8000/api
+    # Same values as in .env; listed so scripts/e2e.sh can run the stack in
+    # development mode with the fake AI provider (refused in production).
+    APP_ENV: ${APP_ENV:-production}
+    AI_FAKE_PROVIDER: ${AI_FAKE_PROVIDER:-false}
   volumes:
     - type: volume
       source: messora-secrets

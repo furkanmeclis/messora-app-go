@@ -65,6 +65,20 @@ const errors: Messages['errors'] = {
     USER_EXISTS: 'Bu e-posta adresine sahip bir kullanıcı zaten var.',
     VALIDATION_ERROR: 'Girilen bilgileri kontrol edin: {detail}',
     WEBHOOK_LIMIT: 'Webhook sınırına ulaşıldı.',
+    AI_DISABLED:
+        'Yapay zekâ firma genelinde kapalı. Ayarlar → Yapay zekâ bölümünden açın.',
+    AI_NOT_CONFIGURED: 'Yapay zekâ ayarlanmamış: {detail}',
+    AI_RATE_LIMITED:
+        'Yapay zekâ sağlayıcısı istekleri sınırlıyor. Biraz sonra tekrar deneyin.',
+    AI_QUOTA_EXCEEDED:
+        'Yapay zekâ sağlayıcı hesabında kredi yok veya harcama sınırına ulaşıldı.',
+    AI_AUTH_FAILED: 'Yapay zekâ sağlayıcısı API anahtarını reddetti.',
+    AI_PROVIDER_UNAVAILABLE:
+        'Yapay zekâ sağlayıcısına ulaşılamıyor veya aşırı yüklü. Biraz sonra tekrar deneyin.',
+    AI_BAD_REQUEST: 'Yapay zekâ sağlayıcısı isteği reddetti: {detail}',
+    AI_REFUSED: 'Model yanıt vermeyi reddetti.',
+    AI_INVALID_OUTPUT: 'Modelin yanıtı beklenen biçime uymadı.',
+    AI_PROVIDER_ERROR: 'Yapay zekâ sağlayıcısı isteği başarısız: {detail}',
     NETWORK: 'Sunucuya ulaşılamadı. Bağlantınızı kontrol edin.',
 };
 export default errors;

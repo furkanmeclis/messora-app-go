@@ -1,6 +1,7 @@
 import {
     Activity,
     BookUser,
+    Bot,
     FileText,
     Inbox,
     KeyRound,
@@ -85,6 +86,14 @@ export const NAV: NavItem[] = [
         label: 'nav.automations',
         icon: Workflow,
         permission: 'automations.read',
+        group: 'workspace',
+    },
+    {
+        id: 'ai-profiles',
+        href: '/ai-profiles',
+        label: 'nav.aiProfiles',
+        icon: Bot,
+        permission: 'ai.read',
         group: 'workspace',
     },
     {
