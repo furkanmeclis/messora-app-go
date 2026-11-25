@@ -1346,9 +1346,29 @@ export interface paths {
         put?: never;
         /**
          * Token for subscribing to one channel
-         * @description Issued only when the user may read the channel: `inbox:all` needs conversations.read or conversations.read_all, `conversation:<id>` needs conversations.read_all, or conversations.read when the conversation is assigned to the user or to nobody, `campaign:all` and `campaign:<id>` need campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
+         * @description Issued only when the user may read the channel: `inbox:all` needs conversations.read_all, `inbox:unassigned` needs conversations.read or conversations.read_all, `conversation:<id>` needs conversations.read_all, or conversations.read when the conversation is assigned to the user or to nobody, `campaign:all` and `campaign:<id>` need campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
          */
         post: operations['createRealtimeSubscriptionToken'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/realtime/sync': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Current state of what changed on a channel since a moment
+         * @description For clients that missed events and could not recover them from Centrifugo's history. Returns snapshots as the events the channel carries, oldest change first: `conversation.updated` for `inbox:all`, `inbox:unassigned`, the caller's `personal:#<id>` and `conversation:<id>` (only conversations the caller may read and the channel would announce), `campaign.updated` for `campaign:all` and `campaign:<id>` (changed since, plus every active campaign). At most 200 conversations or 50 campaigns; `has_more` asks the client to reload instead. Channel permissions are those of the subscription token; a channel the caller may not read answers 403 CHANNEL_FORBIDDEN.
+         */
+        get: operations['getRealtimeSync'];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3153,6 +3173,30 @@ export interface components {
         };
         RealtimeTokenResponse: {
             data: components['schemas']['RealtimeToken'];
+            meta: components['schemas']['Meta'];
+        };
+        /** @description A realtime event: the envelope below plus the fields of its type (see docs/ARCHITECTURE.md, realtime). */
+        RealtimeEvent: {
+            /** @description <area>.<event>, e.g. conversation.updated. */
+            type: string;
+            v: number;
+            /**
+             * Format: uuid
+             * @description Unique event ID; copies on several channels share it.
+             */
+            id: string;
+            /** Format: date-time */
+            ts: string;
+        } & {
+            [key: string]: unknown;
+        };
+        RealtimeSync: {
+            events: components['schemas']['RealtimeEvent'][];
+            /** @description More changed than returned; reload instead. */
+            has_more: boolean;
+        };
+        RealtimeSyncResponse: {
+            data: components['schemas']['RealtimeSync'];
             meta: components['schemas']['Meta'];
         };
         /** @enum {string} */
@@ -6055,6 +6099,30 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['RealtimeTokenResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getRealtimeSync: {
+        parameters: {
+            query: {
+                channel: string;
+                since: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Snapshots */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['RealtimeSyncResponse'];
                 };
             };
             default: components['responses']['Error'];

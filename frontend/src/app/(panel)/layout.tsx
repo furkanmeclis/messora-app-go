@@ -63,11 +63,13 @@ export default async function PanelLayout({
     // Channels the role may read; the API checks the same rules again when
     // it issues each subscription token.
     const channels: string[] = [];
-    if (
-        me.permissions.includes('conversations.read') ||
-        me.permissions.includes('conversations.read_all')
-    ) {
+    // inbox:all names every conversation, so only read_all gets it; agents
+    // follow the unassigned pool, and conversations assigned to them arrive
+    // on their personal channel (subscribed server-side).
+    if (me.permissions.includes('conversations.read_all')) {
         channels.push('inbox:all');
+    } else if (me.permissions.includes('conversations.read')) {
+        channels.push('inbox:unassigned');
     }
     if (me.permissions.includes('campaigns.read')) {
         channels.push('campaign:all');
@@ -90,6 +92,7 @@ export default async function PanelLayout({
                                 restricted={me.mfa_required}
                             />
                             <Topbar
+                                userId={me.user.id}
                                 permissions={me.permissions}
                                 restricted={me.mfa_required}
                                 initialUnread={unread}

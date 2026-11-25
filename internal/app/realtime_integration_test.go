@@ -122,7 +122,9 @@ func TestRealtimeTokensAndChannelPermissions(t *testing.T) {
 		{"owner", owner, realtime.InboxChannel, true},
 		{"owner", owner, realtime.CampaignsChannel, true},
 		{"owner", owner, campaign, true},
-		{"agent", agent, realtime.InboxChannel, true},
+		{"owner", owner, realtime.UnassignedChannel, true},
+		{"agent", agent, realtime.InboxChannel, false},
+		{"agent", agent, realtime.UnassignedChannel, true},
 		{"agent", agent, realtime.CampaignsChannel, false},
 		{"agent", agent, campaign, false},
 		{"agent", agent, "personal:#" + ownerID, false},
@@ -237,7 +239,7 @@ func TestMessageActivityIsPublishedThroughTheOutbox(t *testing.T) {
 		t.Fatalf("published %d realtime events, want %d", len(rec.events), len(all))
 	}
 	for i, e := range rec.events {
-		if e.Topic != all[i].channel || (e.Topic != realtime.InboxChannel && !strings.HasPrefix(e.Topic, "conversation:")) || !json.Valid(e.Payload) {
+		if e.Topic != all[i].channel || (!strings.HasPrefix(e.Topic, "inbox:") && !strings.HasPrefix(e.Topic, "conversation:")) || !json.Valid(e.Payload) {
 			t.Fatalf("published %q %s", e.Topic, e.Payload)
 		}
 	}

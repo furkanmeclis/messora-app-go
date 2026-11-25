@@ -205,7 +205,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		messagesHandler:   messaging.NewHandler(svc.messaging, log),
 		contactsHandler:   contacts.NewHandler(svc.contacts, log),
 		campaignHandler:   campaigns.NewHandler(svc.campaigns, log),
-		realtimeHandler:   realtime.NewHandler(rtIssuer.WithConversationAccess(svc.inbox.CanRead), log),
+		realtimeHandler:   realtime.NewHandler(rtIssuer.WithConversationAccess(svc.inbox.CanRead), log).WithSync(svc.inbox.ChangedSince, svc.campaigns.ChangedSince),
 		inboxHandler:      conversations.NewHandler(svc.inbox, log),
 		webhooksHandler:   webhooks.NewHandler(svc.webhooks, log),
 		automationHandler: automation.NewHandler(svc.automation, log),

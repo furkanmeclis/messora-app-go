@@ -91,6 +91,16 @@ func (s *Service) CanRead(ctx context.Context, p *principal.Principal, id uuid.U
 	return err == nil, err
 }
 
+// ChangedSince lists the conversations in scope that changed at or after
+// since and are visible to p, oldest change first (realtime re-sync).
+func (s *Service) ChangedSince(ctx context.Context, p *principal.Principal, scope realtime.ConversationScope, since time.Time, limit int) ([]db.Conversation, error) {
+	if p == nil {
+		return nil, errNotFound
+	}
+	return s.q.ListConversationsChangedSince(ctx, db.ListConversationsChangedSinceParams{Since: since, SeeAll: SeesAll(p), ViewerID: p.ID,
+		OnlyUnassigned: scope.Unassigned, AssigneeID: scope.Assignee, ID: scope.ID, Lim: int32(min(limit, 1000))}) //nolint:gosec // bounded above
+}
+
 // Filter narrows a listing.
 type Filter struct {
 	Status        *string
@@ -269,7 +279,7 @@ func (s *Service) change(ctx context.Context, p *principal.Principal, id uuid.UU
 			return err
 		}
 	}
-	if err := realtime.PublishConversation(ctx, tx, updated); err != nil {
+	if err := realtime.PublishConversationChange(ctx, tx, c, updated); err != nil {
 		return err
 	}
 	if err := webhooks.ConversationChanged(ctx, tx, ev.Kind, updated, ev.ActorType, ev.ActorID); err != nil {

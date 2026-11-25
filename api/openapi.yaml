@@ -1698,8 +1698,9 @@ paths:
       summary: Token for subscribing to one channel
       description: >-
         Issued only when the user may read the channel: `inbox:all` needs
-        conversations.read or conversations.read_all, `conversation:<id>`
-        needs conversations.read_all, or conversations.read when the
+        conversations.read_all, `inbox:unassigned` needs conversations.read
+        or conversations.read_all, `conversation:<id>` needs
+        conversations.read_all, or conversations.read when the
         conversation is assigned to the user or to nobody, `campaign:all` and `campaign:<id>` need
         campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
       security: [{ session: [] }]
@@ -1714,6 +1715,35 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/RealtimeTokenResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /realtime/sync:
+    get:
+      operationId: getRealtimeSync
+      tags: [realtime]
+      summary: Current state of what changed on a channel since a moment
+      description: >-
+        For clients that missed events and could not recover them from
+        Centrifugo's history. Returns snapshots as the events the channel
+        carries, oldest change first: `conversation.updated` for
+        `inbox:all`, `inbox:unassigned`, the caller's `personal:#<id>` and
+        `conversation:<id>` (only conversations the caller may read and the
+        channel would announce), `campaign.updated` for `campaign:all` and
+        `campaign:<id>` (changed since, plus every active campaign). At most
+        200 conversations or 50 campaigns; `has_more` asks the client to
+        reload instead. Channel permissions are those of the subscription
+        token; a channel the caller may not read answers 403
+        CHANNEL_FORBIDDEN.
+      security: [{ session: [] }]
+      parameters:
+        - { name: channel, in: query, required: true, schema: { type: string, minLength: 3, maxLength: 128 } }
+        - { name: since, in: query, required: true, schema: { type: string, format: date-time } }
+      responses:
+        "200":
+          description: Snapshots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RealtimeSyncResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   # ── Campaigns (Phase 5) ──────────────────────────────────────────────────
@@ -4087,6 +4117,29 @@ components:
       type: object
       required: [data, meta]
       properties: { data: { $ref: "#/components/schemas/RealtimeToken" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    RealtimeEvent:
+      type: object
+      description: >-
+        A realtime event: the envelope below plus the fields of its type
+        (see docs/ARCHITECTURE.md, realtime).
+      required: [type, v, id, ts]
+      additionalProperties: true
+      properties:
+        type: { type: string, description: "<area>.<event>, e.g. conversation.updated." }
+        v: { type: integer }
+        id: { type: string, format: uuid, description: Unique event ID; copies on several channels share it. }
+        ts: { type: string, format: date-time }
+    RealtimeSync:
+      type: object
+      required: [events, has_more]
+      properties:
+        events: { type: array, items: { $ref: "#/components/schemas/RealtimeEvent" } }
+        has_more: { type: boolean, description: More changed than returned; reload instead. }
+    RealtimeSyncResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/RealtimeSync" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     # ── Campaigns (Phase 5) ────────────────────────────────────────────────
     CampaignStatus:

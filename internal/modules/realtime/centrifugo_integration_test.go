@@ -272,13 +272,17 @@ func TestCentrifugoAcceptsIssuedTokensAndRefusesOthers(t *testing.T) {
 	if subs[realtime.PersonalChannel(agent.ID)] == nil || subs[realtime.NotificationsChannel] == nil {
 		t.Fatalf("server-side subscriptions %v", subs)
 	}
+	// Events routed to the personal channel survive a short disconnect.
+	if p, _ := subs[realtime.PersonalChannel(agent.ID)].(map[string]any); p["recoverable"] != true {
+		t.Fatalf("personal channel must be recoverable: %v", p)
+	}
 
 	// A permitted channel with its subscription token: recoverable history.
-	inbox, err := iss.Subscription(agent, realtime.InboxChannel)
+	inbox, err := iss.Subscription(agent, realtime.UnassignedChannel)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reply, err = c.call("subscribe", map[string]any{"channel": realtime.InboxChannel, "token": inbox.Token})
+	reply, err = c.call("subscribe", map[string]any{"channel": realtime.UnassignedChannel, "token": inbox.Token})
 	if err != nil || reply["subscribe"] == nil {
 		t.Fatalf("subscribe inbox: %v %v", reply, err)
 	}
@@ -304,18 +308,18 @@ func TestCentrifugoAcceptsIssuedTokensAndRefusesOthers(t *testing.T) {
 	}
 	pub := realtime.Publisher(cf)
 	ctx := context.Background()
-	first := outbox.Event{ID: 1, Topic: realtime.TopicPrefix + realtime.InboxChannel, Payload: []byte(`{"type":"message.created","v":1,"n":1}`)}
+	first := outbox.Event{ID: 1, Topic: realtime.TopicPrefix + realtime.UnassignedChannel, Payload: []byte(`{"type":"message.created","v":1,"n":1}`)}
 	for range 2 {
 		if err := pub.Publish(ctx, first); err != nil {
 			t.Fatal(err)
 		}
 	}
-	second := outbox.Event{ID: 2, Topic: realtime.TopicPrefix + realtime.InboxChannel, Payload: []byte(`{"type":"message.status","v":1,"n":2}`)}
+	second := outbox.Event{ID: 2, Topic: realtime.TopicPrefix + realtime.UnassignedChannel, Payload: []byte(`{"type":"message.status","v":1,"n":2}`)}
 	if err := pub.Publish(ctx, second); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []float64{1, 2} {
-		p := c.awaitPush(realtime.InboxChannel)
+		p := c.awaitPush(realtime.UnassignedChannel)
 		if p["data"].(map[string]any)["n"] != want {
 			t.Fatalf("publication %v, want n=%v (duplicates must be dropped)", p, want)
 		}

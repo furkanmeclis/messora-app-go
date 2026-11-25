@@ -373,6 +373,71 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 	return items, nil
 }
 
+const listConversationsChangedSince = `-- name: ListConversationsChangedSince :many
+SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at FROM conversations
+WHERE updated_at >= $1
+  AND ($2::bool OR assignee_id IS NULL OR assignee_id = $3::uuid)
+  AND (NOT $4::bool OR assignee_id IS NULL)
+  AND ($5::uuid IS NULL OR assignee_id = $5::uuid)
+  AND ($6::uuid IS NULL OR id = $6::uuid)
+ORDER BY updated_at, id
+LIMIT $7
+`
+
+type ListConversationsChangedSinceParams struct {
+	Since          time.Time
+	SeeAll         bool
+	ViewerID       uuid.UUID
+	OnlyUnassigned bool
+	AssigneeID     *uuid.UUID
+	ID             *uuid.UUID
+	Lim            int32
+}
+
+// Realtime re-sync after missed events: conversations changed at or after
+// since, oldest change first, limited to what the viewer may read (see
+// ListConversations) and to one channel's audience.
+func (q *Queries) ListConversationsChangedSince(ctx context.Context, arg ListConversationsChangedSinceParams) ([]Conversation, error) {
+	rows, err := q.db.Query(ctx, listConversationsChangedSince,
+		arg.Since,
+		arg.SeeAll,
+		arg.ViewerID,
+		arg.OnlyUnassigned,
+		arg.AssigneeID,
+		arg.ID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Conversation{}
+	for rows.Next() {
+		var i Conversation
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContactID,
+			&i.PhoneNumberID,
+			&i.Status,
+			&i.AssigneeID,
+			&i.LastMessageID,
+			&i.LastMessageAt,
+			&i.LastInboundAt,
+			&i.UnreadCount,
+			&i.ClosedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMediaForMessages = `-- name: ListMediaForMessages :many
 SELECT id, message_id, meta_media_id, mime_type, filename, size_bytes, sha256, storage_key, status, last_error, created_at, updated_at FROM media_files WHERE message_id = ANY($1::uuid[]) ORDER BY id
 `

@@ -75,6 +75,7 @@ export function LiveActivity() {
     const [items, setItems] = useState<Item[]>([]);
 
     useRealtimeEvents((channel, e) => {
+        if (e.synced) return;
         const text = describe(t, e);
         if (!text) return;
         const id =

@@ -89,39 +89,31 @@ func recordNew(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message) (db.
 			return c, err
 		}
 	}
-	if err := publishMessage(ctx, tx, realtime.TypeMessageCreated, m, &c.ID); err != nil {
+	if err := realtime.PublishMessage(ctx, tx, realtime.NewMessageEvent(realtime.TypeMessageCreated, m), &c); err != nil {
 		return c, err
 	}
 	return c, realtime.PublishConversation(ctx, tx, c)
 }
 
-// announceStatus publishes a delivery state change of m to the inbox and to
-// its conversation.
+// announceStatus publishes a delivery state change of m on the channels of
+// its conversation (realtime.ConversationChannels).
 func announceStatus(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message) error {
-	var conv *uuid.UUID
+	var conv *db.Conversation
 	c, err := q.GetConversationByThread(ctx, db.GetConversationByThreadParams{ContactID: m.ContactID, PhoneNumberID: m.PhoneNumberID})
 	switch {
 	case err == nil:
-		conv = &c.ID
+		conv = &c
 	case !errors.Is(err, pgx.ErrNoRows):
 		return err
 	}
-	if err := webhooks.MessageStatus(ctx, tx, m, conv); err != nil {
+	var convID *uuid.UUID
+	if conv != nil {
+		convID = &conv.ID
+	}
+	if err := webhooks.MessageStatus(ctx, tx, m, convID); err != nil {
 		return err
 	}
-	return publishMessage(ctx, tx, realtime.TypeMessageStatus, m, conv)
-}
-
-func publishMessage(ctx context.Context, tx pgx.Tx, typ string, m db.Message, conv *uuid.UUID) error {
-	ev := realtime.NewMessageEvent(typ, m)
-	ev.ConversationID = conv
-	if err := realtime.Publish(ctx, tx, realtime.InboxChannel, ev); err != nil {
-		return err
-	}
-	if conv == nil {
-		return nil
-	}
-	return realtime.Publish(ctx, tx, realtime.ConversationChannel(*conv), ev)
+	return realtime.PublishMessage(ctx, tx, realtime.NewMessageEvent(realtime.TypeMessageStatus, m), conv)
 }
 
 // RecordCampaignMessage keeps the thread of a campaign message current, in

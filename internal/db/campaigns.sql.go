@@ -591,6 +591,64 @@ func (q *Queries) ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([
 	return items, nil
 }
 
+const listCampaignsChangedSince = `-- name: ListCampaignsChangedSince :many
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM campaigns
+WHERE (updated_at >= $1 OR status IN ('preparing', 'running'))
+  AND ($2::uuid IS NULL OR id = $2::uuid)
+ORDER BY updated_at, id
+LIMIT $3
+`
+
+type ListCampaignsChangedSinceParams struct {
+	Since time.Time
+	ID    *uuid.UUID
+	Lim   int32
+}
+
+// Realtime re-sync after missed events: campaigns changed at or after since,
+// and every active one (their counters change without touching the row).
+func (q *Queries) ListCampaignsChangedSince(ctx context.Context, arg ListCampaignsChangedSinceParams) ([]Campaign, error) {
+	rows, err := q.db.Query(ctx, listCampaignsChangedSince, arg.Since, arg.ID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Campaign{}
+	for rows.Next() {
+		var i Campaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Status,
+			&i.PhoneNumberID,
+			&i.TemplateName,
+			&i.TemplateLanguage,
+			&i.TemplateParams,
+			&i.Audience,
+			&i.ScheduledAt,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.MaterializeCursor,
+			&i.DispatchGen,
+			&i.WindowSize,
+			&i.TotalRecipients,
+			&i.LastError,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProgressPublishedAt,
+			&i.ProgressDirty,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecipients = `-- name: ListRecipients :many
 SELECT r.id, r.campaign_id, r.contact_id, r.phone_e164, r.state, r.skip_reason, r.message_id, r.created_at, r.updated_at, m.status AS message_status, m.error_code, m.error_title
 FROM campaign_recipients r LEFT JOIN messages m ON m.id = r.message_id

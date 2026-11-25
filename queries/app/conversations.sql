@@ -115,3 +115,16 @@ SELECT u.id, u.name FROM users u
 WHERE u.id = @id AND u.status = 'active' AND EXISTS (
     SELECT 1 FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
     WHERE ur.user_id = u.id AND rp.permission_key IN ('conversations.read', 'conversations.read_all'));
+
+-- name: ListConversationsChangedSince :many
+-- Realtime re-sync after missed events: conversations changed at or after
+-- since, oldest change first, limited to what the viewer may read (see
+-- ListConversations) and to one channel's audience.
+SELECT * FROM conversations
+WHERE updated_at >= @since
+  AND (@see_all::bool OR assignee_id IS NULL OR assignee_id = @viewer_id::uuid)
+  AND (NOT @only_unassigned::bool OR assignee_id IS NULL)
+  AND (sqlc.narg(assignee_id)::uuid IS NULL OR assignee_id = sqlc.narg(assignee_id)::uuid)
+  AND (sqlc.narg(id)::uuid IS NULL OR id = sqlc.narg(id)::uuid)
+ORDER BY updated_at, id
+LIMIT @lim;

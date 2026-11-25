@@ -7,7 +7,8 @@
 //
 //	personal:#<user_id>    the user's own channel (server-side subscription)
 //	system:notifications   installation-wide notices (server-side subscription)
-//	inbox:all              message activity       conversations.read or conversations.read_all
+//	inbox:all              all inbox activity     conversations.read_all
+//	inbox:unassigned       unassigned activity    conversations.read or conversations.read_all
 //	conversation:<id>      one conversation       conversations.read_all, or conversations.read
 //	                                              when the conversation is visible to the user
 //	                                              (assigned to them or to nobody)
@@ -17,6 +18,13 @@
 // Everything else is refused. Events carry IDs and states only, never message
 // bodies: the client fetches the details from the API with its own
 // permissions.
+//
+// Conversation and message events are routed by visibility (see
+// ConversationChannels): always inbox:all, plus inbox:unassigned while
+// nobody is assigned, or the assignee's personal channel. A user with
+// conversations.read alone therefore receives events only for the
+// conversations they may open; when a conversation is reassigned, the
+// previous audience receives its new state once, so it can drop it.
 package realtime
 
 import (
@@ -32,6 +40,7 @@ import (
 // Well-known channels.
 const (
 	InboxChannel         = "inbox:all"
+	UnassignedChannel    = "inbox:unassigned"
 	CampaignsChannel     = "campaign:all"
 	NotificationsChannel = "system:notifications"
 )
@@ -77,7 +86,12 @@ func AuthorizeContext(ctx context.Context, p *principal.Principal, channel strin
 	case "system":
 		allowed = rest == "notifications"
 	case "inbox":
-		allowed = rest == "all" && (p.Has("conversations.read") || p.Has("conversations.read_all"))
+		switch rest {
+		case "all":
+			allowed = p.Has("conversations.read_all")
+		case "unassigned":
+			allowed = p.Has("conversations.read") || p.Has("conversations.read_all")
+		}
 	case "conversation":
 		if !isUUID(rest) {
 			break

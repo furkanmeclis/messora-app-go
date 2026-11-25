@@ -36,10 +36,14 @@ function sql(query: string): string {
     ).trim();
 }
 
-/** Announces a conversation change to the inbox, as the API would. */
+/**
+ * Announces a change of an unassigned conversation to the inbox, as the API
+ * would: agents follow the unassigned pool (inbox:all needs read_all).
+ */
 function announce(conversationId: string) {
     sql(`INSERT INTO outbox_events (topic, payload)
-         SELECT 'rt:inbox:all', jsonb_build_object('type', 'conversation.updated', 'v', 1,
+         SELECT 'rt:inbox:unassigned', jsonb_build_object('type', 'conversation.updated', 'v', 1,
+                'id', gen_random_uuid(), 'ts', now(),
                 'conversation_id', id, 'status', status, 'unread_count', unread_count)
          FROM conversations WHERE id = '${conversationId}';
          NOTIFY outbox;`);

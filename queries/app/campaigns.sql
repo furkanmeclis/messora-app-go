@@ -164,3 +164,12 @@ SELECT * FROM claim;
 UPDATE campaigns SET progress_dirty = false, progress_published_at = now()
 WHERE progress_dirty
 RETURNING *;
+
+-- name: ListCampaignsChangedSince :many
+-- Realtime re-sync after missed events: campaigns changed at or after since,
+-- and every active one (their counters change without touching the row).
+SELECT * FROM campaigns
+WHERE (updated_at >= @since OR status IN ('preparing', 'running'))
+  AND (sqlc.narg(id)::uuid IS NULL OR id = sqlc.narg(id)::uuid)
+ORDER BY updated_at, id
+LIMIT @lim;

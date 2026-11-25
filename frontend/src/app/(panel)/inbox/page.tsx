@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { RealtimeRefresh } from '@/components/realtime';
 import { getT } from '@/i18n/server';
 import { cn } from '@/lib/utils';
 import { api, ApiError } from '@/lib/server/api';
@@ -15,6 +14,7 @@ import type {
     User,
 } from '@/lib/types';
 import { ConversationList, InboxFilters, Thread } from './inbox-client';
+import { InboxRealtime } from './inbox-realtime';
 
 export async function generateMetadata(): Promise<Metadata> {
     const t = await getT();
@@ -128,14 +128,7 @@ export default async function InboxPage({
 
     return (
         <>
-            <RealtimeRefresh
-                channel="inbox:all"
-                types={[
-                    'conversation.updated',
-                    'message.created',
-                    'message.status',
-                ]}
-            />
+            <InboxRealtime selected={thread ? selected : undefined} />
             {/* Full-bleed: fills the content area below the top bar, edge to
                 edge (the panel's padding is cancelled). */}
             <div className="-m-4 grid h-[calc(100svh-var(--topbar-h))] min-h-[28rem] overflow-hidden bg-card md:-m-6 lg:grid-cols-[22rem_1fr] xl:-mx-8">

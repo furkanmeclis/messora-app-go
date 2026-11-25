@@ -48,6 +48,7 @@ func TestAuthorizeMatrix(t *testing.T) {
 		ok      bool
 	}{
 		{"owner", owner, InboxChannel, true},
+		{"owner", owner, UnassignedChannel, true},
 		{"owner", owner, CampaignsChannel, true},
 		{"owner", owner, CampaignChannel(campaign), true},
 		{"owner", owner, ConversationChannel(conv), true},
@@ -55,14 +56,20 @@ func TestAuthorizeMatrix(t *testing.T) {
 		{"owner", owner, NotificationsChannel, true},
 		{"owner", owner, PersonalChannel(agent.ID), false},
 		{"manager", manager, InboxChannel, true},
+		{"manager", manager, UnassignedChannel, true},
 		{"manager", manager, CampaignChannel(campaign), true},
-		{"agent", agent, InboxChannel, true},
+		// conversations.read alone: inbox:all would name conversations
+		// assigned to others; the unassigned pool and the personal
+		// channel carry what the agent may see.
+		{"agent", agent, InboxChannel, false},
+		{"agent", agent, UnassignedChannel, true},
 		{"agent", agent, PersonalChannel(agent.ID), true},
 		{"agent", agent, CampaignsChannel, false},
 		{"agent", agent, CampaignChannel(campaign), false},
 		{"agent", agent, ConversationChannel(conv), false},
 		{"agent", agent, PersonalChannel(owner.ID), false},
 		{"viewer", viewer, InboxChannel, false},
+		{"viewer", viewer, UnassignedChannel, false},
 		{"viewer", viewer, NotificationsChannel, true},
 		{"api key", apiKey, InboxChannel, false},
 		{"anonymous", nil, InboxChannel, false},
@@ -71,6 +78,8 @@ func TestAuthorizeMatrix(t *testing.T) {
 		{"owner", owner, "inbox", false},
 		{"owner", owner, "inbox:", false},
 		{"owner", owner, "inbox:other", false},
+		{"owner", owner, "inbox:Unassigned", false},
+		{"owner", owner, "inbox:unassigned:x", false},
 		{"owner", owner, "admin:all", false},
 		{"owner", owner, "all", false},
 		{"owner", owner, "campaign:not-a-uuid", false},
@@ -235,12 +244,12 @@ func TestConnectionToken(t *testing.T) {
 
 func TestSubscriptionToken(t *testing.T) {
 	iss, _ := NewIssuer(testSecret)
-	tok, err := iss.Subscription(agent, InboxChannel)
+	tok, err := iss.Subscription(agent, UnassignedChannel)
 	if err != nil {
 		t.Fatal(err)
 	}
 	c := verify(t, tok.Token, testSecret)
-	if c["sub"] != agent.ID.String() || c["channel"] != InboxChannel {
+	if c["sub"] != agent.ID.String() || c["channel"] != UnassignedChannel {
 		t.Fatalf("claims %v", c)
 	}
 	if exp := int64(c["exp"].(float64)); time.Until(time.Unix(exp, 0)) > TokenTTL || time.Until(time.Unix(exp, 0)) < TokenTTL-time.Minute {

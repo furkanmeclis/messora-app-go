@@ -31,3 +31,18 @@ export async function realtimeSubscriptionToken(
         return r.data.token;
     });
 }
+
+/**
+ * What changed on a channel since a moment, for a client whose missed
+ * events could not be recovered from Centrifugo's history.
+ */
+export async function realtimeSync(
+    channel: string,
+    since: string,
+): Promise<ActionResult<Schemas['RealtimeSync']>> {
+    return runAction(async () => {
+        const q = new URLSearchParams({ channel, since });
+        const r = await api<Schemas['RealtimeSync']>(`/realtime/sync?${q}`);
+        return r.data;
+    });
+}

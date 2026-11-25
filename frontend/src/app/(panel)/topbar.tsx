@@ -130,11 +130,13 @@ function ago(t: Translate, at: number, now: number) {
  * sending right now, recent activity).
  */
 export function Topbar({
+    userId,
     permissions,
     restricted,
     initialUnread,
     initialRunning,
 }: {
+    userId: string;
     permissions: string[];
     restricted: boolean;
     initialUnread: string[];
@@ -181,10 +183,18 @@ export function Topbar({
     useRealtimeEvents((_channel, e) => {
         if (e.type === 'conversation.updated') {
             const id = String(e.conversation_id);
+            // A conversation reassigned to someone else is announced once
+            // to its previous assignee, who may no longer see it.
+            const visible =
+                permissions.includes('conversations.read_all') ||
+                !e.assignee_id ||
+                e.assignee_id === userId;
             setUnread((prev) => {
                 const has = prev.has(id);
                 const want =
-                    Number(e.unread_count ?? 0) > 0 && e.status !== 'closed';
+                    visible &&
+                    Number(e.unread_count ?? 0) > 0 &&
+                    e.status !== 'closed';
                 if (has === want) return prev;
                 const next = new Set(prev);
                 if (want) next.add(id);

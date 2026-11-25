@@ -193,6 +193,12 @@ func CentrifugoConfig(apiKey, hmacSecret, publicAppURL string) ([]byte, error) {
 			"force_recovery": true,
 		}
 	}
+	// Ten minutes of history: a client that reconnects within that window
+	// gets the missed events replayed; after it, the panel re-syncs through
+	// GET /realtime/sync.
+	const historySize, historyTTL = 200, "600s"
+	personal := recovering("personal", historySize, historyTTL)
+	personal["allow_user_limited_channels"] = true
 	cfg := map[string]any{
 		"log": map[string]any{"level": "info"},
 		"client": map[string]any{
@@ -206,10 +212,10 @@ func CentrifugoConfig(apiKey, hmacSecret, publicAppURL string) ([]byte, error) {
 		"admin":      map[string]any{"enabled": false},
 		"channel": map[string]any{
 			"namespaces": []map[string]any{
-				{"name": "personal", "allow_user_limited_channels": true},
-				recovering("campaign", 50, "120s"),
-				recovering("conversation", 50, "120s"),
-				recovering("inbox", 100, "120s"),
+				personal,
+				recovering("campaign", historySize, historyTTL),
+				recovering("conversation", historySize, historyTTL),
+				recovering("inbox", historySize, historyTTL),
 				recovering("system", 20, "300s"),
 			},
 		},

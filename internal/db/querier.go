@@ -186,6 +186,9 @@ type Querier interface {
 	ListAutomations(ctx context.Context) ([]ListAutomationsRow, error)
 	ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) ([]CampaignEvent, error)
 	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
+	// Realtime re-sync after missed events: campaigns changed at or after since,
+	// and every active one (their counters change without touching the row).
+	ListCampaignsChangedSince(ctx context.Context, arg ListCampaignsChangedSinceParams) ([]Campaign, error)
 	ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([]ConsentEvent, error)
 	ListContactAttributeKeys(ctx context.Context) ([]string, error)
 	// ── Groups ──────────────────────────────────────────────────────────────────
@@ -196,6 +199,10 @@ type Querier interface {
 	// see_all is false for users who may only read conversations assigned to
 	// them or to nobody (conversations.read without conversations.read_all).
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
+	// Realtime re-sync after missed events: conversations changed at or after
+	// since, oldest change first, limited to what the viewer may read (see
+	// ListConversations) and to one channel's audience.
+	ListConversationsChangedSince(ctx context.Context, arg ListConversationsChangedSinceParams) ([]Conversation, error)
 	ListMediaForMessage(ctx context.Context, messageID *uuid.UUID) ([]MediaFile, error)
 	ListMediaForMessages(ctx context.Context, messageIds []uuid.UUID) ([]MediaFile, error)
 	ListMessagesByContact(ctx context.Context, arg ListMessagesByContactParams) ([]Message, error)

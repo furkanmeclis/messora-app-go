@@ -306,16 +306,31 @@ func lastError(d map[string]any) *string {
 	return nil
 }
 
+// ChangedSince returns the current state of campaign id (or of all with
+// nil) when it changed at or after since or is still active, oldest change
+// first (realtime re-sync).
+func (s *Service) ChangedSince(ctx context.Context, id *uuid.UUID, since time.Time, limit int) ([]realtime.CampaignEvent, error) {
+	cs, err := s.q.ListCampaignsChangedSince(ctx, db.ListCampaignsChangedSinceParams{Since: since, ID: id, Lim: int32(min(limit, 1000))}) //nolint:gosec // bounded above
+	if err != nil {
+		return nil, err
+	}
+	out := make([]realtime.CampaignEvent, 0, len(cs))
+	for _, c := range cs {
+		counts, err := stats(ctx, s.q, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, realtime.NewCampaignEvent(c, counts))
+	}
+	return out, nil
+}
+
 func (s *Service) publish(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Campaign) error {
 	counts, err := stats(ctx, q, c.ID)
 	if err != nil {
 		return err
 	}
-	ev := realtime.CampaignEvent{Type: "campaign.updated", V: realtime.EventVersion, CampaignID: c.ID, Status: c.Status, Counts: counts, At: time.Now().UTC()}
-	if err := realtime.Publish(ctx, tx, realtime.CampaignsChannel, ev); err != nil {
-		return err
-	}
-	return realtime.Publish(ctx, tx, realtime.CampaignChannel(c.ID), ev)
+	return realtime.PublishCampaign(ctx, tx, realtime.NewCampaignEvent(c, counts))
 }
 
 // Start begins sending now, or schedules the campaign for later.
