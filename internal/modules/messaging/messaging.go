@@ -352,7 +352,13 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 			return err
 		}
 		if cur.Status == "pending" || (cur.Status == "deferred" && due(cur)) {
-			if wait := s.throttle.Wait(ctx, cur.PhoneNumberID); wait > 0 {
+			var wait time.Duration
+			if cur.CampaignID != nil {
+				wait = s.throttle.WaitCampaign(ctx, cur.PhoneNumberID, *cur.CampaignID)
+			} else {
+				wait = s.throttle.Wait(ctx, cur.PhoneNumberID)
+			}
+			if wait > 0 {
 				// Not a failed attempt: the queue retries without counting it.
 				return &ErrRetry{After: wait, Reason: "per-number rate limit"}
 			}
@@ -416,6 +422,17 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 		return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title, FailureClass: ptr(whatsapp.FailurePermanent)})
 	}
 	wm.BizOpaqueCallbackData = m.ID.String()
+	// A template outside the customer's service window counts against the
+	// portfolio's messaging limit once Meta accepts it.
+	countsTowardLimit := false
+	if wm.Type == "template" {
+		last, err := threadLastInbound(ctx, s.q, m.ContactID, m.PhoneNumberID)
+		if err != nil {
+			_ = s.q.ReleaseMessageForRetry(ctx, db.ReleaseMessageForRetryParams{ID: id})
+			return err
+		}
+		countsTowardLimit = !WindowOpen(last, time.Now())
+	}
 
 	res, err := s.ch.Client().SendMessage(ctx, sender.PhoneNumber.PhoneNumberID, sender.Token, wm, int(m.Attempts)-1)
 	if s.throttle != nil {
@@ -433,6 +450,11 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 			_ = s.q.SetMessageMetaStatus(bg, db.SetMessageMetaStatusParams{ID: id, MetaStatus: &res.Status})
 		}
 		return s.settle(bg, id, func(q *db.Queries) error {
+			if countsTowardLimit {
+				if err := q.RecordPortfolioReach(bg, db.RecordPortfolioReachParams{ContactID: m.ContactID, PhoneNumberID: m.PhoneNumberID}); err != nil {
+					return err
+				}
+			}
 			return q.MarkMessageAccepted(bg, db.MarkMessageAcceptedParams{ID: id, Wamid: &res.MessageID})
 		})
 	}

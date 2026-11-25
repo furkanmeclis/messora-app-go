@@ -105,6 +105,15 @@ type Campaign struct {
 	UpdatedAt           time.Time
 	ProgressPublishedAt *time.Time
 	ProgressDirty       bool
+	Priority            string
+	MaxMps              *float64
+	PausedReason        *string
+	PausedAt            *time.Time
+	PausedBy            *uuid.UUID
+	ResumeAt            *time.Time
+	SendRate            *float64
+	RateWindowStart     *time.Time
+	RateWindowQueued    int64
 }
 
 type CampaignEvent struct {
@@ -116,16 +125,33 @@ type CampaignEvent struct {
 	CreatedAt  time.Time
 }
 
-type CampaignRecipient struct {
+type CampaignPause struct {
 	ID         uuid.UUID
 	CampaignID uuid.UUID
-	ContactID  *uuid.UUID
-	PhoneE164  string
-	State      string
-	SkipReason *string
-	MessageID  *uuid.UUID
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	Status     string
+	Reason     string
+	Detail     []byte
+	PausedAt   time.Time
+	PausedBy   *uuid.UUID
+	ResumeAt   *time.Time
+	Snapshot   []byte
+	ResumedAt  *time.Time
+	ResumedBy  *uuid.UUID
+	Changes    []byte
+}
+
+type CampaignRecipient struct {
+	ID            uuid.UUID
+	CampaignID    uuid.UUID
+	ContactID     *uuid.UUID
+	PhoneE164     string
+	State         string
+	SkipReason    *string
+	MessageID     *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	NextAttemptAt *time.Time
+	Resends       int32
 }
 
 type ConsentEvent struct {
@@ -317,6 +343,7 @@ type Message struct {
 	FailureClass     *string
 	ConsentCategory  *string
 	NextAttemptAt    *time.Time
+	RetryOf          *uuid.UUID
 }
 
 type MessageTemplate struct {
@@ -432,6 +459,12 @@ type PhoneNumber struct {
 	UpdatedAt              time.Time
 	ThroughputMps          *int32
 	SignalsCheckedAt       *time.Time
+}
+
+type PortfolioReach struct {
+	AccountID uuid.UUID
+	ContactID uuid.UUID
+	LastAt    time.Time
 }
 
 type Role struct {

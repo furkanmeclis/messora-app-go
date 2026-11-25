@@ -8,8 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
-
-	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
 )
 
 // DefaultThroughput is Meta's default per-number throughput (messages per
@@ -29,13 +27,15 @@ type CeilingFunc func(ctx context.Context, pn uuid.UUID) (int, error)
 // back, up to the number's ceiling — the throughput Meta reports for it
 // (phone_numbers.throughput_mps), or Ceiling when that is unknown.
 type Throttle struct {
-	rdb     goredis.UniversalClient
-	limiter *ratelimit.Limiter
+	rdb goredis.UniversalClient
 	// Ceiling is the rate of numbers without a known throughput (Meta's
 	// default is 80 messages per second); Floor is the lowest the rate can
 	// fall to.
 	Ceiling, Floor int
 	prefix         string
+	// reserved is the share of each number's rate campaigns leave free
+	// (scheduler.go).
+	reserved float64
 
 	lookup CeilingFunc
 	mu     sync.Mutex
@@ -52,7 +52,7 @@ func NewThrottle(rdb goredis.UniversalClient, ceiling int) *Throttle {
 	if ceiling <= 0 {
 		ceiling = DefaultThroughput
 	}
-	return &Throttle{rdb: rdb, limiter: ratelimit.New(rdb, "messora:send"), Ceiling: ceiling, Floor: 1, prefix: "messora:aimd:",
+	return &Throttle{rdb: rdb, Ceiling: ceiling, Floor: 1, prefix: "messora:aimd:", reserved: DefaultReservedShare,
 		cache: map[uuid.UUID]cachedCeiling{}}
 }
 
@@ -101,17 +101,6 @@ func (t *Throttle) Rate(ctx context.Context, pn uuid.UUID) int {
 	return n
 }
 
-// Wait reports how long to wait before the next send from pn (0 = now).
-// When Redis is unavailable sending proceeds: Meta's own limits still
-// apply and are handled as retryable errors.
-func (t *Throttle) Wait(ctx context.Context, pn uuid.UUID) time.Duration {
-	r := t.Rate(ctx, pn)
-	res, err := t.limiter.Allow(ctx, "pn:"+pn.String(), ratelimit.Limit{Rate: r, Period: time.Second, Burst: r})
-	if err != nil || res.Allowed {
-		return 0
-	}
-	return res.RetryAfter
-}
 
 // Backoff halves the rate after a throughput error.
 func (t *Throttle) Backoff(ctx context.Context, pn uuid.UUID) int {

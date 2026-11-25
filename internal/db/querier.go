@@ -22,7 +22,13 @@ type Querier interface {
 	// Monotonic status transition from a webhook; see the messages table comment.
 	ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatusParams) (Message, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
+	// Recipients of a campaign by why they were not reached (unique contacts;
+	// class NULL = reached).
+	CampaignClassCounts(ctx context.Context, campaignID uuid.UUID) ([]CampaignClassCountsRow, error)
 	CampaignMessageStats(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMessageStatsRow, error)
+	// Campaigns that are sending or waiting for the portfolio limit, with what
+	// is left (the queue view per number).
+	CampaignQueue(ctx context.Context) ([]CampaignQueueRow, error)
 	CampaignRecipientStats(ctx context.Context, campaignID uuid.UUID) ([]CampaignRecipientStatsRow, error)
 	CancelPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
 	CancelRunsOfAutomation(ctx context.Context, automationID uuid.UUID) (int64, error)
@@ -30,6 +36,9 @@ type Querier interface {
 	// Returns the campaign when its progress may be published now; otherwise
 	// marks it dirty for the reaper and returns no row.
 	ClaimCampaignProgress(ctx context.Context, id uuid.UUID) (ClaimCampaignProgressRow, error)
+	// Recipients whose withheld (131049) message may be sent again: a new
+	// message replaces message_id.
+	ClaimDueRetries(ctx context.Context, arg ClaimDueRetriesParams) ([]ClaimDueRetriesRow, error)
 	// ── Idempotency ─────────────────────────────────────────────────────────────
 	// Returns inserted=true for a new key; otherwise the stored row.
 	ClaimIdempotencyKey(ctx context.Context, arg ClaimIdempotencyKeyParams) (ClaimIdempotencyKeyRow, error)
@@ -40,9 +49,12 @@ type Querier interface {
 	ClaimPendingRecipients(ctx context.Context, arg ClaimPendingRecipientsParams) ([]ClaimPendingRecipientsRow, error)
 	// Takes a due delivery, or one whose previous worker vanished mid-request.
 	ClaimWebhookDelivery(ctx context.Context, arg ClaimWebhookDeliveryParams) (WebhookDelivery, error)
+	ClearCampaignPauseInfo(ctx context.Context, id uuid.UUID) (Campaign, error)
 	ClearContactTags(ctx context.Context, contactID uuid.UUID) error
 	ClearContactUndeliverable(ctx context.Context, id uuid.UUID) (int64, error)
 	ClearDefaultPhoneNumber(ctx context.Context) error
+	// The open pause of a campaign ends with its resume.
+	CloseCampaignPause(ctx context.Context, arg CloseCampaignPauseParams) error
 	// A rate is valid until the next effective date of the same currency,
 	// market and category.
 	CloseSupersededMetaRates(ctx context.Context) error
@@ -52,6 +64,9 @@ type Querier interface {
 	ContactHasMessages(ctx context.Context, contactID uuid.UUID) (bool, error)
 	ContactHasTag(ctx context.Context, arg ContactHasTagParams) (bool, error)
 	ContactTags(ctx context.Context, contactID uuid.UUID) ([]Tag, error)
+	// Running campaigns on a number that still have recipients to send to: the
+	// contenders for the number's campaign capacity.
+	ContendingCampaigns(ctx context.Context, phoneNumberID uuid.UUID) ([]ContendingCampaignsRow, error)
 	CountActiveOwners(ctx context.Context) (int64, error)
 	// Billable messages of the same account, category and market sent earlier
 	// in the calendar month: the volume that selects a rate tier.
@@ -63,6 +78,7 @@ type Querier interface {
 	CountMessagesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
 	CountRecentPasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountRetries(ctx context.Context, campaignID uuid.UUID) (CountRetriesRow, error)
 	// ── Users ───────────────────────────────────────────────────────────────────
 	CountUsers(ctx context.Context) (int64, error)
 	CountWebhookEndpoints(ctx context.Context) (int64, error)
@@ -101,6 +117,10 @@ type Querier interface {
 	// Deferred messages whose retry time passed a while ago: their send task
 	// may have been lost.
 	DueDeferredMessages(ctx context.Context, olderThanSeconds float64) ([]DueDeferredMessagesRow, error)
+	// Paused campaigns whose resume time has come: paused_limit when the
+	// portfolio limit frees up, any pause with a resume scheduled by an
+	// operator.
+	DueResumes(ctx context.Context) ([]uuid.UUID, error)
 	DueScheduledCampaigns(ctx context.Context) ([]uuid.UUID, error)
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
@@ -155,6 +175,9 @@ type Querier interface {
 	HasActiveAutomation(ctx context.Context, triggerType string) (bool, error)
 	// Called before a campaign message is claimed: a paused campaign holds it,
 	// a cancelled or failed one cancels it.
+	// Every pause holds (paused, and later pause kinds such as an expired
+	// offer) except paused_limit: messages queued before the portfolio limit
+	// was reached were within it and still go out.
 	HoldIfCampaignStopped(ctx context.Context, id uuid.UUID) (string, error)
 	// Running campaigns whose dispatcher has not moved for a while.
 	IdleRunningCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
@@ -166,6 +189,7 @@ type Querier interface {
 	InsertCampaign(ctx context.Context, arg InsertCampaignParams) (Campaign, error)
 	InsertCampaignEvent(ctx context.Context, arg InsertCampaignEventParams) error
 	InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (Message, error)
+	InsertCampaignPause(ctx context.Context, arg InsertCampaignPauseParams) (CampaignPause, error)
 	InsertConsentEvent(ctx context.Context, arg InsertConsentEventParams) (ConsentEvent, error)
 	// Contact listing with filters and segments is built in Go (contacts/list.go)
 	// because segment conditions are dynamic; everything else lives here.
@@ -211,6 +235,7 @@ type Querier interface {
 	// have run.
 	ListAutomations(ctx context.Context) ([]ListAutomationsRow, error)
 	ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) ([]CampaignEvent, error)
+	ListCampaignPauses(ctx context.Context, campaignID uuid.UUID) ([]CampaignPause, error)
 	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
 	// Realtime re-sync after missed events: campaigns changed at or after since,
 	// and every active one (their counters change without touching the row).
@@ -262,6 +287,8 @@ type Querier interface {
 	// Serializes changes that could remove an owner, so two concurrent
 	// demotions cannot both pass the "at least one owner" check.
 	LockOwnerChanges(ctx context.Context) error
+	// Serialises the limit checks of campaigns sharing an account.
+	LockPortfolio(ctx context.Context, accountID uuid.UUID) error
 	MarkConversationRead(ctx context.Context, id uuid.UUID) (Conversation, error)
 	MarkMediaFailed(ctx context.Context, arg MarkMediaFailedParams) error
 	MarkMediaStored(ctx context.Context, arg MarkMediaStoredParams) error
@@ -284,20 +311,40 @@ type Querier interface {
 	MuteContactAutomations(ctx context.Context, arg MuteContactAutomationsParams) error
 	// Waiting runs whose resume task may have been lost.
 	OverdueWaitingRuns(ctx context.Context) ([]uuid.UUID, error)
+	// Campaign messages of the account that are queued or being sent: they
+	// count once accepted.
+	PortfolioInFlight(ctx context.Context, accountID uuid.UUID) (int64, error)
+	// Unique customers the account messaged outside their window in the last
+	// 24 hours, and when the oldest of them stops counting.
+	PortfolioUsage(ctx context.Context, accountID uuid.UUID) (PortfolioUsageRow, error)
 	// Counters are absolute (the worker keeps the totals), so a retried batch
 	// cannot double-count. Returns whether a cancel was requested.
 	ProgressContactImport(ctx context.Context, arg ProgressContactImportParams) (bool, error)
 	QueueContactImport(ctx context.Context, arg QueueContactImportParams) (ContactImport, error)
+	// Whether a customer already counts against the limit (another template to
+	// them within the day costs no extra capacity).
+	ReachedRecently(ctx context.Context, arg ReachedRecentlyParams) (bool, error)
 	// A working token was stored: an account flagged by Meta errors is usable again.
 	ReactivateWhatsAppAccount(ctx context.Context, id uuid.UUID) error
 	RecentRunForContact(ctx context.Context, arg RecentRunForContactParams) (bool, error)
+	// Counts messages a dispatcher tick queued and, every two seconds, turns
+	// them into the measured rate; rolled = true when a new rate was computed
+	// (live progress is published then).
+	RecordDispatch(ctx context.Context, arg RecordDispatchParams) (RecordDispatchRow, error)
 	// Counts consecutive failures and locks the account for lock_minutes once
 	// max_failures is reached. An expired lock starts a fresh count.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (RecordLoginFailureRow, error)
 	RecordLoginSuccess(ctx context.Context, id uuid.UUID) error
+	// A template reached a customer outside their service window: they count
+	// against the portfolio's messaging limit for 24 hours.
+	RecordPortfolioReach(ctx context.Context, arg RecordPortfolioReachParams) error
 	ReleaseHeldMessages(ctx context.Context, campaignID *uuid.UUID) ([]uuid.UUID, error)
 	ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempotencyKeyParams) error
 	ReleaseMessageForRetry(ctx context.Context, arg ReleaseMessageForRetryParams) error
+	// The recipients a resume would still send to (pending, waiting for a
+	// resend, and held messages) grouped by their contacts' consent, for the
+	// pre-resume summary.
+	RemainingConsentGroups(ctx context.Context, campaignID uuid.UUID) ([]RemainingConsentGroupsRow, error)
 	RemoveContactTagByName(ctx context.Context, arg RemoveContactTagByNameParams) (int64, error)
 	RemoveGroupMembers(ctx context.Context, arg RemoveGroupMembersParams) (int64, error)
 	ReplaceRole(ctx context.Context, arg ReplaceRoleParams) error
@@ -308,8 +355,15 @@ type Querier interface {
 	RevokeInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
+	// Meta withheld an accepted campaign message (131049 in the status
+	// webhook): its recipient gets a new message no earlier than after_seconds,
+	// once, while the campaign is still running or paused and the recipient has
+	// resends left.
+	ScheduleRecipientResend(ctx context.Context, arg ScheduleRecipientResendParams) (ScheduleRecipientResendRow, error)
 	// The messaging limit is the business portfolio's: every number shares it.
 	SetAccountMessagingLimit(ctx context.Context, arg SetAccountMessagingLimitParams) error
+	SetCampaignPauseInfo(ctx context.Context, arg SetCampaignPauseInfoParams) (Campaign, error)
+	SetCampaignResumeAt(ctx context.Context, arg SetCampaignResumeAtParams) (Campaign, error)
 	// Generic transition guarded by the allowed source states.
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
 	// Sets the consent status of the chosen categories and keeps the legacy
@@ -359,6 +413,8 @@ type Querier interface {
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error)
 	UpdateCampaignDraft(ctx context.Context, arg UpdateCampaignDraftParams) (Campaign, error)
+	// What may change while a campaign is in progress (and when resuming).
+	UpdateCampaignSettings(ctx context.Context, arg UpdateCampaignSettingsParams) (Campaign, error)
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
 	UpdateContactGroup(ctx context.Context, arg UpdateContactGroupParams) (ContactGroup, error)
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) error

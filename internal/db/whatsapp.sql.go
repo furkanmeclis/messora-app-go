@@ -28,7 +28,7 @@ UPDATE messages SET
     failure_class = CASE WHEN $3::text = 'failed' AND status_rank < 4 THEN $7 ELSE failure_class END,
     updated_at   = now()
 WHERE id = $8 AND direction = 'outbound'
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of
 `
 
 type ApplyMessageStatusParams struct {
@@ -92,6 +92,7 @@ func (q *Queries) ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatus
 		&i.FailureClass,
 		&i.ConsentCategory,
 		&i.NextAttemptAt,
+		&i.RetryOf,
 	)
 	return i, err
 }
@@ -99,7 +100,7 @@ func (q *Queries) ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatus
 const claimMessageForSend = `-- name: ClaimMessageForSend :one
 UPDATE messages SET status = 'sending', status_rank = 1, attempts = attempts + 1, next_attempt_at = NULL, updated_at = now()
 WHERE id = $1 AND (status = 'pending' OR (status = 'deferred' AND next_attempt_at <= now()))
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of
 `
 
 // Only a pending message, or a deferred one whose time has come, can be
@@ -145,6 +146,7 @@ func (q *Queries) ClaimMessageForSend(ctx context.Context, id uuid.UUID) (Messag
 		&i.FailureClass,
 		&i.ConsentCategory,
 		&i.NextAttemptAt,
+		&i.RetryOf,
 	)
 	return i, err
 }
@@ -397,7 +399,7 @@ func (q *Queries) GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, er
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at FROM messages WHERE id = $1
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of FROM messages WHERE id = $1
 `
 
 func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error) {
@@ -440,12 +442,13 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 		&i.FailureClass,
 		&i.ConsentCategory,
 		&i.NextAttemptAt,
+		&i.RetryOf,
 	)
 	return i, err
 }
 
 const getMessageByWAMID = `-- name: GetMessageByWAMID :one
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at FROM messages WHERE wamid = $1
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of FROM messages WHERE wamid = $1
 `
 
 func (q *Queries) GetMessageByWAMID(ctx context.Context, wamid *string) (Message, error) {
@@ -488,6 +491,7 @@ func (q *Queries) GetMessageByWAMID(ctx context.Context, wamid *string) (Message
 		&i.FailureClass,
 		&i.ConsentCategory,
 		&i.NextAttemptAt,
+		&i.RetryOf,
 	)
 	return i, err
 }
@@ -662,7 +666,7 @@ INSERT INTO messages (phone_number_id, contact_id, direction, wamid, type, body,
 VALUES ($1, $2, 'inbound', $3, $4, $5, $6, 'received', 0,
         $7, 'webhook', $8)
 ON CONFLICT (wamid) DO NOTHING
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of
 `
 
 type InsertInboundMessageParams struct {
@@ -726,6 +730,7 @@ func (q *Queries) InsertInboundMessage(ctx context.Context, arg InsertInboundMes
 		&i.FailureClass,
 		&i.ConsentCategory,
 		&i.NextAttemptAt,
+		&i.RetryOf,
 	)
 	return i, err
 }
@@ -778,7 +783,7 @@ INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, pa
                       reply_to_wamid, source, created_by, consent_category)
 VALUES ($1, $2, $3, 'outbound', $4, $5, $6, 'pending', 0,
         $7, $8, $9, $10)
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of
 `
 
 type InsertOutboundMessageParams struct {
@@ -846,6 +851,7 @@ func (q *Queries) InsertOutboundMessage(ctx context.Context, arg InsertOutboundM
 		&i.FailureClass,
 		&i.ConsentCategory,
 		&i.NextAttemptAt,
+		&i.RetryOf,
 	)
 	return i, err
 }
@@ -992,7 +998,7 @@ func (q *Queries) ListMediaForMessage(ctx context.Context, messageID *uuid.UUID)
 }
 
 const listMessagesByContact = `-- name: ListMessagesByContact :many
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at FROM messages
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of FROM messages
 WHERE contact_id = $1 AND ($2::uuid IS NULL OR id < $2::uuid)
 ORDER BY id DESC
 LIMIT $3
@@ -1050,6 +1056,7 @@ func (q *Queries) ListMessagesByContact(ctx context.Context, arg ListMessagesByC
 			&i.FailureClass,
 			&i.ConsentCategory,
 			&i.NextAttemptAt,
+			&i.RetryOf,
 		); err != nil {
 			return nil, err
 		}

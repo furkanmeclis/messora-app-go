@@ -12,6 +12,41 @@ import (
 	"github.com/google/uuid"
 )
 
+const campaignClassCounts = `-- name: CampaignClassCounts :many
+SELECT coalesce(campaign_recipient_class(r.state, r.skip_reason, m.status, m.failure_class), 'reached')::text AS class,
+    count(DISTINCT r.contact_id) AS n
+FROM campaign_recipients r LEFT JOIN messages m ON m.id = r.message_id
+WHERE r.campaign_id = $1 AND r.contact_id IS NOT NULL
+GROUP BY 1
+`
+
+type CampaignClassCountsRow struct {
+	Class string
+	N     int64
+}
+
+// Recipients of a campaign by why they were not reached (unique contacts;
+// class NULL = reached).
+func (q *Queries) CampaignClassCounts(ctx context.Context, campaignID uuid.UUID) ([]CampaignClassCountsRow, error) {
+	rows, err := q.db.Query(ctx, campaignClassCounts, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CampaignClassCountsRow{}
+	for rows.Next() {
+		var i CampaignClassCountsRow
+		if err := rows.Scan(&i.Class, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const campaignMessageStats = `-- name: CampaignMessageStats :many
 SELECT status, count(*) AS n FROM messages WHERE campaign_id = $1 GROUP BY status
 `
@@ -31,6 +66,68 @@ func (q *Queries) CampaignMessageStats(ctx context.Context, campaignID *uuid.UUI
 	for rows.Next() {
 		var i CampaignMessageStatsRow
 		if err := rows.Scan(&i.Status, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const campaignQueue = `-- name: CampaignQueue :many
+SELECT c.id, c.name, c.status, c.phone_number_id, c.priority, c.max_mps, c.send_rate, c.paused_reason, c.resume_at,
+    c.total_recipients, c.started_at,
+    (SELECT count(*) FROM campaign_recipients r WHERE r.campaign_id = c.id AND r.state IN ('pending', 'retry'))::bigint AS waiting,
+    (SELECT count(*) FROM messages m WHERE m.campaign_id = c.id AND m.status IN ('pending', 'sending', 'held'))::bigint AS in_flight
+FROM campaigns c
+WHERE c.status IN ('preparing', 'running', 'paused_limit')
+ORDER BY c.phone_number_id, c.id
+`
+
+type CampaignQueueRow struct {
+	ID              uuid.UUID
+	Name            string
+	Status          string
+	PhoneNumberID   uuid.UUID
+	Priority        string
+	MaxMps          *float64
+	SendRate        *float64
+	PausedReason    *string
+	ResumeAt        *time.Time
+	TotalRecipients int64
+	StartedAt       *time.Time
+	Waiting         int64
+	InFlight        int64
+}
+
+// Campaigns that are sending or waiting for the portfolio limit, with what
+// is left (the queue view per number).
+func (q *Queries) CampaignQueue(ctx context.Context) ([]CampaignQueueRow, error) {
+	rows, err := q.db.Query(ctx, campaignQueue)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CampaignQueueRow{}
+	for rows.Next() {
+		var i CampaignQueueRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Status,
+			&i.PhoneNumberID,
+			&i.Priority,
+			&i.MaxMps,
+			&i.SendRate,
+			&i.PausedReason,
+			&i.ResumeAt,
+			&i.TotalRecipients,
+			&i.StartedAt,
+			&i.Waiting,
+			&i.InFlight,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -71,7 +168,8 @@ func (q *Queries) CampaignRecipientStats(ctx context.Context, campaignID uuid.UU
 }
 
 const cancelPendingRecipients = `-- name: CancelPendingRecipients :execrows
-UPDATE campaign_recipients SET state = 'cancelled', updated_at = now() WHERE campaign_id = $1 AND state = 'pending'
+UPDATE campaign_recipients SET state = 'cancelled', next_attempt_at = NULL, updated_at = now()
+WHERE campaign_id = $1 AND state IN ('pending', 'retry')
 `
 
 func (q *Queries) CancelPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error) {
@@ -99,12 +197,12 @@ const claimCampaignProgress = `-- name: ClaimCampaignProgress :one
 WITH claim AS (
     UPDATE campaigns c SET progress_published_at = now(), progress_dirty = false
     WHERE c.id = $1 AND (c.progress_published_at IS NULL OR c.progress_published_at < now() - interval '2 seconds')
-    RETURNING c.id, c.name, c.status, c.phone_number_id, c.template_name, c.template_language, c.template_params, c.audience, c.scheduled_at, c.started_at, c.finished_at, c.materialize_cursor, c.dispatch_gen, c.window_size, c.total_recipients, c.last_error, c.created_by, c.created_at, c.updated_at, c.progress_published_at, c.progress_dirty
+    RETURNING c.id, c.name, c.status, c.phone_number_id, c.template_name, c.template_language, c.template_params, c.audience, c.scheduled_at, c.started_at, c.finished_at, c.materialize_cursor, c.dispatch_gen, c.window_size, c.total_recipients, c.last_error, c.created_by, c.created_at, c.updated_at, c.progress_published_at, c.progress_dirty, c.priority, c.max_mps, c.paused_reason, c.paused_at, c.paused_by, c.resume_at, c.send_rate, c.rate_window_start, c.rate_window_queued
 ), dirty AS (
     UPDATE campaigns d SET progress_dirty = true
     WHERE d.id = $1 AND NOT EXISTS (SELECT 1 FROM claim)
 )
-SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM claim
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued FROM claim
 `
 
 type ClaimCampaignProgressRow struct {
@@ -129,6 +227,15 @@ type ClaimCampaignProgressRow struct {
 	UpdatedAt           time.Time
 	ProgressPublishedAt *time.Time
 	ProgressDirty       bool
+	Priority            string
+	MaxMps              *float64
+	PausedReason        *string
+	PausedAt            *time.Time
+	PausedBy            *uuid.UUID
+	ResumeAt            *time.Time
+	SendRate            *float64
+	RateWindowStart     *time.Time
+	RateWindowQueued    int64
 }
 
 // Returns the campaign when its progress may be published now; otherwise
@@ -158,12 +265,69 @@ func (q *Queries) ClaimCampaignProgress(ctx context.Context, id uuid.UUID) (Clai
 		&i.UpdatedAt,
 		&i.ProgressPublishedAt,
 		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
 	)
 	return i, err
 }
 
+const claimDueRetries = `-- name: ClaimDueRetries :many
+SELECT r.id, r.contact_id, r.phone_e164, r.message_id, r.state FROM campaign_recipients r
+WHERE r.campaign_id = $1 AND r.state = 'retry' AND r.next_attempt_at <= now()
+ORDER BY r.next_attempt_at, r.id LIMIT $2
+FOR UPDATE SKIP LOCKED
+`
+
+type ClaimDueRetriesParams struct {
+	CampaignID uuid.UUID
+	Lim        int32
+}
+
+type ClaimDueRetriesRow struct {
+	ID        uuid.UUID
+	ContactID *uuid.UUID
+	PhoneE164 string
+	MessageID *uuid.UUID
+	State     string
+}
+
+// Recipients whose withheld (131049) message may be sent again: a new
+// message replaces message_id.
+func (q *Queries) ClaimDueRetries(ctx context.Context, arg ClaimDueRetriesParams) ([]ClaimDueRetriesRow, error) {
+	rows, err := q.db.Query(ctx, claimDueRetries, arg.CampaignID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClaimDueRetriesRow{}
+	for rows.Next() {
+		var i ClaimDueRetriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContactID,
+			&i.PhoneE164,
+			&i.MessageID,
+			&i.State,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const claimPendingRecipients = `-- name: ClaimPendingRecipients :many
-SELECT r.id, r.contact_id, r.phone_e164 FROM campaign_recipients r
+SELECT r.id, r.contact_id, r.phone_e164, r.message_id, r.state FROM campaign_recipients r
 WHERE r.campaign_id = $1 AND r.state = 'pending'
 ORDER BY r.id LIMIT $2
 FOR UPDATE SKIP LOCKED
@@ -178,6 +342,8 @@ type ClaimPendingRecipientsRow struct {
 	ID        uuid.UUID
 	ContactID *uuid.UUID
 	PhoneE164 string
+	MessageID *uuid.UUID
+	State     string
 }
 
 func (q *Queries) ClaimPendingRecipients(ctx context.Context, arg ClaimPendingRecipientsParams) ([]ClaimPendingRecipientsRow, error) {
@@ -189,7 +355,110 @@ func (q *Queries) ClaimPendingRecipients(ctx context.Context, arg ClaimPendingRe
 	items := []ClaimPendingRecipientsRow{}
 	for rows.Next() {
 		var i ClaimPendingRecipientsRow
-		if err := rows.Scan(&i.ID, &i.ContactID, &i.PhoneE164); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContactID,
+			&i.PhoneE164,
+			&i.MessageID,
+			&i.State,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const clearCampaignPauseInfo = `-- name: ClearCampaignPauseInfo :one
+UPDATE campaigns SET paused_reason = NULL, paused_at = NULL, paused_by = NULL, resume_at = NULL, updated_at = now()
+WHERE id = $1
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued
+`
+
+func (q *Queries) ClearCampaignPauseInfo(ctx context.Context, id uuid.UUID) (Campaign, error) {
+	row := q.db.QueryRow(ctx, clearCampaignPauseInfo, id)
+	var i Campaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Status,
+		&i.PhoneNumberID,
+		&i.TemplateName,
+		&i.TemplateLanguage,
+		&i.TemplateParams,
+		&i.Audience,
+		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.MaterializeCursor,
+		&i.DispatchGen,
+		&i.WindowSize,
+		&i.TotalRecipients,
+		&i.LastError,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
+	)
+	return i, err
+}
+
+const closeCampaignPause = `-- name: CloseCampaignPause :exec
+UPDATE campaign_pauses SET resumed_at = now(), resumed_by = $1, changes = $2
+WHERE id = (SELECT p.id FROM campaign_pauses p WHERE p.campaign_id = $3 AND p.resumed_at IS NULL ORDER BY p.id DESC LIMIT 1)
+`
+
+type CloseCampaignPauseParams struct {
+	ResumedBy  *uuid.UUID
+	Changes    []byte
+	CampaignID uuid.UUID
+}
+
+// The open pause of a campaign ends with its resume.
+func (q *Queries) CloseCampaignPause(ctx context.Context, arg CloseCampaignPauseParams) error {
+	_, err := q.db.Exec(ctx, closeCampaignPause, arg.ResumedBy, arg.Changes, arg.CampaignID)
+	return err
+}
+
+const contendingCampaigns = `-- name: ContendingCampaigns :many
+SELECT c.id, c.priority, c.max_mps FROM campaigns c
+WHERE c.phone_number_id = $1 AND c.status = 'running'
+  AND (EXISTS (SELECT 1 FROM campaign_recipients r WHERE r.campaign_id = c.id AND r.state = 'pending')
+       OR EXISTS (SELECT 1 FROM campaign_recipients r WHERE r.campaign_id = c.id AND r.state = 'retry' AND r.next_attempt_at <= now()))
+ORDER BY c.id
+`
+
+type ContendingCampaignsRow struct {
+	ID       uuid.UUID
+	Priority string
+	MaxMps   *float64
+}
+
+// Running campaigns on a number that still have recipients to send to: the
+// contenders for the number's campaign capacity.
+func (q *Queries) ContendingCampaigns(ctx context.Context, phoneNumberID uuid.UUID) ([]ContendingCampaignsRow, error) {
+	rows, err := q.db.Query(ctx, contendingCampaigns, phoneNumberID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContendingCampaignsRow{}
+	for rows.Next() {
+		var i ContendingCampaignsRow
+		if err := rows.Scan(&i.ID, &i.Priority, &i.MaxMps); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -244,6 +513,23 @@ func (q *Queries) CountPendingRecipients(ctx context.Context, campaignID uuid.UU
 	return count, err
 }
 
+const countRetries = `-- name: CountRetries :one
+SELECT count(*) FILTER (WHERE next_attempt_at <= now()) AS due, count(*) AS total
+FROM campaign_recipients WHERE campaign_id = $1 AND state = 'retry'
+`
+
+type CountRetriesRow struct {
+	Due   int64
+	Total int64
+}
+
+func (q *Queries) CountRetries(ctx context.Context, campaignID uuid.UUID) (CountRetriesRow, error) {
+	row := q.db.QueryRow(ctx, countRetries, campaignID)
+	var i CountRetriesRow
+	err := row.Scan(&i.Due, &i.Total)
+	return i, err
+}
+
 const deleteCampaign = `-- name: DeleteCampaign :execrows
 DELETE FROM campaigns WHERE id = $1 AND status IN ('draft', 'scheduled', 'completed', 'cancelled', 'failed')
 `
@@ -289,6 +575,33 @@ func (q *Queries) DueDeferredMessages(ctx context.Context, olderThanSeconds floa
 	return items, nil
 }
 
+const dueResumes = `-- name: DueResumes :many
+SELECT id FROM campaigns WHERE resume_at <= now() AND status LIKE 'paused%' ORDER BY resume_at LIMIT 100
+`
+
+// Paused campaigns whose resume time has come: paused_limit when the
+// portfolio limit frees up, any pause with a resume scheduled by an
+// operator.
+func (q *Queries) DueResumes(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, dueResumes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const dueScheduledCampaigns = `-- name: DueScheduledCampaigns :many
 UPDATE campaigns SET status = 'preparing', started_at = coalesce(started_at, now()), updated_at = now()
 WHERE status = 'scheduled' AND scheduled_at <= now()
@@ -316,7 +629,7 @@ func (q *Queries) DueScheduledCampaigns(ctx context.Context) ([]uuid.UUID, error
 }
 
 const getCampaign = `-- name: GetCampaign :one
-SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM campaigns WHERE id = $1
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued FROM campaigns WHERE id = $1
 `
 
 func (q *Queries) GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, error) {
@@ -344,23 +657,35 @@ func (q *Queries) GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, erro
 		&i.UpdatedAt,
 		&i.ProgressPublishedAt,
 		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
 	)
 	return i, err
 }
 
 const holdIfCampaignStopped = `-- name: HoldIfCampaignStopped :one
-UPDATE messages m SET status = CASE WHEN c.status = 'paused' THEN 'held' ELSE 'cancelled' END,
-    failure_class = CASE WHEN c.status = 'paused' THEN m.failure_class ELSE 'cancelled' END,
+UPDATE messages m SET status = CASE WHEN c.status LIKE 'paused%' THEN 'held' ELSE 'cancelled' END,
+    failure_class = CASE WHEN c.status LIKE 'paused%' THEN m.failure_class ELSE 'cancelled' END,
     next_attempt_at = NULL, updated_at = now()
 FROM campaigns c
 WHERE m.id = $1 AND m.campaign_id = c.id
   AND (m.status = 'pending' OR (m.status = 'deferred' AND m.next_attempt_at <= now()))
-  AND c.status IN ('paused', 'cancelled', 'failed')
+  AND ((c.status LIKE 'paused%' AND c.status <> 'paused_limit') OR c.status IN ('cancelled', 'failed'))
 RETURNING m.status
 `
 
 // Called before a campaign message is claimed: a paused campaign holds it,
 // a cancelled or failed one cancels it.
+// Every pause holds (paused, and later pause kinds such as an expired
+// offer) except paused_limit: messages queued before the portfolio limit
+// was reached were within it and still go out.
 func (q *Queries) HoldIfCampaignStopped(ctx context.Context, id uuid.UUID) (string, error) {
 	row := q.db.QueryRow(ctx, holdIfCampaignStopped, id)
 	var status string
@@ -394,9 +719,9 @@ func (q *Queries) IdleRunningCampaigns(ctx context.Context, olderThanSeconds flo
 }
 
 const insertCampaign = `-- name: InsertCampaign :one
-INSERT INTO campaigns (name, phone_number_id, template_name, template_language, template_params, audience, window_size, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty
+INSERT INTO campaigns (name, phone_number_id, template_name, template_language, template_params, audience, window_size, created_by, priority, max_mps)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued
 `
 
 type InsertCampaignParams struct {
@@ -408,6 +733,8 @@ type InsertCampaignParams struct {
 	Audience         []byte
 	WindowSize       int32
 	CreatedBy        *uuid.UUID
+	Priority         string
+	MaxMps           *float64
 }
 
 func (q *Queries) InsertCampaign(ctx context.Context, arg InsertCampaignParams) (Campaign, error) {
@@ -420,6 +747,8 @@ func (q *Queries) InsertCampaign(ctx context.Context, arg InsertCampaignParams) 
 		arg.Audience,
 		arg.WindowSize,
 		arg.CreatedBy,
+		arg.Priority,
+		arg.MaxMps,
 	)
 	var i Campaign
 	err := row.Scan(
@@ -444,6 +773,15 @@ func (q *Queries) InsertCampaign(ctx context.Context, arg InsertCampaignParams) 
 		&i.UpdatedAt,
 		&i.ProgressPublishedAt,
 		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
 	)
 	return i, err
 }
@@ -470,9 +808,9 @@ func (q *Queries) InsertCampaignEvent(ctx context.Context, arg InsertCampaignEve
 }
 
 const insertCampaignMessage = `-- name: InsertCampaignMessage :one
-INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id, consent_category)
-VALUES ($1, $2, $3, 'outbound', 'template', $4, $5, 'pending', 0, 'campaign', $6, $7)
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at
+INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id, consent_category, retry_of)
+VALUES ($1, $2, $3, 'outbound', 'template', $4, $5, 'pending', 0, 'campaign', $6, $7, $8)
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of
 `
 
 type InsertCampaignMessageParams struct {
@@ -483,6 +821,7 @@ type InsertCampaignMessageParams struct {
 	Payload         []byte
 	CampaignID      *uuid.UUID
 	ConsentCategory *string
+	RetryOf         *uuid.UUID
 }
 
 func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (Message, error) {
@@ -494,6 +833,7 @@ func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignM
 		arg.Payload,
 		arg.CampaignID,
 		arg.ConsentCategory,
+		arg.RetryOf,
 	)
 	var i Message
 	err := row.Scan(
@@ -533,6 +873,51 @@ func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignM
 		&i.FailureClass,
 		&i.ConsentCategory,
 		&i.NextAttemptAt,
+		&i.RetryOf,
+	)
+	return i, err
+}
+
+const insertCampaignPause = `-- name: InsertCampaignPause :one
+INSERT INTO campaign_pauses (campaign_id, status, reason, detail, paused_by, resume_at, snapshot)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, campaign_id, status, reason, detail, paused_at, paused_by, resume_at, snapshot, resumed_at, resumed_by, changes
+`
+
+type InsertCampaignPauseParams struct {
+	CampaignID uuid.UUID
+	Status     string
+	Reason     string
+	Detail     []byte
+	PausedBy   *uuid.UUID
+	ResumeAt   *time.Time
+	Snapshot   []byte
+}
+
+func (q *Queries) InsertCampaignPause(ctx context.Context, arg InsertCampaignPauseParams) (CampaignPause, error) {
+	row := q.db.QueryRow(ctx, insertCampaignPause,
+		arg.CampaignID,
+		arg.Status,
+		arg.Reason,
+		arg.Detail,
+		arg.PausedBy,
+		arg.ResumeAt,
+		arg.Snapshot,
+	)
+	var i CampaignPause
+	err := row.Scan(
+		&i.ID,
+		&i.CampaignID,
+		&i.Status,
+		&i.Reason,
+		&i.Detail,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.Snapshot,
+		&i.ResumedAt,
+		&i.ResumedBy,
+		&i.Changes,
 	)
 	return i, err
 }
@@ -596,8 +981,45 @@ func (q *Queries) ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) 
 	return items, nil
 }
 
+const listCampaignPauses = `-- name: ListCampaignPauses :many
+SELECT id, campaign_id, status, reason, detail, paused_at, paused_by, resume_at, snapshot, resumed_at, resumed_by, changes FROM campaign_pauses WHERE campaign_id = $1 ORDER BY id DESC LIMIT 100
+`
+
+func (q *Queries) ListCampaignPauses(ctx context.Context, campaignID uuid.UUID) ([]CampaignPause, error) {
+	rows, err := q.db.Query(ctx, listCampaignPauses, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CampaignPause{}
+	for rows.Next() {
+		var i CampaignPause
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampaignID,
+			&i.Status,
+			&i.Reason,
+			&i.Detail,
+			&i.PausedAt,
+			&i.PausedBy,
+			&i.ResumeAt,
+			&i.Snapshot,
+			&i.ResumedAt,
+			&i.ResumedBy,
+			&i.Changes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCampaigns = `-- name: ListCampaigns :many
-SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM campaigns
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued FROM campaigns
 WHERE ($1::text IS NULL OR status = $1::text)
   AND ($2::uuid IS NULL OR id < $2::uuid)
 ORDER BY id DESC LIMIT $3
@@ -640,6 +1062,15 @@ func (q *Queries) ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([
 			&i.UpdatedAt,
 			&i.ProgressPublishedAt,
 			&i.ProgressDirty,
+			&i.Priority,
+			&i.MaxMps,
+			&i.PausedReason,
+			&i.PausedAt,
+			&i.PausedBy,
+			&i.ResumeAt,
+			&i.SendRate,
+			&i.RateWindowStart,
+			&i.RateWindowQueued,
 		); err != nil {
 			return nil, err
 		}
@@ -652,8 +1083,8 @@ func (q *Queries) ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([
 }
 
 const listCampaignsChangedSince = `-- name: ListCampaignsChangedSince :many
-SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM campaigns
-WHERE (updated_at >= $1 OR status IN ('preparing', 'running'))
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued FROM campaigns
+WHERE (updated_at >= $1 OR status IN ('preparing', 'running', 'paused_limit'))
   AND ($2::uuid IS NULL OR id = $2::uuid)
 ORDER BY updated_at, id
 LIMIT $3
@@ -698,6 +1129,15 @@ func (q *Queries) ListCampaignsChangedSince(ctx context.Context, arg ListCampaig
 			&i.UpdatedAt,
 			&i.ProgressPublishedAt,
 			&i.ProgressDirty,
+			&i.Priority,
+			&i.MaxMps,
+			&i.PausedReason,
+			&i.PausedAt,
+			&i.PausedBy,
+			&i.ResumeAt,
+			&i.SendRate,
+			&i.RateWindowStart,
+			&i.RateWindowQueued,
 		); err != nil {
 			return nil, err
 		}
@@ -710,41 +1150,48 @@ func (q *Queries) ListCampaignsChangedSince(ctx context.Context, arg ListCampaig
 }
 
 const listRecipients = `-- name: ListRecipients :many
-SELECT r.id, r.campaign_id, r.contact_id, r.phone_e164, r.state, r.skip_reason, r.message_id, r.created_at, r.updated_at, m.status AS message_status, m.error_code, m.error_title, m.failure_class
+SELECT r.id, r.campaign_id, r.contact_id, r.phone_e164, r.state, r.skip_reason, r.message_id, r.created_at, r.updated_at, r.next_attempt_at, r.resends, m.status AS message_status, m.error_code, m.error_title, m.failure_class,
+    coalesce(campaign_recipient_class(r.state, r.skip_reason, m.status, m.failure_class), '')::text AS unreached_class
 FROM campaign_recipients r LEFT JOIN messages m ON m.id = r.message_id
 WHERE r.campaign_id = $1
   AND ($2::text IS NULL OR r.state = $2::text)
-  AND ($3::uuid IS NULL OR r.id < $3::uuid)
-ORDER BY r.id DESC LIMIT $4
+  AND ($3::text IS NULL OR campaign_recipient_class(r.state, r.skip_reason, m.status, m.failure_class) = $3::text)
+  AND ($4::uuid IS NULL OR r.id < $4::uuid)
+ORDER BY r.id DESC LIMIT $5
 `
 
 type ListRecipientsParams struct {
 	CampaignID uuid.UUID
 	State      *string
+	Class      *string
 	BeforeID   *uuid.UUID
 	Lim        int32
 }
 
 type ListRecipientsRow struct {
-	ID            uuid.UUID
-	CampaignID    uuid.UUID
-	ContactID     *uuid.UUID
-	PhoneE164     string
-	State         string
-	SkipReason    *string
-	MessageID     *uuid.UUID
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	MessageStatus *string
-	ErrorCode     *string
-	ErrorTitle    *string
-	FailureClass  *string
+	ID             uuid.UUID
+	CampaignID     uuid.UUID
+	ContactID      *uuid.UUID
+	PhoneE164      string
+	State          string
+	SkipReason     *string
+	MessageID      *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	NextAttemptAt  *time.Time
+	Resends        int32
+	MessageStatus  *string
+	ErrorCode      *string
+	ErrorTitle     *string
+	FailureClass   *string
+	UnreachedClass string
 }
 
 func (q *Queries) ListRecipients(ctx context.Context, arg ListRecipientsParams) ([]ListRecipientsRow, error) {
 	rows, err := q.db.Query(ctx, listRecipients,
 		arg.CampaignID,
 		arg.State,
+		arg.Class,
 		arg.BeforeID,
 		arg.Lim,
 	)
@@ -765,10 +1212,13 @@ func (q *Queries) ListRecipients(ctx context.Context, arg ListRecipientsParams) 
 			&i.MessageID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.NextAttemptAt,
+			&i.Resends,
 			&i.MessageStatus,
 			&i.ErrorCode,
 			&i.ErrorTitle,
 			&i.FailureClass,
+			&i.UnreachedClass,
 		); err != nil {
 			return nil, err
 		}
@@ -781,7 +1231,7 @@ func (q *Queries) ListRecipients(ctx context.Context, arg ListRecipientsParams) 
 }
 
 const lockCampaign = `-- name: LockCampaign :one
-SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty FROM campaigns WHERE id = $1 FOR UPDATE
+SELECT id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued FROM campaigns WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error) {
@@ -809,12 +1259,33 @@ func (q *Queries) LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, err
 		&i.UpdatedAt,
 		&i.ProgressPublishedAt,
 		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
 	)
 	return i, err
 }
 
+const lockPortfolio = `-- name: LockPortfolio :exec
+SELECT pg_advisory_xact_lock(hashtextextended(concat('portfolio:', $1::uuid), 0))
+`
+
+// Serialises the limit checks of campaigns sharing an account.
+func (q *Queries) LockPortfolio(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockPortfolio, accountID)
+	return err
+}
+
 const markRecipientQueued = `-- name: MarkRecipientQueued :exec
-UPDATE campaign_recipients SET state = 'queued', message_id = $1, updated_at = now() WHERE id = $2
+UPDATE campaign_recipients SET state = 'queued', message_id = $1,
+    resends = resends + CASE WHEN state = 'retry' THEN 1 ELSE 0 END, next_attempt_at = NULL, updated_at = now()
+WHERE id = $2
 `
 
 type MarkRecipientQueuedParams struct {
@@ -838,6 +1309,113 @@ type MarkRecipientSkippedParams struct {
 
 func (q *Queries) MarkRecipientSkipped(ctx context.Context, arg MarkRecipientSkippedParams) error {
 	_, err := q.db.Exec(ctx, markRecipientSkipped, arg.SkipReason, arg.ID)
+	return err
+}
+
+const portfolioInFlight = `-- name: PortfolioInFlight :one
+SELECT count(*) FROM messages m JOIN phone_numbers p ON p.id = m.phone_number_id
+WHERE p.account_id = $1 AND m.campaign_id IS NOT NULL AND m.status IN ('pending', 'sending')
+`
+
+// Campaign messages of the account that are queued or being sent: they
+// count once accepted.
+func (q *Queries) PortfolioInFlight(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, portfolioInFlight, accountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const portfolioUsage = `-- name: PortfolioUsage :one
+SELECT count(*) AS used, coalesce(min(last_at) + interval '24 hours', now())::timestamptz AS frees_at
+FROM portfolio_reach WHERE account_id = $1 AND last_at > now() - interval '24 hours'
+`
+
+type PortfolioUsageRow struct {
+	Used    int64
+	FreesAt time.Time
+}
+
+// Unique customers the account messaged outside their window in the last
+// 24 hours, and when the oldest of them stops counting.
+func (q *Queries) PortfolioUsage(ctx context.Context, accountID uuid.UUID) (PortfolioUsageRow, error) {
+	row := q.db.QueryRow(ctx, portfolioUsage, accountID)
+	var i PortfolioUsageRow
+	err := row.Scan(&i.Used, &i.FreesAt)
+	return i, err
+}
+
+const reachedRecently = `-- name: ReachedRecently :one
+SELECT EXISTS (SELECT 1 FROM portfolio_reach WHERE account_id = $1 AND contact_id = $2
+    AND last_at > now() - interval '24 hours')
+`
+
+type ReachedRecentlyParams struct {
+	AccountID uuid.UUID
+	ContactID uuid.UUID
+}
+
+// Whether a customer already counts against the limit (another template to
+// them within the day costs no extra capacity).
+func (q *Queries) ReachedRecently(ctx context.Context, arg ReachedRecentlyParams) (bool, error) {
+	row := q.db.QueryRow(ctx, reachedRecently, arg.AccountID, arg.ContactID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const recordDispatch = `-- name: RecordDispatch :one
+WITH cur AS (
+    SELECT k.id, (k.rate_window_start IS NOT NULL AND now() - k.rate_window_start >= interval '2 seconds') AS roll,
+           k.rate_window_start, k.rate_window_queued
+    FROM campaigns k WHERE k.id = $2
+)
+UPDATE campaigns c SET
+    send_rate = CASE WHEN cur.roll
+                     THEN (cur.rate_window_queued + $1::bigint)::double precision / extract(epoch FROM now() - cur.rate_window_start)::double precision
+                     ELSE c.send_rate END,
+    rate_window_queued = CASE WHEN cur.roll OR cur.rate_window_start IS NULL THEN 0 ELSE cur.rate_window_queued + $1::bigint END,
+    rate_window_start  = CASE WHEN cur.roll OR cur.rate_window_start IS NULL THEN now() ELSE cur.rate_window_start END,
+    updated_at = now()
+FROM cur WHERE c.id = cur.id
+RETURNING c.send_rate, cur.roll AS rolled
+`
+
+type RecordDispatchParams struct {
+	Queued int64
+	ID     uuid.UUID
+}
+
+type RecordDispatchRow struct {
+	SendRate *float64
+	Rolled   *bool
+}
+
+// Counts messages a dispatcher tick queued and, every two seconds, turns
+// them into the measured rate; rolled = true when a new rate was computed
+// (live progress is published then).
+func (q *Queries) RecordDispatch(ctx context.Context, arg RecordDispatchParams) (RecordDispatchRow, error) {
+	row := q.db.QueryRow(ctx, recordDispatch, arg.Queued, arg.ID)
+	var i RecordDispatchRow
+	err := row.Scan(&i.SendRate, &i.Rolled)
+	return i, err
+}
+
+const recordPortfolioReach = `-- name: RecordPortfolioReach :exec
+INSERT INTO portfolio_reach (account_id, contact_id, last_at)
+SELECT p.account_id, $1, now() FROM phone_numbers p WHERE p.id = $2
+ON CONFLICT (account_id, contact_id) DO UPDATE SET last_at = greatest(portfolio_reach.last_at, excluded.last_at)
+`
+
+type RecordPortfolioReachParams struct {
+	ContactID     uuid.UUID
+	PhoneNumberID uuid.UUID
+}
+
+// A template reached a customer outside their service window: they count
+// against the portfolio's messaging limit for 24 hours.
+func (q *Queries) RecordPortfolioReach(ctx context.Context, arg RecordPortfolioReachParams) error {
+	_, err := q.db.Exec(ctx, recordPortfolioReach, arg.ContactID, arg.PhoneNumberID)
 	return err
 }
 
@@ -867,6 +1445,193 @@ func (q *Queries) ReleaseHeldMessages(ctx context.Context, campaignID *uuid.UUID
 	return items, nil
 }
 
+const remainingConsentGroups = `-- name: RemainingConsentGroups :many
+SELECT c.marketing_consent, c.service_consent, (c.opted_out_at IS NOT NULL)::boolean AS opted_out,
+    (c.meta_marketing_stopped_at IS NOT NULL)::boolean AS stopped, (c.undeliverable_at IS NOT NULL)::boolean AS undeliverable,
+    count(*) AS n
+FROM campaign_recipients r JOIN contacts c ON c.id = r.contact_id
+LEFT JOIN messages m ON m.id = r.message_id
+WHERE r.campaign_id = $1
+  AND (r.state IN ('pending', 'retry') OR (r.state = 'queued' AND m.status = 'held'))
+GROUP BY 1, 2, 3, 4, 5
+`
+
+type RemainingConsentGroupsRow struct {
+	MarketingConsent string
+	ServiceConsent   string
+	OptedOut         bool
+	Stopped          bool
+	Undeliverable    bool
+	N                int64
+}
+
+// The recipients a resume would still send to (pending, waiting for a
+// resend, and held messages) grouped by their contacts' consent, for the
+// pre-resume summary.
+func (q *Queries) RemainingConsentGroups(ctx context.Context, campaignID uuid.UUID) ([]RemainingConsentGroupsRow, error) {
+	rows, err := q.db.Query(ctx, remainingConsentGroups, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RemainingConsentGroupsRow{}
+	for rows.Next() {
+		var i RemainingConsentGroupsRow
+		if err := rows.Scan(
+			&i.MarketingConsent,
+			&i.ServiceConsent,
+			&i.OptedOut,
+			&i.Stopped,
+			&i.Undeliverable,
+			&i.N,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const scheduleRecipientResend = `-- name: ScheduleRecipientResend :one
+UPDATE campaign_recipients r SET state = 'retry',
+    next_attempt_at = now() + make_interval(secs => $1::double precision), updated_at = now()
+FROM campaigns c
+WHERE r.message_id = $2 AND r.state = 'queued' AND r.resends < $3::integer
+  AND c.id = r.campaign_id AND (c.status = 'running' OR c.status LIKE 'paused%')
+RETURNING r.id, r.campaign_id, r.next_attempt_at
+`
+
+type ScheduleRecipientResendParams struct {
+	AfterSeconds float64
+	MessageID    *uuid.UUID
+	MaxResends   int32
+}
+
+type ScheduleRecipientResendRow struct {
+	ID            uuid.UUID
+	CampaignID    uuid.UUID
+	NextAttemptAt *time.Time
+}
+
+// Meta withheld an accepted campaign message (131049 in the status
+// webhook): its recipient gets a new message no earlier than after_seconds,
+// once, while the campaign is still running or paused and the recipient has
+// resends left.
+func (q *Queries) ScheduleRecipientResend(ctx context.Context, arg ScheduleRecipientResendParams) (ScheduleRecipientResendRow, error) {
+	row := q.db.QueryRow(ctx, scheduleRecipientResend, arg.AfterSeconds, arg.MessageID, arg.MaxResends)
+	var i ScheduleRecipientResendRow
+	err := row.Scan(&i.ID, &i.CampaignID, &i.NextAttemptAt)
+	return i, err
+}
+
+const setCampaignPauseInfo = `-- name: SetCampaignPauseInfo :one
+UPDATE campaigns SET paused_reason = $1, paused_at = now(), paused_by = $2, resume_at = $3, updated_at = now()
+WHERE id = $4
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued
+`
+
+type SetCampaignPauseInfoParams struct {
+	Reason   *string
+	PausedBy *uuid.UUID
+	ResumeAt *time.Time
+	ID       uuid.UUID
+}
+
+func (q *Queries) SetCampaignPauseInfo(ctx context.Context, arg SetCampaignPauseInfoParams) (Campaign, error) {
+	row := q.db.QueryRow(ctx, setCampaignPauseInfo,
+		arg.Reason,
+		arg.PausedBy,
+		arg.ResumeAt,
+		arg.ID,
+	)
+	var i Campaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Status,
+		&i.PhoneNumberID,
+		&i.TemplateName,
+		&i.TemplateLanguage,
+		&i.TemplateParams,
+		&i.Audience,
+		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.MaterializeCursor,
+		&i.DispatchGen,
+		&i.WindowSize,
+		&i.TotalRecipients,
+		&i.LastError,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
+	)
+	return i, err
+}
+
+const setCampaignResumeAt = `-- name: SetCampaignResumeAt :one
+UPDATE campaigns SET resume_at = $1, updated_at = now()
+WHERE id = $2 AND status LIKE 'paused%'
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued
+`
+
+type SetCampaignResumeAtParams struct {
+	ResumeAt *time.Time
+	ID       uuid.UUID
+}
+
+func (q *Queries) SetCampaignResumeAt(ctx context.Context, arg SetCampaignResumeAtParams) (Campaign, error) {
+	row := q.db.QueryRow(ctx, setCampaignResumeAt, arg.ResumeAt, arg.ID)
+	var i Campaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Status,
+		&i.PhoneNumberID,
+		&i.TemplateName,
+		&i.TemplateLanguage,
+		&i.TemplateParams,
+		&i.Audience,
+		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.MaterializeCursor,
+		&i.DispatchGen,
+		&i.WindowSize,
+		&i.TotalRecipients,
+		&i.LastError,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
+	)
+	return i, err
+}
+
 const setCampaignStatus = `-- name: SetCampaignStatus :one
 UPDATE campaigns SET status = $1,
     scheduled_at = CASE WHEN $1::text = 'scheduled' THEN $2 ELSE scheduled_at END,
@@ -876,7 +1641,7 @@ UPDATE campaigns SET status = $1,
     last_error   = CASE WHEN $1::text = 'failed' THEN $3 ELSE last_error END,
     updated_at   = now()
 WHERE id = $4 AND status = ANY($5::text[])
-RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued
 `
 
 type SetCampaignStatusParams struct {
@@ -919,6 +1684,15 @@ func (q *Queries) SetCampaignStatus(ctx context.Context, arg SetCampaignStatusPa
 		&i.UpdatedAt,
 		&i.ProgressPublishedAt,
 		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
 	)
 	return i, err
 }
@@ -1023,7 +1797,7 @@ func (q *Queries) StuckSendingMessages(ctx context.Context, olderThanSeconds flo
 const takeDirtyCampaigns = `-- name: TakeDirtyCampaigns :many
 UPDATE campaigns SET progress_dirty = false, progress_published_at = now()
 WHERE progress_dirty
-RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued
 `
 
 func (q *Queries) TakeDirtyCampaigns(ctx context.Context) ([]Campaign, error) {
@@ -1057,6 +1831,15 @@ func (q *Queries) TakeDirtyCampaigns(ctx context.Context) ([]Campaign, error) {
 			&i.UpdatedAt,
 			&i.ProgressPublishedAt,
 			&i.ProgressDirty,
+			&i.Priority,
+			&i.MaxMps,
+			&i.PausedReason,
+			&i.PausedAt,
+			&i.PausedBy,
+			&i.ResumeAt,
+			&i.SendRate,
+			&i.RateWindowStart,
+			&i.RateWindowQueued,
 		); err != nil {
 			return nil, err
 		}
@@ -1095,9 +1878,11 @@ UPDATE campaigns SET
     template_params   = coalesce($5, template_params),
     audience          = coalesce($6, audience),
     window_size       = coalesce($7, window_size),
+    priority          = coalesce($8, priority),
+    max_mps           = CASE WHEN $9::boolean THEN NULL ELSE coalesce($10, max_mps) END,
     updated_at        = now()
-WHERE id = $8 AND status IN ('draft', 'scheduled')
-RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty
+WHERE id = $11 AND status IN ('draft', 'scheduled')
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued
 `
 
 type UpdateCampaignDraftParams struct {
@@ -1108,6 +1893,9 @@ type UpdateCampaignDraftParams struct {
 	TemplateParams   []byte
 	Audience         []byte
 	WindowSize       *int32
+	Priority         *string
+	ClearMaxMps      bool
+	MaxMps           *float64
 	ID               uuid.UUID
 }
 
@@ -1120,6 +1908,9 @@ func (q *Queries) UpdateCampaignDraft(ctx context.Context, arg UpdateCampaignDra
 		arg.TemplateParams,
 		arg.Audience,
 		arg.WindowSize,
+		arg.Priority,
+		arg.ClearMaxMps,
+		arg.MaxMps,
 		arg.ID,
 	)
 	var i Campaign
@@ -1145,6 +1936,78 @@ func (q *Queries) UpdateCampaignDraft(ctx context.Context, arg UpdateCampaignDra
 		&i.UpdatedAt,
 		&i.ProgressPublishedAt,
 		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
+	)
+	return i, err
+}
+
+const updateCampaignSettings = `-- name: UpdateCampaignSettings :one
+UPDATE campaigns SET
+    name     = coalesce($1, name),
+    priority = coalesce($2, priority),
+    max_mps  = CASE WHEN $3::boolean THEN NULL ELSE coalesce($4, max_mps) END,
+    updated_at = now()
+WHERE id = $5 AND (status IN ('draft', 'scheduled', 'preparing', 'running') OR status LIKE 'paused%')
+RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued
+`
+
+type UpdateCampaignSettingsParams struct {
+	Name        *string
+	Priority    *string
+	ClearMaxMps bool
+	MaxMps      *float64
+	ID          uuid.UUID
+}
+
+// What may change while a campaign is in progress (and when resuming).
+func (q *Queries) UpdateCampaignSettings(ctx context.Context, arg UpdateCampaignSettingsParams) (Campaign, error) {
+	row := q.db.QueryRow(ctx, updateCampaignSettings,
+		arg.Name,
+		arg.Priority,
+		arg.ClearMaxMps,
+		arg.MaxMps,
+		arg.ID,
+	)
+	var i Campaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Status,
+		&i.PhoneNumberID,
+		&i.TemplateName,
+		&i.TemplateLanguage,
+		&i.TemplateParams,
+		&i.Audience,
+		&i.ScheduledAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.MaterializeCursor,
+		&i.DispatchGen,
+		&i.WindowSize,
+		&i.TotalRecipients,
+		&i.LastError,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProgressPublishedAt,
+		&i.ProgressDirty,
+		&i.Priority,
+		&i.MaxMps,
+		&i.PausedReason,
+		&i.PausedAt,
+		&i.PausedBy,
+		&i.ResumeAt,
+		&i.SendRate,
+		&i.RateWindowStart,
+		&i.RateWindowQueued,
 	)
 	return i, err
 }
