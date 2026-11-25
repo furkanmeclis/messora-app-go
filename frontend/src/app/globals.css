@@ -70,6 +70,14 @@
 }
 
 /* Inside a desktop-mode window only the page itself is shown. */
+/* Height of the panel's top bar; full-height screens (the inbox) fit below it. */
+:root {
+    --topbar-h: 3.5rem;
+}
+html[data-embedded] {
+    --topbar-h: 0px;
+}
+
 html[data-embedded] [data-chrome],
 html[data-embedded] [data-slot='sidebar-gap'],
 html[data-embedded] [data-slot='sidebar-container'] {

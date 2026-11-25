@@ -14,7 +14,6 @@ import type {
     Template,
     User,
 } from '@/lib/types';
-import { PageHeading } from '../panel-header';
 import { ConversationList, InboxFilters, Thread } from './inbox-client';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -129,14 +128,6 @@ export default async function InboxPage({
 
     return (
         <>
-            <PageHeading
-                title={t('inbox.title')}
-                description={
-                    can(me, 'conversations.read_all')
-                        ? t('inbox.descriptionAll')
-                        : t('inbox.descriptionOwn')
-                }
-            />
             <RealtimeRefresh
                 channel="inbox:all"
                 types={[
@@ -145,7 +136,9 @@ export default async function InboxPage({
                     'message.status',
                 ]}
             />
-            <div className="grid h-[calc(100svh-11rem)] min-h-[34rem] overflow-hidden rounded-xl border bg-card lg:grid-cols-[22rem_1fr]">
+            {/* Full-bleed: fills the content area below the top bar, edge to
+                edge (the panel's padding is cancelled). */}
+            <div className="-m-4 grid h-[calc(100svh-var(--topbar-h))] min-h-[28rem] overflow-hidden bg-card md:-m-6 lg:grid-cols-[22rem_1fr] xl:-mx-8">
                 <section
                     aria-label={t('inbox.conversations')}
                     className={cn(
@@ -154,6 +147,11 @@ export default async function InboxPage({
                     )}
                 >
                     <InboxFilters
+                        title={t('inbox.title')}
+                        unreadTotal={list.data.reduce(
+                            (n, c) => n + c.unread_count,
+                            0,
+                        )}
                         status={status}
                         assignee={assignee}
                         unread={unread}

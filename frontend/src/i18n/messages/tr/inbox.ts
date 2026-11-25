@@ -62,6 +62,7 @@ const inbox: Messages['inbox'] = {
         reopen: 'Yeniden aç',
         back: 'Konuşmalara dön',
         today: 'Bugün',
+        newMessages: 'Yeni mesajlar',
         yesterday: 'Dün',
     },
     reply: {

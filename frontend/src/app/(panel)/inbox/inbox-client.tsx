@@ -2,9 +2,17 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import {
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+    useTransition,
+} from 'react';
 import {
     AlertCircle,
+    ArrowDown,
     ArrowLeft,
     Check,
     CheckCheck,
@@ -164,11 +172,15 @@ const ASSIGNEES = [
 ] as const;
 
 export function InboxFilters({
+    title,
+    unreadTotal,
     status,
     assignee,
     unread,
     q,
 }: {
+    title: string;
+    unreadTotal: number;
     status: string;
     assignee: string;
     unread: boolean;
@@ -203,6 +215,19 @@ export function InboxFilters({
         );
     return (
         <div className="space-y-2 border-b p-3">
+            <div className="flex items-center justify-between gap-2">
+                <h1 className="text-base font-semibold">{title}</h1>
+                {unreadTotal > 0 && (
+                    <Badge
+                        className="rounded-full"
+                        aria-label={t('inbox.list.unread', {
+                            count: unreadTotal,
+                        })}
+                    >
+                        {unreadTotal}
+                    </Badge>
+                )}
+            </div>
             <form
                 role="search"
                 className="relative"
@@ -296,6 +321,33 @@ export function ConversationList({
     const items = [...initial, ...more.filter((c) => !ids.has(c.id))];
     const next = loaded ? cursor : initialCursor;
 
+    const sentinel = useRef<HTMLDivElement>(null);
+    const loadMore = () =>
+        startTransition(async () => {
+            if (!next) return;
+            const r = await moreConversationsAction(query, next);
+            if (notify(r)) {
+                setMore((m) => [...m, ...r.data.items]);
+                setCursor(r.data.next);
+                setLoaded(true);
+            }
+        });
+    // The next page loads when the end of the list scrolls into view.
+    useEffect(() => {
+        const el = sentinel.current;
+        if (!el || !next) return;
+        const io = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((e) => e.isIntersecting) && !pending)
+                    loadMore();
+            },
+            { rootMargin: '200px' },
+        );
+        io.observe(el);
+        return () => io.disconnect();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- loadMore reads the latest cursor
+    }, [next, pending]);
+
     if (items.length === 0) {
         return (
             <Empty className="flex-1 py-12">
@@ -326,10 +378,17 @@ export function ConversationList({
                                 }
                                 data-testid="conversation-item"
                                 className={cn(
-                                    'flex gap-3 border-b px-3 py-2.5 outline-none hover:bg-muted/60 focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                                    'relative flex gap-3 border-b px-3 py-2.5 outline-none hover:bg-muted/60 focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                                    c.unread_count > 0 && 'bg-primary/[0.04]',
                                     c.id === selected && 'bg-muted',
                                 )}
                             >
+                                {c.unread_count > 0 && (
+                                    <span
+                                        aria-hidden
+                                        className="absolute inset-y-0 left-0 w-0.5 bg-primary"
+                                    />
+                                )}
                                 <ContactAvatar
                                     name={name}
                                     id={c.contact.id}
@@ -359,7 +418,14 @@ export function ConversationList({
                                         </time>
                                     </span>
                                     <span className="flex items-center justify-between gap-2">
-                                        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                                        <span
+                                            className={cn(
+                                                'flex min-w-0 items-center gap-1 text-xs',
+                                                c.unread_count > 0
+                                                    ? 'font-medium text-foreground'
+                                                    : 'text-muted-foreground',
+                                            )}
+                                        >
                                             {last?.direction === 'outbound' && (
                                                 <CheckCheck className="size-3.5 shrink-0" />
                                             )}
@@ -413,27 +479,14 @@ export function ConversationList({
                 })}
             </ul>
             {next && (
-                <div className="p-3">
-                    <Button
-                        variant="outline"
-                        className="w-full"
-                        disabled={pending}
-                        onClick={() =>
-                            startTransition(async () => {
-                                const r = await moreConversationsAction(
-                                    query,
-                                    next,
-                                );
-                                if (notify(r)) {
-                                    setMore((m) => [...m, ...r.data.items]);
-                                    setCursor(r.data.next);
-                                    setLoaded(true);
-                                }
-                            })
-                        }
-                    >
-                        {pending && <Spinner />} {t('inbox.list.loadMore')}
-                    </Button>
+                <div ref={sentinel} className="flex justify-center p-3">
+                    {pending ? (
+                        <Spinner />
+                    ) : (
+                        <Button variant="ghost" size="sm" onClick={loadMore}>
+                            {t('inbox.list.loadMore')}
+                        </Button>
+                    )}
                 </div>
             )}
         </div>
@@ -649,6 +702,10 @@ function ThreadMain({
     const [loadedOlder, setLoadedOlder] = useState(false);
     const [pending, startTransition] = useTransition();
     const scroller = useRef<HTMLDivElement>(null);
+    const topSentinel = useRef<HTMLDivElement>(null);
+    const anchor = useRef<{ height: number; top: number } | null>(null);
+    const nearBottom = useRef(true);
+    const [unseen, setUnseen] = useState(false);
     const [today] = useState(() => Date.now());
 
     // The API pages newest first; the thread reads oldest first.
@@ -667,10 +724,61 @@ function ThreadMain({
             void markReadAction(c.id).then(() => router.refresh());
     }, [c.id, c.unread_count, router]);
 
-    useEffect(() => {
+    const toBottom = (smooth = false) => {
         const el = scroller.current;
-        if (el) el.scrollTop = el.scrollHeight;
+        if (el)
+            el.scrollTo({
+                top: el.scrollHeight,
+                behavior: smooth ? 'smooth' : 'auto',
+            });
+        setUnseen(false);
+    };
+
+    // A new message: follow it when the reader is at the bottom, otherwise
+    // offer a jump instead of moving the text they are reading.
+    useEffect(() => {
+        if (nearBottom.current) toBottom();
+        else setUnseen(true);
     }, [newest]);
+
+    const loadOlder = () => {
+        const el = scroller.current;
+        if (!next || pending || !el) return;
+        anchor.current = { height: el.scrollHeight, top: el.scrollTop };
+        startTransition(async () => {
+            const r = await olderMessagesAction(c.id, next);
+            if (notify(r)) {
+                setOlder((o) => [...o, ...r.data.items]);
+                setOlderCursor(r.data.next);
+                setLoadedOlder(true);
+            }
+        });
+    };
+
+    // Older messages are inserted above: keep the visible ones in place.
+    useLayoutEffect(() => {
+        const el = scroller.current;
+        const a = anchor.current;
+        if (!el || !a) return;
+        el.scrollTop = el.scrollHeight - a.height + a.top;
+        anchor.current = null;
+    }, [older.length]);
+
+    // Scrolling near the top loads the previous page, like WhatsApp.
+    useEffect(() => {
+        const el = topSentinel.current;
+        const root = scroller.current;
+        if (!el || !root || !next) return;
+        const io = new IntersectionObserver(
+            (e) => {
+                if (e.some((x) => x.isIntersecting)) loadOlder();
+            },
+            { root, rootMargin: '300px 0px 0px 0px' },
+        );
+        io.observe(el);
+        return () => io.disconnect();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- loadOlder reads the latest cursor
+    }, [next, pending]);
 
     const dayLabel = (iso: string) => {
         const d = formatDate(iso);
@@ -696,116 +804,130 @@ function ThreadMain({
                     </Link>
                 </Button>
                 <ContactAvatar name={name} id={c.contact.id} />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[8rem] flex-1">
                     <h2
                         className="truncate text-sm font-semibold"
                         data-testid="thread-title"
                     >
                         {name}
                     </h2>
-                    <p className="truncate text-xs text-muted-foreground">
-                        {t('inbox.thread.via', {
-                            phone: c.contact.phone,
-                            channel:
-                                c.phone_number.verified_name ||
-                                c.phone_number.display_phone_number,
-                        })}
-                    </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {c.window_open && c.window_expires_at ? (
-                        <Badge
-                            variant="secondary"
-                            title={t('inbox.thread.windowHint')}
-                            className="gap-1"
-                        >
-                            <Clock className="size-3" />
-                            {t('inbox.thread.windowUntil', {
-                                time: formatDateTime(c.window_expires_at),
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        <span className="truncate">
+                            {t('inbox.thread.via', {
+                                phone: c.contact.phone,
+                                channel:
+                                    c.phone_number.verified_name ||
+                                    c.phone_number.display_phone_number,
                             })}
-                        </Badge>
-                    ) : (
-                        <Badge variant="outline">
-                            {t('inbox.thread.windowClosed')}
-                        </Badge>
-                    )}
-                    {c.contact.opted_out && (
-                        <Badge variant="destructive">
-                            {t('inbox.thread.optedOut')}
-                        </Badge>
-                    )}
-                    {c.status === 'closed' && (
-                        <Badge variant="outline">
-                            {t('inbox.filters.closed')}
-                        </Badge>
-                    )}
+                        </span>
+                        {c.window_open && c.window_expires_at ? (
+                            <span
+                                className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"
+                                title={t('inbox.thread.windowHint')}
+                            >
+                                <Clock className="size-3" />
+                                {t('inbox.thread.windowUntil', {
+                                    time: formatDateTime(c.window_expires_at),
+                                })}
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1">
+                                <Clock className="size-3" />
+                                {t('inbox.thread.windowClosed')}
+                            </span>
+                        )}
+                        {c.contact.opted_out && (
+                            <Badge
+                                variant="destructive"
+                                className="h-4 px-1.5 text-[10px]"
+                            >
+                                {t('inbox.thread.optedOut')}
+                            </Badge>
+                        )}
+                        {c.status === 'closed' && (
+                            <Badge
+                                variant="outline"
+                                className="h-4 px-1.5 text-[10px]"
+                            >
+                                {t('inbox.filters.closed')}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
                 {canAssign && (
                     <ConversationActions c={c} me={me} users={users} />
                 )}
             </header>
-            <div
-                ref={scroller}
-                className="min-h-0 flex-1 overflow-y-auto bg-[#efeae2] px-3 py-4 dark:bg-[#0b141a]"
-                tabIndex={0}
-                aria-label={t('inbox.thread.messages')}
-            >
-                {next && (
-                    <div className="mb-3 text-center">
-                        <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={pending}
-                            onClick={() =>
-                                startTransition(async () => {
-                                    const r = await olderMessagesAction(
-                                        c.id,
-                                        next,
-                                    );
-                                    if (notify(r)) {
-                                        setOlder((o) => [
-                                            ...o,
-                                            ...r.data.items,
-                                        ]);
-                                        setOlderCursor(r.data.next);
-                                        setLoadedOlder(true);
-                                    }
-                                })
-                            }
-                        >
-                            {pending && <Spinner />}{' '}
-                            {t('inbox.thread.loadOlder')}
-                        </Button>
-                    </div>
-                )}
-                <ol
-                    className="mx-auto max-w-3xl space-y-1.5"
-                    aria-live="polite"
-                    data-testid="thread"
+            <div className="relative min-h-0 flex-1">
+                <div
+                    ref={scroller}
+                    className="h-full overflow-y-auto bg-[#efeae2] px-3 py-4 dark:bg-[#0b141a]"
+                    tabIndex={0}
+                    aria-label={t('inbox.thread.messages')}
+                    onScroll={(e) => {
+                        const el = e.currentTarget;
+                        nearBottom.current =
+                            el.scrollHeight - el.scrollTop - el.clientHeight <
+                            120;
+                        if (nearBottom.current && unseen) setUnseen(false);
+                    }}
                 >
-                    {messages.map((m, i) => {
-                        const at =
-                            m.direction === 'inbound'
-                                ? m.occurred_at
-                                : m.created_at;
-                        const prev = messages[i - 1];
-                        const prevAt =
-                            prev &&
-                            (prev.direction === 'inbound'
-                                ? prev.occurred_at
-                                : prev.created_at);
-                        const newDay =
-                            !prev || formatDate(prevAt) !== formatDate(at);
-                        return (
-                            <MessageWithDay
-                                key={m.id}
-                                day={newDay ? dayLabel(at) : null}
-                            >
-                                <Bubble conversationId={c.id} m={m} />
-                            </MessageWithDay>
-                        );
-                    })}
-                </ol>
+                    {next && (
+                        <div
+                            ref={topSentinel}
+                            className="mb-3 flex justify-center"
+                        >
+                            {pending ? (
+                                <Spinner />
+                            ) : (
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={loadOlder}
+                                >
+                                    {t('inbox.thread.loadOlder')}
+                                </Button>
+                            )}
+                        </div>
+                    )}
+                    <ol
+                        className="mx-auto max-w-3xl space-y-1.5"
+                        aria-live="polite"
+                        data-testid="thread"
+                    >
+                        {messages.map((m, i) => {
+                            const at =
+                                m.direction === 'inbound'
+                                    ? m.occurred_at
+                                    : m.created_at;
+                            const prev = messages[i - 1];
+                            const prevAt =
+                                prev &&
+                                (prev.direction === 'inbound'
+                                    ? prev.occurred_at
+                                    : prev.created_at);
+                            const newDay =
+                                !prev || formatDate(prevAt) !== formatDate(at);
+                            return (
+                                <MessageWithDay
+                                    key={m.id}
+                                    day={newDay ? dayLabel(at) : null}
+                                >
+                                    <Bubble conversationId={c.id} m={m} />
+                                </MessageWithDay>
+                            );
+                        })}
+                    </ol>
+                </div>
+                {unseen && (
+                    <Button
+                        size="sm"
+                        className="absolute right-4 bottom-4 rounded-full shadow-md"
+                        onClick={() => toBottom(true)}
+                    >
+                        <ArrowDown /> {t('inbox.thread.newMessages')}
+                    </Button>
+                )}
             </div>
             <div className="border-t bg-background p-3">
                 {canReply ? (
@@ -1163,37 +1285,58 @@ function TemplateComposer({
     const issues = shape ? issuesOf(values, shape) : [];
     return (
         <div className="space-y-3">
-            <Combobox
-                aria-label={t('inbox.reply.template')}
-                value={chosen}
-                onValueChange={(v) => {
-                    setChosen(v);
-                    setValues(emptyValues());
-                    setTried(false);
-                }}
-                placeholder={t('inbox.reply.chooseTemplate')}
-                searchPlaceholder={t('campaigns.wizard.searchTemplates')}
-                emptyText={t('campaigns.wizard.noTemplateMatch')}
-                options={templates.map((x) => ({
-                    value: templateKey(x),
-                    label: `${x.name} (${x.language})`,
-                    keywords: `${x.name} ${x.language} ${x.category}`,
-                }))}
-            />
+            <div className="flex items-center gap-2">
+                <Combobox
+                    className="flex-1"
+                    aria-label={t('inbox.reply.template')}
+                    value={chosen}
+                    onValueChange={(v) => {
+                        setChosen(v);
+                        setValues(emptyValues());
+                        setTried(false);
+                    }}
+                    placeholder={t('inbox.reply.chooseTemplate')}
+                    searchPlaceholder={t('campaigns.wizard.searchTemplates')}
+                    emptyText={t('campaigns.wizard.noTemplateMatch')}
+                    options={templates.map((x) => ({
+                        value: templateKey(x),
+                        label: `${x.name} (${x.language})`,
+                        keywords: `${x.name} ${x.language} ${x.category}`,
+                    }))}
+                />
+                {template && (
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={t('common.close')}
+                        onClick={() => {
+                            setChosen('');
+                            setValues(emptyValues());
+                            setTried(false);
+                        }}
+                    >
+                        <X />
+                    </Button>
+                )}
+            </div>
             {template && shape && (
-                <div className="grid max-h-[45svh] gap-4 overflow-y-auto md:grid-cols-[1fr_17rem]">
-                    <div className="space-y-3">
-                        <TemplateParamsEditor
-                            shape={shape}
-                            value={values}
-                            onChange={setValues}
-                            attributeKeys={attributeKeys}
-                            phoneNumberId={c.phone_number.id}
-                        />
-                        {tried && <ParamIssues shape={shape} value={values} />}
-                    </div>
-                    <div className="space-y-2">
+                <div className="@container space-y-2">
+                    {/* Kept short so the conversation stays readable above it. */}
+                    <div className="grid max-h-[34svh] gap-4 overflow-y-auto pr-1 @2xl:grid-cols-[1fr_17rem]">
+                        <div className="space-y-3">
+                            <TemplateParamsEditor
+                                shape={shape}
+                                value={values}
+                                onChange={setValues}
+                                attributeKeys={attributeKeys}
+                                phoneNumberId={c.phone_number.id}
+                            />
+                            {tried && (
+                                <ParamIssues shape={shape} value={values} />
+                            )}
+                        </div>
                         <WhatsAppPreview
+                            className="@2xl:self-start"
                             components={template.components}
                             params={values}
                             contact={contact}
@@ -1204,8 +1347,9 @@ function TemplateComposer({
                             }
                             mediaName={values.media?.filename}
                         />
+                    </div>
+                    <div className="flex justify-end">
                         <Button
-                            className="w-full"
                             disabled={pending}
                             onClick={() => {
                                 setTried(true);

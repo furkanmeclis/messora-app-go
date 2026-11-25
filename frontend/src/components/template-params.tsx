@@ -230,8 +230,8 @@ function SlotRow({
             : 'text',
     );
     return (
-        <div className="space-y-2" data-testid={testId}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="@container space-y-2" data-testid={testId}>
+            <div className="flex flex-col items-start gap-2 @md:flex-row @md:items-center @md:justify-between">
                 <div>
                     <p className="text-sm font-medium">{label}</p>
                     {example && (
@@ -392,7 +392,7 @@ function MediaPicker({
             className="space-y-3 rounded-lg border p-3"
             data-testid="param-media"
         >
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col items-start gap-2 @md:flex-row @md:items-center @md:justify-between">
                 <p className="flex items-center gap-2 text-sm font-medium">
                     <Icon className="size-4 text-muted-foreground" />
                     {t('params.media.title', { kind: kindLabel.toLowerCase() })}

@@ -60,6 +60,7 @@ const inbox = {
         reopen: 'Reopen',
         back: 'Back to conversations',
         today: 'Today',
+        newMessages: 'New messages',
         yesterday: 'Yesterday',
     },
     reply: {
