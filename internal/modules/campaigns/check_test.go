@@ -16,7 +16,7 @@ func TestCheckParams(t *testing.T) {
 	ok := Params{Body: raw([]string{"{{first_name}}", "A-1"}), Buttons: []string{"", "{{var1}}"},
 		HeaderMedia: &HeaderMedia{Type: "image", Link: "https://cdn.example/p.jpg"}}
 
-	sh := ShapeOf(image, "POSITIONAL")
+	sh := ShapeOf(image, "POSITIONAL", "MARKETING")
 	if sh.HeaderMedia != "image" || len(sh.Body) != 2 || len(sh.URLButtons) != 1 || sh.URLButtons[0] != 1 {
 		t.Fatalf("shape: %+v", sh)
 	}
@@ -32,10 +32,10 @@ func TestCheckParams(t *testing.T) {
 		{"missing body value", sh, Params{Body: raw([]string{"x"}), Buttons: ok.Buttons, HeaderMedia: ok.HeaderMedia}, "template_params.body.2"},
 		{"blank body value", sh, Params{Body: raw([]string{"x", " "}), Buttons: ok.Buttons, HeaderMedia: ok.HeaderMedia}, "template_params.body.2"},
 		{"missing button", sh, Params{Body: ok.Body, HeaderMedia: ok.HeaderMedia}, "template_params.buttons.1"},
-		{"named ok", ShapeOf(named, "NAMED"), Params{Header: raw(map[string]string{"first_name": "{{first_name}}"}), Body: raw(map[string]string{"code": "42"})}, ""},
-		{"named missing", ShapeOf(named, "NAMED"), Params{Header: raw(map[string]string{"first_name": "x"})}, "template_params.body.code"},
-		{"media on text template", ShapeOf(named, "NAMED"), Params{HeaderMedia: ok.HeaderMedia}, "template_params.header_media"},
-		{"location unsupported", Shape{HeaderMedia: "location"}, Params{}, "template_name"},
+		{"named ok", ShapeOf(named, "NAMED", "UTILITY"), Params{Header: raw(map[string]string{"first_name": "{{first_name}}"}), Body: raw(map[string]string{"code": "42"})}, ""},
+		{"named missing", ShapeOf(named, "NAMED", "UTILITY"), Params{Header: raw(map[string]string{"first_name": "x"})}, "template_params.body.code"},
+		{"media on text template", ShapeOf(named, "NAMED", "UTILITY"), Params{HeaderMedia: ok.HeaderMedia}, "template_params.header_media"},
+		{"location missing", Shape{HeaderMedia: "location"}, Params{}, "template_params.location"},
 	}
 	for _, c := range cases {
 		err := CheckParams(c.sh, c.p)

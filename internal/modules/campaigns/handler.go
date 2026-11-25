@@ -41,7 +41,8 @@ func (h *Handler) toAPI(r *http.Request, c db.Campaign) (api.Campaign, error) {
 	return api.Campaign{Id: c.ID, Name: c.Name, Status: api.CampaignStatus(c.Status), PhoneNumberId: c.PhoneNumberID,
 		TemplateName: c.TemplateName, TemplateLanguage: c.TemplateLanguage, TemplateParams: params, Audience: aud,
 		WindowSize: int(c.WindowSize), TotalRecipients: c.TotalRecipients, Counts: counts, ScheduledAt: c.ScheduledAt,
-		StartedAt: c.StartedAt, FinishedAt: c.FinishedAt, LastError: c.LastError, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}, nil
+		StartedAt: c.StartedAt, FinishedAt: c.FinishedAt, LastError: c.LastError, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+		OfferId: c.OfferID}, nil
 }
 
 func (h *Handler) write(w http.ResponseWriter, r *http.Request, status int, c db.Campaign, err error) {
@@ -69,12 +70,14 @@ func input(body any) (Input, error) {
 		TemplateParams   *Params    `json:"template_params"`
 		Audience         *Audience  `json:"audience"`
 		WindowSize       *int32     `json:"window_size"`
+		OfferID          *uuid.UUID `json:"offer_id"`
+		ClearOffer       bool       `json:"clear_offer"`
 	}
 	if err := json.Unmarshal(raw, &b); err != nil {
 		return Input{}, apperr.Validation("", "Invalid campaign.")
 	}
 	return Input{Name: b.Name, PhoneNumberID: b.PhoneNumberID, TemplateName: b.TemplateName, TemplateLanguage: b.TemplateLanguage,
-		Params: b.TemplateParams, Audience: b.Audience, WindowSize: b.WindowSize}, nil
+		Params: b.TemplateParams, Audience: b.Audience, WindowSize: b.WindowSize, OfferID: b.OfferID, ClearOffer: b.ClearOffer}, nil
 }
 
 func actor(r *http.Request) *uuid.UUID {

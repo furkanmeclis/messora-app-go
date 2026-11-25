@@ -67,6 +67,7 @@ var policies = map[string]Policy{
 	"campaign:dispatch":       {Campaigns, 10},
 	"campaign:start_due":      {Default, periodicMaxRetry},
 	"campaign:reaper":         {Default, periodicMaxRetry},
+	"offers:tick":             {Default, periodicMaxRetry},
 	"automation:evaluate":     {Critical, 10},
 	"automation:run":          {Default, 10},
 	"automation:resume":       {Default, 10},

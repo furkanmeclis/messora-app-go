@@ -13,6 +13,8 @@ import (
 
 type Querier interface {
 	AcceptInvitation(ctx context.Context, id uuid.UUID) (int64, error)
+	// scheduled → active once starts_at passed (and the offer has not ended).
+	ActivateDueOffers(ctx context.Context) ([]Offer, error)
 	ActiveAutomationsFor(ctx context.Context, triggerType string) ([]Automation, error)
 	AddContactTag(ctx context.Context, arg AddContactTagParams) error
 	AddGroupMembers(ctx context.Context, arg AddGroupMembersParams) (int64, error)
@@ -24,6 +26,7 @@ type Querier interface {
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
 	CampaignMessageStats(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMessageStatsRow, error)
 	CampaignRecipientStats(ctx context.Context, campaignID uuid.UUID) ([]CampaignRecipientStatsRow, error)
+	CampaignsUsingOffer(ctx context.Context, offerID *uuid.UUID) ([]CampaignsUsingOfferRow, error)
 	CancelPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
 	CancelRunsOfAutomation(ctx context.Context, automationID uuid.UUID) (int64, error)
 	CancelUnsentMessages(ctx context.Context, campaignID *uuid.UUID) (int64, error)
@@ -78,6 +81,7 @@ type Querier interface {
 	DeleteContactGroup(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteContactNote(ctx context.Context, arg DeleteContactNoteParams) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
+	DeleteOffer(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteOldIdempotencyKeys(ctx context.Context) (int64, error)
 	// Retention; deliveries go with their event.
 	DeleteOldOutgoingWebhookEvents(ctx context.Context, arg DeleteOldOutgoingWebhookEventsParams) (int64, error)
@@ -93,6 +97,8 @@ type Querier interface {
 	DeleteWhatsAppAccount(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableWebhookEndpoint(ctx context.Context, arg DisableWebhookEndpointParams) error
 	DueScheduledCampaigns(ctx context.Context) ([]uuid.UUID, error)
+	// scheduled or active → expired once ends_at passed.
+	ExpireDueOffers(ctx context.Context) ([]Offer, error)
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
 	// One delivery per subscribed active endpoint; running it again for the
@@ -124,6 +130,7 @@ type Querier interface {
 	GetMessageByWAMID(ctx context.Context, wamid *string) (Message, error)
 	GetMessageCost(ctx context.Context, id uuid.UUID) (GetMessageCostRow, error)
 	GetMetaRateMarket(ctx context.Context, country string) (string, error)
+	GetOffer(ctx context.Context, id uuid.UUID) (Offer, error)
 	GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []byte) (GetOpenInvitationByTokenHashRow, error)
 	GetOutgoingWebhookEvent(ctx context.Context, id uuid.UUID) (OutgoingWebhookEvent, error)
 	GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber, error)
@@ -173,6 +180,8 @@ type Querier interface {
 	InsertMediaFile(ctx context.Context, arg InsertMediaFileParams) (MediaFile, error)
 	// ── User preferences ────────────────────────────────────────────────────────
 	InsertMetaUserPreference(ctx context.Context, arg InsertMetaUserPreferenceParams) (MetaUserPreference, error)
+	// ── Offers (Phase 16C P4) ───────────────────────────────────────────────────
+	InsertOffer(ctx context.Context, arg InsertOfferParams) (Offer, error)
 	// ── Messages ────────────────────────────────────────────────────────────────
 	InsertOutboundMessage(ctx context.Context, arg InsertOutboundMessageParams) (Message, error)
 	InsertOutgoingWebhookEvent(ctx context.Context, arg InsertOutgoingWebhookEventParams) error
@@ -222,6 +231,7 @@ type Querier interface {
 	ListMediaForMessages(ctx context.Context, messageIds []uuid.UUID) ([]MediaFile, error)
 	ListMessagesByContact(ctx context.Context, arg ListMessagesByContactParams) ([]Message, error)
 	ListMetaRates(ctx context.Context) ([]ListMetaRatesRow, error)
+	ListOffers(ctx context.Context, status *string) ([]Offer, error)
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
 	ListPhoneNumbers(ctx context.Context) ([]ListPhoneNumbersRow, error)
@@ -246,6 +256,7 @@ type Querier interface {
 	LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	// ── Conversations (inbox) ───────────────────────────────────────────────────
 	LockConversationByThread(ctx context.Context, arg LockConversationByThreadParams) (Conversation, error)
+	LockOffer(ctx context.Context, id uuid.UUID) (Offer, error)
 	// Serializes changes that could remove an owner, so two concurrent
 	// demotions cannot both pass the "at least one owner" check.
 	LockOwnerChanges(ctx context.Context) error
@@ -295,6 +306,7 @@ type Querier interface {
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
 	// The messaging limit is the business portfolio's: every number shares it.
 	SetAccountMessagingLimit(ctx context.Context, arg SetAccountMessagingLimitParams) error
+	SetCampaignOffer(ctx context.Context, arg SetCampaignOfferParams) error
 	// Generic transition guarded by the allowed source states.
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
 	SetContactOptOut(ctx context.Context, arg SetContactOptOutParams) error
@@ -341,6 +353,8 @@ type Querier interface {
 	UpdateCampaignDraft(ctx context.Context, arg UpdateCampaignDraftParams) (Campaign, error)
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
 	UpdateContactGroup(ctx context.Context, arg UpdateContactGroupParams) (ContactGroup, error)
+	// Replaces every editable field (the service merges the request first).
+	UpdateOffer(ctx context.Context, arg UpdateOfferParams) (Offer, error)
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) error
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (User, error)
 	UpdateSegment(ctx context.Context, arg UpdateSegmentParams) (Segment, error)

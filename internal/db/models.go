@@ -105,6 +105,7 @@ type Campaign struct {
 	UpdatedAt           time.Time
 	ProgressPublishedAt *time.Time
 	ProgressDirty       bool
+	OfferID             *uuid.UUID
 }
 
 type CampaignEvent struct {
@@ -365,6 +366,25 @@ type MetaUserPreference struct {
 	Detail        string
 	OccurredAt    time.Time
 	ReceivedAt    time.Time
+}
+
+type Offer struct {
+	ID           uuid.UUID
+	Title        string
+	Description  string
+	DiscountText string
+	Product      string
+	StartsAt     time.Time
+	EndsAt       time.Time
+	ImageUrl     *string
+	ImageMediaID *string
+	CtaUrl       *string
+	CouponCode   *string
+	TemplateID   *uuid.UUID
+	Status       string
+	CreatedBy    *uuid.UUID
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type OutboxEvent struct {

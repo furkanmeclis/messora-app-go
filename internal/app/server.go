@@ -24,6 +24,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/licensing"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
@@ -54,6 +55,7 @@ type (
 	inboxHandler      = conversations.Handler
 	webhooksHandler   = webhooks.Handler
 	automationHandler = automation.Handler
+	offersHandler     = offers.Handler
 	licensingHandler  = licensing.Handler
 )
 
@@ -72,6 +74,7 @@ type apiServer struct {
 	*inboxHandler
 	*webhooksHandler
 	*automationHandler
+	*offersHandler
 	*licensingHandler
 }
 
@@ -91,6 +94,7 @@ type services struct {
 	messaging  *messaging.Service
 	contacts   *contacts.Service
 	campaigns  *campaigns.Service
+	offers     *offers.Service
 	inbox      *conversations.Service
 	webhooks   *webhooks.Service
 	automation *automation.Service
@@ -165,7 +169,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// Restricted mode stops sending everywhere (see internal/shared/licensegate).
 	licensegate.Install(lic.Allowed)
 	return &services{cfg: cfg, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
-		campaigns: camp, inbox: inbox, webhooks: hooks,
+		campaigns: camp, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
 		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
 }
 
@@ -209,6 +213,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		inboxHandler:      conversations.NewHandler(svc.inbox, log),
 		webhooksHandler:   webhooks.NewHandler(svc.webhooks, log),
 		automationHandler: automation.NewHandler(svc.automation, log),
+		offersHandler:     offers.NewHandler(svc.offers, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))

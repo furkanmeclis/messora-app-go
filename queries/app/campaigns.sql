@@ -1,6 +1,6 @@
 -- name: InsertCampaign :one
-INSERT INTO campaigns (name, phone_number_id, template_name, template_language, template_params, audience, window_size, created_by)
-VALUES (@name, @phone_number_id, @template_name, @template_language, @template_params, @audience, @window_size, sqlc.narg(created_by))
+INSERT INTO campaigns (name, phone_number_id, template_name, template_language, template_params, audience, window_size, created_by, offer_id)
+VALUES (@name, @phone_number_id, @template_name, @template_language, @template_params, @audience, @window_size, sqlc.narg(created_by), sqlc.narg(offer_id))
 RETURNING *;
 
 -- name: GetCampaign :one

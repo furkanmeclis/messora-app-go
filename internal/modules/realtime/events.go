@@ -34,6 +34,9 @@ const (
 	// TypeConversationUpdated: a conversation got a message, or its
 	// assignee, status or unread count changed.
 	TypeConversationUpdated = "conversation.updated"
+	// TypeOfferUpdated: a time-limited offer was created, edited, deleted
+	// or changed status (published on campaign:all).
+	TypeOfferUpdated = "offer.updated"
 
 	// Reserved for Phase 16C producers (defined, not published yet).
 
@@ -198,6 +201,23 @@ type CampaignEvent struct {
 	Status     string           `json:"status"`
 	Counts     map[string]int64 `json:"counts,omitempty"`
 	At         time.Time        `json:"at"`
+}
+
+// OfferEvent announces a change of a time-limited offer. Deleted is set
+// when the offer is gone.
+type OfferEvent struct {
+	Envelope
+	OfferID uuid.UUID `json:"offer_id"`
+	Status  string    `json:"status"`
+	EndsAt  time.Time `json:"ends_at"`
+	Deleted bool      `json:"deleted,omitempty"`
+}
+
+// PublishOffer announces o on the campaign list channel: offers drive
+// campaigns, and whoever plans campaigns watches that channel.
+func PublishOffer(ctx context.Context, tx outbox.DBTX, o db.Offer, deleted bool) error {
+	return Publish(ctx, tx, CampaignsChannel, OfferEvent{Envelope: NewEnvelope(TypeOfferUpdated), OfferID: o.ID, Status: o.Status,
+		EndsAt: o.EndsAt.UTC(), Deleted: deleted})
 }
 
 // NewCampaignEvent describes campaign c with its counters.
