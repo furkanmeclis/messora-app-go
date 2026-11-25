@@ -266,31 +266,39 @@ type MediaFile struct {
 }
 
 type Message struct {
-	ID            pgtype.UUID
-	PhoneNumberID pgtype.UUID
-	ContactID     pgtype.UUID
-	Direction     string
-	Wamid         *string
-	Type          string
-	Body          string
-	Payload       []byte
-	Status        string
-	StatusRank    int16
-	ReplyToWamid  *string
-	ErrorCode     *string
-	ErrorTitle    *string
-	Attempts      int32
-	Source        string
-	CreatedBy     pgtype.UUID
-	SentAt        pgtype.Timestamptz
-	DeliveredAt   pgtype.Timestamptz
-	ReadAt        pgtype.Timestamptz
-	FailedAt      pgtype.Timestamptz
-	OccurredAt    pgtype.Timestamptz
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	CampaignID    pgtype.UUID
-	MetaStatus    *string
+	ID               pgtype.UUID
+	PhoneNumberID    pgtype.UUID
+	ContactID        pgtype.UUID
+	Direction        string
+	Wamid            *string
+	Type             string
+	Body             string
+	Payload          []byte
+	Status           string
+	StatusRank       int16
+	ReplyToWamid     *string
+	ErrorCode        *string
+	ErrorTitle       *string
+	Attempts         int32
+	Source           string
+	CreatedBy        pgtype.UUID
+	SentAt           pgtype.Timestamptz
+	DeliveredAt      pgtype.Timestamptz
+	ReadAt           pgtype.Timestamptz
+	FailedAt         pgtype.Timestamptz
+	OccurredAt       pgtype.Timestamptz
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	CampaignID       pgtype.UUID
+	MetaStatus       *string
+	PricingType      *string
+	PricingCategory  *string
+	PricingModel     *string
+	Billable         *bool
+	RecipientCountry *string
+	CostAmount       pgtype.Numeric
+	CostCurrency     *string
+	CostSource       *string
 }
 
 type MessageTemplate struct {
@@ -308,6 +316,53 @@ type MessageTemplate struct {
 	SyncedAt        pgtype.Timestamptz
 	CreatedAt       pgtype.Timestamptz
 	UpdatedAt       pgtype.Timestamptz
+}
+
+type MetaCostDaily struct {
+	AccountID       pgtype.UUID
+	Day             pgtype.Date
+	PhoneNumber     string
+	Country         string
+	PricingCategory string
+	PricingType     string
+	Volume          int64
+	Cost            pgtype.Numeric
+	Currency        *string
+	FetchedAt       pgtype.Timestamptz
+}
+
+type MetaRate struct {
+	ID            pgtype.UUID
+	Currency      string
+	Market        string
+	Category      string
+	Price         pgtype.Numeric
+	TierLower     *int64
+	TierUpper     *int64
+	EffectiveFrom pgtype.Date
+	EffectiveTo   pgtype.Date
+	Source        string
+	ImportedAt    pgtype.Timestamptz
+	ImportedBy    pgtype.UUID
+}
+
+type MetaRateMarket struct {
+	Country    string
+	Market     string
+	ImportedAt pgtype.Timestamptz
+}
+
+type MetaUserPreference struct {
+	ID            pgtype.UUID
+	PhoneNumberID pgtype.UUID
+	WaID          *string
+	UserID        *string
+	PhoneE164     *string
+	Category      string
+	Value         string
+	Detail        string
+	OccurredAt    pgtype.Timestamptz
+	ReceivedAt    pgtype.Timestamptz
 }
 
 type OutboxEvent struct {
@@ -357,6 +412,8 @@ type PhoneNumber struct {
 	IsDefault              bool
 	CreatedAt              pgtype.Timestamptz
 	UpdatedAt              pgtype.Timestamptz
+	ThroughputMps          *int32
+	SignalsCheckedAt       pgtype.Timestamptz
 }
 
 type Role struct {
@@ -514,4 +571,15 @@ type WhatsappAccount struct {
 	TokenCheckedAt           pgtype.Timestamptz
 	TokenWarning             *string
 	TokenNotifiedAt          pgtype.Timestamptz
+	Currency                 *string
+}
+
+type WhatsappAccountEvent struct {
+	ID            pgtype.UUID
+	AccountID     pgtype.UUID
+	PhoneNumberID pgtype.UUID
+	Kind          string
+	Payload       []byte
+	OccurredAt    pgtype.Timestamptz
+	ReceivedAt    pgtype.Timestamptz
 }

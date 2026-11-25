@@ -41,6 +41,9 @@ type Querier interface {
 	ClaimWebhookDelivery(ctx context.Context, arg ClaimWebhookDeliveryParams) (WebhookDelivery, error)
 	ClearContactTags(ctx context.Context, contactID uuid.UUID) error
 	ClearDefaultPhoneNumber(ctx context.Context) error
+	// A rate is valid until the next effective date of the same currency,
+	// market and category.
+	CloseSupersededMetaRates(ctx context.Context) error
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	ConsumePasswordReset(ctx context.Context, tokenHash []byte) (uuid.UUID, error)
 	ContactGroupIDs(ctx context.Context, contactID uuid.UUID) ([]uuid.UUID, error)
@@ -48,6 +51,9 @@ type Querier interface {
 	ContactHasTag(ctx context.Context, arg ContactHasTagParams) (bool, error)
 	ContactTags(ctx context.Context, contactID uuid.UUID) ([]Tag, error)
 	CountActiveOwners(ctx context.Context) (int64, error)
+	// Billable messages of the same account, category and market sent earlier
+	// in the calendar month: the volume that selects a rate tier.
+	CountBillableInMonth(ctx context.Context, arg CountBillableInMonthParams) (int64, error)
 	CountCampaignsForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountHeld(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountInFlight(ctx context.Context, campaignID *uuid.UUID) (int64, error)
@@ -93,6 +99,7 @@ type Querier interface {
 	// same event inserts nothing.
 	FanOutWebhookEvent(ctx context.Context, arg FanOutWebhookEventParams) ([]uuid.UUID, error)
 	FindApprovedTemplate(ctx context.Context, arg FindApprovedTemplateParams) (MessageTemplate, error)
+	FindPhoneNumberByDisplay(ctx context.Context, arg FindPhoneNumberByDisplayParams) (PhoneNumber, error)
 	FinishAutomationRun(ctx context.Context, arg FinishAutomationRunParams) error
 	FinishContactImport(ctx context.Context, arg FinishContactImportParams) error
 	FinishWebhookDelivery(ctx context.Context, arg FinishWebhookDeliveryParams) (int64, error)
@@ -115,10 +122,13 @@ type Querier interface {
 	GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, error)
 	GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 	GetMessageByWAMID(ctx context.Context, wamid *string) (Message, error)
+	GetMessageCost(ctx context.Context, id uuid.UUID) (GetMessageCostRow, error)
+	GetMetaRateMarket(ctx context.Context, country string) (string, error)
 	GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []byte) (GetOpenInvitationByTokenHashRow, error)
 	GetOutgoingWebhookEvent(ctx context.Context, id uuid.UUID) (OutgoingWebhookEvent, error)
 	GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber, error)
 	GetPhoneNumberByMetaID(ctx context.Context, phoneNumberID string) (PhoneNumber, error)
+	GetPhoneNumberThroughput(ctx context.Context, id uuid.UUID) (*int32, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
 	GetSegment(ctx context.Context, id uuid.UUID) (Segment, error)
 	GetSetting(ctx context.Context, key string) ([]byte, error)
@@ -161,6 +171,8 @@ type Querier interface {
 	InsertInboundMessage(ctx context.Context, arg InsertInboundMessageParams) (Message, error)
 	// ── Media ───────────────────────────────────────────────────────────────────
 	InsertMediaFile(ctx context.Context, arg InsertMediaFileParams) (MediaFile, error)
+	// ── User preferences ────────────────────────────────────────────────────────
+	InsertMetaUserPreference(ctx context.Context, arg InsertMetaUserPreferenceParams) (MetaUserPreference, error)
 	// ── Messages ────────────────────────────────────────────────────────────────
 	InsertOutboundMessage(ctx context.Context, arg InsertOutboundMessageParams) (Message, error)
 	InsertOutgoingWebhookEvent(ctx context.Context, arg InsertOutgoingWebhookEventParams) error
@@ -175,7 +187,9 @@ type Querier interface {
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (uuid.UUID, error)
 	// ── Accounts ────────────────────────────────────────────────────────────────
 	InsertWhatsAppAccount(ctx context.Context, arg InsertWhatsAppAccountParams) (WhatsappAccount, error)
+	InsertWhatsAppAccountEvent(ctx context.Context, arg InsertWhatsAppAccountEventParams) error
 	InvalidatePasswordResets(ctx context.Context, userID uuid.UUID) error
+	ListActiveWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	ListApiKeys(ctx context.Context) ([]ListApiKeysRow, error)
 	ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
@@ -196,9 +210,11 @@ type Querier interface {
 	// see_all is false for users who may only read conversations assigned to
 	// them or to nobody (conversations.read without conversations.read_all).
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
+	ListMarketCountries(ctx context.Context, market string) ([]string, error)
 	ListMediaForMessage(ctx context.Context, messageID *uuid.UUID) ([]MediaFile, error)
 	ListMediaForMessages(ctx context.Context, messageIds []uuid.UUID) ([]MediaFile, error)
 	ListMessagesByContact(ctx context.Context, arg ListMessagesByContactParams) ([]Message, error)
+	ListMetaRates(ctx context.Context) ([]ListMetaRatesRow, error)
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
 	ListPhoneNumbers(ctx context.Context) ([]ListPhoneNumbersRow, error)
@@ -240,6 +256,9 @@ type Querier interface {
 	MarkWhatsAppAccountError(ctx context.Context, arg MarkWhatsAppAccountErrorParams) error
 	MarkWhatsAppAccountSynced(ctx context.Context, id uuid.UUID) error
 	MarkWhatsAppTokenNotified(ctx context.Context, id uuid.UUID) error
+	// The rates that can price a message to country in category: its own
+	// market's and the "Other" market's.
+	MetaRateCandidates(ctx context.Context, arg MetaRateCandidatesParams) ([]MetaRateCandidatesRow, error)
 	MuteContactAutomations(ctx context.Context, arg MuteContactAutomationsParams) error
 	// Waiting runs whose resume task may have been lost.
 	OverdueWaitingRuns(ctx context.Context) ([]uuid.UUID, error)
@@ -267,6 +286,8 @@ type Querier interface {
 	RevokeInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
+	// The messaging limit is the business portfolio's: every number shares it.
+	SetAccountMessagingLimit(ctx context.Context, arg SetAccountMessagingLimitParams) error
 	// Generic transition guarded by the allowed source states.
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
 	SetContactOptOut(ctx context.Context, arg SetContactOptOutParams) error
@@ -276,9 +297,17 @@ type Querier interface {
 	SetMaterializeCursor(ctx context.Context, arg SetMaterializeCursorParams) error
 	// Meta's own state for paced templates (accepted, held_for_quality_assessment, paused).
 	SetMessageMetaStatus(ctx context.Context, arg SetMessageMetaStatusParams) error
+	// Pricing arrives on "sent" or "delivered" (never both); a later webhook
+	// without it never clears what was stored.
+	SetMessagePricing(ctx context.Context, arg SetMessagePricingParams) error
+	// Values from a webhook; NULL keeps what is stored.
+	SetPhoneNumberSignals(ctx context.Context, arg SetPhoneNumberSignalsParams) error
+	SetTemplateQualityByMetaID(ctx context.Context, arg SetTemplateQualityByMetaIDParams) (int64, error)
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
 	SetWebhookEndpointSecret(ctx context.Context, arg SetWebhookEndpointSecretParams) (WebhookEndpoint, error)
+	// ── Account signals ─────────────────────────────────────────────────────────
+	SetWhatsAppAccountCurrency(ctx context.Context, arg SetWhatsAppAccountCurrencyParams) error
 	// Records what Meta's debug_token said about the stored token.
 	SetWhatsAppTokenInfo(ctx context.Context, arg SetWhatsAppTokenInfoParams) (WhatsappAccount, error)
 	// Pending for longer than expected: its send task may have been lost.
@@ -306,7 +335,6 @@ type Querier interface {
 	UpdateContact(ctx context.Context, arg UpdateContactParams) (Contact, error)
 	UpdateContactGroup(ctx context.Context, arg UpdateContactGroupParams) (ContactGroup, error)
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) error
-	UpdatePhoneNumberLimit(ctx context.Context, arg UpdatePhoneNumberLimitParams) error
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (User, error)
 	UpdateSegment(ctx context.Context, arg UpdateSegmentParams) (Segment, error)
 	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
@@ -315,7 +343,14 @@ type Querier interface {
 	UpdateWhatsAppAccount(ctx context.Context, arg UpdateWhatsAppAccountParams) (WhatsappAccount, error)
 	// ── Contacts ────────────────────────────────────────────────────────────────
 	UpsertContactByPhone(ctx context.Context, arg UpsertContactByPhoneParams) (Contact, error)
+	// ── Daily cost (pricing_analytics) ──────────────────────────────────────────
+	UpsertMetaCostDaily(ctx context.Context, arg UpsertMetaCostDailyParams) error
+	UpsertMetaRate(ctx context.Context, arg UpsertMetaRateParams) error
+	// ── Rate card ───────────────────────────────────────────────────────────────
+	UpsertMetaRateMarket(ctx context.Context, arg UpsertMetaRateMarketParams) error
 	// ── Phone numbers ───────────────────────────────────────────────────────────
+	// Called with Meta's current values (connect, sync and the hourly signal
+	// sync); a throughput Meta did not report keeps the stored one.
 	UpsertPhoneNumber(ctx context.Context, arg UpsertPhoneNumberParams) (PhoneNumber, error)
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
 	// Tags are matched case-insensitively; the first spelling wins.

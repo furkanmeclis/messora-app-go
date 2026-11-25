@@ -425,7 +425,7 @@ func (q *Queries) InsertCampaignEvent(ctx context.Context, arg InsertCampaignEve
 const insertCampaignMessage = `-- name: InsertCampaignMessage :one
 INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id)
 VALUES ($1, $2, $3, 'outbound', 'template', $4, $5, 'pending', 0, 'campaign', $6)
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source
 `
 
 type InsertCampaignMessageParams struct {
@@ -473,6 +473,14 @@ func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignM
 		&i.UpdatedAt,
 		&i.CampaignID,
 		&i.MetaStatus,
+		&i.PricingType,
+		&i.PricingCategory,
+		&i.PricingModel,
+		&i.Billable,
+		&i.RecipientCountry,
+		&i.CostAmount,
+		&i.CostCurrency,
+		&i.CostSource,
 	)
 	return i, err
 }
