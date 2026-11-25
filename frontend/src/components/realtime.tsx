@@ -50,6 +50,8 @@ type Listener = (channel: string, event: RealtimeEvent) => void;
 
 type Ctx = {
     subscribe: (fn: Listener) => () => void;
+    /** Subscribes to channel while the returned function is not called. */
+    watch: (channel: string) => () => void;
     getState: () => RealtimeState;
     onState: (fn: () => void) => () => void;
 };
@@ -108,11 +110,27 @@ export function RealtimeProvider({
     const stateListeners = useRef(new Set<() => void>());
     const state = useRef<RealtimeState>('connecting');
     const key = channels.join(',');
+    // Channels pages subscribe to while they are open (a conversation's own
+    // channel), counted so two watchers share one subscription.
+    const watched = useRef(new Map<string, number>());
+    const attach = useRef<((channel: string) => void) | null>(null);
+    const detach = useRef<((channel: string) => void) | null>(null);
 
     const [ctx] = useState<Ctx>(() => ({
         subscribe: (fn) => {
             listeners.current.add(fn);
             return () => listeners.current.delete(fn);
+        },
+        watch: (channel) => {
+            const n = (watched.current.get(channel) ?? 0) + 1;
+            watched.current.set(channel, n);
+            if (n === 1) attach.current?.(channel);
+            return () => {
+                const left = (watched.current.get(channel) ?? 1) - 1;
+                if (left > 0) return void watched.current.set(channel, left);
+                watched.current.delete(channel);
+                detach.current?.(channel);
+            };
         },
         getState: () => state.current,
         onState: (fn) => {
@@ -197,14 +215,26 @@ export function RealtimeProvider({
             onSubscribed(c);
         });
 
-        for (const channel of key ? key.split(',') : []) {
+        const fixed = new Set(key ? key.split(',') : []);
+        const subscribeTo = (channel: string) => {
+            if (client.getSubscription(channel)) return;
             const sub = client.newSubscription(channel, {
                 getToken: (c) => unwrap(realtimeSubscriptionToken(c.channel)),
             });
             sub.on('publication', onPublication);
             sub.on('subscribed', onSubscribed);
             sub.subscribe();
-        }
+        };
+        fixed.forEach(subscribeTo);
+        watched.current.forEach((_, channel) => subscribeTo(channel));
+        attach.current = subscribeTo;
+        detach.current = (channel) => {
+            if (fixed.has(channel)) return;
+            const sub = client.getSubscription(channel);
+            if (!sub) return;
+            sub.unsubscribe();
+            client.removeSubscription(sub);
+        };
         // While connected, every subscribed channel is current. Timers stop
         // while the device sleeps, so the last mark bounds what was missed.
         const heartbeat = setInterval(() => {
@@ -218,6 +248,8 @@ export function RealtimeProvider({
         }, 30_000);
         client.connect();
         return () => {
+            attach.current = null;
+            detach.current = null;
             clearInterval(heartbeat);
             reload.cancel();
             client.disconnect();
@@ -248,6 +280,12 @@ export function useRealtimeEvents(fn: Listener) {
         ref.current = fn;
     });
     useEffect(() => subscribe((c, e) => ref.current(c, e)), [subscribe]);
+}
+
+/** Subscribes to channel while the calling component is mounted. */
+export function useRealtimeChannel(channel: string | undefined) {
+    const { watch } = useCtx();
+    useEffect(() => (channel ? watch(channel) : undefined), [channel, watch]);
 }
 
 /** The connection state, for status indicators. */

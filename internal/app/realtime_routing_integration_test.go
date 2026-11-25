@@ -3,12 +3,15 @@
 package app
 
 import (
+	"context"
 	"net/url"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 )
 
 // eventsAbout lists the realtime events about conversation id written after
@@ -160,5 +163,35 @@ func TestRealtimeRoutingFollowsVisibility(t *testing.T) {
 	h.expect(h.do(call{method: "GET", path: syncPath(realtime.InboxChannel, since), token: key}), 403, "FORBIDDEN")
 	if r := h.do(call{method: "GET", path: "/api/v1/realtime/sync?channel=inbox:all", token: owner}); r.status < 400 || r.status >= 500 {
 		t.Fatalf("missing since: %d", r.status)
+	}
+}
+
+// A campaign's delivery ticks reach only the message's conversation channel,
+// never the inbox channels every panel listens to.
+func TestRealtimeCampaignTicksStayInTheirThread(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.connect()
+	h.svc.campaigns.TickInterval = 0
+	tag := h.seedContacts(3, "+90552")
+	id := h.createCampaign(token, tag, 10, map[string]any{"body": []string{"{{first_name}}", "x"}})
+	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/start", token: token}), 200, "")
+	if st := h.runCampaign(id, time.Minute); st != "completed" {
+		t.Fatalf("status %s", st)
+	}
+	var msgID, wamid, phone string
+	if err := h.pool.QueryRow(context.Background(), `SELECT m.id::text, m.wamid, c.phone_e164 FROM messages m JOIN contacts c ON c.id = m.contact_id
+		WHERE m.campaign_id = $1 AND m.wamid IS NOT NULL LIMIT 1`, id).Scan(&msgID, &wamid, &phone); err != nil {
+		t.Fatal(err)
+	}
+	from := len(h.rtEvents())
+	h.webhook(whatsapptest.StatusUpdate(testPNID, wamid, "read", strings.TrimPrefix(phone, "+"), msgID, time.Now(), 0))
+	var channels []string
+	for _, e := range h.rtEvents()[from:] {
+		if e.body["message_id"] == msgID && e.body["type"] == realtime.TypeMessageStatus {
+			channels = append(channels, e.channel)
+		}
+	}
+	if len(channels) != 1 || !strings.HasPrefix(channels[0], "conversation:") {
+		t.Fatalf("campaign tick went to %v", channels)
 	}
 }

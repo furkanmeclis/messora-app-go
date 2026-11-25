@@ -113,7 +113,18 @@ func announceStatus(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message)
 	if err := webhooks.MessageStatus(ctx, tx, m, convID); err != nil {
 		return err
 	}
-	return realtime.PublishMessage(ctx, tx, realtime.NewMessageEvent(realtime.TypeMessageStatus, m), conv)
+	ev := realtime.NewMessageEvent(realtime.TypeMessageStatus, m)
+	if m.CampaignID != nil {
+		// A campaign's delivery ticks reach only the open thread: on the
+		// inbox channels a 100k-recipient campaign would flood every panel.
+		// Campaign progress is published on the campaign's own channel.
+		if conv == nil {
+			return nil
+		}
+		ev.ConversationID = &conv.ID
+		return realtime.Publish(ctx, tx, realtime.ConversationChannel(conv.ID), ev)
+	}
+	return realtime.PublishMessage(ctx, tx, ev, conv)
 }
 
 // RecordCampaignMessage keeps the thread of a campaign message current, in
