@@ -101,7 +101,6 @@ func (t *Throttle) Rate(ctx context.Context, pn uuid.UUID) int {
 	return n
 }
 
-
 // Backoff halves the rate after a throughput error.
 func (t *Throttle) Backoff(ctx context.Context, pn uuid.UUID) int {
 	r := max(t.Floor, t.Rate(ctx, pn)/2)

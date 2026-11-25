@@ -136,7 +136,9 @@ func (t *Throttle) Share(ctx context.Context, pn, campaign uuid.UUID) float64 {
 
 // Keys of one number share a hash tag so the Lua call works on a cluster.
 func (t *Throttle) numberKey(pn uuid.UUID) string { return "messora:send:{pn:" + pn.String() + "}" }
-func (t *Throttle) laneKey(pn uuid.UUID) string   { return "messora:send:{pn:" + pn.String() + "}:campaigns" }
+func (t *Throttle) laneKey(pn uuid.UUID) string {
+	return "messora:send:{pn:" + pn.String() + "}:campaigns"
+}
 func (t *Throttle) campaignKey(pn, c uuid.UUID) string {
 	return "messora:send:{pn:" + pn.String() + "}:c:" + c.String()
 }

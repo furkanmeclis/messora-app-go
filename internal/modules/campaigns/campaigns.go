@@ -602,7 +602,7 @@ func (s *Service) ResumeWith(ctx context.Context, id uuid.UUID, actor *uuid.UUID
 	if err := licensegate.Check(ctx); err != nil {
 		return db.Campaign{}, err
 	}
-	if err := o.Settings.validate(); err != nil {
+	if err := o.validate(); err != nil {
 		return db.Campaign{}, err
 	}
 	var c db.Campaign

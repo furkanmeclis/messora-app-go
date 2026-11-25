@@ -185,7 +185,7 @@ Aşağıdaki önerilerin hepsi kabul edildi: (1) yetki izolasyonu 16C'de, firmal
 |---|---|
 | P0 Altyapı | ✅ tamamlandı (2026-11-25) — açık doğrulamalar: Meta `throughput` seviye adları ve `pricing_analytics` numara alanı gerçek hesapta teyit edilecek |
 | P1 Abonelik ve izin | ✅ tamamlandı (2026-11-25) — kurallar ve kararlar: docs/CONSENT.md; açık: durum webhook'u ile gelen 131049 otomatik tekrar gönderilmez (P2 "ulaşılamayanlar" kitlesi) |
-| P2 Gönderim motoru | bekliyor |
+| P2 Gönderim motoru | ✅ tamamlandı (2026-11-25) — tasarım: ARCHITECTURE.md §6.3/§7 (numara başına GCRA şeritleri + ağırlıklı adil pay, `portfolio_reach` ile 24 saatlik tekil müşteri sayacı ve `paused_limit`, `campaign_pauses`, `previous_campaign` kitlesi, webhook 131049 tekrar gönderimi); açık: portföy birden çok WABA'yı kapsıyorsa yalnızca bağlı WABA sayılır |
 | P3 Analitik ve rapor | bekliyor |
 | P4 Şablon ve teklif | bekliyor |
 | P5 AI sağlayıcı ve profil | bekliyor |
