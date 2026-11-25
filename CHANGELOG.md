@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-25
+
 ### Added — Phase 16b: Meta connection and messaging screens
 
 - WhatsApp access tokens are checked with Meta when connected, replaced and
@@ -26,6 +28,13 @@ All notable changes to this project are documented here. The format follows
 - The templates page: search and filters, real sync from Meta, details,
   "use in a campaign", and creating media-header templates (the example file
   is uploaded to Meta).
+- Groups, tags and segments have insight pages: reach and activity, the
+  message funnel, a 30-day activity chart and every campaign that reached
+  their contacts — aimed at them or at an overlapping audience — with
+  delivery, read, reply and opt-out figures for those contacts only.
+- Every list in the panel uses the same table: search, sortable columns,
+  pages, column visibility, density and a row menu; invitations and API keys
+  can be revoked in bulk.
 
 ### Fixed
 
