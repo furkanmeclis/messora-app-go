@@ -123,6 +123,13 @@ VALUES (sqlc.narg(phone_number_id), sqlc.narg(wa_id), sqlc.narg(user_id), sqlc.n
 ON CONFLICT (wa_id, user_id, category, value, occurred_at) DO NOTHING
 RETURNING *;
 
+-- name: LatestMetaUserPreference :one
+-- The newest recorded preference of a number for a category: webhooks may
+-- arrive out of order, only the latest choice counts.
+SELECT * FROM meta_user_preferences
+WHERE phone_e164 = @phone_e164 AND category = @category
+ORDER BY occurred_at DESC, id DESC LIMIT 1;
+
 -- ── Daily cost (pricing_analytics) ──────────────────────────────────────────
 
 -- name: UpsertMetaCostDaily :exec

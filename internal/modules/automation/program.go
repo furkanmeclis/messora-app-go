@@ -112,6 +112,8 @@ type Trigger struct {
 	// message_status
 	Status     string     `json:"status,omitempty"` // delivered | read | failed
 	CampaignID *uuid.UUID `json:"campaign_id,omitempty"`
+	// subscription_request: stop | request | resume ("" = any)
+	Subscription string `json:"subscription,omitempty"`
 	// At most one run per contact within this many seconds (0 = no limit).
 	CooldownSeconds int `json:"cooldown_seconds,omitempty"`
 }
@@ -164,6 +166,10 @@ func ValidateTrigger(typ string, t Trigger) error {
 	case trigger.MessageStatus:
 		if t.Status != "delivered" && t.Status != "read" && t.Status != "failed" {
 			return bad("trigger.status", "Status must be delivered, read or failed.")
+		}
+	case trigger.SubscriptionRequest:
+		if t.Subscription != "" && t.Subscription != "stop" && t.Subscription != "request" && t.Subscription != "resume" {
+			return bad("trigger.subscription", "Subscription is stop, request or resume.")
 		}
 	case trigger.NewContact, trigger.ConversationClosed:
 	default:
@@ -361,6 +367,8 @@ func MatchTrigger(t Trigger, e trigger.Event) bool {
 		return strings.EqualFold(t.Tag, e.Tag)
 	case trigger.MessageStatus:
 		return t.Status == e.Status && (t.CampaignID == nil || (e.CampaignID != nil && *e.CampaignID == *t.CampaignID))
+	case trigger.SubscriptionRequest:
+		return t.Subscription == "" || t.Subscription == e.Subscription
 	}
 	return true
 }

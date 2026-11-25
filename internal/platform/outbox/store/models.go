@@ -134,28 +134,41 @@ type ConsentEvent struct {
 	Note      string
 	ActorID   pgtype.UUID
 	CreatedAt pgtype.Timestamptz
+	Category  *string
+	Status    *string
 }
 
 type Contact struct {
-	ID                    pgtype.UUID
-	PhoneE164             string
-	WaID                  *string
-	Name                  string
-	ProfileName           string
-	LastInboundAt         pgtype.Timestamptz
-	CreatedAt             pgtype.Timestamptz
-	UpdatedAt             pgtype.Timestamptz
-	Email                 *string
-	Var1                  *string
-	Var2                  *string
-	Var3                  *string
-	Var4                  *string
-	Var5                  *string
-	Attributes            []byte
-	OptedOutAt            pgtype.Timestamptz
-	OptOutReason          *string
-	Source                string
-	AutomationsMutedUntil pgtype.Timestamptz
+	ID                     pgtype.UUID
+	PhoneE164              string
+	WaID                   *string
+	Name                   string
+	ProfileName            string
+	LastInboundAt          pgtype.Timestamptz
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+	Email                  *string
+	Var1                   *string
+	Var2                   *string
+	Var3                   *string
+	Var4                   *string
+	Var5                   *string
+	Attributes             []byte
+	OptedOutAt             pgtype.Timestamptz
+	OptOutReason           *string
+	Source                 string
+	AutomationsMutedUntil  pgtype.Timestamptz
+	MarketingConsent       string
+	MarketingConsentAt     pgtype.Timestamptz
+	MarketingConsentSource *string
+	MarketingConsentReason *string
+	ServiceConsent         string
+	ServiceConsentAt       pgtype.Timestamptz
+	ServiceConsentSource   *string
+	ServiceConsentReason   *string
+	MetaMarketingStoppedAt pgtype.Timestamptz
+	UndeliverableAt        pgtype.Timestamptz
+	UndeliverableCode      *string
 }
 
 type ContactGroup struct {
@@ -299,6 +312,9 @@ type Message struct {
 	CostAmount       pgtype.Numeric
 	CostCurrency     *string
 	CostSource       *string
+	FailureClass     *string
+	ConsentCategory  *string
+	NextAttemptAt    pgtype.Timestamptz
 }
 
 type MessageTemplate struct {

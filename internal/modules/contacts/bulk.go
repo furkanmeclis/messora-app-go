@@ -12,6 +12,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
@@ -190,29 +191,53 @@ func (s *Service) Bulk(ctx context.Context, req BulkRequest) (BulkResult, error)
 			changes["group_id"] = req.GroupID.String()
 		case BulkOptOut, BulkOptIn:
 			optOut := req.Action == BulkOptOut
-			// Only contacts whose state changes get a consent record.
-			rows, err := tx.Query(ctx, `UPDATE contacts c SET
-					opted_out_at = CASE WHEN $1 THEN now() ELSE NULL END,
+			// Both categories, as the single-contact opt-out. Only contacts
+			// whose (legacy) state changes get a consent record.
+			status := string(consent.OptedIn)
+			if optOut {
+				status = string(consent.OptedOut)
+			}
+			rows, err := tx.Query(ctx, `WITH t AS (
+					SELECT c.id, c.opted_out_at IS NOT NULL AS was_out FROM contacts c
+					WHERE c.id IN (SELECT id FROM bulk_target)
+					  AND ((c.opted_out_at IS NULL) = $1 OR c.marketing_consent <> $2 OR c.service_consent <> $2)
+					FOR UPDATE)
+				UPDATE contacts c SET
+					opted_out_at = CASE WHEN $1 THEN coalesce(c.opted_out_at, now()) ELSE NULL END,
 					opt_out_reason = NULL,
+					marketing_consent = $2, marketing_consent_at = now(), marketing_consent_source = 'bulk', marketing_consent_reason = NULL,
+					service_consent = $2, service_consent_at = now(), service_consent_source = 'bulk', service_consent_reason = NULL,
 					updated_at = now()
-				WHERE c.id IN (SELECT id FROM bulk_target) AND (c.opted_out_at IS NULL) = $1
-				RETURNING c.id`, optOut)
+				FROM t WHERE c.id = t.id
+				RETURNING c.id, t.was_out <> $1`, optOut, status)
 			if err != nil {
 				return err
 			}
-			changed, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+			type row struct {
+				ID      uuid.UUID
+				Flipped bool // the legacy "opted out" flag changed
+			}
+			all, err := pgx.CollectRows(rows, pgx.RowToStructByPos[row])
 			if err != nil {
 				return err
+			}
+			changed := make([]uuid.UUID, 0, len(all))
+			var flipped []uuid.UUID
+			for _, r := range all {
+				changed = append(changed, r.ID)
+				if r.Flipped {
+					flipped = append(flipped, r.ID)
+				}
 			}
 			kind, typ := "opt_in", webhooks.TypeContactOptedIn
 			if optOut {
 				kind, typ = "opt_out", webhooks.TypeContactOptedOut
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO consent_events (contact_id, kind, source, note, actor_id)
-				SELECT unnest($1::uuid[]), $2, 'manual', 'bulk action', $3`, changed, kind, req.Actor); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO consent_events (contact_id, kind, source, note, actor_id, status)
+				SELECT unnest($1::uuid[]), $2, 'bulk', 'bulk action', $3, $4`, changed, kind, req.Actor, status); err != nil {
 				return err
 			}
-			for _, id := range changed {
+			for _, id := range flipped {
 				if err := webhooks.ContactChanged(ctx, tx, typ, id); err != nil {
 					return err
 				}

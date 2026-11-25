@@ -14,6 +14,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts/segment"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -46,7 +47,20 @@ func contactToAPI(c db.Contact, tags []db.Tag, groups []uuid.UUID) api.Contact {
 	return api.Contact{Id: c.ID, Phone: c.PhoneE164, Name: c.Name, ProfileName: c.ProfileName, Email: c.Email,
 		Var1: c.Var1, Var2: c.Var2, Var3: c.Var3, Var4: c.Var4, Var5: c.Var5, Attributes: attrs, Tags: refs,
 		GroupIds: groups, OptedOut: c.OptedOutAt != nil, OptedOutAt: c.OptedOutAt, LastInboundAt: c.LastInboundAt,
-		Source: api.ContactSource(c.Source), CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
+		Consent: ConsentToAPI(c), Source: api.ContactSource(c.Source), CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
+}
+
+// ConsentToAPI is a contact's consent as the API shows it (the legacy
+// opted_out_at counts as opted out of both categories).
+func ConsentToAPI(c db.Contact) api.ContactConsent {
+	st := consent.StateOf(c)
+	return api.ContactConsent{
+		Marketing: api.ConsentCategoryState{Status: api.ConsentStatus(st.Marketing.Status), UpdatedAt: st.Marketing.UpdatedAt,
+			Source: c.MarketingConsentSource, Reason: c.MarketingConsentReason},
+		Service: api.ConsentCategoryState{Status: api.ConsentStatus(st.Service.Status), UpdatedAt: st.Service.UpdatedAt,
+			Source: c.ServiceConsentSource, Reason: c.ServiceConsentReason},
+		MetaMarketingStoppedAt: c.MetaMarketingStoppedAt, UndeliverableAt: c.UndeliverableAt, UndeliverableCode: c.UndeliverableCode,
+	}
 }
 
 func fieldsFrom(name, email *string, vars [5]*string, attrs *map[string]string, tags *[]string, groups *[]uuid.UUID) Fields {
@@ -67,8 +81,18 @@ func (h *Handler) writeContact(w http.ResponseWriter, r *http.Request, status in
 }
 
 // segmentFilter loads a saved segment into a filter.
-func (h *Handler) filter(r *http.Request, q *string, tag, group, seg *uuid.UUID, optedOut *bool) (Filter, error) {
+func (h *Handler) filter(r *http.Request, q *string, tag, group, seg *uuid.UUID, optedOut *bool,
+	marketing, service *api.ConsentStatus, reach *api.Reachability) (Filter, error) {
 	f := Filter{TagID: tag, GroupID: group, OptedOut: optedOut}
+	if marketing != nil {
+		f.MarketingConsent = (*string)(marketing)
+	}
+	if service != nil {
+		f.ServiceConsent = (*string)(service)
+	}
+	if reach != nil {
+		f.Reachability = (*string)(reach)
+	}
 	if q != nil {
 		f.Query = *q
 	}
@@ -91,7 +115,7 @@ func (h *Handler) filter(r *http.Request, q *string, tag, group, seg *uuid.UUID,
 
 // ListContacts implements api.ServerInterface.
 func (h *Handler) ListContacts(w http.ResponseWriter, r *http.Request, p api.ListContactsParams) {
-	f, err := h.filter(r, p.Q, p.TagId, p.GroupId, p.SegmentId, p.OptedOut)
+	f, err := h.filter(r, p.Q, p.TagId, p.GroupId, p.SegmentId, p.OptedOut, p.MarketingConsent, p.ServiceConsent, p.Reachability)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -222,19 +246,60 @@ func (h *Handler) RecordConsent(w http.ResponseWriter, r *http.Request, id api.C
 		return
 	}
 	p := principal.From(r.Context())
-	source := "manual"
+	in := ConsentInput{Source: consent.SourceManual, Actor: &p.ID}
 	if p.Kind != principal.KindUser {
-		source = "api"
+		in.Source = consent.SourceAPI
 	}
-	note := ""
 	if req.Note != nil {
-		note = *req.Note
+		in.Reason = strings.TrimSpace(*req.Note)
 	}
-	if err := h.svc.SetConsent(r.Context(), id, req.Kind == api.ConsentRequestKindOptIn, source, note, &p.ID); err != nil {
+	switch {
+	case req.Status != nil && req.Kind != nil:
+		h.fail(w, r, apperr.Validation("status", "Give either kind or status, not both."))
+		return
+	case req.Status != nil:
+		in.Status = consent.Status(*req.Status)
+		if req.Category != nil && *req.Category != api.ConsentRequestCategoryAll {
+			in.Categories = []string{string(*req.Category)}
+		}
+	case req.Kind != nil:
+		// Legacy: both categories.
+		if req.Category != nil && *req.Category != api.ConsentRequestCategoryAll {
+			h.fail(w, r, apperr.Validation("category", "kind always changes both categories; use status for one."))
+			return
+		}
+		in.Status = consent.OptedOut
+		if *req.Kind == api.ConsentRequestKindOptIn {
+			in.Status = consent.OptedIn
+		}
+	default:
+		h.fail(w, r, apperr.Validation("status", "Give kind or status."))
+		return
+	}
+	if err := h.svc.SetConsent(r.Context(), id, in); err != nil {
 		h.fail(w, r, err)
 		return
 	}
 	h.writeContact(w, r, http.StatusOK, id)
+}
+
+// ListConsentEvents implements api.ServerInterface.
+func (h *Handler) ListConsentEvents(w http.ResponseWriter, r *http.Request, id api.ContactId) {
+	rows, err := h.svc.ConsentEvents(r.Context(), id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	out := make([]api.ConsentEvent, len(rows))
+	for i, e := range rows {
+		var actor *string
+		if e.ActorName != "" {
+			actor = &e.ActorName
+		}
+		out[i] = api.ConsentEvent{Id: e.ID, Kind: api.ConsentEventKind(e.Kind), Category: e.Category, Status: e.Status,
+			Source: api.ConsentEventSource(e.Source), Note: e.Note, ActorName: actor, CreatedAt: e.CreatedAt}
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
 }
 
 // ── Notes ───────────────────────────────────────────────────────────────────
@@ -308,7 +373,7 @@ var ExportColumns = []string{"phone", "name", "profile_name", "email", "var1", "
 
 // ExportContacts implements api.ServerInterface. Rows are streamed.
 func (h *Handler) ExportContacts(w http.ResponseWriter, r *http.Request, p api.ExportContactsParams) {
-	f, err := h.filter(r, p.Q, p.TagId, p.GroupId, p.SegmentId, p.OptedOut)
+	f, err := h.filter(r, p.Q, p.TagId, p.GroupId, p.SegmentId, p.OptedOut, p.MarketingConsent, p.ServiceConsent, p.Reachability)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -793,7 +858,7 @@ func (h *Handler) BulkContacts(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Filter != nil {
 		fl := req.Filter
-		f, err := h.filter(r, fl.Q, fl.TagId, fl.GroupId, fl.SegmentId, fl.OptedOut)
+		f, err := h.filter(r, fl.Q, fl.TagId, fl.GroupId, fl.SegmentId, fl.OptedOut, fl.MarketingConsent, fl.ServiceConsent, fl.Reachability)
 		if err != nil {
 			h.fail(w, r, err)
 			return

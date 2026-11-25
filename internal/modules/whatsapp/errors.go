@@ -60,8 +60,12 @@ type SendError struct {
 	// expired, permission removed, account restricted); the channel should
 	// be flagged and sending paused.
 	AccountProblem bool
-	API            *APIError // nil for transport errors
-	Err            error
+	// Deferred: Meta withheld the message (131049); it may only be retried
+	// after RetryAfter (at least a day), and must not hold a campaign's
+	// in-flight slot meanwhile.
+	Deferred bool
+	API      *APIError // nil for transport errors
+	Err      error
 }
 
 func (e *SendError) Error() string {
@@ -90,18 +94,23 @@ func AsSendError(err error) (*SendError, bool) {
 
 // Error codes with special handling (Meta error code reference).
 const (
-	codeAuth             = 0
-	codeTemporary        = 2
-	codeAppRateLimit     = 4
-	codePermission       = 10
-	codeTokenExpired     = 190
-	codeAccountRestrict  = 368
-	codeThroughput       = 130429
-	codeUnknown          = 131000
-	codeServiceUnavail   = 131016
-	codeRegistration     = 131045
-	codeOutsideWindow    = 131047
-	codeMarketingHeld    = 131049
+	codeAuth            = 0
+	codeTemporary       = 2
+	codeAppRateLimit    = 4
+	codePermission      = 10
+	codeTokenExpired    = 190
+	codeAccountRestrict = 368
+	codeThroughput      = 130429
+	codeUnknown         = 131000
+	codeServiceUnavail  = 131016
+	codeRegistration    = 131045
+	codeOutsideWindow   = 131047
+	codeMarketingHeld   = 131049
+	// CodeMarketingStopped: the customer stopped marketing from this
+	// business in WhatsApp.
+	CodeMarketingStopped = 131050
+	// CodeUndeliverable: the message could not be delivered to the number.
+	CodeUndeliverable    = 131026
 	codePairRate         = 131056
 	codeServerUnavail    = 133004
 	codeWABARateLimit    = 80007
@@ -121,8 +130,9 @@ func Classify(e *APIError, attempt int) *SendError {
 	case e.Code == codeTemporary, e.Code == codeUnknown, e.Code == codeServiceUnavail, e.Code == codeServerUnavail:
 		se.Outcome, se.RetryAfter = Retryable, backoff(attempt, 5*time.Second, 10*time.Minute)
 	case e.Code == codeMarketingHeld:
-		// Withheld for ecosystem health; Meta allows a later retry.
-		se.Outcome, se.RetryAfter = Retryable, 6*time.Hour
+		// Withheld for ecosystem health (per-user marketing limit). Meta:
+		// retry no earlier than 24 hours; an early retry makes it worse.
+		se.Outcome, se.RetryAfter, se.Deferred = Retryable, EcosystemRetryAfter, true
 	case e.Code == codeAuth, e.Code == codeTokenExpired, e.Code == codePermission,
 		e.Code >= 200 && e.Code <= 299, e.Code == codeAccountRestrict, e.Code == codeRestrictedNumber,
 		e.Code == codeRegistration:
@@ -131,6 +141,51 @@ func Classify(e *APIError, attempt int) *SendError {
 		se.Outcome, se.RetryAfter = Retryable, backoff(attempt, 2*time.Second, 2*time.Minute)
 	}
 	return se
+}
+
+// EcosystemRetryAfter is the earliest retry after 131049.
+const EcosystemRetryAfter = 24 * time.Hour
+
+// Failure classes of a message that ended failed, skipped or cancelled
+// (messages.failure_class).
+const (
+	FailureRejectedByMeta       = "rejected_by_meta"
+	FailureTemporary            = "temporary"
+	FailurePermanent            = "permanent"
+	FailureUserStoppedMarketing = "user_stopped_marketing"
+	FailureUndeliverable        = "undeliverable"
+	FailureEcosystemLimit       = "ecosystem_limit"
+	FailureBlockedByConsent     = "blocked_by_consent"
+	FailureCancelled            = "cancelled"
+)
+
+// FailureClassOf classifies a Meta error code (synchronous or from a
+// failed status webhook).
+func FailureClassOf(code int) string {
+	switch code {
+	case CodeMarketingStopped:
+		return FailureUserStoppedMarketing
+	case CodeUndeliverable:
+		return FailureUndeliverable
+	case codeMarketingHeld:
+		return FailureEcosystemLimit
+	case codeThroughput, codeAppRateLimit, codeWABARateLimit, codePairRate, codeTemporary, codeUnknown,
+		codeServiceUnavail, codeServerUnavail:
+		return FailureTemporary
+	}
+	return FailureRejectedByMeta
+}
+
+// FailureClass classifies a failed send: Meta's refusal by its code,
+// anything else (transport) as permanent.
+func (e *SendError) FailureClass() string {
+	if e.API == nil {
+		return FailurePermanent
+	}
+	if e.Outcome == Retryable && !e.Deferred {
+		return FailureTemporary // gave up after repeated temporary errors
+	}
+	return FailureClassOf(e.API.Code)
 }
 
 // IsOutsideWindow reports whether err is Meta's "24-hour window closed".

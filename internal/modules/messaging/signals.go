@@ -12,6 +12,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 )
@@ -30,6 +31,40 @@ type UserPreferenceEvent struct {
 	Category   string    `json:"category"` // marketing_messages
 	Value      string    `json:"value"`    // stop | resume
 	OccurredAt time.Time `json:"occurred_at"`
+}
+
+// ApplyUserPreference turns a WhatsApp Stop/Resume for marketing into the
+// contact's meta_marketing_stopped flag (with a consent event). Resume
+// clears only that flag: a contact who opted out with the business stays
+// opted out. Out-of-order webhooks are ignored unless they are the
+// number's latest recorded choice.
+func (s *Service) ApplyUserPreference(ctx context.Context, e UserPreferenceEvent) error {
+	if e.Category != "marketing_messages" || (e.Value != "stop" && e.Value != "resume") || e.PhoneE164 == "" {
+		return nil
+	}
+	return s.tx(ctx, func(_ pgx.Tx, q *db.Queries) error {
+		latest, err := q.LatestMetaUserPreference(ctx, db.LatestMetaUserPreferenceParams{PhoneE164: &e.PhoneE164, Category: e.Category})
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if err == nil && latest.ID != e.ID {
+			return nil // a newer choice exists (and is applied by its own event)
+		}
+		var wa *string
+		if e.WaID != "" {
+			wa = &e.WaID
+		}
+		c, err := q.UpsertContactByPhone(ctx, db.UpsertContactByPhoneParams{PhoneE164: e.PhoneE164, WaID: wa})
+		if err != nil {
+			return err
+		}
+		note := "The customer chose Stop for marketing messages in WhatsApp."
+		if e.Value == "resume" {
+			note = "The customer chose Resume for marketing messages in WhatsApp."
+		}
+		_, err = consent.SetMetaMarketingStopped(ctx, q, c.ID, e.Value == "stop", e.OccurredAt, consent.SourceMetaUserPreferences, note)
+		return err
+	})
 }
 
 // ThroughputCeiling returns the throughput Meta reported for a number

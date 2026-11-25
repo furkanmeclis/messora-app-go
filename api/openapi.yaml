@@ -636,6 +636,37 @@ paths:
               schema: { $ref: "#/components/schemas/SmtpSettingsResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /settings/consent:
+    get:
+      operationId: getConsentSettings
+      tags: [settings]
+      summary: Subscription and consent settings
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Consent settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsentSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updateConsentSettings
+      tags: [settings]
+      summary: Change the subscription and consent settings
+      security: [{ session: [settings.update] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConsentSettings" }
+      responses:
+        "200":
+          description: Consent settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsentSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /settings/smtp/test:
     post:
       operationId: testSmtpSettings
@@ -1140,7 +1171,13 @@ paths:
         - { name: tag_id, in: query, schema: { type: string, format: uuid } }
         - { name: group_id, in: query, schema: { type: string, format: uuid } }
         - { name: segment_id, in: query, schema: { type: string, format: uuid } }
-        - { name: opted_out, in: query, schema: { type: boolean } }
+        - { name: opted_out, in: query, schema: { type: boolean }, description: "Opted out of everything (both consent categories)." }
+        - { name: marketing_consent, in: query, schema: { $ref: "#/components/schemas/ConsentStatus" } }
+        - { name: service_consent, in: query, schema: { $ref: "#/components/schemas/ConsentStatus" } }
+        - name: reachability
+          in: query
+          description: "meta_marketing_stopped: stopped marketing in WhatsApp; undeliverable: Meta could not deliver to the number."
+          schema: { $ref: "#/components/schemas/Reachability" }
         - { name: sort, in: query, schema: { $ref: "#/components/schemas/ContactSort" } }
         - name: page
           in: query
@@ -1266,8 +1303,13 @@ paths:
     post:
       operationId: recordConsent
       tags: [contacts]
-      summary: Record an opt-in or opt-out
-      description: Opted-out contacts receive no campaign or automation messages.
+      summary: Change a contact's consent
+      description: >-
+        Either the legacy kind (opt_in / opt_out, which set both categories) or a
+        status for one or both categories. Every change is kept in the consent
+        history and the audit log. Opted-out contacts receive no business-initiated
+        messages of that category from campaigns, the API or automations;
+        docs/CONSENT.md has the rules.
       security: [{ session: [contacts.update] }, { apiKey: [contacts.update] }]
       parameters:
         - { $ref: "#/components/parameters/ContactId" }
@@ -1282,6 +1324,22 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ContactResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /contacts/{contactId}/consent-events:
+    get:
+      operationId: listConsentEvents
+      tags: [contacts]
+      summary: The contact's consent history, newest first (at most 100)
+      security: [{ session: [contacts.read] }, { apiKey: [contacts.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/ContactId" }
+      responses:
+        "200":
+          description: Consent events
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsentEventListResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}/notes:
@@ -1346,6 +1404,9 @@ paths:
       parameters:
         - { name: format, in: query, schema: { type: string, enum: [csv, xlsx], default: csv } }
         - { name: opted_out, in: query, schema: { type: boolean } }
+        - { name: marketing_consent, in: query, schema: { $ref: "#/components/schemas/ConsentStatus" } }
+        - { name: service_consent, in: query, schema: { $ref: "#/components/schemas/ConsentStatus" } }
+        - { name: reachability, in: query, schema: { $ref: "#/components/schemas/Reachability" } }
         - { name: q, in: query, schema: { type: string, maxLength: 100 } }
         - { name: tag_id, in: query, schema: { type: string, format: uuid } }
         - { name: group_id, in: query, schema: { type: string, format: uuid } }
@@ -1887,6 +1948,30 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/preflight:
+    post:
+      operationId: preflightCampaign
+      tags: [campaigns]
+      summary: How many recipients of an audience may receive a template
+      description: >-
+        Counts the audience by what the consent rules decide for the template's
+        category: eligible (including those with a warning), blocked by a hard rule
+        that nothing overrides (opted out, stopped in WhatsApp, undeliverable), and
+        blocked or warned by the company's policy. Nothing is stored.
+      security: [{ session: [campaigns.create] }, { apiKey: [campaigns.create] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignPreflightRequest" }
+      responses:
+        "200":
+          description: Counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignPreflightResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}:
@@ -3286,6 +3371,9 @@ components:
         group_id: { type: string, format: uuid }
         segment_id: { type: string, format: uuid }
         opted_out: { type: boolean }
+        marketing_consent: { $ref: "#/components/schemas/ConsentStatus" }
+        service_consent: { $ref: "#/components/schemas/ConsentStatus" }
+        reachability: { $ref: "#/components/schemas/Reachability" }
     ContactBulkRequest:
       type: object
       additionalProperties: false
@@ -3730,9 +3818,16 @@ components:
         wamid: { type: [string, "null"] }
         type: { type: string }
         body: { type: string }
-        status: { type: string, enum: [pending, sending, unknown, sent, delivered, read, failed, received] }
+        status:
+          type: string
+          enum: [pending, sending, unknown, sent, delivered, read, failed, received, held, cancelled, deferred, skipped]
+          description: >-
+            deferred: Meta withheld it for ecosystem health (131049), retried at next_attempt_at;
+            skipped: consent blocked it right before sending (error_code holds the reason).
         error_code: { type: [string, "null"] }
         error_title: { type: [string, "null"] }
+        failure_class: { $ref: "#/components/schemas/FailureClass" }
+        next_attempt_at: { type: [string, "null"], format: date-time }
         sent_at: { type: [string, "null"], format: date-time }
         delivered_at: { type: [string, "null"], format: date-time }
         read_at: { type: [string, "null"], format: date-time }
@@ -3839,7 +3934,7 @@ components:
 
     Contact:
       type: object
-      required: [id, phone, name, profile_name, tags, group_ids, attributes, opted_out, source, created_at, updated_at]
+      required: [id, phone, name, profile_name, tags, group_ids, attributes, opted_out, consent, source, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         phone: { type: string }
@@ -3860,8 +3955,9 @@ components:
         group_ids:
           type: array
           items: { type: string, format: uuid }
-        opted_out: { type: boolean }
+        opted_out: { type: boolean, description: "Opted out of everything: both consent categories are opted_out." }
         opted_out_at: { type: [string, "null"], format: date-time }
+        consent: { $ref: "#/components/schemas/ContactConsent" }
         last_inbound_at: { type: [string, "null"], format: date-time }
         source: { type: string, enum: [webhook, manual, import, api] }
         created_at: { type: string, format: date-time }
@@ -3907,10 +4003,124 @@ components:
     ConsentRequest:
       type: object
       additionalProperties: false
-      required: [kind]
+      description: Give kind (legacy, both categories) or status.
       properties:
-        kind: { type: string, enum: [opt_in, opt_out] }
-        note: { type: string, maxLength: 500 }
+        kind: { type: string, enum: [opt_in, opt_out], description: "Legacy: opt_in / opt_out sets both categories to opted_in / opted_out." }
+        status: { $ref: "#/components/schemas/ConsentStatus" }
+        category: { type: string, enum: [marketing, service, all], default: all }
+        note: { type: string, maxLength: 500, description: "The reason; kept in the history." }
+
+    ConsentStatus:
+      type: string
+      enum: [opted_in, unknown, opt_out_requested, opted_out, resubscribed]
+
+    Reachability:
+      type: string
+      enum: [meta_marketing_stopped, undeliverable]
+
+    ConsentCategoryState:
+      type: object
+      required: [status, updated_at, source, reason]
+      properties:
+        status: { $ref: "#/components/schemas/ConsentStatus" }
+        updated_at: { type: [string, "null"], format: date-time }
+        source:
+          type: [string, "null"]
+          description: Where the last change came from (manual, bulk, api, import, keyword, meta_user_preferences, meta_error, automation).
+        reason: { type: [string, "null"] }
+
+    ContactConsent:
+      type: object
+      required: [marketing, service, meta_marketing_stopped_at, undeliverable_at, undeliverable_code]
+      properties:
+        marketing: { $ref: "#/components/schemas/ConsentCategoryState" }
+        service:
+          allOf: [{ $ref: "#/components/schemas/ConsentCategoryState" }]
+          description: Utility and authentication templates and replies.
+        meta_marketing_stopped_at:
+          type: [string, "null"]
+          format: date-time
+          description: The customer chose Stop for this business's marketing in WhatsApp (marketing is blocked).
+        undeliverable_at:
+          type: [string, "null"]
+          format: date-time
+          description: Meta could not deliver to the number (131026); nothing is sent until the customer writes again.
+        undeliverable_code: { type: [string, "null"] }
+
+    ConsentEvent:
+      type: object
+      required: [id, kind, category, status, source, note, actor_name, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [opt_in, opt_out, opt_out_requested, resubscribed, unknown, meta_marketing_stopped, meta_marketing_resumed, undeliverable, deliverable]
+        category: { type: [string, "null"], description: "marketing or service; null = both (older records)." }
+        status: { type: [string, "null"] }
+        source: { type: string, enum: [manual, bulk, api, import, keyword, meta_user_preferences, meta_error, automation, inbound] }
+        note: { type: string }
+        actor_name: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+
+    ConsentEventListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ConsentEvent" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    ConsentSettings:
+      type: object
+      additionalProperties: false
+      required: [unknown_marketing, keywords, confirm, stop_message, resume_message]
+      properties:
+        unknown_marketing:
+          type: string
+          enum: [allow, block]
+          description: Marketing to contacts whose consent is unknown is sent with a warning (allow) or refused (block).
+        keywords: { $ref: "#/components/schemas/ConsentKeywords" }
+        confirm: { type: boolean, description: Reply with a confirmation after a stop or resume word. }
+        stop_message: { $ref: "#/components/schemas/LocalizedText" }
+        resume_message: { $ref: "#/components/schemas/LocalizedText" }
+
+    ConsentKeywords:
+      type: object
+      additionalProperties: false
+      required: [stop, request, resume]
+      properties:
+        stop:
+          type: array
+          maxItems: 50
+          description: A message that is exactly one of these opts the contact out of marketing at once.
+          items: { type: string, minLength: 1, maxLength: 100 }
+        request:
+          type: array
+          maxItems: 50
+          description: A message containing one of these marks an opt-out request for an agent to confirm.
+          items: { type: string, minLength: 1, maxLength: 100 }
+        resume:
+          type: array
+          maxItems: 50
+          description: A message that is exactly one of these subscribes the contact again.
+          items: { type: string, minLength: 1, maxLength: 100 }
+
+    LocalizedText:
+      type: object
+      additionalProperties: false
+      required: [tr, en]
+      properties:
+        tr: { type: string, maxLength: 1024 }
+        en: { type: string, maxLength: 1024 }
+
+    ConsentSettingsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/ConsentSettings" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    FailureClass:
+      type: [string, "null"]
+      enum: [rejected_by_meta, temporary, permanent, user_stopped_marketing, undeliverable, ecosystem_limit, blocked_by_consent, cancelled, null]
+      description: Why a message ended failed, skipped or cancelled.
 
     Note:
       type: object
@@ -4228,7 +4438,8 @@ components:
         direction: { type: string, enum: [inbound, outbound] }
         type: { type: string }
         body: { type: string }
-        status: { type: string, enum: [pending, sending, unknown, sent, delivered, read, failed, received] }
+        status: { type: string, enum: [pending, sending, unknown, sent, delivered, read, failed, received, held, cancelled, deferred, skipped] }
+        failure_class: { $ref: "#/components/schemas/FailureClass" }
         wamid: { type: [string, "null"] }
         reply_to_wamid: { type: [string, "null"] }
         source: { type: string, enum: [api, panel, webhook, campaign, automation] }
@@ -4299,7 +4510,7 @@ components:
       required: [id, kind, actor_type, actor_name, assignee, created_at]
       properties:
         id: { type: string, format: uuid }
-        kind: { type: string, enum: [assigned, unassigned, closed, reopened] }
+        kind: { type: string, enum: [assigned, unassigned, closed, reopened, opt_out_requested, opted_out, resubscribed] }
         actor_type: { type: string, enum: [user, api_key, system] }
         actor_name: { type: [string, "null"], description: "The user who acted; null for API keys and automatic reopening." }
         assignee:
@@ -4482,6 +4693,46 @@ components:
         message_status: { type: [string, "null"] }
         error_code: { type: [string, "null"] }
         error_title: { type: [string, "null"] }
+        failure_class: { $ref: "#/components/schemas/FailureClass" }
+
+    CampaignPreflightRequest:
+      type: object
+      additionalProperties: false
+      required: [audience, template_name, template_language]
+      properties:
+        audience: { $ref: "#/components/schemas/CampaignAudience" }
+        phone_number_id: { type: string, format: uuid, description: The sending number; the default one when omitted. }
+        template_name: { type: string }
+        template_language: { type: string }
+
+    PreflightReason:
+      type: object
+      required: [reason, count, hard]
+      properties:
+        reason:
+          type: string
+          enum: [opted_out, meta_marketing_stopped, undeliverable, opt_out_requested, consent_unknown, replied_after_opt_out]
+        count: { type: integer, format: int64 }
+        hard: { type: boolean, description: A hard block cannot be overridden by any setting. }
+
+    CampaignPreflight:
+      type: object
+      required: [category, unknown_marketing, total, eligible, warned, blocked, hard_blocked, blocked_reasons, warned_reasons]
+      properties:
+        category: { type: string, enum: [marketing, utility, authentication], description: From the template. }
+        unknown_marketing: { type: string, enum: [allow, block], description: The company's current policy for unknown consent. }
+        total: { type: integer, format: int64 }
+        eligible: { type: integer, format: int64, description: Will be sent (including warned). }
+        warned: { type: integer, format: int64 }
+        blocked: { type: integer, format: int64 }
+        hard_blocked: { type: integer, format: int64 }
+        blocked_reasons: { type: array, items: { $ref: "#/components/schemas/PreflightReason" } }
+        warned_reasons: { type: array, items: { $ref: "#/components/schemas/PreflightReason" } }
+
+    CampaignPreflightResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/CampaignPreflight" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     CampaignResponse:
       type: object
@@ -4509,8 +4760,8 @@ components:
     # ── Automations (Phase 8) ──────────────────────────────────────────────
     AutomationTriggerType:
       type: string
-      enum: [message_received, new_contact, tag_added, message_status, conversation_closed]
-      x-enum-varnames: [TriggerMessageReceived, TriggerNewContact, TriggerTagAdded, TriggerMessageStatus, TriggerConversationClosed]
+      enum: [message_received, new_contact, tag_added, message_status, conversation_closed, subscription_request]
+      x-enum-varnames: [TriggerMessageReceived, TriggerNewContact, TriggerTagAdded, TriggerMessageStatus, TriggerConversationClosed, TriggerSubscriptionRequest]
 
     AutomationTrigger:
       type: object
@@ -4526,6 +4777,10 @@ components:
         tag: { type: string, maxLength: 60 }
         status: { type: string, enum: [delivered, read, failed] }
         campaign_id: { type: string, format: uuid }
+        subscription:
+          type: string
+          enum: [stop, request, resume]
+          description: "subscription_request: only this kind (stop word, opt-out request phrase, resubscribe word); omitted = any."
         cooldown_seconds: { type: integer, minimum: 0, maximum: 7776000 }
 
     AutomationStep:

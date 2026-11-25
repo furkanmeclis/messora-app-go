@@ -25,6 +25,9 @@ const (
 	TagAdded           = "tag_added"
 	MessageStatus      = "message_status"
 	ConversationClosed = "conversation_closed"
+	// SubscriptionRequest: an inbound message matched a consent keyword
+	// (Event.Subscription: stop, request or resume).
+	SubscriptionRequest = "subscription_request"
 )
 
 // Event is something that happened to a contact.
@@ -43,6 +46,8 @@ type Event struct {
 	Tag            string     `json:"tag,omitempty"`
 	Status         string     `json:"status,omitempty"`
 	CampaignID     *uuid.UUID `json:"campaign_id,omitempty"`
+	// Subscription is the keyword kind of a subscription_request.
+	Subscription string `json:"subscription,omitempty"`
 }
 
 // Checker reports whether any active automation listens to a trigger type

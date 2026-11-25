@@ -93,15 +93,28 @@ WHERE campaign_id = @campaign_id AND status = 'held'
 RETURNING id;
 
 -- name: CancelUnsentMessages :execrows
-UPDATE messages SET status = 'cancelled', updated_at = now()
-WHERE campaign_id = @campaign_id AND status IN ('pending', 'held');
+UPDATE messages SET status = 'cancelled', failure_class = 'cancelled', next_attempt_at = NULL, updated_at = now()
+WHERE campaign_id = @campaign_id AND status IN ('pending', 'held', 'deferred');
+
+-- name: CountDeferred :one
+SELECT count(*) FROM messages WHERE campaign_id = @campaign_id AND status = 'deferred';
+
+-- name: DueDeferredMessages :many
+-- Deferred messages whose retry time passed a while ago: their send task
+-- may have been lost.
+SELECT id, campaign_id FROM messages
+WHERE status = 'deferred' AND next_attempt_at < now() - make_interval(secs => @older_than_seconds::double precision)
+ORDER BY next_attempt_at LIMIT 1000;
 
 -- name: HoldIfCampaignStopped :one
 -- Called before a campaign message is claimed: a paused campaign holds it,
 -- a cancelled or failed one cancels it.
-UPDATE messages m SET status = CASE WHEN c.status = 'paused' THEN 'held' ELSE 'cancelled' END, updated_at = now()
+UPDATE messages m SET status = CASE WHEN c.status = 'paused' THEN 'held' ELSE 'cancelled' END,
+    failure_class = CASE WHEN c.status = 'paused' THEN m.failure_class ELSE 'cancelled' END,
+    next_attempt_at = NULL, updated_at = now()
 FROM campaigns c
-WHERE m.id = @id AND m.campaign_id = c.id AND m.status = 'pending'
+WHERE m.id = @id AND m.campaign_id = c.id
+  AND (m.status = 'pending' OR (m.status = 'deferred' AND m.next_attempt_at <= now()))
   AND c.status IN ('paused', 'cancelled', 'failed')
 RETURNING m.status;
 
@@ -112,7 +125,7 @@ SELECT state, count(*) AS n FROM campaign_recipients WHERE campaign_id = @campai
 SELECT status, count(*) AS n FROM messages WHERE campaign_id = @campaign_id GROUP BY status;
 
 -- name: ListRecipients :many
-SELECT r.*, m.status AS message_status, m.error_code, m.error_title
+SELECT r.*, m.status AS message_status, m.error_code, m.error_title, m.failure_class
 FROM campaign_recipients r LEFT JOIN messages m ON m.id = r.message_id
 WHERE r.campaign_id = @campaign_id
   AND (sqlc.narg(state)::text IS NULL OR r.state = sqlc.narg(state)::text)
@@ -143,8 +156,8 @@ UPDATE campaigns SET updated_at = now() WHERE id = @id;
 SELECT id FROM campaigns WHERE status = 'preparing' AND updated_at < now() - make_interval(secs => @older_than_seconds::double precision);
 
 -- name: InsertCampaignMessage :one
-INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id)
-VALUES (@id, @phone_number_id, @contact_id, 'outbound', 'template', @body, @payload, 'pending', 0, 'campaign', @campaign_id)
+INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id, consent_category)
+VALUES (@id, @phone_number_id, @contact_id, 'outbound', 'template', @body, @payload, 'pending', 0, 'campaign', @campaign_id, @consent_category)
 RETURNING *;
 
 -- name: ClaimCampaignProgress :one

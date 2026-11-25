@@ -265,6 +265,9 @@ func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.P
 			return uuid.Nil, err
 		}
 	}
+	if err := s.inboundConsent(ctx, tx, q, pn, c, conv, row); err != nil {
+		return uuid.Nil, fmt.Errorf("consent: %w", err)
+	}
 	if md := m.Media(); md != nil && md.ID != "" {
 		f, err := q.InsertMediaFile(ctx, db.InsertMediaFileParams{MessageID: &row.ID, MetaMediaID: &md.ID,
 			MimeType: md.MimeType, Filename: md.Filename, Sha256: md.SHA256})
@@ -315,6 +318,9 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 			title += ": " + d
 		}
 		p.ErrorCode, p.ErrorTitle = &code, ptr(truncate(title, 500))
+		p.FailureClass = ptr(whatsapp.FailureClassOf(st.Errors[0].Code))
+	} else if status == "failed" {
+		p.FailureClass = ptr(whatsapp.FailureRejectedByMeta)
 	}
 	updated, err := q.ApplyMessageStatus(ctx, p)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -334,6 +340,13 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 		}
 	}
 	if updated.Status != m.Status {
+		if updated.Status == "failed" && p.ErrorCode != nil {
+			// 131050 and 131026 usually arrive here, after Meta accepted
+			// the request.
+			if err := applyMetaRefusal(ctx, q, updated, *p.ErrorCode); err != nil {
+				return false, err
+			}
+		}
 		if err := announceStatus(ctx, tx, q, updated); err != nil {
 			return false, err
 		}

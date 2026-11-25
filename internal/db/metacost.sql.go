@@ -217,6 +217,37 @@ func (q *Queries) InsertWhatsAppAccountEvent(ctx context.Context, arg InsertWhat
 	return err
 }
 
+const latestMetaUserPreference = `-- name: LatestMetaUserPreference :one
+SELECT id, phone_number_id, wa_id, user_id, phone_e164, category, value, detail, occurred_at, received_at FROM meta_user_preferences
+WHERE phone_e164 = $1 AND category = $2
+ORDER BY occurred_at DESC, id DESC LIMIT 1
+`
+
+type LatestMetaUserPreferenceParams struct {
+	PhoneE164 *string
+	Category  string
+}
+
+// The newest recorded preference of a number for a category: webhooks may
+// arrive out of order, only the latest choice counts.
+func (q *Queries) LatestMetaUserPreference(ctx context.Context, arg LatestMetaUserPreferenceParams) (MetaUserPreference, error) {
+	row := q.db.QueryRow(ctx, latestMetaUserPreference, arg.PhoneE164, arg.Category)
+	var i MetaUserPreference
+	err := row.Scan(
+		&i.ID,
+		&i.PhoneNumberID,
+		&i.WaID,
+		&i.UserID,
+		&i.PhoneE164,
+		&i.Category,
+		&i.Value,
+		&i.Detail,
+		&i.OccurredAt,
+		&i.ReceivedAt,
+	)
+	return i, err
+}
+
 const listActiveWhatsAppAccounts = `-- name: ListActiveWhatsAppAccounts :many
 SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency FROM whatsapp_accounts WHERE status = 'active' ORDER BY created_at
 `

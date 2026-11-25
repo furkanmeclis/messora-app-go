@@ -83,8 +83,8 @@ func (q *Queries) CancelPendingRecipients(ctx context.Context, campaignID uuid.U
 }
 
 const cancelUnsentMessages = `-- name: CancelUnsentMessages :execrows
-UPDATE messages SET status = 'cancelled', updated_at = now()
-WHERE campaign_id = $1 AND status IN ('pending', 'held')
+UPDATE messages SET status = 'cancelled', failure_class = 'cancelled', next_attempt_at = NULL, updated_at = now()
+WHERE campaign_id = $1 AND status IN ('pending', 'held', 'deferred')
 `
 
 func (q *Queries) CancelUnsentMessages(ctx context.Context, campaignID *uuid.UUID) (int64, error) {
@@ -200,6 +200,17 @@ func (q *Queries) ClaimPendingRecipients(ctx context.Context, arg ClaimPendingRe
 	return items, nil
 }
 
+const countDeferred = `-- name: CountDeferred :one
+SELECT count(*) FROM messages WHERE campaign_id = $1 AND status = 'deferred'
+`
+
+func (q *Queries) CountDeferred(ctx context.Context, campaignID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countDeferred, campaignID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countHeld = `-- name: CountHeld :one
 SELECT count(*) FROM messages WHERE campaign_id = $1 AND status = 'held'
 `
@@ -243,6 +254,39 @@ func (q *Queries) DeleteCampaign(ctx context.Context, id uuid.UUID) (int64, erro
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const dueDeferredMessages = `-- name: DueDeferredMessages :many
+SELECT id, campaign_id FROM messages
+WHERE status = 'deferred' AND next_attempt_at < now() - make_interval(secs => $1::double precision)
+ORDER BY next_attempt_at LIMIT 1000
+`
+
+type DueDeferredMessagesRow struct {
+	ID         uuid.UUID
+	CampaignID *uuid.UUID
+}
+
+// Deferred messages whose retry time passed a while ago: their send task
+// may have been lost.
+func (q *Queries) DueDeferredMessages(ctx context.Context, olderThanSeconds float64) ([]DueDeferredMessagesRow, error) {
+	rows, err := q.db.Query(ctx, dueDeferredMessages, olderThanSeconds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DueDeferredMessagesRow{}
+	for rows.Next() {
+		var i DueDeferredMessagesRow
+		if err := rows.Scan(&i.ID, &i.CampaignID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const dueScheduledCampaigns = `-- name: DueScheduledCampaigns :many
@@ -305,9 +349,12 @@ func (q *Queries) GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, erro
 }
 
 const holdIfCampaignStopped = `-- name: HoldIfCampaignStopped :one
-UPDATE messages m SET status = CASE WHEN c.status = 'paused' THEN 'held' ELSE 'cancelled' END, updated_at = now()
+UPDATE messages m SET status = CASE WHEN c.status = 'paused' THEN 'held' ELSE 'cancelled' END,
+    failure_class = CASE WHEN c.status = 'paused' THEN m.failure_class ELSE 'cancelled' END,
+    next_attempt_at = NULL, updated_at = now()
 FROM campaigns c
-WHERE m.id = $1 AND m.campaign_id = c.id AND m.status = 'pending'
+WHERE m.id = $1 AND m.campaign_id = c.id
+  AND (m.status = 'pending' OR (m.status = 'deferred' AND m.next_attempt_at <= now()))
   AND c.status IN ('paused', 'cancelled', 'failed')
 RETURNING m.status
 `
@@ -423,18 +470,19 @@ func (q *Queries) InsertCampaignEvent(ctx context.Context, arg InsertCampaignEve
 }
 
 const insertCampaignMessage = `-- name: InsertCampaignMessage :one
-INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id)
-VALUES ($1, $2, $3, 'outbound', 'template', $4, $5, 'pending', 0, 'campaign', $6)
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source
+INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id, consent_category)
+VALUES ($1, $2, $3, 'outbound', 'template', $4, $5, 'pending', 0, 'campaign', $6, $7)
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at
 `
 
 type InsertCampaignMessageParams struct {
-	ID            uuid.UUID
-	PhoneNumberID uuid.UUID
-	ContactID     uuid.UUID
-	Body          string
-	Payload       []byte
-	CampaignID    *uuid.UUID
+	ID              uuid.UUID
+	PhoneNumberID   uuid.UUID
+	ContactID       uuid.UUID
+	Body            string
+	Payload         []byte
+	CampaignID      *uuid.UUID
+	ConsentCategory *string
 }
 
 func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (Message, error) {
@@ -445,6 +493,7 @@ func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignM
 		arg.Body,
 		arg.Payload,
 		arg.CampaignID,
+		arg.ConsentCategory,
 	)
 	var i Message
 	err := row.Scan(
@@ -481,6 +530,9 @@ func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignM
 		&i.CostAmount,
 		&i.CostCurrency,
 		&i.CostSource,
+		&i.FailureClass,
+		&i.ConsentCategory,
+		&i.NextAttemptAt,
 	)
 	return i, err
 }
@@ -658,7 +710,7 @@ func (q *Queries) ListCampaignsChangedSince(ctx context.Context, arg ListCampaig
 }
 
 const listRecipients = `-- name: ListRecipients :many
-SELECT r.id, r.campaign_id, r.contact_id, r.phone_e164, r.state, r.skip_reason, r.message_id, r.created_at, r.updated_at, m.status AS message_status, m.error_code, m.error_title
+SELECT r.id, r.campaign_id, r.contact_id, r.phone_e164, r.state, r.skip_reason, r.message_id, r.created_at, r.updated_at, m.status AS message_status, m.error_code, m.error_title, m.failure_class
 FROM campaign_recipients r LEFT JOIN messages m ON m.id = r.message_id
 WHERE r.campaign_id = $1
   AND ($2::text IS NULL OR r.state = $2::text)
@@ -686,6 +738,7 @@ type ListRecipientsRow struct {
 	MessageStatus *string
 	ErrorCode     *string
 	ErrorTitle    *string
+	FailureClass  *string
 }
 
 func (q *Queries) ListRecipients(ctx context.Context, arg ListRecipientsParams) ([]ListRecipientsRow, error) {
@@ -715,6 +768,7 @@ func (q *Queries) ListRecipients(ctx context.Context, arg ListRecipientsParams) 
 			&i.MessageStatus,
 			&i.ErrorCode,
 			&i.ErrorTitle,
+			&i.FailureClass,
 		); err != nil {
 			return nil, err
 		}

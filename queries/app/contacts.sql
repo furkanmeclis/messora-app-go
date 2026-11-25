@@ -27,20 +27,57 @@ DELETE FROM contacts WHERE id = @id;
 -- name: GetContactByPhone :one
 SELECT * FROM contacts WHERE phone_e164 = @phone_e164;
 
--- name: SetContactOptOut :exec
+-- name: LockContact :one
+SELECT * FROM contacts WHERE id = @id FOR UPDATE;
+
+-- name: SetContactConsent :one
+-- Sets the consent status of the chosen categories and keeps the legacy
+-- opted_out_at flag equal to "both categories opted out".
 UPDATE contacts SET
-    opted_out_at   = CASE WHEN @opted_out::boolean THEN coalesce(opted_out_at, now()) ELSE NULL END,
-    opt_out_reason = CASE WHEN @opted_out::boolean THEN sqlc.narg(reason) ELSE NULL END,
-    updated_at     = now()
-WHERE id = @id;
+    marketing_consent        = CASE WHEN @marketing::boolean THEN @status::text ELSE marketing_consent END,
+    marketing_consent_at     = CASE WHEN @marketing::boolean THEN now() ELSE marketing_consent_at END,
+    marketing_consent_source = CASE WHEN @marketing::boolean THEN @source::text ELSE marketing_consent_source END,
+    marketing_consent_reason = CASE WHEN @marketing::boolean THEN sqlc.narg(reason)::text ELSE marketing_consent_reason END,
+    service_consent          = CASE WHEN @service::boolean THEN @status::text ELSE service_consent END,
+    service_consent_at       = CASE WHEN @service::boolean THEN now() ELSE service_consent_at END,
+    service_consent_source   = CASE WHEN @service::boolean THEN @source::text ELSE service_consent_source END,
+    service_consent_reason   = CASE WHEN @service::boolean THEN sqlc.narg(reason)::text ELSE service_consent_reason END,
+    opted_out_at             = CASE WHEN (CASE WHEN @marketing::boolean THEN @status::text ELSE marketing_consent END) = 'opted_out'
+                                     AND (CASE WHEN @service::boolean THEN @status::text ELSE service_consent END) = 'opted_out'
+                                    THEN coalesce(opted_out_at, now()) ELSE NULL END,
+    opt_out_reason           = CASE WHEN (CASE WHEN @marketing::boolean THEN @status::text ELSE marketing_consent END) = 'opted_out'
+                                     AND (CASE WHEN @service::boolean THEN @status::text ELSE service_consent END) = 'opted_out'
+                                    THEN coalesce(sqlc.narg(reason)::text, opt_out_reason) ELSE NULL END,
+    updated_at               = now()
+WHERE id = @id
+RETURNING *;
+
+-- name: SetMetaMarketingStopped :execrows
+-- Only an actual change touches the row (and returns 1).
+UPDATE contacts SET
+    meta_marketing_stopped_at = CASE WHEN @stopped::boolean THEN @at::timestamptz ELSE NULL END,
+    updated_at = now()
+WHERE id = @id AND (meta_marketing_stopped_at IS NULL) = @stopped::boolean;
+
+-- name: SetContactUndeliverable :execrows
+UPDATE contacts SET undeliverable_at = now(), undeliverable_code = @code, updated_at = now()
+WHERE id = @id AND undeliverable_at IS NULL;
+
+-- name: ClearContactUndeliverable :execrows
+UPDATE contacts SET undeliverable_at = NULL, undeliverable_code = NULL, updated_at = now()
+WHERE id = @id AND undeliverable_at IS NOT NULL;
 
 -- name: InsertConsentEvent :one
-INSERT INTO consent_events (contact_id, kind, source, note, actor_id)
-VALUES (@contact_id, @kind, @source, @note, sqlc.narg(actor_id))
+INSERT INTO consent_events (contact_id, kind, source, note, actor_id, category, status)
+VALUES (@contact_id, @kind, @source, @note, sqlc.narg(actor_id), sqlc.narg(category), sqlc.narg(status))
 RETURNING *;
 
 -- name: ListConsentEvents :many
-SELECT * FROM consent_events WHERE contact_id = @contact_id ORDER BY id DESC LIMIT 100;
+SELECT e.*, coalesce(u.name, k.name, '')::text AS actor_name
+FROM consent_events e
+LEFT JOIN users u ON u.id = e.actor_id
+LEFT JOIN api_keys k ON k.id = e.actor_id
+WHERE e.contact_id = @contact_id ORDER BY e.id DESC LIMIT 100;
 
 -- ── Tags ────────────────────────────────────────────────────────────────────
 

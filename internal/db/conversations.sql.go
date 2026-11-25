@@ -476,7 +476,7 @@ func (q *Queries) ListMediaForMessages(ctx context.Context, messageIds []uuid.UU
 }
 
 const listThreadMessages = `-- name: ListThreadMessages :many
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source FROM messages
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at FROM messages
 WHERE contact_id = $1 AND phone_number_id = $2
   AND ($3::uuid IS NULL OR id < $3::uuid)
 ORDER BY id DESC
@@ -539,6 +539,9 @@ func (q *Queries) ListThreadMessages(ctx context.Context, arg ListThreadMessages
 			&i.CostAmount,
 			&i.CostCurrency,
 			&i.CostSource,
+			&i.FailureClass,
+			&i.ConsentCategory,
+			&i.NextAttemptAt,
 		); err != nil {
 			return nil, err
 		}

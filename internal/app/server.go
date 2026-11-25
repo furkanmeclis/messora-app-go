@@ -19,6 +19,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/conversations"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
@@ -55,6 +56,7 @@ type (
 	webhooksHandler   = webhooks.Handler
 	automationHandler = automation.Handler
 	licensingHandler  = licensing.Handler
+	consentHandler    = consent.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -73,6 +75,7 @@ type apiServer struct {
 	*webhooksHandler
 	*automationHandler
 	*licensingHandler
+	*consentHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -209,6 +212,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		inboxHandler:      conversations.NewHandler(svc.inbox, log),
 		webhooksHandler:   webhooks.NewHandler(svc.webhooks, log),
 		automationHandler: automation.NewHandler(svc.automation, log),
+		consentHandler:    consent.NewHandler(pool, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))

@@ -34,7 +34,7 @@ func (h *Handler) toAPI(r *http.Request, m db.Message) (api.Message, error) {
 		Status: api.MessageStatus(m.Status), ErrorCode: m.ErrorCode, ErrorTitle: m.ErrorTitle, SentAt: m.SentAt,
 		DeliveredAt: m.DeliveredAt, ReadAt: m.ReadAt, FailedAt: m.FailedAt, CreatedAt: m.CreatedAt,
 		PricingCategory: m.PricingCategory, PricingType: m.PricingType, CostAmount: numericString(m.CostAmount),
-		CostCurrency: m.CostCurrency}, nil
+		CostCurrency: m.CostCurrency, FailureClass: (*api.FailureClass)(m.FailureClass), NextAttemptAt: m.NextAttemptAt}, nil
 }
 
 // numericString renders a numeric as a plain decimal ("0.0436"), nil for NULL.

@@ -54,6 +54,19 @@ func (q *Queries) ClearContactTags(ctx context.Context, contactID uuid.UUID) err
 	return err
 }
 
+const clearContactUndeliverable = `-- name: ClearContactUndeliverable :execrows
+UPDATE contacts SET undeliverable_at = NULL, undeliverable_code = NULL, updated_at = now()
+WHERE id = $1 AND undeliverable_at IS NOT NULL
+`
+
+func (q *Queries) ClearContactUndeliverable(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, clearContactUndeliverable, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const contactGroupIDs = `-- name: ContactGroupIDs :many
 SELECT group_id FROM contact_group_members WHERE contact_id = $1
 `
@@ -196,7 +209,7 @@ func (q *Queries) FinishContactImport(ctx context.Context, arg FinishContactImpo
 }
 
 const getContactByPhone = `-- name: GetContactByPhone :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until FROM contacts WHERE phone_e164 = $1
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code FROM contacts WHERE phone_e164 = $1
 `
 
 func (q *Queries) GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error) {
@@ -222,6 +235,17 @@ func (q *Queries) GetContactByPhone(ctx context.Context, phoneE164 string) (Cont
 		&i.OptOutReason,
 		&i.Source,
 		&i.AutomationsMutedUntil,
+		&i.MarketingConsent,
+		&i.MarketingConsentAt,
+		&i.MarketingConsentSource,
+		&i.MarketingConsentReason,
+		&i.ServiceConsent,
+		&i.ServiceConsentAt,
+		&i.ServiceConsentSource,
+		&i.ServiceConsentReason,
+		&i.MetaMarketingStoppedAt,
+		&i.UndeliverableAt,
+		&i.UndeliverableCode,
 	)
 	return i, err
 }
@@ -317,9 +341,9 @@ func (q *Queries) GetTag(ctx context.Context, id uuid.UUID) (Tag, error) {
 }
 
 const insertConsentEvent = `-- name: InsertConsentEvent :one
-INSERT INTO consent_events (contact_id, kind, source, note, actor_id)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, contact_id, kind, source, note, actor_id, created_at
+INSERT INTO consent_events (contact_id, kind, source, note, actor_id, category, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, contact_id, kind, source, note, actor_id, created_at, category, status
 `
 
 type InsertConsentEventParams struct {
@@ -328,6 +352,8 @@ type InsertConsentEventParams struct {
 	Source    string
 	Note      string
 	ActorID   *uuid.UUID
+	Category  *string
+	Status    *string
 }
 
 func (q *Queries) InsertConsentEvent(ctx context.Context, arg InsertConsentEventParams) (ConsentEvent, error) {
@@ -337,6 +363,8 @@ func (q *Queries) InsertConsentEvent(ctx context.Context, arg InsertConsentEvent
 		arg.Source,
 		arg.Note,
 		arg.ActorID,
+		arg.Category,
+		arg.Status,
 	)
 	var i ConsentEvent
 	err := row.Scan(
@@ -347,6 +375,8 @@ func (q *Queries) InsertConsentEvent(ctx context.Context, arg InsertConsentEvent
 		&i.Note,
 		&i.ActorID,
 		&i.CreatedAt,
+		&i.Category,
+		&i.Status,
 	)
 	return i, err
 }
@@ -356,7 +386,7 @@ const insertContact = `-- name: InsertContact :one
 INSERT INTO contacts (phone_e164, name, email, var1, var2, var3, var4, var5, attributes, source)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10)
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code
 `
 
 type InsertContactParams struct {
@@ -408,6 +438,17 @@ func (q *Queries) InsertContact(ctx context.Context, arg InsertContactParams) (C
 		&i.OptOutReason,
 		&i.Source,
 		&i.AutomationsMutedUntil,
+		&i.MarketingConsent,
+		&i.MarketingConsentAt,
+		&i.MarketingConsentSource,
+		&i.MarketingConsentReason,
+		&i.ServiceConsent,
+		&i.ServiceConsentAt,
+		&i.ServiceConsentSource,
+		&i.ServiceConsentReason,
+		&i.MetaMarketingStoppedAt,
+		&i.UndeliverableAt,
+		&i.UndeliverableCode,
 	)
 	return i, err
 }
@@ -556,18 +597,35 @@ func (q *Queries) InsertSegment(ctx context.Context, arg InsertSegmentParams) (S
 }
 
 const listConsentEvents = `-- name: ListConsentEvents :many
-SELECT id, contact_id, kind, source, note, actor_id, created_at FROM consent_events WHERE contact_id = $1 ORDER BY id DESC LIMIT 100
+SELECT e.id, e.contact_id, e.kind, e.source, e.note, e.actor_id, e.created_at, e.category, e.status, coalesce(u.name, k.name, '')::text AS actor_name
+FROM consent_events e
+LEFT JOIN users u ON u.id = e.actor_id
+LEFT JOIN api_keys k ON k.id = e.actor_id
+WHERE e.contact_id = $1 ORDER BY e.id DESC LIMIT 100
 `
 
-func (q *Queries) ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([]ConsentEvent, error) {
+type ListConsentEventsRow struct {
+	ID        uuid.UUID
+	ContactID uuid.UUID
+	Kind      string
+	Source    string
+	Note      string
+	ActorID   *uuid.UUID
+	CreatedAt time.Time
+	Category  *string
+	Status    *string
+	ActorName string
+}
+
+func (q *Queries) ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([]ListConsentEventsRow, error) {
 	rows, err := q.db.Query(ctx, listConsentEvents, contactID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ConsentEvent{}
+	items := []ListConsentEventsRow{}
 	for rows.Next() {
-		var i ConsentEvent
+		var i ListConsentEventsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ContactID,
@@ -576,6 +634,9 @@ func (q *Queries) ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([
 			&i.Note,
 			&i.ActorID,
 			&i.CreatedAt,
+			&i.Category,
+			&i.Status,
+			&i.ActorName,
 		); err != nil {
 			return nil, err
 		}
@@ -828,6 +889,48 @@ func (q *Queries) ListTags(ctx context.Context) ([]ListTagsRow, error) {
 	return items, nil
 }
 
+const lockContact = `-- name: LockContact :one
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code FROM contacts WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockContact(ctx context.Context, id uuid.UUID) (Contact, error) {
+	row := q.db.QueryRow(ctx, lockContact, id)
+	var i Contact
+	err := row.Scan(
+		&i.ID,
+		&i.PhoneE164,
+		&i.WaID,
+		&i.Name,
+		&i.ProfileName,
+		&i.LastInboundAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Email,
+		&i.Var1,
+		&i.Var2,
+		&i.Var3,
+		&i.Var4,
+		&i.Var5,
+		&i.Attributes,
+		&i.OptedOutAt,
+		&i.OptOutReason,
+		&i.Source,
+		&i.AutomationsMutedUntil,
+		&i.MarketingConsent,
+		&i.MarketingConsentAt,
+		&i.MarketingConsentSource,
+		&i.MarketingConsentReason,
+		&i.ServiceConsent,
+		&i.ServiceConsentAt,
+		&i.ServiceConsentSource,
+		&i.ServiceConsentReason,
+		&i.MetaMarketingStoppedAt,
+		&i.UndeliverableAt,
+		&i.UndeliverableCode,
+	)
+	return i, err
+}
+
 const progressContactImport = `-- name: ProgressContactImport :one
 UPDATE contact_imports SET processed_rows = $1, created_count = $2,
     updated_count = $3, skipped_count = $4, failed_count = $5, updated_at = now()
@@ -973,23 +1076,121 @@ func (q *Queries) RequestImportCancel(ctx context.Context, id uuid.UUID) (Contac
 	return i, err
 }
 
-const setContactOptOut = `-- name: SetContactOptOut :exec
+const setContactConsent = `-- name: SetContactConsent :one
 UPDATE contacts SET
-    opted_out_at   = CASE WHEN $1::boolean THEN coalesce(opted_out_at, now()) ELSE NULL END,
-    opt_out_reason = CASE WHEN $1::boolean THEN $2 ELSE NULL END,
-    updated_at     = now()
-WHERE id = $3
+    marketing_consent        = CASE WHEN $1::boolean THEN $2::text ELSE marketing_consent END,
+    marketing_consent_at     = CASE WHEN $1::boolean THEN now() ELSE marketing_consent_at END,
+    marketing_consent_source = CASE WHEN $1::boolean THEN $3::text ELSE marketing_consent_source END,
+    marketing_consent_reason = CASE WHEN $1::boolean THEN $4::text ELSE marketing_consent_reason END,
+    service_consent          = CASE WHEN $5::boolean THEN $2::text ELSE service_consent END,
+    service_consent_at       = CASE WHEN $5::boolean THEN now() ELSE service_consent_at END,
+    service_consent_source   = CASE WHEN $5::boolean THEN $3::text ELSE service_consent_source END,
+    service_consent_reason   = CASE WHEN $5::boolean THEN $4::text ELSE service_consent_reason END,
+    opted_out_at             = CASE WHEN (CASE WHEN $1::boolean THEN $2::text ELSE marketing_consent END) = 'opted_out'
+                                     AND (CASE WHEN $5::boolean THEN $2::text ELSE service_consent END) = 'opted_out'
+                                    THEN coalesce(opted_out_at, now()) ELSE NULL END,
+    opt_out_reason           = CASE WHEN (CASE WHEN $1::boolean THEN $2::text ELSE marketing_consent END) = 'opted_out'
+                                     AND (CASE WHEN $5::boolean THEN $2::text ELSE service_consent END) = 'opted_out'
+                                    THEN coalesce($4::text, opt_out_reason) ELSE NULL END,
+    updated_at               = now()
+WHERE id = $6
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code
 `
 
-type SetContactOptOutParams struct {
-	OptedOut bool
-	Reason   *string
-	ID       uuid.UUID
+type SetContactConsentParams struct {
+	Marketing bool
+	Status    string
+	Source    string
+	Reason    *string
+	Service   bool
+	ID        uuid.UUID
 }
 
-func (q *Queries) SetContactOptOut(ctx context.Context, arg SetContactOptOutParams) error {
-	_, err := q.db.Exec(ctx, setContactOptOut, arg.OptedOut, arg.Reason, arg.ID)
-	return err
+// Sets the consent status of the chosen categories and keeps the legacy
+// opted_out_at flag equal to "both categories opted out".
+func (q *Queries) SetContactConsent(ctx context.Context, arg SetContactConsentParams) (Contact, error) {
+	row := q.db.QueryRow(ctx, setContactConsent,
+		arg.Marketing,
+		arg.Status,
+		arg.Source,
+		arg.Reason,
+		arg.Service,
+		arg.ID,
+	)
+	var i Contact
+	err := row.Scan(
+		&i.ID,
+		&i.PhoneE164,
+		&i.WaID,
+		&i.Name,
+		&i.ProfileName,
+		&i.LastInboundAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Email,
+		&i.Var1,
+		&i.Var2,
+		&i.Var3,
+		&i.Var4,
+		&i.Var5,
+		&i.Attributes,
+		&i.OptedOutAt,
+		&i.OptOutReason,
+		&i.Source,
+		&i.AutomationsMutedUntil,
+		&i.MarketingConsent,
+		&i.MarketingConsentAt,
+		&i.MarketingConsentSource,
+		&i.MarketingConsentReason,
+		&i.ServiceConsent,
+		&i.ServiceConsentAt,
+		&i.ServiceConsentSource,
+		&i.ServiceConsentReason,
+		&i.MetaMarketingStoppedAt,
+		&i.UndeliverableAt,
+		&i.UndeliverableCode,
+	)
+	return i, err
+}
+
+const setContactUndeliverable = `-- name: SetContactUndeliverable :execrows
+UPDATE contacts SET undeliverable_at = now(), undeliverable_code = $1, updated_at = now()
+WHERE id = $2 AND undeliverable_at IS NULL
+`
+
+type SetContactUndeliverableParams struct {
+	Code *string
+	ID   uuid.UUID
+}
+
+func (q *Queries) SetContactUndeliverable(ctx context.Context, arg SetContactUndeliverableParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setContactUndeliverable, arg.Code, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setMetaMarketingStopped = `-- name: SetMetaMarketingStopped :execrows
+UPDATE contacts SET
+    meta_marketing_stopped_at = CASE WHEN $1::boolean THEN $2::timestamptz ELSE NULL END,
+    updated_at = now()
+WHERE id = $3 AND (meta_marketing_stopped_at IS NULL) = $1::boolean
+`
+
+type SetMetaMarketingStoppedParams struct {
+	Stopped bool
+	At      time.Time
+	ID      uuid.UUID
+}
+
+// Only an actual change touches the row (and returns 1).
+func (q *Queries) SetMetaMarketingStopped(ctx context.Context, arg SetMetaMarketingStoppedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setMetaMarketingStopped, arg.Stopped, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const startContactImport = `-- name: StartContactImport :one
@@ -1082,7 +1283,7 @@ UPDATE contacts SET
     attributes = coalesce($14, attributes),
     updated_at = now()
 WHERE id = $15
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code
 `
 
 type UpdateContactParams struct {
@@ -1142,6 +1343,17 @@ func (q *Queries) UpdateContact(ctx context.Context, arg UpdateContactParams) (C
 		&i.OptOutReason,
 		&i.Source,
 		&i.AutomationsMutedUntil,
+		&i.MarketingConsent,
+		&i.MarketingConsentAt,
+		&i.MarketingConsentSource,
+		&i.MarketingConsentReason,
+		&i.ServiceConsent,
+		&i.ServiceConsentAt,
+		&i.ServiceConsentSource,
+		&i.ServiceConsentReason,
+		&i.MetaMarketingStoppedAt,
+		&i.UndeliverableAt,
+		&i.UndeliverableCode,
 	)
 	return i, err
 }
