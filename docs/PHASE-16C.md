@@ -1,6 +1,6 @@
 # Phase 16C — Teknik analiz ve uygulama planı
 
-Durum: **plan — onay bekliyor** (2026-11-25). Bu belge Phase 16C gereksinim dokümanının mevcut kodla eşlenmesi, Meta ve AI sağlayıcılarının bugünkü gerçek yetenekleri, mimari riskler ve iş paketlerinin sırasıdır. Her iş paketi bitince bu belgedeki durum sütunu güncellenir; tamamlanmayan iş tamamlandı olarak işaretlenmez.
+Durum: **onaylandı, uygulamada** (plan ve kararlar 2026-11-25). Bu belge Phase 16C gereksinim dokümanının mevcut kodla eşlenmesi, Meta ve AI sağlayıcılarının bugünkü gerçek yetenekleri, mimari riskler ve iş paketlerinin sırasıdır. Her iş paketi bitince bu belgedeki durum sütunu güncellenir; tamamlanmayan iş tamamlandı olarak işaretlenmez.
 
 ---
 
@@ -114,7 +114,7 @@ Bağımlılık sırası: **P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7 �
 
 ### P4 — Şablon oluşturucu ve süreli teklifler (Bölüm 8; kabul 12, 13)
 - Sadeleştirilmiş oluşturucu, bileşen bazlı doğrulama (§1.4 limitleri backend'de de), WhatsApp görünümüne yakın önizleme, değişken yönetimi, Meta durum takibi (gönderildi/onaylandı/reddedildi + sebep, kalite).
-- Eklenen bileşenler: LOCATION başlık, COPY_CODE, VOICE_CALL, OTP (COPY_CODE / ONE_TAP / ZERO_TAP), FLOW (mevcut Flow kimliğiyle; Flow oluşturucu kapsam dışı), **carousel**, **LTO**. Katalog butonları (MPM/SPM/CATALOG) yalnızca bağlı katalog varsa; katalog yönetimi kapsam dışı — **[karar 3]**.
+- Eklenen bileşenler: LOCATION başlık, COPY_CODE, VOICE_CALL, OTP (COPY_CODE / ONE_TAP / ZERO_TAP), FLOW (mevcut Flow kimliğiyle; Flow oluşturucu kapsam dışı), **carousel**, **LTO**. Katalog butonları (MPM/SPM/CATALOG) yalnızca bağlı katalog varsa; katalog yönetimi kapsam dışı — (kapsam dışı, §4).
 - Gönderim tarafı (kampanya, gelen kutusu, otomasyon) yeni bileşen parametrelerini destekler (kupon kodu, `expiration_time_ms`, carousel kart parametreleri).
 - **Teklif nesnesi:** başlık, açıklama, indirim, başlangıç/bitiş, görsel, ürün/hizmet, CTA. Meta LTO şablonuyla eşlenir (sayaç Meta'da); Meta'nın desteklemediği alanlar (ör. başlangıç tarihi, ürün) sistemde tutulur ve alternatif olarak normal görselli şablona eşlenir. Bitişte teklif `expired` olur, bağlı zamanlanmış kampanyalar uyarı verir/başlamaz.
 - **Kabul:** LTO ve carousel şablonu oluşturulup mock'a doğru JSON'la gider ve gönderilir (sözleşme testi).
@@ -156,12 +156,15 @@ Bağımlılık sırası: **P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7 �
 ### P10 — Public API dokümantasyonu (Bölüm 15; kabul 21)
 - Public uç nokta envanteri OpenAPI'deki güvenlik şemalarından otomatik çıkarılır (panel-only uç noktalar ayrı bir "internal" etiketle gizlenir).
 - Her uç nokta için açıklama, yetki (scope), örnek istek/yanıt, hata kodları, rate limit; rate limit başlıkları (`RateLimit-*`) eklenir.
-- Arayüz: **[karar 2]**. Doküman `openapi.yaml`'dan üretilir; CI'da "spec ile kod uyumlu" kontrolü zaten var (oapi-codegen), buna "her public uç noktanın açıklaması ve örneği var" lint'i eklenir.
+- Arayüz: Scalar (§4). Doküman `openapi.yaml`'dan üretilir; CI'da "spec ile kod uyumlu" kontrolü zaten var (oapi-codegen), buna "her public uç noktanın açıklaması ve örneği var" lint'i eklenir.
 - **Kabul:** dokümandaki uç nokta listesi sunucunun gerçek rotalarıyla birebir (otomatik test).
 
 ---
 
-## 4. Senin kararın gereken noktalar
+## 4. Kararlar (2026-11-25, ürün sahibi)
+
+Aşağıdaki önerilerin hepsi kabul edildi: (1) yetki izolasyonu 16C'de, firmalar arası izolasyon Faz 17'de; (2) API dokümanı Scalar; (3) izni bilinmeyen kişiler için varsayılan "izin ver + uyar".
+
 
 1. **Tenant izolasyonu (16.2, kabul 22).** Bugün kurulumun kendisi tek firma. Öneri: 16C'de **yetki izolasyonu** (temsilci görünürlüğü, kanal sızıntısı R6, API key scope'ları, kuyruk işlerinde aktör bağlamı) tam yapılır ve testlenir; **firmalar arası izolasyon** (tenant_id + RLS + tenant başı AI anahtarları) Faz 17'de tüm tablolarla birlikte. 16C'de yazılan yeni tablolar ve işler Faz 17'ye hazır biçimde (tek noktadan kapsam) yazılır.
 2. **API doküman arayüzü.** Öneri: **Scalar** — OpenAPI'den doğrudan üretim, arama, kod örnekleri, mobil uyumlu; JS paketi uygulamanın içinden servis edilir (CDN yok), `/docs/api` adresinde. Alternatif Fumadocs: Next.js + MDX, daha esnek ama ağır ve ayrı bakım.
