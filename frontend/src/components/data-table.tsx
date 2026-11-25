@@ -94,6 +94,8 @@ export function DataTable<T>({
     storageKey,
     rowTestId,
     rowMenu,
+    onNavigate,
+    toolbar,
 }: {
     rows: T[];
     columns: Column<T>[];
@@ -113,6 +115,13 @@ export function DataTable<T>({
     rowTestId?: string;
     /** Extra right-click items for a row. */
     rowMenu?: (row: T) => MenuGroup[];
+    /**
+     * Handles page, size and sort changes instead of the URL (lists that are
+     * sorted and paged in the browser, see ClientDataTable).
+     */
+    onNavigate?: (patch: Record<string, string | number | null>) => void;
+    /** Shown at the start of the top bar (search, filters). */
+    toolbar?: React.ReactNode;
 }) {
     const t = useT();
     // The language is fixed per request, so server and browser agree.
@@ -239,14 +248,16 @@ export function DataTable<T>({
     };
 
     const go = (patch: Record<string, string | number | null>) =>
-        startNav(() => {
-            const p = new URLSearchParams(params.toString());
-            for (const [k, v] of Object.entries(patch)) {
-                if (v === null || v === '') p.delete(k);
-                else p.set(k, String(v));
-            }
-            router.push(`${pathname}?${p}`, { scroll: false });
-        });
+        onNavigate
+            ? onNavigate(patch)
+            : startNav(() => {
+                  const p = new URLSearchParams(params.toString());
+                  for (const [k, v] of Object.entries(patch)) {
+                      if (v === null || v === '') p.delete(k);
+                      else p.set(k, String(v));
+                  }
+                  router.push(`${pathname}?${p}`, { scroll: false });
+              });
 
     const pages = Math.max(1, Math.ceil(total / pageSize));
     const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -294,6 +305,11 @@ export function DataTable<T>({
     return (
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
+                {toolbar && (
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                        {toolbar}
+                    </div>
+                )}
                 <p className="text-sm text-muted-foreground tabular-nums">
                     {t('table.rows', {
                         from: n(from),

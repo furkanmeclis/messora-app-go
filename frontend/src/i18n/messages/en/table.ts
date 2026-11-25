@@ -1,4 +1,6 @@
 const table = {
+    search: 'Search…',
+    noMatch: 'Nothing matches the search.',
     selectAll: 'Select all on this page',
     selectRow: 'Select row',
     selected: '{count} selected',

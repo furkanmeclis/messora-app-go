@@ -1,6 +1,8 @@
 import type { Messages } from '../en';
 
 const table: Messages['table'] = {
+    search: 'Ara…',
+    noMatch: 'Aramayla eşleşen kayıt yok.',
     selectAll: 'Bu sayfadakilerin tümünü seç',
     selectRow: 'Satırı seç',
     selected: '{count} seçili',

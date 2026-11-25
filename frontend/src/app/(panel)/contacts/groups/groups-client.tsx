@@ -22,14 +22,6 @@ import {
     EmptyTitle,
 } from '@/components/ui/empty';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
@@ -38,6 +30,8 @@ import { deleteGroupAction, saveGroupAction } from '../actions';
 import { ConfirmDelete } from '../confirm-delete';
 import { useSubmit } from '../use-submit';
 import { NUMBER_LOCALE } from '@/lib/format';
+import { useRouter } from 'next/navigation';
+import { ClientDataTable } from '@/components/client-data-table';
 
 export function GroupDialog({ group }: { group?: ContactGroup }) {
     const t = useT();
@@ -147,6 +141,7 @@ export function GroupTable({
     canManage: boolean;
 }) {
     const t = useT();
+    const router = useRouter();
     const formatDateTime = useFormatDateTime();
     if (groups.length === 0) {
         return (
@@ -166,27 +161,26 @@ export function GroupTable({
         );
     }
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>{t('contacts.fields.name')}</TableHead>
-                    <TableHead className="text-right">
-                        {t('contacts.groups.members')}
-                    </TableHead>
-                    <TableHead>{t('contacts.groups.created')}</TableHead>
-                    {canManage && (
-                        <TableHead>
-                            <span className="sr-only">
-                                {t('contacts.actions')}
-                            </span>
-                        </TableHead>
-                    )}
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {groups.map((g) => (
-                    <TableRow key={g.id}>
-                        <TableCell>
+        <ClientDataTable
+            rows={groups}
+            rowId={(g) => g.id}
+            storageKey="groups"
+            initialSort="name"
+            searchText={(g) => `${g.name} ${g.description}`}
+            searchPlaceholder={t('table.search')}
+            noMatch={
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                    {t('table.noMatch')}
+                </p>
+            }
+            columns={[
+                {
+                    id: 'name',
+                    header: t('contacts.fields.name'),
+                    hideable: false,
+                    sortValue: (g) => g.name,
+                    cell: (g) => (
+                        <div className="min-w-0">
                             <Link
                                 href={`/contacts/groups/${g.id}`}
                                 className="font-medium hover:underline"
@@ -198,43 +192,69 @@ export function GroupTable({
                                     {g.description}
                                 </div>
                             )}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                            <Link
-                                href={`/contacts?group_id=${g.id}`}
-                                className="hover:underline"
-                                aria-label={t('contacts.groups.showMembers', {
-                                    count: g.member_count,
-                                    name: g.name,
-                                })}
-                            >
-                                {g.member_count.toLocaleString(NUMBER_LOCALE)}
-                            </Link>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        </div>
+                    ),
+                },
+                {
+                    id: 'members',
+                    header: t('contacts.groups.members'),
+                    className: 'text-right',
+                    sortValue: (g) => g.member_count,
+                    cell: (g) => (
+                        <Link
+                            href={`/contacts?group_id=${g.id}`}
+                            className="tabular-nums hover:underline"
+                            aria-label={t('contacts.groups.showMembers', {
+                                count: g.member_count,
+                                name: g.name,
+                            })}
+                        >
+                            {g.member_count.toLocaleString(NUMBER_LOCALE)}
+                        </Link>
+                    ),
+                },
+                {
+                    id: 'created',
+                    header: t('contacts.groups.created'),
+                    sortValue: (g) => g.created_at,
+                    cell: (g) => (
+                        <span className="text-sm whitespace-nowrap text-muted-foreground">
                             {formatDateTime(g.created_at)}
-                        </TableCell>
-                        {canManage && (
-                            <TableCell className="text-right whitespace-nowrap">
-                                <GroupDialog group={g} />
-                                <ConfirmDelete
-                                    label={t('contacts.groups.deleteLabel', {
-                                        name: g.name,
-                                    })}
-                                    title={t('contacts.groups.deleteTitle', {
-                                        name: g.name,
-                                    })}
-                                    description={t(
-                                        'contacts.groups.deleteBody',
-                                    )}
-                                    confirm={t('contacts.groups.deleteConfirm')}
-                                    action={() => deleteGroupAction(g.id)}
-                                />
-                            </TableCell>
-                        )}
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
+                        </span>
+                    ),
+                },
+            ]}
+            rowActions={
+                canManage
+                    ? (g) => (
+                          <span className="whitespace-nowrap">
+                              <GroupDialog group={g} />
+                              <ConfirmDelete
+                                  label={t('contacts.groups.deleteLabel', {
+                                      name: g.name,
+                                  })}
+                                  title={t('contacts.groups.deleteTitle', {
+                                      name: g.name,
+                                  })}
+                                  description={t('contacts.groups.deleteBody')}
+                                  confirm={t('contacts.groups.deleteConfirm')}
+                                  action={() => deleteGroupAction(g.id)}
+                              />
+                          </span>
+                      )
+                    : undefined
+            }
+            rowMenu={(g) => [
+                [
+                    {
+                        id: 'open',
+                        label: g.name,
+                        icon: UsersRound,
+                        run: () => router.push(`/contacts/groups/${g.id}`),
+                    },
+                ],
+            ]}
+            onRowClick={(g) => router.push(`/contacts/groups/${g.id}`)}
+        />
     );
 }
