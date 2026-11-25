@@ -42,6 +42,11 @@ const ai = {
         turkish: 'Turkish',
         english: 'English',
         saved: 'AI settings saved.',
+        maxReplies: 'AI replies per conversation and hour',
+        maxRepliesHint:
+            'Rate and cost guard. Above it the conversation goes to a person.',
+        contextMessages: 'Messages the AI reads',
+        contextMessagesHint: 'How many recent messages one AI turn sees.',
         training:
             'Messora asks providers not to retain or train on conversation data where they offer the option (OpenAI: store=false). See docs/AI.md for each provider.',
     },
@@ -218,6 +223,11 @@ const ai = {
         criticalIntents: 'Always hand over these intents',
         criticalIntentsHint:
             'Lowercase with underscores, separated by commas (complaint, refund_request).',
+        onHumanTakeover: 'When a person takes over',
+        onHumanTakeoverHint:
+            'What the AI does after an agent replies, takes over or an escalation.',
+        takeoverOff: 'Stop the AI',
+        takeoverSuggest: 'Keep suggesting replies',
         onUnauthorized: 'When the customer needs an action the AI may not take',
         dataCollection: 'Information collection',
         dataEnabled: 'Collect information from customers',

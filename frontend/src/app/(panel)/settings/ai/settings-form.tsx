@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { notify } from '@/components/notify';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { NumberField } from '@/components/ui/number-field';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n/client';
@@ -22,6 +23,8 @@ function initial(s: Settings): Schemas['UpdateAISettingsRequest'] {
         default_model: s.default_model,
         disclosure: { ...s.disclosure },
         data_sharing_notice: { ...s.data_sharing_notice },
+        max_replies_per_hour: s.max_replies_per_hour,
+        context_messages: s.context_messages,
     };
 }
 
@@ -127,6 +130,52 @@ export function AISettingsForm({
                     }
                 />
             </Row>
+            <div className="grid gap-4 sm:grid-cols-2">
+                <Row
+                    label={t('ai.settings.maxReplies')}
+                    hint={t('ai.settings.maxRepliesHint')}
+                >
+                    <NumberField
+                        aria-label={t('ai.settings.maxReplies')}
+                        min={1}
+                        max={1000}
+                        className="w-32"
+                        value={v.max_replies_per_hour ?? 1}
+                        disabled={readOnly}
+                        onValueChange={(n) =>
+                            setV({
+                                ...v,
+                                max_replies_per_hour: Math.min(
+                                    1000,
+                                    Math.max(1, n ?? 1),
+                                ),
+                            })
+                        }
+                    />
+                </Row>
+                <Row
+                    label={t('ai.settings.contextMessages')}
+                    hint={t('ai.settings.contextMessagesHint')}
+                >
+                    <NumberField
+                        aria-label={t('ai.settings.contextMessages')}
+                        min={2}
+                        max={100}
+                        className="w-32"
+                        value={v.context_messages ?? 2}
+                        disabled={readOnly}
+                        onValueChange={(n) =>
+                            setV({
+                                ...v,
+                                context_messages: Math.min(
+                                    100,
+                                    Math.max(2, n ?? 2),
+                                ),
+                            })
+                        }
+                    />
+                </Row>
+            </div>
             {texts(
                 'disclosure',
                 t('ai.settings.disclosure'),

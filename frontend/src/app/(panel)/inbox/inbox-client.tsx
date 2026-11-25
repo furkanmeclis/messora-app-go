@@ -28,6 +28,8 @@ import {
     PauseCircle,
     Search,
     Send,
+    Sparkles,
+    StickyNote,
     X,
 } from 'lucide-react';
 import { newIdempotencyKey, notify } from '@/components/notify';
@@ -86,8 +88,24 @@ import {
 } from '@/lib/templates';
 import { cn } from '@/lib/utils';
 import { isConsentReason } from '@/lib/consent';
-import type { Conversation, InboxMessage, Template } from '@/lib/types';
+import type {
+    Conversation,
+    ConversationNote,
+    InboxMessage,
+    Template,
+} from '@/lib/types';
 import type { ThreadData } from './page';
+import {
+    ActivityTimeline,
+    AutomationRuns,
+    ContactAISwitch,
+    DraftCard,
+    EscalationBanner,
+    isAIMessage,
+    NoteBubble,
+    NoteComposer,
+    OwnerControls,
+} from './inbox-ai';
 import {
     addNoteAction,
     assignAction,
@@ -173,6 +191,10 @@ const ASSIGNEES = [
     ['me', 'inbox.filters.mine'],
     ['unassigned', 'inbox.filters.unassigned'],
 ] as const;
+const AI_FILTERS = [
+    ['ai', 'inbox.ai.filters.ai'],
+    ['waiting_human', 'inbox.ai.filters.waiting'],
+] as const;
 
 export function InboxFilters({
     title,
@@ -180,6 +202,7 @@ export function InboxFilters({
     status,
     assignee,
     unread,
+    ai,
     q,
 }: {
     title: string;
@@ -187,6 +210,7 @@ export function InboxFilters({
     status: string;
     assignee: string;
     unread: boolean;
+    ai: string;
     q: string;
 }) {
     const t = useT();
@@ -197,6 +221,7 @@ export function InboxFilters({
     if (assignee) base.set('assignee', assignee);
     if (unread) base.set('unread', '1');
     if (q) base.set('q', q);
+    if (ai) base.set('ai', ai);
     const query = base.toString();
 
     // Search as you type (after a short pause).
@@ -291,6 +316,25 @@ export function InboxFilters({
                         href={inboxHref(query, { assignee: v, c: '' })}
                         aria-current={assignee === v ? 'page' : undefined}
                         className={pill(assignee === v)}
+                    >
+                        {t(label)}
+                    </Link>
+                ))}
+            </nav>
+            <nav
+                aria-label={t('inbox.ai.filters.label')}
+                className="flex flex-wrap gap-1"
+            >
+                {AI_FILTERS.map(([v, label]) => (
+                    <Link
+                        key={v}
+                        href={inboxHref(query, {
+                            ai: ai === v ? '' : v,
+                            c: '',
+                        })}
+                        aria-current={ai === v ? 'page' : undefined}
+                        className={pill(ai === v)}
+                        data-testid={`filter-${v}`}
                     >
                         {t(label)}
                     </Link>
@@ -444,6 +488,24 @@ export function ConversationList({
                                             </span>
                                         </span>
                                         <span className="flex shrink-0 items-center gap-1">
+                                            {c.owner_type === 'ai' && (
+                                                <Badge
+                                                    className="h-4 gap-0.5 bg-violet-600 px-1.5 text-[10px] text-white"
+                                                    data-testid="list-ai"
+                                                >
+                                                    <Sparkles className="size-2.5" />
+                                                    {t('inbox.ai.aiLabel')}
+                                                </Badge>
+                                            )}
+                                            {c.pending_handoff_id && (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="h-4 border-amber-500 px-1.5 text-[10px] text-amber-700 dark:text-amber-300"
+                                                    data-testid="list-waiting"
+                                                >
+                                                    {t('inbox.ai.waiting')}
+                                                </Badge>
+                                            )}
                                             {c.status === 'closed' && (
                                                 <Badge
                                                     variant="outline"
@@ -592,6 +654,7 @@ function Bubble({
     const prefs = useDisplayPrefs();
     const formatDateTime = useFormatDateTime();
     const out = m.direction === 'outbound';
+    const byAI = isAIMessage(m);
     const at = m.direction === 'inbound' ? m.occurred_at : m.created_at;
     return (
         <li
@@ -599,6 +662,7 @@ function Bubble({
             data-testid="message"
             data-direction={m.direction}
             data-status={m.status}
+            data-ai={byAI ? 'true' : undefined}
         >
             <div
                 className={cn(
@@ -606,10 +670,21 @@ function Bubble({
                     out
                         ? 'rounded-tr-none bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]'
                         : 'rounded-tl-none bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]',
+                    byAI &&
+                        'bg-violet-100 ring-1 ring-violet-400/60 dark:bg-violet-950 dark:ring-violet-500/50',
                     (m.status === 'failed' || m.status === 'skipped') &&
                         'ring-1 ring-destructive/60',
                 )}
             >
+                {byAI && (
+                    <p
+                        className="flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300"
+                        data-testid="ai-label"
+                    >
+                        <Sparkles className="size-3" />
+                        {t('inbox.ai.aiLabel')}
+                    </p>
+                )}
                 <MediaView conversationId={conversationId} m={m} />
                 {m.body && (
                     <p className="break-words whitespace-pre-wrap">{m.body}</p>
@@ -739,7 +814,22 @@ function ThreadMain({
         ...[...data.messages].reverse(),
     ];
     const next = loadedOlder ? olderCursor : data.nextCursor;
-    const newest = data.messages[0]?.id;
+    const newest = data.messages[0]?.id ?? '';
+    const newestNote = data.convNotes[0]?.id ?? '';
+    // Internal notes sit in the thread by time, within the loaded messages.
+    const msgAt = (m: InboxMessage) =>
+        m.direction === 'inbound' ? m.occurred_at : m.created_at;
+    const oldestAt = messages[0] ? msgAt(messages[0]) : '';
+    const entries: (
+        | { kind: 'm'; m: InboxMessage; at: string }
+        | { kind: 'n'; n: ConversationNote; at: string }
+    )[] = [
+        ...messages.map((m) => ({ kind: 'm' as const, m, at: msgAt(m) })),
+        ...data.convNotes
+            .filter((n) => !next || n.created_at >= oldestAt)
+            .map((n) => ({ kind: 'n' as const, n, at: n.created_at })),
+    ].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+    const draft = data.drafts.find((d) => d.status === 'pending');
 
     // Opening a conversation (or a new customer message while it is open)
     // marks it read for the team; the list's badge follows.
@@ -763,7 +853,7 @@ function ThreadMain({
     useEffect(() => {
         if (nearBottom.current) toBottom();
         else setUnseen(true);
-    }, [newest]);
+    }, [newest, newestNote]);
 
     const loadOlder = () => {
         const el = scroller.current;
@@ -881,7 +971,17 @@ function ThreadMain({
                 {canAssign && (
                     <ConversationActions c={c} me={me} users={users} />
                 )}
+                <div className="basis-full">
+                    <OwnerControls c={c} canReply={canReply} />
+                </div>
             </header>
+            {data.pendingHandoff && (
+                <EscalationBanner
+                    c={c}
+                    handoff={data.pendingHandoff}
+                    canReply={canReply}
+                />
+            )}
             <div className="relative min-h-0 flex-1">
                 <div
                     ref={scroller}
@@ -919,25 +1019,21 @@ function ThreadMain({
                         aria-live="polite"
                         data-testid="thread"
                     >
-                        {messages.map((m, i) => {
-                            const at =
-                                m.direction === 'inbound'
-                                    ? m.occurred_at
-                                    : m.created_at;
-                            const prev = messages[i - 1];
-                            const prevAt =
-                                prev &&
-                                (prev.direction === 'inbound'
-                                    ? prev.occurred_at
-                                    : prev.created_at);
+                        {entries.map((e, i) => {
+                            const prev = entries[i - 1];
                             const newDay =
-                                !prev || formatDate(prevAt) !== formatDate(at);
+                                !prev ||
+                                formatDate(prev.at) !== formatDate(e.at);
                             return (
                                 <MessageWithDay
-                                    key={m.id}
-                                    day={newDay ? dayLabel(at) : null}
+                                    key={e.kind === 'm' ? e.m.id : e.n.id}
+                                    day={newDay ? dayLabel(e.at) : null}
                                 >
-                                    <Bubble conversationId={c.id} m={m} />
+                                    {e.kind === 'm' ? (
+                                        <Bubble conversationId={c.id} m={e.m} />
+                                    ) : (
+                                        <NoteBubble n={e.n} />
+                                    )}
                                 </MessageWithDay>
                             );
                         })}
@@ -953,7 +1049,8 @@ function ThreadMain({
                     </Button>
                 )}
             </div>
-            <div className="border-t bg-background p-3">
+            <div className="space-y-2 border-t bg-background p-3">
+                {draft && <DraftCard c={c} draft={draft} canReply={canReply} />}
                 {canReply ? (
                     <ReplyBox
                         c={c}
@@ -1150,7 +1247,13 @@ function ReplyBox({
                 <TabsTrigger value="template">
                     <LayoutTemplate /> {t('inbox.reply.template')}
                 </TabsTrigger>
+                <TabsTrigger value="note" data-testid="composer-note">
+                    <StickyNote /> {t('inbox.ai.composer.note')}
+                </TabsTrigger>
             </TabsList>
+            <TabsContent value="note">
+                <NoteComposer c={c} />
+            </TabsContent>
             <TabsContent value="text" className="space-y-2">
                 {!c.window_open ? (
                     <Alert data-testid="window-closed">
@@ -1413,16 +1516,53 @@ function ContactPanel({
     canNote: boolean;
 }) {
     const t = useT();
+    const [tab, setTab] = useState('customer');
+    return (
+        <aside
+            className="hidden min-h-0 overflow-y-auto p-4 xl:block"
+            aria-label={t('inbox.panel.customer')}
+        >
+            <Tabs value={tab} onValueChange={setTab}>
+                <TabsList className="mb-3 w-full">
+                    <TabsTrigger value="customer">
+                        {t('inbox.ai.panel.customer')}
+                    </TabsTrigger>
+                    <TabsTrigger value="activity" data-testid="tab-activity">
+                        {t('inbox.ai.panel.activity')}
+                    </TabsTrigger>
+                </TabsList>
+                <TabsContent value="customer">
+                    <CustomerDetails data={data} canNote={canNote} />
+                </TabsContent>
+                <TabsContent value="activity" className="space-y-5">
+                    <ActivityTimeline
+                        key={data.conversation.id}
+                        c={data.conversation}
+                        items={data.activity}
+                        cursor={data.activityCursor}
+                    />
+                    <AutomationRuns runs={data.runs} />
+                </TabsContent>
+            </Tabs>
+        </aside>
+    );
+}
+
+function CustomerDetails({
+    data,
+    canNote,
+}: {
+    data: ThreadData;
+    canNote: boolean;
+}) {
+    const t = useT();
     const formatDateTime = useFormatDateTime();
     const { contact, notes, events } = data;
     const [note, setNote] = useState('');
     const [pending, startTransition] = useTransition();
     const name = displayName(data.conversation.contact);
     return (
-        <aside
-            className="hidden min-h-0 space-y-5 overflow-y-auto p-4 xl:block"
-            aria-label={t('inbox.panel.customer')}
-        >
+        <div className="space-y-5">
             <div className="flex flex-col items-center gap-2 text-center">
                 <ContactAvatar
                     name={name}
@@ -1457,6 +1597,7 @@ function ContactPanel({
                     </Button>
                 )}
             </div>
+            <ContactAISwitch c={data.conversation} canEdit={canNote} />
             {contact && contact.tags.length > 0 && (
                 <section className="space-y-1.5">
                     <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -1572,7 +1713,7 @@ function ContactPanel({
                     </ol>
                 )}
             </section>
-        </aside>
+        </div>
     );
 }
 

@@ -30,6 +30,14 @@ export function InboxRealtime({ selected }: { selected?: string }) {
             case 'message.status':
                 if (selected && e.conversation_id === selected) refresh();
                 break;
+            // The open thread's AI state, handoffs, timeline and
+            // automation runs (published on its own channel).
+            case 'conversation.handoff':
+            case 'conversation.activity':
+            case 'automation.run.updated':
+            case 'ai.status':
+                if (selected && e.conversation_id === selected) refresh();
+                break;
         }
     });
     return null;

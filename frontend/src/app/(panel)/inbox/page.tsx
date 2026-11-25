@@ -5,9 +5,14 @@ import { cn } from '@/lib/utils';
 import { api, ApiError } from '@/lib/server/api';
 import { can, requireMe } from '@/lib/server/auth';
 import type {
+    AIDraft,
     Contact,
     Conversation,
+    ConversationActivity,
+    ConversationAutomationRun,
     ConversationEvent,
+    ConversationHandoff,
+    ConversationNote,
     InboxMessage,
     Note,
     Template,
@@ -31,6 +36,14 @@ export type ThreadData = {
     templates: Template[];
     contact?: Contact;
     notes: Note[];
+    /** Internal notes of the conversation (never sent to the customer). */
+    convNotes: ConversationNote[];
+    /** The pending escalation, when one waits for a person. */
+    pendingHandoff?: ConversationHandoff;
+    drafts: AIDraft[];
+    activity: ConversationActivity[];
+    activityCursor?: string;
+    runs: ConversationAutomationRun[];
 };
 
 /** Loads the selected conversation; null when it is not visible. */
@@ -39,11 +52,39 @@ async function loadThread(
     perms: string[],
 ): Promise<ThreadData | null> {
     try {
-        const [conversation, messages, events] = await Promise.all([
+        const [
+            conversation,
+            messages,
+            events,
+            convNotes,
+            drafts,
+            activity,
+            runs,
+        ] = await Promise.all([
             api<Conversation>(`/conversations/${id}`),
             api<InboxMessage[]>(`/conversations/${id}/messages?limit=50`),
             api<ConversationEvent[]>(`/conversations/${id}/events`),
+            api<ConversationNote[]>(`/conversations/${id}/notes`)
+                .then((r) => r.data)
+                .catch(() => [] as ConversationNote[]),
+            api<AIDraft[]>(`/conversations/${id}/ai-drafts?pending=true`)
+                .then((r) => r.data)
+                .catch(() => [] as AIDraft[]),
+            api<ConversationActivity[]>(
+                `/conversations/${id}/activity?limit=50`,
+            ).catch(() => ({ data: [] as ConversationActivity[] })),
+            api<ConversationAutomationRun[]>(
+                `/conversations/${id}/automation-runs`,
+            )
+                .then((r) => r.data)
+                .catch(() => [] as ConversationAutomationRun[]),
         ]);
+        const pendingId = conversation.data.pending_handoff_id;
+        const pendingHandoff = pendingId
+            ? await api<ConversationHandoff[]>(`/conversations/${id}/handoffs`)
+                  .then((r) => r.data.find((h) => h.id === pendingId))
+                  .catch(() => undefined)
+            : undefined;
         const contactId = conversation.data.contact.id;
         const [templates, contact, notes] = await Promise.all([
             // Only the templates of the account the conversation's number
@@ -74,6 +115,13 @@ async function loadThread(
             templates,
             contact,
             notes,
+            convNotes,
+            pendingHandoff,
+            drafts,
+            activity: activity.data,
+            activityCursor:
+                'nextCursor' in activity ? activity.nextCursor : undefined,
+            runs,
         };
     } catch (err) {
         if (err instanceof ApiError && err.status === 404) return null;
@@ -102,7 +150,9 @@ export default async function InboxPage({
         sp.assignee === 'me' || sp.assignee === 'unassigned' ? sp.assignee : '';
     const q = (sp.q ?? '').trim().slice(0, 100);
     const unread = sp.unread === '1' || sp.unread === 'true';
+    const ai = sp.ai === 'ai' || sp.ai === 'waiting_human' ? sp.ai : '';
     const query = new URLSearchParams();
+    if (ai) query.set('ai', ai);
     if (status !== 'all') query.set('status', status);
     if (assignee) query.set('assignee', assignee);
     if (unread) query.set('unread', 'true');
@@ -113,6 +163,7 @@ export default async function InboxPage({
     if (assignee) ui.set('assignee', assignee);
     if (unread) ui.set('unread', '1');
     if (q) ui.set('q', q);
+    if (ai) ui.set('ai', ai);
     const backHref = ui.toString() ? `/inbox?${ui}` : '/inbox';
 
     const selected = sp.c && UUID.test(sp.c) ? sp.c : undefined;
@@ -148,6 +199,7 @@ export default async function InboxPage({
                         status={status}
                         assignee={assignee}
                         unread={unread}
+                        ai={ai}
                         q={q}
                     />
                     <ConversationList

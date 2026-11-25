@@ -26,6 +26,12 @@ export type ConversationEvent = Schemas['ConversationEvent'];
 export type Template = Schemas['Template'];
 export type Contact = Schemas['Contact'];
 export type Note = Schemas['Note'];
+export type ConversationNote = Schemas['ConversationNote'];
+export type ConversationHandoff = Schemas['ConversationHandoff'];
+export type ConversationActivity = Schemas['ConversationActivity'];
+export type ConversationAutomationRun = Schemas['ConversationAutomationRun'];
+export type AIDraft = Schemas['AIDraft'];
+export type ConversationAIMode = Schemas['ConversationAIMode'];
 
 /** Result of a Server Action: either success data or a displayable error. */
 export type ActionResult<T = undefined> =
