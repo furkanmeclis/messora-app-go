@@ -56,6 +56,8 @@ export type CampaignAudience = Schemas['CampaignAudience'];
 export type CampaignParams = Schemas['CampaignParams'];
 export type CampaignEventItem = Schemas['CampaignEventItem'];
 export type CampaignRecipient = Schemas['CampaignRecipient'];
+export type Offer = Schemas['Offer'];
+export type OfferStatus = Schemas['OfferStatus'];
 
 // ── Automations ────────────────────────────────────────────────────────────
 export type Automation = Schemas['Automation'];

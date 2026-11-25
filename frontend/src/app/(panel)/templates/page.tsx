@@ -6,7 +6,7 @@ import { TEMPLATE_STATUSES } from '@/lib/templates';
 import { getT } from '@/i18n/server';
 import { PageHeading } from '../panel-header';
 import {
-    CreateTemplateDialog,
+    NewTemplateButton,
     SyncTemplatesButton,
     TemplateFilters,
     TemplateList,
@@ -65,7 +65,7 @@ export default async function TemplatesPage({
                             <SyncTemplatesButton accounts={accounts} />
                         )}
                         {manage && accounts && accounts.length > 0 && (
-                            <CreateTemplateDialog accounts={accounts} />
+                            <NewTemplateButton />
                         )}
                     </div>
                 }

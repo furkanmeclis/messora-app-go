@@ -6,6 +6,7 @@ import type {
     Contact,
     ContactGroup,
     Me,
+    Offer,
     PhoneNumber,
     Segment,
     Tag,
@@ -26,6 +27,8 @@ export type WizardData = {
     attributeKeys: string[];
     /** A contact whose values the preview shows. */
     sample: Contact | null;
+    /** Offers a campaign can link (templates.read), ended ones last. */
+    offers: Offer[] | null;
 };
 
 /** Everything the campaign wizard offers, limited to what the role sees. */
@@ -36,19 +39,25 @@ export async function loadWizardData(me: Me): Promise<WizardData> {
                   .then((r) => r.data)
                   .catch(() => null)
             : Promise.resolve(null);
-    const [numbers, templates, segments, groups, tags, attributeKeys, sample] =
-        await Promise.all([
-            maybe<PhoneNumber[]>('channels.read', '/channels/phone-numbers'),
-            maybe<Template[]>('templates.read', '/templates?status=APPROVED'),
-            maybe<Segment[]>('segments.read', '/segments'),
-            maybe<ContactGroup[]>('contacts.read', '/groups'),
-            maybe<Tag[]>('contacts.read', '/tags'),
-            maybe<string[]>('contacts.read', '/contacts/attribute-keys'),
-            maybe<Contact[]>(
-                'contacts.read',
-                '/contacts?limit=1&opted_out=false',
-            ),
-        ]);
+    const [
+        numbers,
+        templates,
+        segments,
+        groups,
+        tags,
+        attributeKeys,
+        sample,
+        offers,
+    ] = await Promise.all([
+        maybe<PhoneNumber[]>('channels.read', '/channels/phone-numbers'),
+        maybe<Template[]>('templates.read', '/templates?status=APPROVED'),
+        maybe<Segment[]>('segments.read', '/segments'),
+        maybe<ContactGroup[]>('contacts.read', '/groups'),
+        maybe<Tag[]>('contacts.read', '/tags'),
+        maybe<string[]>('contacts.read', '/contacts/attribute-keys'),
+        maybe<Contact[]>('contacts.read', '/contacts?limit=1&opted_out=false'),
+        maybe<Offer[]>('templates.read', '/offers'),
+    ]);
     return {
         numbers,
         templates: templates ?? [],
@@ -60,5 +69,6 @@ export async function loadWizardData(me: Me): Promise<WizardData> {
         canEstimate: can(me, 'segments.read'),
         attributeKeys: attributeKeys ?? [],
         sample: sample?.[0] ?? null,
+        offers,
     };
 }

@@ -1,23 +1,29 @@
 'use client';
 
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import {
     CheckCheck,
     Copy,
     ExternalLink,
     FileText,
+    Gift,
     Image as ImageIcon,
+    List,
+    ListChecks,
     MapPin,
     Phone,
+    PhoneCall,
     Play,
     Reply,
 } from 'lucide-react';
 import { useT } from '@/i18n/client';
 import {
     parseComponents,
+    remaining,
     resolvePieces,
     type ParamValues,
     type SampleContact,
+    type TemplateButton,
 } from '@/lib/templates';
 import { cn } from '@/lib/utils';
 
@@ -126,7 +132,9 @@ function Filled({
 
 /**
  * A template as WhatsApp shows it: chat background, bubble, media header,
- * formatting, buttons. With params and a sample contact, variables show the
+ * formatting, buttons, and the special components (location map,
+ * limited-time offer with its countdown, copy code, carousel cards,
+ * one-time password). With params and a sample contact, variables show the
  * values that contact would receive.
  */
 export function WhatsAppPreview({
@@ -136,6 +144,10 @@ export function WhatsAppPreview({
     contact,
     mediaSrc,
     mediaName,
+    category,
+    expiresAt,
+    coupon,
+    cardMedia,
     className,
 }: {
     components: unknown;
@@ -145,11 +157,21 @@ export function WhatsAppPreview({
     literal?: {
         header?: Record<string, string>;
         body?: Record<string, string>;
+        /** Carousel cards' body examples, by card. */
+        cards?: Record<string, string>[];
     };
     contact?: SampleContact;
     /** What to show in a media header (link, object URL or example). */
     mediaSrc?: string;
     mediaName?: string;
+    /** AUTHENTICATION shows Meta's fixed code message. */
+    category?: string;
+    /** End of a limited-time offer (Unix ms) for the countdown row. */
+    expiresAt?: number;
+    /** The code a copy code button copies. */
+    coupon?: string;
+    /** What to show in each carousel card's header. */
+    cardMedia?: (string | undefined)[];
     className?: string;
 }) {
     const t = useT();
@@ -157,10 +179,21 @@ export function WhatsAppPreview({
     const label: Labels = (field) =>
         field.startsWith('attr:')
             ? field.slice(5)
-            : t(`params.fields.${field as 'name'}`);
+            : field.startsWith('offer_')
+              ? t('params.offerField', { field: field.slice(6) })
+              : t(`params.fields.${field as 'name'}`);
     const header = params?.header ?? literal?.header;
     const body = params?.body ?? literal?.body;
     const format = p.headerFormat?.toUpperCase();
+    const auth =
+        category?.toUpperCase() === 'AUTHENTICATION' ||
+        p.buttons.some((b) => b.type === 'OTP');
+    const code =
+        coupon ??
+        (params?.coupon || undefined) ??
+        p.buttons.find((b) => b.type === 'COPY_CODE')?.example;
+    const ends = expiresAt ?? params?.expirationMs;
+    const location = params?.location;
     return (
         <div
             className={cn(
@@ -198,9 +231,40 @@ export function WhatsAppPreview({
                     </div>
                 )}
                 {format === 'LOCATION' && (
-                    <MediaPlaceholder
-                        icon={<MapPin />}
-                        text={t('params.media.location')}
+                    <div
+                        className="m-1 mb-0 overflow-hidden rounded-md bg-[repeating-linear-gradient(45deg,#d9e7d4_0_12px,#e6efe1_12px_24px)] dark:bg-[repeating-linear-gradient(45deg,#1e2d24_0_12px,#24352a_12px_24px)]"
+                        data-testid="preview-location"
+                    >
+                        <div className="flex aspect-[1.91/1] items-center justify-center">
+                            <MapPin className="size-8 fill-red-500 text-red-700" />
+                        </div>
+                        {(location?.name || location?.address) && (
+                            <div className="bg-white/80 px-2 py-1 text-xs dark:bg-black/40">
+                                {location.name && (
+                                    <p className="font-medium">
+                                        {location.name}
+                                    </p>
+                                )}
+                                {location.address && (
+                                    <p className="text-[#667781]">
+                                        {location.address}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                        {!location?.name && !location?.address && (
+                            <p className="bg-white/80 px-2 py-1 text-center text-xs text-[#667781] dark:bg-black/40">
+                                {t('params.media.location')}
+                            </p>
+                        )}
+                    </div>
+                )}
+                {p.lto && (
+                    <OfferRow
+                        text={p.lto.text}
+                        hasExpiration={p.lto.hasExpiration}
+                        ends={ends}
+                        code={code}
                     />
                 )}
                 <div className="space-y-1 px-2.5 pt-1.5 pb-1">
@@ -216,7 +280,14 @@ export function WhatsAppPreview({
                             />
                         </p>
                     )}
-                    {p.body ? (
+                    {auth && !p.body ? (
+                        <p className="break-words whitespace-pre-wrap">
+                            <strong>{params?.otp || '123456'}</strong>{' '}
+                            {t('templates.preview.otpBody')}
+                            {p.securityRecommendation &&
+                                ` ${t('templates.preview.otpSecurity')}`}
+                        </p>
+                    ) : p.body ? (
                         <p className="break-words whitespace-pre-wrap">
                             <Filled
                                 text={p.body}
@@ -232,9 +303,14 @@ export function WhatsAppPreview({
                             {t('templates.preview.noBody')}
                         </p>
                     )}
-                    {p.footer && (
+                    {(p.footer ||
+                        (auth && p.codeExpirationMinutes !== undefined)) && (
                         <p className="text-xs text-[#667781] dark:text-[#8696a0]">
-                            {p.footer}
+                            {p.footer && !auth
+                                ? p.footer
+                                : t('templates.preview.otpExpiry', {
+                                      minutes: p.codeExpirationMinutes ?? 10,
+                                  })}
                         </p>
                     )}
                     <p className="flex items-center justify-end gap-1 text-[0.6875rem] text-[#667781] dark:text-[#8696a0]">
@@ -242,34 +318,202 @@ export function WhatsAppPreview({
                     </p>
                 </div>
                 {p.buttons.length > 0 && (
-                    <ul className="divide-y divide-black/10 border-t border-black/10 dark:divide-white/10 dark:border-white/10">
-                        {p.buttons.map((b, i) => (
-                            <li
-                                key={i}
-                                className="flex items-center justify-center gap-1.5 px-2 py-2 text-[0.8125rem] font-medium text-[#027eb5] dark:text-[#53bdeb]"
-                                title={
-                                    b.url
-                                        ? fillUrl(b.url, params?.buttons[i])
-                                        : undefined
-                                }
-                            >
-                                {b.type === 'URL' ? (
-                                    <ExternalLink className="size-3.5" />
-                                ) : b.type === 'PHONE_NUMBER' ? (
-                                    <Phone className="size-3.5" />
-                                ) : b.type === 'COPY_CODE' ? (
-                                    <Copy className="size-3.5" />
-                                ) : (
-                                    <Reply className="size-3.5" />
-                                )}
-                                {b.text || b.type.toLowerCase()}
-                            </li>
-                        ))}
-                    </ul>
+                    <PreviewButtons
+                        buttons={p.buttons}
+                        urlValues={params?.buttons}
+                    />
+                )}
+            </div>
+            {p.cards.length > 0 && (
+                <ul
+                    className="mt-1.5 flex max-w-full snap-x gap-2 overflow-x-auto pb-1"
+                    data-testid="preview-cards"
+                >
+                    {p.cards.map((c, k) => (
+                        <li
+                            key={k}
+                            className="w-44 shrink-0 snap-start overflow-hidden rounded-lg bg-white text-[0.8125rem] shadow-sm dark:bg-[#202c33] dark:text-[#e9edef]"
+                        >
+                            {c.headerFormat === 'VIDEO' ? (
+                                <MediaPlaceholder
+                                    icon={<Play />}
+                                    text={t('params.media.video')}
+                                />
+                            ) : (
+                                <ImageHeader
+                                    src={
+                                        cardMedia?.[k] ??
+                                        params?.cards[k]?.mediaPreview ??
+                                        params?.cards[k]?.media?.link
+                                    }
+                                    label={t('params.media.image')}
+                                />
+                            )}
+                            {c.body && (
+                                <p className="px-2 pt-1.5 break-words whitespace-pre-wrap">
+                                    <Filled
+                                        text={c.body}
+                                        values={
+                                            params?.cards[k]?.body ??
+                                            literal?.cards?.[k]
+                                        }
+                                        contact={contact}
+                                        fallback={params?.fallback}
+                                        label={label}
+                                        prefix={`c${k}`}
+                                    />
+                                </p>
+                            )}
+                            {c.buttons.length > 0 && (
+                                <PreviewButtons
+                                    buttons={c.buttons}
+                                    urlValues={params?.cards[k]?.buttons}
+                                />
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+/** Meta's limited-time offer block: heading, countdown and code. */
+function OfferRow({
+    text,
+    hasExpiration,
+    ends,
+    code,
+}: {
+    text: string;
+    hasExpiration: boolean;
+    ends?: number;
+    code?: string;
+}) {
+    const t = useT();
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        if (!hasExpiration || !ends) return;
+        const id = setInterval(() => setNow(Date.now()), 30_000);
+        return () => clearInterval(id);
+    }, [hasExpiration, ends]);
+    const left = ends ? remaining(ends, now) : undefined;
+    const soon = !!ends && ends - now < 3_600_000;
+    return (
+        <div
+            className="mx-1 mt-1 flex items-start gap-2 rounded-md bg-black/5 p-2 dark:bg-white/10"
+            data-testid="preview-offer"
+        >
+            <Gift className="mt-0.5 size-5 shrink-0 text-[#027eb5] dark:text-[#53bdeb]" />
+            <div className="min-w-0 flex-1">
+                <p className="font-semibold">
+                    {text || t('templates.preview.offerHeading')}
+                </p>
+                {hasExpiration && (
+                    <p
+                        className={cn(
+                            'text-xs text-[#667781] dark:text-[#8696a0]',
+                            soon && 'text-red-600 dark:text-red-400',
+                        )}
+                    >
+                        {!left
+                            ? t('templates.preview.offerEndsSample')
+                            : left.ended
+                              ? t('templates.preview.offerEnded')
+                              : t('templates.preview.offerEndsIn', {
+                                    time: duration(t, left),
+                                })}
+                    </p>
+                )}
+                {code && (
+                    <p className="font-mono text-xs tracking-wide">{code}</p>
                 )}
             </div>
         </div>
     );
+}
+
+function duration(
+    t: ReturnType<typeof useT>,
+    d: { days: number; hours: number; minutes: number },
+): string {
+    if (d.days > 0)
+        return t('templates.preview.daysHours', {
+            days: d.days,
+            hours: d.hours,
+        });
+    if (d.hours > 0)
+        return t('templates.preview.hoursMinutes', {
+            hours: d.hours,
+            minutes: d.minutes,
+        });
+    return t('templates.preview.minutes', { minutes: Math.max(1, d.minutes) });
+}
+
+function PreviewButtons({
+    buttons,
+    urlValues,
+}: {
+    buttons: TemplateButton[];
+    urlValues?: Record<number, string>;
+}) {
+    const t = useT();
+    const shown = buttons.length > 3 ? buttons.slice(0, 2) : buttons;
+    return (
+        <ul className="divide-y divide-black/10 border-t border-black/10 dark:divide-white/10 dark:border-white/10">
+            {shown.map((b, i) => (
+                <li
+                    key={i}
+                    className="flex items-center justify-center gap-1.5 px-2 py-2 text-[0.8125rem] font-medium text-[#027eb5] dark:text-[#53bdeb]"
+                    title={b.url ? fillUrl(b.url, urlValues?.[i]) : undefined}
+                    data-button-type={b.type}
+                >
+                    <ButtonIcon type={b.type} />
+                    {buttonLabel(t, b)}
+                </li>
+            ))}
+            {buttons.length > 3 && (
+                <li className="flex items-center justify-center gap-1.5 px-2 py-2 text-[0.8125rem] font-medium text-[#027eb5] dark:text-[#53bdeb]">
+                    <List className="size-3.5" />
+                    {t('templates.preview.seeAll')}
+                </li>
+            )}
+        </ul>
+    );
+}
+
+function ButtonIcon({ type }: { type: string }) {
+    const cls = 'size-3.5';
+    switch (type) {
+        case 'URL':
+            return <ExternalLink className={cls} />;
+        case 'PHONE_NUMBER':
+            return <Phone className={cls} />;
+        case 'VOICE_CALL':
+            return <PhoneCall className={cls} />;
+        case 'COPY_CODE':
+        case 'OTP':
+            return <Copy className={cls} />;
+        case 'FLOW':
+            return <ListChecks className={cls} />;
+        default:
+            return <Reply className={cls} />;
+    }
+}
+
+function buttonLabel(t: ReturnType<typeof useT>, b: TemplateButton): string {
+    if (b.text) return b.text;
+    switch (b.type) {
+        case 'COPY_CODE':
+            return t('templates.preview.copyCode');
+        case 'OTP':
+            return b.otp_type === 'COPY_CODE' || !b.otp_type
+                ? t('templates.preview.copyCode')
+                : b.autofill_text || t('templates.preview.autofill');
+        case 'VOICE_CALL':
+            return t('templates.preview.callNow');
+    }
+    return b.type.toLowerCase();
 }
 
 function fillUrl(url: string, value: string | undefined): string {

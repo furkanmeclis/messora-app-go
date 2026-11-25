@@ -665,6 +665,12 @@ function TemplateFields({ step, edit, errors, options, readOnly }: Props) {
                                 buttons: p.buttons,
                                 fallback: p.fallback,
                                 header_media: p.header_media,
+                                location: p.location,
+                                coupon_code: p.coupon_code,
+                                expiration_time_ms: p.expiration_time_ms,
+                                cards: p.cards,
+                                otp_code: p.otp_code,
+                                flow: p.flow,
                             },
                             'params',
                         );

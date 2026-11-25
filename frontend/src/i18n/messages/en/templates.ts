@@ -80,6 +80,20 @@ const templates = {
             LOCATION: 'location',
         },
         noBody: 'No body text',
+        copyCode: 'Copy code',
+        autofill: 'Autofill',
+        callNow: 'Call now',
+        seeAll: 'See all options',
+        otpBody: 'is your verification code.',
+        otpSecurity: 'For your security, do not share this code.',
+        otpExpiry: 'This code expires in {minutes} minutes.',
+        offerHeading: 'Limited-time offer',
+        offerEndsIn: 'Offer ends in {time}',
+        offerEndsSample: 'Offer ends in … (set at sending)',
+        offerEnded: 'Offer ended',
+        daysHours: '{days} d {hours} h',
+        hoursMinutes: '{hours} h {minutes} min',
+        minutes: '{minutes} min',
         buttonTypes: {
             QUICK_REPLY: 'quick_reply',
             URL: 'url',
@@ -142,6 +156,135 @@ const templates = {
         submit: 'Submit for review',
         submitted: 'Template submitted for review.',
     },
+    builder: {
+        description:
+            "Build the template step by step; the preview shows it as WhatsApp will. Meta's limits are checked as you type.",
+        fix: 'Some fields need attention.',
+        basics: 'Type, category and language',
+        basicsHint:
+            'The type decides which components and buttons are available.',
+        kind: 'Template type',
+        kinds: {
+            standard: 'Standard',
+            carousel: 'Carousel',
+            lto: 'Limited-time offer',
+            authentication: 'One-time password',
+        },
+        kindHints: {
+            standard: 'Header, body, footer and up to 10 buttons.',
+            carousel: 'Marketing: a message and 2–10 swipeable cards.',
+            lto: 'Marketing: countdown to the offer end and a coupon.',
+            authentication:
+                'Verification codes with a copy or autofill button.',
+        },
+        marketingOnly: 'This type is for marketing templates only.',
+        authOnly: 'One-time password templates are authentication templates.',
+        header: 'Header',
+        headerHint: 'Optional: text, image, video, document or a location map.',
+        ltoHeaderHint: 'Optional: an image or a video (no text header).',
+        headerKinds: {
+            NONE: 'None',
+            TEXT: 'Text',
+            IMAGE: 'Image',
+            VIDEO: 'Video',
+            DOCUMENT: 'Document',
+            LOCATION: 'Location',
+        },
+        headerText: 'Header text',
+        headerTextHint: 'Up to 60 characters and one variable.',
+        sample: 'Example file',
+        locationHint:
+            'The place is chosen when sending (latitude, longitude, name, address); WhatsApp shows it as a map.',
+        body: 'Message body',
+        addVariable: 'Add variable',
+        ltoText: 'Offer text',
+        ltoTextHint: 'Shown above the countdown, up to 16 characters.',
+        ltoTextPlaceholder: 'Expiring offer!',
+        ltoExpiration: 'Show the countdown',
+        footer: 'Footer',
+        footerHint: 'Optional small text under the message, no variables.',
+        buttons: 'Buttons',
+        buttonsHint:
+            '{count} of {max}. Only the types this category allows are offered.',
+        buttonTypes: {
+            QUICK_REPLY: 'Quick reply',
+            URL: 'Website',
+            PHONE_NUMBER: 'Call number',
+            COPY_CODE: 'Copy code',
+            VOICE_CALL: 'WhatsApp call',
+            FLOW: 'Flow',
+        },
+        buttonN: 'Button {n} · {type}',
+        valueLabels: {
+            URL: 'Address',
+            PHONE_NUMBER: 'Phone number',
+            COPY_CODE: 'Example code',
+            FLOW: 'Flow ID or name',
+        },
+        urlHint:
+            'One variable at most, at the very end: https://shop.example/{{1}}',
+        flowHint:
+            'An existing published Flow; numbers are used as the Flow ID.',
+        flowAction: 'On tap',
+        flowActions: {
+            navigate: 'Open screen',
+            data_exchange: 'Data exchange',
+        },
+        quickReplyGroup:
+            'Quick replies stay together, before or after the other buttons.',
+        ltoButtons: 'Coupon and link',
+        ltoButtonsHint:
+            'A limited-time offer has an optional copy code button and one website button.',
+        couponExample: 'Example coupon',
+        couponHint:
+            'The real code is set when sending (an offer fills it), up to 15 characters.',
+        urlText: 'Button text',
+        url: 'Address',
+        urlExample: 'Example full address',
+        ltoNote:
+            'The end time is not part of the template: it is sent with each message (a linked offer fills it). WhatsApp Web and desktop do not show the offer.',
+        cards: 'Cards',
+        cardsHint:
+            '{count} of {max} cards (at least 2). Every card has the same structure.',
+        cardHeader: 'Card media',
+        cardBody: 'Cards have text',
+        cardBodyText: 'Card text',
+        cardButtons: 'Card buttons (up to 2)',
+        identical:
+            'Meta requires identical cards: the structure applies to all of them, texts and addresses can differ.',
+        removeCard: 'Remove card {n}',
+        addCard: 'Add card',
+        urlSuffixExample: 'Example of the variable',
+        otp: 'One-time password',
+        otpHint:
+            'Meta writes the message ("<code> is your verification code.") in the template language; you choose the button.',
+        otpType: 'Button',
+        otpTypes: {
+            COPY_CODE: 'Copy code',
+            ONE_TAP: 'One-tap autofill',
+            ZERO_TAP: 'Zero-tap',
+        },
+        otpTypeHints: {
+            COPY_CODE: 'Works everywhere: the user copies the code.',
+            ONE_TAP:
+                'Android: fills the code into your app; other devices get a copy button.',
+            ZERO_TAP:
+                'Android: the code reaches your app without a tap; needs your app and Meta’s terms.',
+        },
+        otpSecurity: 'Add the security recommendation',
+        otpExpiry: 'Code expires after (minutes)',
+        otpExpiryHint: '1–90; shown under the message.',
+        otpButtonText: 'Copy button text (optional)',
+        otpAutofill: 'Autofill button text (optional)',
+        otpPackage: 'Android package name',
+        otpHash: 'App signature hash',
+        otpHashHint: '11 characters.',
+        otpTerms:
+            'I accept Meta’s zero-tap terms (the user’s code is delivered to the app automatically).',
+        previewNote: 'Example values stand in for the variables.',
+        ltoPreviewNote:
+            'The countdown shows a sample end; each message carries the real one.',
+    },
     validation: {
         headerText: 'Type the header text.',
         headerSample: 'Upload an example file for the header.',
@@ -159,6 +302,19 @@ const templates = {
         urlVariable: 'Only one {{1}}, at the end of the address.',
         urlExample: 'Full example address.',
         phone: 'Phone number in international format.',
+        max: 'At most {max} characters.',
+        tooManyButtons: 'At most 10 buttons.',
+        quickReplyGroup:
+            'Keep quick replies together, before or after the other buttons.',
+        couponRequired: 'Give an example code.',
+        flowRequired: 'Name the Flow (ID or name).',
+        ltoText: 'Type the offer text.',
+        cardCount: 'A carousel has 2 to 10 cards.',
+        cardSample: 'Upload an example file for the card.',
+        otpExpiry: 'Between 1 and 90 minutes.',
+        package: 'An Android package name such as com.example.app.',
+        signature: '11 characters: letters, digits, + / =.',
+        zeroTapTerms: 'Zero-tap needs Meta’s terms to be accepted.',
         positionalNumbers:
             'Positional variables are numbers: use {{1}}, {{2}} … instead of {variable}.',
         positionalOrder:
