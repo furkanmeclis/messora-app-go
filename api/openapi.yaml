@@ -1064,6 +1064,97 @@ paths:
         "204": { description: Deleted }
         default: { $ref: "#/components/responses/Error" }
 
+  /offers:
+    get:
+      operationId: listOffers
+      tags: [templates]
+      summary: Time-limited offers
+      security: [{ session: [templates.read] }, { apiKey: [templates.read] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/OfferStatus" }
+      responses:
+        "200":
+          description: Offers, latest end first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfferListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createOffer
+      tags: [templates]
+      summary: Create an offer
+      description: >-
+        status draft keeps the offer unpublished; scheduled publishes it (it
+        becomes active at starts_at, or at once when that has passed). The
+        scheduler moves offers to active and expired every minute and
+        publishes offer.updated on campaign:all.
+      security: [{ session: [templates.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OfferInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfferResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /offers/{offerId}:
+    get:
+      operationId: getOffer
+      tags: [templates]
+      summary: One offer
+      security: [{ session: [templates.read] }, { apiKey: [templates.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/OfferId" }
+      responses:
+        "200":
+          description: The offer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfferResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateOffer
+      tags: [templates]
+      summary: Edit, publish or end an offer
+      description: >-
+        Fields left out keep their value. status scheduled publishes a draft,
+        draft unpublishes it, expired ends the offer now (campaigns using it
+        pause with reason offer_expired). An expired offer cannot be edited.
+      security: [{ session: [templates.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/OfferId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OfferUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfferResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteOffer
+      tags: [templates]
+      summary: Delete an offer (campaigns using it keep their own values)
+      security: [{ session: [templates.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/OfferId" }
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Error" }
+
   /messages:
     post:
       operationId: sendMessage
@@ -2689,6 +2780,11 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    OfferId:
+      name: offerId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     MessageId:
       name: messageId
       in: path
@@ -3746,7 +3842,87 @@ components:
           type: array
           minItems: 1
           maxItems: 10
+          description: >-
+            Meta's component objects (HEADER, BODY, FOOTER, BUTTONS,
+            LIMITED_TIME_OFFER, CAROUSEL). They are checked against Meta's
+            documented limits before submission (docs/WHATSAPP.md, "Template
+            components"); a violation is a VALIDATION_ERROR naming the field,
+            e.g. components.2.buttons.1.text. Catalog buttons (MPM, SPM,
+            CATALOG) are refused.
           items: { type: object, additionalProperties: true }
+
+    OfferStatus:
+      type: string
+      enum: [draft, scheduled, active, expired]
+
+    Offer:
+      type: object
+      required: [id, title, description, discount_text, product, starts_at, ends_at, status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        discount_text: { type: string, description: Short discount label such as 25% off. }
+        product: { type: string, description: The product or service on offer. }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time, description: Limited-time offer templates count down to this (expiration_time_ms). }
+        image_url: { type: [string, "null"], description: Public https image; fills an image header that has no media. }
+        image_media_id: { type: [string, "null"], description: WhatsApp media ID of the image (preferred over image_url when set). }
+        cta_url: { type: [string, "null"] }
+        coupon_code: { type: [string, "null"], description: Fills the copy code button (15 characters at most for limited-time offers). }
+        template_id: { type: [string, "null"], format: uuid, description: The template the offer is meant for (a limited-time offer or an image template). }
+        status: { $ref: "#/components/schemas/OfferStatus" }
+        created_by: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    OfferInput:
+      type: object
+      additionalProperties: false
+      required: [title, starts_at, ends_at]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+        discount_text: { type: string, maxLength: 60 }
+        product: { type: string, maxLength: 200 }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        image_url: { type: string, maxLength: 2000 }
+        image_media_id: { type: string, maxLength: 200 }
+        cta_url: { type: string, maxLength: 2000 }
+        coupon_code: { type: string, maxLength: 20 }
+        template_id: { type: string, format: uuid }
+        status: { type: string, enum: [draft, scheduled], description: draft (default) or scheduled to publish. }
+
+    OfferUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+        discount_text: { type: string, maxLength: 60 }
+        product: { type: string, maxLength: 200 }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        image_url: { type: string, maxLength: 2000, description: Empty string clears. }
+        image_media_id: { type: string, maxLength: 200, description: Empty string clears. }
+        cta_url: { type: string, maxLength: 2000, description: Empty string clears. }
+        coupon_code: { type: string, maxLength: 20, description: Empty string clears. }
+        template_id: { type: string, format: uuid }
+        clear_template: { type: boolean, description: Unlinks the template. }
+        status: { type: string, enum: [draft, scheduled, expired] }
+
+    OfferResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Offer" }, meta: { $ref: "#/components/schemas/Meta" } }
+    OfferListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Offer" } }
+        meta: { $ref: "#/components/schemas/Meta" }
 
     MediaRef:
       type: object
@@ -4607,16 +4783,65 @@ components:
           type: object
           maxProperties: 20
           additionalProperties: { type: string, maxLength: 1024 }
-        header_media:
+        header_media: { $ref: "#/components/schemas/TemplateHeaderMedia" }
+        location:
           type: object
           additionalProperties: false
-          description: Media for an image, video or document header (exactly one of id or https link).
-          required: [type]
+          description: The place of a location header, in decimal degrees; name and address may contain placeholders.
+          required: [latitude, longitude]
           properties:
-            type: { type: string, enum: [image, video, document] }
-            id: { type: string, maxLength: 200 }
-            link: { type: string, format: uri, maxLength: 2000 }
-            filename: { type: string, maxLength: 240 }
+            latitude: { type: string, maxLength: 32 }
+            longitude: { type: string, maxLength: 32 }
+            name: { type: string, maxLength: 1024 }
+            address: { type: string, maxLength: 1024 }
+        coupon_code:
+          type: string
+          maxLength: 1024
+          description: Code of the copy code button (placeholders allowed). A campaign linked to an offer takes the offer's coupon when empty.
+        expiration_time_ms:
+          type: integer
+          format: int64
+          minimum: 1
+          description: When a limited-time offer ends (Unix milliseconds). A campaign linked to an offer always takes the offer's end.
+        cards:
+          type: array
+          maxItems: 10
+          description: Carousel cards in order (as many as the template defines).
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              header_media: { $ref: "#/components/schemas/TemplateHeaderMedia" }
+              body:
+                oneOf:
+                  - { type: array, maxItems: 20, items: { type: string, maxLength: 1024 } }
+                  - { type: object, maxProperties: 20, additionalProperties: { type: string, maxLength: 1024 } }
+              buttons:
+                type: array
+                maxItems: 2
+                items: { type: string, maxLength: 2000 }
+        otp_code:
+          type: string
+          maxLength: 1024
+          description: The one-time password of an authentication template (the body and the button take it).
+        flow:
+          type: object
+          additionalProperties: false
+          description: Values for a Flow button.
+          properties:
+            flow_token: { type: string, maxLength: 1024, description: Identifies the session to your Flow endpoint; Meta's default is unused. }
+            flow_action_data: { type: object, additionalProperties: true, description: Data for the Flow's first screen. }
+
+    TemplateHeaderMedia:
+      type: object
+      additionalProperties: false
+      description: Media for an image, video or document header (exactly one of id or https link).
+      required: [type]
+      properties:
+        type: { type: string, enum: [image, video, document] }
+        id: { type: string, maxLength: 200 }
+        link: { type: string, format: uri, maxLength: 2000 }
+        filename: { type: string, maxLength: 240 }
 
     Campaign:
       type: object
@@ -4641,6 +4866,7 @@ components:
         started_at: { type: [string, "null"], format: date-time }
         finished_at: { type: [string, "null"], format: date-time }
         last_error: { type: [string, "null"] }
+        offer_id: { type: [string, "null"], format: uuid, description: The offer the campaign promotes (see Offer). }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -4656,6 +4882,16 @@ components:
         template_params: { $ref: "#/components/schemas/CampaignParams" }
         audience: { $ref: "#/components/schemas/CampaignAudience" }
         window_size: { type: integer, minimum: 0, maximum: 10000 }
+        offer_id:
+          type: string
+          format: uuid
+          description: >-
+            Link an offer. A limited-time offer template takes its end as
+            expiration_time_ms and its coupon; other templates can use the
+            placeholders offer_title, offer_discount, offer_coupon,
+            offer_ends, offer_url, offer_product and offer_description
+            (e.g. {{offer_title}}). Starting or resuming is refused once the
+            offer ended; a running campaign pauses with reason offer_expired.
 
     UpdateCampaignRequest:
       type: object
@@ -4669,6 +4905,8 @@ components:
         template_params: { $ref: "#/components/schemas/CampaignParams" }
         audience: { $ref: "#/components/schemas/CampaignAudience" }
         window_size: { type: integer, minimum: 0, maximum: 10000 }
+        offer_id: { type: string, format: uuid, description: Link an offer (see CreateCampaignRequest). }
+        clear_offer: { type: boolean, description: Unlink the offer. }
 
     CampaignEventItem:
       type: object

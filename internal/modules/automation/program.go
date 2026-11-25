@@ -86,11 +86,14 @@ type TemplateRef struct {
 	Buttons     []string               `json:"buttons,omitempty"`
 	Fallback    map[string]string      `json:"fallback,omitempty"`
 	HeaderMedia *campaigns.HeaderMedia `json:"header_media,omitempty"`
+	// Location, coupon code, offer end, carousel cards, one-time code and
+	// Flow values, as in campaigns.
+	campaigns.Extras
 }
 
 // Params is the template's values in the campaign format.
 func (t TemplateRef) Params() campaigns.Params {
-	return campaigns.Params{Header: t.Header, Body: t.Body, Buttons: t.Buttons, Fallback: t.Fallback, HeaderMedia: t.HeaderMedia}
+	return campaigns.Params{Header: t.Header, Body: t.Body, Buttons: t.Buttons, Fallback: t.Fallback, HeaderMedia: t.HeaderMedia, Extras: t.Extras}
 }
 
 // Condition compares a value of the event or contact.

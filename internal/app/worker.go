@@ -21,6 +21,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
@@ -90,6 +91,13 @@ func RunWorker(ctx context.Context) error {
 	registerMessaging(mux, svc.messaging)
 	registerSignals(mux, svc.channels, svc.messaging, log)
 	registerCampaigns(mux, svc.campaigns, svc.messaging, log)
+	mux.HandleFunc(offers.TypeTick, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := svc.offers.Tick(ctx)
+		if n > 0 {
+			log.InfoContext(ctx, "offers changed status", "count", n)
+		}
+		return err
+	})
 	registerAutomations(mux, svc.automation, log)
 	mux.HandleFunc(channels.TypeTokenCheck, func(ctx context.Context, _ *asynq.Task) error {
 		// Problems are recorded on the accounts; a failed run is simply

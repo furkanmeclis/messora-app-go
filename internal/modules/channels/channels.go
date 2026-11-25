@@ -416,9 +416,8 @@ func (s *Service) CreateTemplate(ctx context.Context, in TemplateInput) (db.Mess
 	if in.ParameterFormat == "" {
 		in.ParameterFormat = "POSITIONAL"
 	}
-	var comps []any
-	if err := json.Unmarshal(in.Components, &comps); err != nil || len(comps) == 0 {
-		return db.MessageTemplate{}, apperr.Validation("components", "At least one component (a BODY) is required.")
+	if err := ValidateComponents(in.Category, in.ParameterFormat, in.Components); err != nil {
+		return db.MessageTemplate{}, err
 	}
 	acc, token, err := s.accountToken(ctx, in.AccountID)
 	if err != nil {

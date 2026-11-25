@@ -103,6 +103,7 @@ type Campaign struct {
 	UpdatedAt           pgtype.Timestamptz
 	ProgressPublishedAt pgtype.Timestamptz
 	ProgressDirty       bool
+	OfferID             pgtype.UUID
 	Priority            string
 	MaxMps              *float64
 	PausedReason        *string
@@ -406,6 +407,25 @@ type MetaUserPreference struct {
 	Detail        string
 	OccurredAt    pgtype.Timestamptz
 	ReceivedAt    pgtype.Timestamptz
+}
+
+type Offer struct {
+	ID           pgtype.UUID
+	Title        string
+	Description  string
+	DiscountText string
+	Product      string
+	StartsAt     pgtype.Timestamptz
+	EndsAt       pgtype.Timestamptz
+	ImageUrl     *string
+	ImageMediaID *string
+	CtaUrl       *string
+	CouponCode   *string
+	TemplateID   pgtype.UUID
+	Status       string
+	CreatedBy    pgtype.UUID
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
 }
 
 type OutboxEvent struct {

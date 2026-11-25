@@ -29,6 +29,7 @@ import templates from './templates';
 import users from './users';
 import webhooks from './webhooks';
 import consent from './consent';
+import offers from './offers';
 
 /**
  * The English dictionary defines the shape every language must match.
@@ -60,6 +61,7 @@ export const en = {
     users,
     webhooks,
     consent,
+    offers,
     auth,
     overview,
     inbox,

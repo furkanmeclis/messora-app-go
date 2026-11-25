@@ -9,6 +9,7 @@ import type {
     AutomationStep,
     AutomationTrigger,
     AutomationTriggerType,
+    CampaignParams,
 } from '@/lib/types';
 
 /** A message key built at run time (the dictionary has every variant). */
@@ -328,7 +329,15 @@ export type EditorStep = {
             link?: string;
             filename?: string;
         };
-    };
+    } & Pick<
+        CampaignParams,
+        | 'location'
+        | 'coupon_code'
+        | 'expiration_time_ms'
+        | 'cards'
+        | 'otp_code'
+        | 'flow'
+    >;
     tag?: string;
     group_id?: string;
     field?: string;
@@ -416,6 +425,7 @@ export function stepFromApi(raw: AutomationStep, id: string): EditorStep {
                                 EditorStep['template']
                             >['header_media'])
                           : undefined,
+                  ...pickExtras(tpl),
               }
             : undefined,
         tag: str(s.tag),
@@ -481,6 +491,8 @@ export function stepToApi(s: EditorStep): AutomationStep {
             if (tpl.fallback && Object.keys(tpl.fallback).length)
                 out.fallback = tpl.fallback;
             if (tpl.header_media) out.header_media = tpl.header_media;
+            for (const k of EXTRA_KEYS)
+                if (tpl[k] !== undefined) out[k] = tpl[k];
             return { id, type, template: out };
         }
         case 'add_tag':
@@ -874,4 +886,25 @@ export function templateVariables(components: Record<string, unknown>[]): {
         return { named, names };
     };
     return { body: scan('BODY'), header: scan('HEADER') };
+}
+
+/** Template values beyond variables and header media (campaigns.Extras). */
+const EXTRA_KEYS = [
+    'location',
+    'coupon_code',
+    'expiration_time_ms',
+    'cards',
+    'otp_code',
+    'flow',
+] as const;
+
+type Extras = Pick<
+    NonNullable<EditorStep['template']>,
+    (typeof EXTRA_KEYS)[number]
+>;
+
+function pickExtras(tpl: Record<string, unknown>): Extras {
+    const out: Record<string, unknown> = {};
+    for (const k of EXTRA_KEYS) if (tpl[k] !== undefined) out[k] = tpl[k];
+    return out as Extras;
 }

@@ -12,7 +12,7 @@ func sp(s string) *string { return &s }
 func TestRender(t *testing.T) {
 	c := db.Contact{PhoneE164: "+905551112233", Name: "Ayşe Yılmaz", Var1: sp("Gold"), Attributes: []byte(`{"city":"Izmir"}`)}
 
-	tpl, miss := Render(Params{Body: json.RawMessage(`["{{first_name}}", "Seviye: {{var1}}", "{{attr:city}}"]`), Buttons: []string{"orders/{{phone}}"}}, c, "promo", "tr")
+	tpl, miss := Render(Shape{}, Params{Body: json.RawMessage(`["{{first_name}}", "Seviye: {{var1}}", "{{attr:city}}"]`), Buttons: []string{"orders/{{phone}}"}}, c, "promo", "tr")
 	if miss != "" {
 		t.Fatalf("missing %q", miss)
 	}
@@ -28,21 +28,21 @@ func TestRender(t *testing.T) {
 	}
 
 	// Named parameters keep their names, in a stable order.
-	tpl, _ = Render(Params{Body: json.RawMessage(`{"tier":"{{var1}}","first_name":"{{first_name}}"}`)}, c, "p", "en")
+	tpl, _ = Render(Shape{}, Params{Body: json.RawMessage(`{"tier":"{{var1}}","first_name":"{{first_name}}"}`)}, c, "p", "en")
 	if p := tpl.Components[0].Parameters; p[0].ParameterName != "first_name" || p[1].ParameterName != "tier" {
 		t.Fatalf("named: %+v", p)
 	}
 
 	// Empty values skip the recipient unless a fallback exists.
-	if _, miss := Render(Params{Body: json.RawMessage(`["{{var2}}"]`)}, c, "p", "en"); miss != "var2" {
+	if _, miss := Render(Shape{}, Params{Body: json.RawMessage(`["{{var2}}"]`)}, c, "p", "en"); miss != "var2" {
 		t.Fatalf("missing var2 not reported: %q", miss)
 	}
-	tpl, miss = Render(Params{Body: json.RawMessage(`["{{var2}}"]`), Fallback: map[string]string{"var2": "-"}}, c, "p", "en")
+	tpl, miss = Render(Shape{}, Params{Body: json.RawMessage(`["{{var2}}"]`), Fallback: map[string]string{"var2": "-"}}, c, "p", "en")
 	if miss != "" || tpl.Components[0].Parameters[0].Text != "-" {
 		t.Fatalf("fallback: %q %+v", miss, tpl)
 	}
 	// Profile name stands in for a missing name; no parameters → no components.
-	tpl, _ = Render(Params{}, db.Contact{ProfileName: "Ali"}, "p", "en")
+	tpl, _ = Render(Shape{}, Params{}, db.Contact{ProfileName: "Ali"}, "p", "en")
 	if len(tpl.Components) != 0 {
 		t.Fatal("unexpected components")
 	}
@@ -50,7 +50,7 @@ func TestRender(t *testing.T) {
 		t.Fatalf("profile fallback: %q", v)
 	}
 	// Literal text without placeholders is passed through; an empty literal is missing.
-	if _, miss := Render(Params{Body: json.RawMessage(`["  "]`)}, c, "p", "en"); miss == "" {
+	if _, miss := Render(Shape{}, Params{Body: json.RawMessage(`["  "]`)}, c, "p", "en"); miss == "" {
 		t.Fatal("empty literal accepted")
 	}
 }
@@ -71,7 +71,7 @@ func TestAudienceValidation(t *testing.T) {
 
 func TestRenderHeaderMedia(t *testing.T) {
 	c := db.Contact{PhoneE164: "+905551112233", Name: "Ayşe"}
-	tpl, miss := Render(Params{HeaderMedia: &HeaderMedia{Type: "document", Link: "https://example.com/menu.pdf", Filename: "menu.pdf"},
+	tpl, miss := Render(Shape{}, Params{HeaderMedia: &HeaderMedia{Type: "document", Link: "https://example.com/menu.pdf", Filename: "menu.pdf"},
 		Body: json.RawMessage(`["{{first_name}}"]`)}, c, "menu", "tr")
 	if miss != "" || len(tpl.Components) != 2 {
 		t.Fatalf("components: %+v %q", tpl.Components, miss)
@@ -84,7 +84,7 @@ func TestRenderHeaderMedia(t *testing.T) {
 		t.Fatal("body lost")
 	}
 	// Empty button entries mean "no dynamic part" and are skipped.
-	tpl, miss = Render(Params{Buttons: []string{"", "orders/{{phone}}"}}, c, "b", "en")
+	tpl, miss = Render(Shape{}, Params{Buttons: []string{"", "orders/{{phone}}"}}, c, "b", "en")
 	if miss != "" || len(tpl.Components) != 1 || tpl.Components[0].Index != "1" {
 		t.Fatalf("buttons: %+v %q", tpl.Components, miss)
 	}

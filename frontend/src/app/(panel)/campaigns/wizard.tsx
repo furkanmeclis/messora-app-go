@@ -58,6 +58,7 @@ import {
     shapeOf,
     templateKey,
     valuesFromParams,
+    type OfferFills,
     type ParamValues,
     type SampleContact,
 } from '@/lib/templates';
@@ -96,6 +97,8 @@ type State = {
     windowSize: string;
     when: 'now' | 'schedule';
     scheduledAt: string;
+    /** Linked offer ('' = none). */
+    offerId: string;
 };
 
 const STEPS = [
@@ -147,6 +150,7 @@ function initialState(
             windowSize: '',
             when: 'now',
             scheduledAt: '',
+            offerId: '',
         };
     }
     const a = c.audience;
@@ -176,12 +180,14 @@ function initialState(
         windowSize: c.window_size ? String(c.window_size) : '',
         when: c.scheduled_at ? 'schedule' : 'now',
         scheduledAt: c.scheduled_at ? utcToZoned(c.scheduled_at, timezone) : '',
+        offerId: c.offer_id ?? '',
     };
 }
 
 /** Which wizard step an API field error belongs to. */
 function stepOf(field: string): number {
     if (field === 'name' || field === 'phone_number_id') return 0;
+    if (field === 'offer_id') return 1;
     if (field.startsWith('template_params')) return 2;
     if (field.startsWith('template')) return 1;
     if (field.startsWith('audience')) return 3;
@@ -249,6 +255,15 @@ export function CampaignWizard({
         () => (template ? shapeOf(template) : null),
         [template],
     );
+    // A linked offer fills the countdown end, the coupon and an image.
+    const offer = data.offers?.find((o) => o.id === s.offerId);
+    const fills: OfferFills = offer
+        ? {
+              expiration: true,
+              coupon: !!offer.coupon_code,
+              media: !!(offer.image_url || offer.image_media_id),
+          }
+        : {};
     const sample: SampleContact | undefined = data.sample
         ? { ...data.sample, name: data.sample.name || data.sample.profile_name }
         : undefined;
@@ -350,10 +365,10 @@ export function CampaignWizard({
         if (i === 1) {
             if (!template)
                 e.template = t('campaigns.wizard.errors.chooseTemplate');
-            else if (shape?.header === 'location')
-                e.template = t('params.issues.location');
+            if (offer && offer.status === 'expired')
+                e.offer_id = t('offers.campaign.ended');
         }
-        if (i === 2 && shape && issuesOf(s.params, shape).length > 0) {
+        if (i === 2 && shape && issuesOf(s.params, shape, fills).length > 0) {
             e.params = t('params.issues.title');
         }
         if (i === 3) {
@@ -412,6 +427,11 @@ export function CampaignWizard({
             template_params: params,
             audience,
             window_size: s.windowSize ? Number(s.windowSize) : 0,
+            ...(s.offerId
+                ? { offer_id: s.offerId }
+                : savedId
+                  ? ({ clear_offer: true } as Partial<CampaignInput>)
+                  : {}),
         };
     }
 
@@ -794,6 +814,52 @@ export function CampaignWizard({
                                     err('template_name') ??
                                     err('template_language')}
                             </Field>
+                            {data.offers && data.offers.length > 0 && (
+                                <Field data-invalid={!!errors.offer_id}>
+                                    <FieldLabel htmlFor="cw-offer">
+                                        {t('offers.campaign.label')}
+                                    </FieldLabel>
+                                    <Select
+                                        value={s.offerId || 'none'}
+                                        onValueChange={(v) =>
+                                            set(
+                                                'offerId',
+                                                v === 'none' ? '' : v,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger
+                                            id="cw-offer"
+                                            className="w-full"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">
+                                                {t('offers.campaign.none')}
+                                            </SelectItem>
+                                            {data.offers.map((o) => (
+                                                <SelectItem
+                                                    key={o.id}
+                                                    value={o.id}
+                                                    disabled={
+                                                        o.status === 'expired'
+                                                    }
+                                                >
+                                                    {o.title} ·{' '}
+                                                    {t(
+                                                        `offers.statuses.${o.status}`,
+                                                    )}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FieldDescription>
+                                        {t('offers.campaign.hint')}
+                                    </FieldDescription>
+                                    {err('offer_id')}
+                                </Field>
+                            )}
                             {template && (
                                 <div className="space-y-2">
                                     <p className="text-sm font-medium">
@@ -822,11 +888,13 @@ export function CampaignWizard({
                                         onChange={(v) => set('params', v)}
                                         attributeKeys={data.attributeKeys}
                                         phoneNumberId={sender?.id}
+                                        fills={fills}
                                     />
                                     {errors.params && (
                                         <ParamIssues
                                             shape={shape}
                                             value={s.params}
+                                            fills={fills}
                                         />
                                     )}
                                 </div>
@@ -845,12 +913,26 @@ export function CampaignWizard({
                                         components={template.components}
                                         params={s.params}
                                         contact={sample}
+                                        category={template.category}
                                         mediaSrc={
                                             s.params.mediaPreview ??
                                             s.params.media?.link ??
+                                            offer?.image_url ??
                                             shape.exampleMedia
                                         }
                                         mediaName={s.params.media?.filename}
+                                        expiresAt={
+                                            offer
+                                                ? new Date(
+                                                      offer.ends_at,
+                                                  ).getTime()
+                                                : undefined
+                                        }
+                                        coupon={
+                                            s.params.coupon ||
+                                            offer?.coupon_code ||
+                                            undefined
+                                        }
                                     />
                                 </div>
                             </div>

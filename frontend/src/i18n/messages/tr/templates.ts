@@ -82,6 +82,20 @@ const templates: Messages['templates'] = {
             LOCATION: 'Konum',
         },
         noBody: 'Gövde metni yok',
+        copyCode: 'Kodu kopyala',
+        autofill: 'Otomatik doldur',
+        callNow: 'Şimdi ara',
+        seeAll: 'Tüm seçenekleri gör',
+        otpBody: 'doğrulama kodunuzdur.',
+        otpSecurity: 'Güvenliğiniz için bu kodu kimseyle paylaşmayın.',
+        otpExpiry: 'Bu kodun süresi {minutes} dakika sonra dolar.',
+        offerHeading: 'Süreli teklif',
+        offerEndsIn: 'Teklif {time} sonra bitiyor',
+        offerEndsSample: 'Teklif … sonra bitiyor (gönderimde belirlenir)',
+        offerEnded: 'Teklif bitti',
+        daysHours: '{days} g {hours} sa',
+        hoursMinutes: '{hours} sa {minutes} dk',
+        minutes: '{minutes} dk',
         buttonTypes: {
             QUICK_REPLY: 'hızlı yanıt',
             URL: 'bağlantı',
@@ -147,6 +161,133 @@ const templates: Messages['templates'] = {
         submit: 'İncelemeye gönder',
         submitted: 'Şablon incelemeye gönderildi.',
     },
+    builder: {
+        description:
+            'Şablonu adım adım oluşturun; önizleme WhatsApp’ta nasıl görüneceğini gösterir. Meta’nın sınırları yazarken kontrol edilir.',
+        fix: 'Bazı alanların düzeltilmesi gerekiyor.',
+        basics: 'Tür, kategori ve dil',
+        basicsHint:
+            'Tür, hangi bileşen ve butonların kullanılabileceğini belirler.',
+        kind: 'Şablon türü',
+        kinds: {
+            standard: 'Standart',
+            carousel: 'Carousel',
+            lto: 'Süreli teklif',
+            authentication: 'Tek kullanımlık şifre',
+        },
+        kindHints: {
+            standard: 'Başlık, gövde, altbilgi ve en fazla 10 buton.',
+            carousel: 'Pazarlama: bir mesaj ve kaydırılabilir 2–10 kart.',
+            lto: 'Pazarlama: teklif bitişine geri sayım ve kupon.',
+            authentication:
+                'Kopyalama veya otomatik doldurma butonlu doğrulama kodları.',
+        },
+        marketingOnly: 'Bu tür yalnızca pazarlama şablonları içindir.',
+        authOnly:
+            'Tek kullanımlık şifre şablonları kimlik doğrulama şablonudur.',
+        header: 'Başlık',
+        headerHint:
+            'İsteğe bağlı: metin, görsel, video, belge veya konum haritası.',
+        ltoHeaderHint: 'İsteğe bağlı: görsel veya video (metin başlık olmaz).',
+        headerKinds: {
+            NONE: 'Yok',
+            TEXT: 'Metin',
+            IMAGE: 'Görsel',
+            VIDEO: 'Video',
+            DOCUMENT: 'Belge',
+            LOCATION: 'Konum',
+        },
+        headerText: 'Başlık metni',
+        headerTextHint: 'En fazla 60 karakter ve bir değişken.',
+        sample: 'Örnek dosya',
+        locationHint:
+            'Yer gönderimde seçilir (enlem, boylam, ad, adres); WhatsApp harita olarak gösterir.',
+        body: 'Mesaj gövdesi',
+        addVariable: 'Değişken ekle',
+        ltoText: 'Teklif metni',
+        ltoTextHint: 'Geri sayımın üstünde görünür, en fazla 16 karakter.',
+        ltoTextPlaceholder: 'Son fırsat!',
+        ltoExpiration: 'Geri sayımı göster',
+        footer: 'Altbilgi',
+        footerHint:
+            'Mesajın altında isteğe bağlı küçük metin; değişken içermez.',
+        buttons: 'Butonlar',
+        buttonsHint:
+            '{count}/{max}. Yalnızca bu kategoride izin verilen türler sunulur.',
+        buttonTypes: {
+            QUICK_REPLY: 'Hızlı yanıt',
+            URL: 'Web sitesi',
+            PHONE_NUMBER: 'Numarayı ara',
+            COPY_CODE: 'Kodu kopyala',
+            VOICE_CALL: 'WhatsApp araması',
+            FLOW: 'Flow',
+        },
+        buttonN: 'Buton {n} · {type}',
+        valueLabels: {
+            URL: 'Adres',
+            PHONE_NUMBER: 'Telefon numarası',
+            COPY_CODE: 'Örnek kod',
+            FLOW: 'Flow kimliği veya adı',
+        },
+        urlHint: 'En fazla bir değişken, en sonda: https://magaza.ornek/{{1}}',
+        flowHint:
+            'Yayınlanmış mevcut bir Flow; sayılar Flow kimliği olarak kullanılır.',
+        flowAction: 'Dokununca',
+        flowActions: { navigate: 'Ekran aç', data_exchange: 'Veri alışverişi' },
+        quickReplyGroup:
+            'Hızlı yanıtlar bir arada durur: diğer butonlardan önce veya sonra.',
+        ltoButtons: 'Kupon ve bağlantı',
+        ltoButtonsHint:
+            'Süreli teklifte isteğe bağlı bir kod kopyalama butonu ve bir web sitesi butonu olur.',
+        couponExample: 'Örnek kupon',
+        couponHint:
+            'Gerçek kod gönderimde verilir (bağlı teklif doldurur), en fazla 15 karakter.',
+        urlText: 'Buton metni',
+        url: 'Adres',
+        urlExample: 'Örnek tam adres',
+        ltoNote:
+            'Bitiş zamanı şablonun parçası değildir: her mesajla gönderilir (bağlı teklif doldurur). WhatsApp Web ve masaüstü teklifi göstermez.',
+        cards: 'Kartlar',
+        cardsHint: '{count}/{max} kart (en az 2). Tüm kartlar aynı yapıdadır.',
+        cardHeader: 'Kart medyası',
+        cardBody: 'Kartlarda metin olsun',
+        cardBodyText: 'Kart metni',
+        cardButtons: 'Kart butonları (en fazla 2)',
+        identical:
+            'Meta kartların aynı yapıda olmasını ister: yapı hepsine uygulanır, metin ve adresler farklı olabilir.',
+        removeCard: 'Kart {n} kaldır',
+        addCard: 'Kart ekle',
+        urlSuffixExample: 'Değişkenin örneği',
+        otp: 'Tek kullanımlık şifre',
+        otpHint:
+            'Mesajı (“<kod> doğrulama kodunuzdur.”) Meta şablon dilinde yazar; siz butonu seçersiniz.',
+        otpType: 'Buton',
+        otpTypes: {
+            COPY_CODE: 'Kodu kopyala',
+            ONE_TAP: 'Tek dokunuşla doldur',
+            ZERO_TAP: 'Dokunmadan',
+        },
+        otpTypeHints: {
+            COPY_CODE: 'Her yerde çalışır: kullanıcı kodu kopyalar.',
+            ONE_TAP:
+                'Android: kodu uygulamanıza doldurur; diğer cihazlarda kopyalama butonu çıkar.',
+            ZERO_TAP:
+                'Android: kod dokunmadan uygulamanıza gelir; uygulamanız ve Meta’nın şartları gerekir.',
+        },
+        otpSecurity: 'Güvenlik uyarısını ekle',
+        otpExpiry: 'Kodun geçerlilik süresi (dakika)',
+        otpExpiryHint: '1–90; mesajın altında gösterilir.',
+        otpButtonText: 'Kopyalama butonu metni (isteğe bağlı)',
+        otpAutofill: 'Otomatik doldurma butonu metni (isteğe bağlı)',
+        otpPackage: 'Android paket adı',
+        otpHash: 'Uygulama imza özeti',
+        otpHashHint: '11 karakter.',
+        otpTerms:
+            'Meta’nın dokunmadan doğrulama şartlarını kabul ediyorum (kod uygulamaya otomatik iletilir).',
+        previewNote: 'Değişkenlerin yerinde örnek değerler görünür.',
+        ltoPreviewNote:
+            'Geri sayım örnek bir bitiş gösterir; her mesaj gerçek bitişi taşır.',
+    },
     validation: {
         headerText: 'Başlık metnini yazın.',
         headerSample: 'Başlık için örnek bir dosya yükleyin.',
@@ -164,6 +305,20 @@ const templates: Messages['templates'] = {
         urlVariable: 'Adresin sonunda yalnızca bir {{1}} olabilir.',
         urlExample: 'Tam bir örnek adres girin.',
         phone: 'Uluslararası biçimde telefon numarası girin.',
+        max: 'En fazla {max} karakter.',
+        tooManyButtons: 'En fazla 10 buton.',
+        quickReplyGroup:
+            'Hızlı yanıtları bir arada tutun: diğer butonlardan önce veya sonra.',
+        couponRequired: 'Örnek bir kod girin.',
+        flowRequired: 'Flow’u belirtin (kimlik veya ad).',
+        ltoText: 'Teklif metnini yazın.',
+        cardCount: 'Carousel 2 ile 10 kart arasında olur.',
+        cardSample: 'Kart için örnek dosya yükleyin.',
+        otpExpiry: '1 ile 90 dakika arasında.',
+        package: 'com.ornek.uygulama gibi bir Android paket adı.',
+        signature: '11 karakter: harf, rakam, + / =.',
+        zeroTapTerms:
+            'Dokunmadan doğrulama için Meta’nın şartları kabul edilmeli.',
         positionalNumbers:
             'Numaralı değişkenler sayıdır: {variable} yerine {{1}}, {{2}} … kullanın.',
         positionalOrder:
