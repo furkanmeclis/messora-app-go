@@ -146,6 +146,19 @@ func (s *Service) syncTemplatesDetached(parent context.Context, id uuid.UUID) {
 	if _, err := s.SyncTemplates(ctx, id); err != nil {
 		s.log.Warn("initial template sync failed", "account_id", id, "error", err)
 	}
+	if err := s.SyncSignals(ctx, &id); err != nil {
+		s.log.Warn("initial signal sync failed", "account_id", id, "error", err)
+	}
+}
+
+// throughputMPS is the number's throughput in messages per second, nil
+// when Meta did not report a known level.
+func throughputMPS(n whatsapp.PhoneNumber) *int32 {
+	if mps := n.ThroughputMPS(); mps > 0 {
+		v := int32(mps) //nolint:gosec // 80 or 1000
+		return &v
+	}
+	return nil
 }
 
 func upsertNumbers(ctx context.Context, q *db.Queries, account uuid.UUID, numbers []whatsapp.PhoneNumber) error {
@@ -159,7 +172,7 @@ func upsertNumbers(ctx context.Context, q *db.Queries, account uuid.UUID, number
 		}
 		_, err := q.UpsertPhoneNumber(ctx, db.UpsertPhoneNumberParams{AccountID: account, PhoneNumberID: n.ID,
 			DisplayPhoneNumber: n.DisplayPhoneNumber, VerifiedName: n.VerifiedName, QualityRating: quality,
-			MessagingLimit: n.MessagingLimit, ThroughputLevel: n.Throughput.Level,
+			MessagingLimit: n.MessagingLimit, ThroughputLevel: n.Throughput.Level, ThroughputMps: throughputMPS(n),
 			CodeVerificationStatus: n.CodeVerificationStatus, MetaStatus: n.Status})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apperr.Conflict("NUMBER_OWNED_ELSEWHERE", fmt.Sprintf("Phone number %s belongs to another connected account.", n.DisplayPhoneNumber))
@@ -315,6 +328,9 @@ func (s *Service) Sync(ctx context.Context, id uuid.UUID) (numbers, templates in
 	}
 	if err := s.tx(ctx, func(q *db.Queries) error { return upsertNumbers(ctx, q, acc.ID, list) }); err != nil {
 		return 0, 0, err
+	}
+	if err := s.syncCurrency(ctx, acc, token); err != nil {
+		s.log.WarnContext(ctx, "account currency not read", "account_id", acc.ID, "error", err)
 	}
 	templates, err = s.SyncTemplates(ctx, id)
 	return len(list), templates, err

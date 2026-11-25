@@ -7,6 +7,7 @@ import {
     KeyRound,
     Mail,
     Palette,
+    ReceiptText,
     ShieldCheck,
     SlidersHorizontal,
     Webhook,
@@ -21,6 +22,7 @@ const ICONS = {
     security: ShieldCheck,
     license: KeyRound,
     webhooks: Webhook,
+    metaRates: ReceiptText,
 } as const;
 
 export function SettingsTabs({

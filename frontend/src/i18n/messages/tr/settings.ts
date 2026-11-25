@@ -9,6 +9,27 @@ const settings: Messages['settings'] = {
         email: 'E-posta',
         security: 'Güvenlik',
         webhooks: "Webhook'lar",
+        metaRates: 'Meta fiyat kartı',
+    },
+    metaRates: {
+        title: 'Meta fiyat kartı',
+        description:
+            'Meta mesaj başı fiyatlarını API ile değil, yalnızca fiyat kartı olarak yayımlar. Kartı buraya aktarın; ücretli her mesaj hesabınızın para biriminde fiyatlandırılır. Meta’nın kendi günlük toplamları karşılaştırma için ayrıca çekilir.',
+        hint: 'En fazla 2 MB CSV dosyası. Aynı para birimi, pazar, kategori, kademe ve tarihteki satırlar öncekinin yerini alır.',
+        format: 'Dosya biçimi',
+        formatHelp:
+            'Sütunlar: market (pazar), countries (boşluk veya ; ile ayrılmış ISO kodları), category (marketing, utility, authentication, authentication-international, service), price (fiyat), currency (para birimi), effective_from (YYYY-AA-GG), isteğe bağlı tier_lower ve tier_upper (ay içindeki mesaj sırası) ve source. Fiyatları Meta’nın yayımladığı fiyat kartından alın; aşağıdaki değerler yalnızca örnektir.',
+        imported: '{markets} ülke için {rates} fiyat aktarıldı.',
+        importFailed: 'Fiyat kartı aktarılamadı.',
+        empty: 'Henüz fiyat yok. Fiyat kartı aktarılana kadar mesaj maliyetleri hesaplanmaz.',
+        market: 'Pazar',
+        category: 'Kategori',
+        price: 'Mesaj başı fiyat',
+        tier: 'Aylık kademe',
+        validity: 'Geçerlilik',
+        since: '{from} itibarıyla',
+        between: '{from} – {to}',
+        importedAt: 'Aktarıldı',
     },
     general: {
         organization: 'Organizasyon',

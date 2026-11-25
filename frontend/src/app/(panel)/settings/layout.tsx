@@ -41,6 +41,11 @@ export default async function SettingsLayout({
             label: t('license.tab'),
             icon: 'license',
         },
+        has('settings.read') && {
+            href: '/settings/meta-rates',
+            label: t('settings.tabs.metaRates'),
+            icon: 'metaRates',
+        },
         has('webhooks.manage') && {
             href: '/settings/webhooks',
             label: t('settings.tabs.webhooks'),

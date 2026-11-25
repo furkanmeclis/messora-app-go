@@ -72,16 +72,21 @@ SELECT count(*) FROM messages m JOIN phone_numbers p ON p.id = m.phone_number_id
 -- ── Phone numbers ───────────────────────────────────────────────────────────
 
 -- name: UpsertPhoneNumber :one
+-- Called with Meta's current values (connect, sync and the hourly signal
+-- sync); a throughput Meta did not report keeps the stored one.
 INSERT INTO phone_numbers (account_id, phone_number_id, display_phone_number, verified_name, quality_rating,
-                           messaging_limit, throughput_level, code_verification_status, meta_status)
+                           messaging_limit, throughput_level, throughput_mps, code_verification_status, meta_status,
+                           signals_checked_at)
 VALUES (@account_id, @phone_number_id, @display_phone_number, @verified_name, @quality_rating,
-        @messaging_limit, @throughput_level, @code_verification_status, @meta_status)
+        @messaging_limit, @throughput_level, sqlc.narg(throughput_mps), @code_verification_status, @meta_status, now())
 ON CONFLICT (phone_number_id) DO UPDATE SET
     display_phone_number     = excluded.display_phone_number,
     verified_name            = excluded.verified_name,
     quality_rating           = excluded.quality_rating,
     messaging_limit          = excluded.messaging_limit,
     throughput_level         = excluded.throughput_level,
+    throughput_mps           = coalesce(excluded.throughput_mps, phone_numbers.throughput_mps),
+    signals_checked_at       = excluded.signals_checked_at,
     code_verification_status = excluded.code_verification_status,
     meta_status              = excluded.meta_status,
     updated_at               = now()
@@ -107,10 +112,6 @@ UPDATE phone_numbers SET is_default = false, updated_at = now() WHERE is_default
 
 -- name: SetDefaultPhoneNumber :execrows
 UPDATE phone_numbers SET is_default = true, updated_at = now() WHERE id = @id;
-
--- name: UpdatePhoneNumberLimit :exec
-UPDATE phone_numbers SET messaging_limit = @messaging_limit, updated_at = now()
-WHERE regexp_replace(display_phone_number, '[^0-9]', '', 'g') = regexp_replace(@display_phone_number::text, '[^0-9]', '', 'g');
 
 -- ── Contacts ────────────────────────────────────────────────────────────────
 

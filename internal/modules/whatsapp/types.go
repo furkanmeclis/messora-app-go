@@ -1,6 +1,10 @@
 package whatsapp
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+	"time"
+)
 
 // Message is the body of POST /{phone-number-id}/messages. Exactly one of the
 // type-specific fields is set, matching Type.
@@ -121,6 +125,41 @@ type PhoneNumber struct {
 	Throughput             struct {
 		Level string `json:"level"`
 	} `json:"throughput"`
+}
+
+// ThroughputMPS converts the throughput level to messages per second:
+// STANDARD is Meta's default 80, HIGH the upgraded 1,000. Unknown levels
+// (NOT_APPLICABLE, missing) return 0.
+func (p PhoneNumber) ThroughputMPS() int {
+	switch strings.ToUpper(p.Throughput.Level) {
+	case "STANDARD":
+		return 80
+	case "HIGH":
+		return 1000
+	}
+	return 0
+}
+
+// PricingQuery selects pricing_analytics data points.
+type PricingQuery struct {
+	Start, End  time.Time
+	Granularity string   // DAILY | HALF_HOUR | MONTHLY
+	Dimensions  []string // COUNTRY, PHONE, PRICING_CATEGORY, PRICING_TYPE, TIER
+	MetricTypes []string // COST, VOLUME
+}
+
+// PricingDataPoint is one pricing_analytics data point. Cost is nil when
+// Meta does not report it (accounts on a partner's credit line).
+type PricingDataPoint struct {
+	Start           int64    `json:"start"`
+	End             int64    `json:"end"`
+	PhoneNumber     string   `json:"phone_number,omitempty"`
+	Country         string   `json:"country,omitempty"`
+	PricingType     string   `json:"pricing_type,omitempty"`
+	PricingCategory string   `json:"pricing_category,omitempty"`
+	Tier            string   `json:"tier,omitempty"`
+	Volume          int64    `json:"volume"`
+	Cost            *float64 `json:"cost,omitempty"`
 }
 
 // TemplateInfo as returned by GET /{waba-id}/message_templates.

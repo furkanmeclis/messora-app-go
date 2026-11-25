@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
@@ -29,7 +32,22 @@ func (h *Handler) toAPI(r *http.Request, m db.Message) (api.Message, error) {
 	return api.Message{Id: m.ID, PhoneNumberId: m.PhoneNumberID, ContactId: m.ContactID, To: c.PhoneE164,
 		Direction: api.MessageDirection(m.Direction), Wamid: m.Wamid, Type: m.Type, Body: m.Body,
 		Status: api.MessageStatus(m.Status), ErrorCode: m.ErrorCode, ErrorTitle: m.ErrorTitle, SentAt: m.SentAt,
-		DeliveredAt: m.DeliveredAt, ReadAt: m.ReadAt, FailedAt: m.FailedAt, CreatedAt: m.CreatedAt}, nil
+		DeliveredAt: m.DeliveredAt, ReadAt: m.ReadAt, FailedAt: m.FailedAt, CreatedAt: m.CreatedAt,
+		PricingCategory: m.PricingCategory, PricingType: m.PricingType, CostAmount: numericString(m.CostAmount),
+		CostCurrency: m.CostCurrency}, nil
+}
+
+// numericString renders a numeric as a plain decimal ("0.0436"), nil for NULL.
+func numericString(n pgtype.Numeric) *string {
+	if !n.Valid {
+		return nil
+	}
+	f, err := n.Float64Value()
+	if err != nil || !f.Valid {
+		return nil
+	}
+	s := strconv.FormatFloat(f.Float64, 'f', -1, 64)
+	return &s
 }
 
 // SendMessage implements api.ServerInterface.

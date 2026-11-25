@@ -672,6 +672,7 @@ export function PhoneNumberTable({
     manage: boolean;
 }) {
     const t = useT();
+    const formatDateTime = useFormatDateTime();
     const { guard } = useReauth();
     const [pending, startTransition] = useTransition();
     const setDefault = (n: PhoneNumber) =>
@@ -747,6 +748,31 @@ export function PhoneNumberTable({
                                     })}
                                 </div>
                             )}
+                        </div>
+                    ),
+                },
+                {
+                    id: 'throughputMps',
+                    header: t('channels.numbers.throughputMps'),
+                    sortValue: (n) => n.throughput_mps ?? undefined,
+                    cell: (n) => (
+                        <div
+                            className="text-sm whitespace-nowrap"
+                            title={
+                                n.signals_checked_at
+                                    ? t('channels.numbers.signalsChecked', {
+                                          when: formatDateTime(
+                                              n.signals_checked_at,
+                                          ),
+                                      })
+                                    : undefined
+                            }
+                        >
+                            {n.throughput_mps
+                                ? t('channels.numbers.perSecond', {
+                                      mps: n.throughput_mps,
+                                  })
+                                : '—'}
                         </div>
                     ),
                 },

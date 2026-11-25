@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ApiKey struct {
@@ -267,31 +268,39 @@ type MediaFile struct {
 }
 
 type Message struct {
-	ID            uuid.UUID
-	PhoneNumberID uuid.UUID
-	ContactID     uuid.UUID
-	Direction     string
-	Wamid         *string
-	Type          string
-	Body          string
-	Payload       []byte
-	Status        string
-	StatusRank    int16
-	ReplyToWamid  *string
-	ErrorCode     *string
-	ErrorTitle    *string
-	Attempts      int32
-	Source        string
-	CreatedBy     *uuid.UUID
-	SentAt        *time.Time
-	DeliveredAt   *time.Time
-	ReadAt        *time.Time
-	FailedAt      *time.Time
-	OccurredAt    time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	CampaignID    *uuid.UUID
-	MetaStatus    *string
+	ID               uuid.UUID
+	PhoneNumberID    uuid.UUID
+	ContactID        uuid.UUID
+	Direction        string
+	Wamid            *string
+	Type             string
+	Body             string
+	Payload          []byte
+	Status           string
+	StatusRank       int16
+	ReplyToWamid     *string
+	ErrorCode        *string
+	ErrorTitle       *string
+	Attempts         int32
+	Source           string
+	CreatedBy        *uuid.UUID
+	SentAt           *time.Time
+	DeliveredAt      *time.Time
+	ReadAt           *time.Time
+	FailedAt         *time.Time
+	OccurredAt       time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	CampaignID       *uuid.UUID
+	MetaStatus       *string
+	PricingType      *string
+	PricingCategory  *string
+	PricingModel     *string
+	Billable         *bool
+	RecipientCountry *string
+	CostAmount       pgtype.Numeric
+	CostCurrency     *string
+	CostSource       *string
 }
 
 type MessageTemplate struct {
@@ -309,6 +318,53 @@ type MessageTemplate struct {
 	SyncedAt        time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type MetaCostDaily struct {
+	AccountID       uuid.UUID
+	Day             pgtype.Date
+	PhoneNumber     string
+	Country         string
+	PricingCategory string
+	PricingType     string
+	Volume          int64
+	Cost            pgtype.Numeric
+	Currency        *string
+	FetchedAt       time.Time
+}
+
+type MetaRate struct {
+	ID            uuid.UUID
+	Currency      string
+	Market        string
+	Category      string
+	Price         pgtype.Numeric
+	TierLower     *int64
+	TierUpper     *int64
+	EffectiveFrom pgtype.Date
+	EffectiveTo   pgtype.Date
+	Source        string
+	ImportedAt    time.Time
+	ImportedBy    *uuid.UUID
+}
+
+type MetaRateMarket struct {
+	Country    string
+	Market     string
+	ImportedAt time.Time
+}
+
+type MetaUserPreference struct {
+	ID            uuid.UUID
+	PhoneNumberID *uuid.UUID
+	WaID          *string
+	UserID        *string
+	PhoneE164     *string
+	Category      string
+	Value         string
+	Detail        string
+	OccurredAt    time.Time
+	ReceivedAt    time.Time
 }
 
 type OutboxEvent struct {
@@ -358,6 +414,8 @@ type PhoneNumber struct {
 	IsDefault              bool
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
+	ThroughputMps          *int32
+	SignalsCheckedAt       *time.Time
 }
 
 type Role struct {
@@ -515,4 +573,15 @@ type WhatsappAccount struct {
 	TokenCheckedAt           *time.Time
 	TokenWarning             *string
 	TokenNotifiedAt          *time.Time
+	Currency                 *string
+}
+
+type WhatsappAccountEvent struct {
+	ID            uuid.UUID
+	AccountID     uuid.UUID
+	PhoneNumberID *uuid.UUID
+	Kind          string
+	Payload       []byte
+	OccurredAt    time.Time
+	ReceivedAt    time.Time
 }
