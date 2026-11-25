@@ -5,6 +5,7 @@ import {
     HardDrive,
     Radio,
     Server,
+    ServerCrash,
     ShieldAlert,
     Timer,
     Workflow,
@@ -174,6 +175,19 @@ export default async function OverviewPage() {
                                 ? t('overview.status.allHealthy')
                                 : t('overview.status.attention')}
                         </Badge>
+                        {status.failed_jobs > 0 && (
+                            <Badge variant="destructive" asChild>
+                                <Link
+                                    href="/system/failed-jobs"
+                                    data-testid="failed-jobs-badge"
+                                >
+                                    <ServerCrash />
+                                    {t('overview.status.failedJobs', {
+                                        count: status.failed_jobs,
+                                    })}
+                                </Link>
+                            </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground">
                             v{status.version}
                         </span>

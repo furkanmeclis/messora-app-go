@@ -12,6 +12,7 @@ const nav = {
     users: 'Users',
     apiKeys: 'API keys',
     audit: 'Audit log',
+    failedJobs: 'Failed jobs',
     settings: 'Settings',
     webhooks: 'Webhooks',
     profile: 'Profile',

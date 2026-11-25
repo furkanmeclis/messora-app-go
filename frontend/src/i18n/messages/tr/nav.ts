@@ -14,6 +14,7 @@ const nav: Messages['nav'] = {
     users: 'Kullanıcılar',
     apiKeys: 'API anahtarları',
     audit: 'Denetim kaydı',
+    failedJobs: 'Başarısız işler',
     settings: 'Ayarlar',
     webhooks: "Webhook'lar",
     profile: 'Profil',

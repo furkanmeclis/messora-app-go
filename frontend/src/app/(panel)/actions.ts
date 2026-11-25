@@ -220,6 +220,44 @@ export async function revokeApiKeyAction(id: string): Promise<ActionResult> {
     return res;
 }
 
+// ── Failed jobs ────────────────────────────────────────────────────────────
+
+function failedJobPath(queue: string, id: string) {
+    return `/system/failed-jobs/${encodeURIComponent(queue)}/${encodeURIComponent(id)}`;
+}
+
+export async function retryFailedJobAction(
+    queue: string,
+    id: string,
+): Promise<ActionResult> {
+    const res = await runAction(
+        () =>
+            api(`${failedJobPath(queue, id)}/retry`, { method: 'POST' }).then(
+                () => undefined,
+            ),
+        (await getT())('failedJobs.retried'),
+    );
+    revalidatePath('/system/failed-jobs');
+    revalidatePath('/');
+    return res;
+}
+
+export async function deleteFailedJobAction(
+    queue: string,
+    id: string,
+): Promise<ActionResult> {
+    const res = await runAction(
+        () =>
+            api(failedJobPath(queue, id), { method: 'DELETE' }).then(
+                () => undefined,
+            ),
+        (await getT())('failedJobs.deleted'),
+    );
+    revalidatePath('/system/failed-jobs');
+    revalidatePath('/');
+    return res;
+}
+
 // ── Settings ───────────────────────────────────────────────────────────────
 
 export async function updateSettingsAction(

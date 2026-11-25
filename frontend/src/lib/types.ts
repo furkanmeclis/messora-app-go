@@ -19,6 +19,7 @@ export type SetupStep = Schemas['SetupStep'];
 export type AuditLog = Schemas['AuditLog'];
 export type ApiKey = Schemas['ApiKey'];
 export type SystemStatus = Schemas['SystemStatus'];
+export type FailedJob = Schemas['FailedJob'];
 export type Conversation = Schemas['Conversation'];
 export type InboxMessage = Schemas['InboxMessage'];
 export type ConversationEvent = Schemas['ConversationEvent'];

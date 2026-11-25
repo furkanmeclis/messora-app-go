@@ -7,6 +7,7 @@ import {
     Megaphone,
     Phone,
     ScrollText,
+    ServerCrash,
     Settings,
     ShieldCheck,
     UserRound,
@@ -129,6 +130,15 @@ export const NAV: NavItem[] = [
         label: 'nav.audit',
         icon: ScrollText,
         permission: 'audit.read',
+        group: 'administration',
+    },
+    {
+        id: 'failed-jobs',
+        goKey: 'f',
+        href: '/system/failed-jobs',
+        label: 'nav.failedJobs',
+        icon: ServerCrash,
+        permission: 'settings.read',
         group: 'administration',
     },
     {
