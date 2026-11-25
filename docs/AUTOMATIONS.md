@@ -14,6 +14,7 @@ executed step is logged (`GET /api/v1/automations/{id}/runs`,
 | `tag_added` | a person or integration adds the tag to a contact | `tag` |
 | `message_status` | an outbound message becomes `delivered`, `read` or `failed` | `status`, optional `campaign_id` |
 | `conversation_closed` | a person or integration closes a conversation | — |
+| `subscription_request` | an inbound message matches a consent keyword (stop word, opt-out request phrase, resubscribe word; [CONSENT.md](CONSENT.md)); the consent change is already applied | optional `subscription`: `stop`, `request` or `resume` (default: any) |
 
 Every trigger accepts `cooldown_seconds`: at most one run per contact within
 that time. Contacts muted by a `mute` step start no automation until the mute

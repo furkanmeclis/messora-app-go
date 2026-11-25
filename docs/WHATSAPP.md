@@ -94,7 +94,10 @@ retries:
 |---|---|---|
 | Accepted | Meta returned a message ID | `sent`; webhooks advance it |
 | Definitely not sent | connection refused, DNS failure, `130429` throughput, `131056` pair rate, `131000`/`131016`/`133004` transient, HTTP 429 | back to `pending`, retried with backoff (up to 8 attempts) |
-| Rejected | `131047` outside 24 h window, `131026` undeliverable, `132xxx` template errors | `failed` with Meta's code |
+| Rejected | `131047` outside 24 h window, `132xxx` template errors | `failed` with Meta's code (`failure_class` `rejected_by_meta`) |
+| Rejected for this customer | `131050` stopped marketing in WhatsApp, `131026` undeliverable | `failed`; the contact is flagged (stopped marketing / undeliverable) and further sends of that kind are refused before Meta — see [CONSENT.md](CONSENT.md) |
+| Ecosystem limit | `131049` marketing withheld for this user | `deferred`, retried no earlier than 24 h later without holding a campaign window slot; `failed` (`ecosystem_limit`) after three attempts |
+| Blocked by consent | the contact opted out after the message was queued | `skipped` right before sending (`failure_class` `blocked_by_consent`, reason in `error_code`) |
 | Account problem | `0`/`190` token, `10`/`200-299` permission, `368`/`131031` restriction | `failed`; the account is flagged `error` with a readable reason (expired, invalidated, missing permission), owners and admins are e-mailed, and further sends fail fast until the connection check passes or the token is replaced |
 | **Unknown** | timeout after the request was written, connection reset, gateway 5xx without Meta's error body, worker crash mid-send | `unknown`; **never re-sent automatically** |
 
@@ -199,7 +202,8 @@ offboarding …) are kept in `whatsapp_account_events`.
 `user_preferences` (a customer chose *Stop* or *Resume* for the business's
 marketing messages in WhatsApp) is stored append-only in
 `meta_user_preferences` and raised as the internal event
-`meta.user_preference`. Meta then rejects marketing templates to that
+`meta.user_preference`, which sets the contact's "stopped marketing in
+WhatsApp" flag (Resume clears it; see [CONSENT.md](CONSENT.md)). Meta then rejects marketing templates to that
 customer with error `131050`.
 
 ## Inbox
@@ -213,8 +217,10 @@ inbound or outbound message write updates it in the same transaction
   `window_open` / `window_expires_at` (= `last_inbound_at` + 24 h) tell the
   panel whether a free-form reply is possible. The same value is what
   `messaging.Queue` checks for every non-template message, from the inbox
-  and from `POST /messages` alike. Templates are refused to opted-out
-  contacts (`422 CONTACT_OPTED_OUT`).
+  and from `POST /messages` alike. Consent is checked for every message
+  (`422 CONTACT_OPTED_OUT`, `MARKETING_STOPPED`, `CONTACT_UNDELIVERABLE`,
+  `OPT_OUT_REQUESTED`, `CONSENT_UNKNOWN`); the rules per category are in
+  [CONSENT.md](CONSENT.md).
 - **Visibility.** `conversations.read_all` (owner, admin, manager) sees
   everything. With only `conversations.read` (agent) a user sees
   conversations assigned to them or to nobody, on every endpoint: list,

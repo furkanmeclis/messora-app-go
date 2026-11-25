@@ -174,7 +174,9 @@ Inbox yanıtı, API, otomasyon ve kampanya dahil **her giden mesaj** aynı boru 
    ▲                 │                                  │
    │ retry_wait ◄────┤ kesin "gönderilmedi" (dial hatası, 429/130429, kalıcı olmayan 4xx-öncesi)
    │ (backoff)       │
-   │                 ├──kalıcı hata (131026, 132xxx, 131047…)──► failed
+   │                 ├──kalıcı hata (131026, 131050, 132xxx, 131047…)──► failed (failure_class)
+   │                 ├──131049 (ekosistem limiti)──► deferred ──next_attempt_at (≥24 sa)──► sending
+   │                 ├──izin engeli (gönderim anında)──► skipped
    │                 │
    │                 └──belirsiz (timeout, EOF, bağlantı yanıt öncesi koptu)──► unknown
    │                                                                │
@@ -194,7 +196,7 @@ Inbox yanıtı, API, otomasyon ve kampanya dahil **her giden mesaj** aynı boru 
 4. **Worker çökmesi:** Lease süresi dolmuş `sending` kayıtlarını scheduler'daki reaper **`unknown`** durumuna taşır, `queued`'ya değil. İsteğin Meta'ya gidip gitmediği bilinemez. Gerçek sonuç, 3. maddedeki callback data ile kendiliğinden uzlaşır.
 5. **Graceful shutdown:** SIGTERM gelince asynq yeni task almayı bırakır, devam eden HTTP çağrılarının bitmesi için `SHUTDOWN_TIMEOUT` (varsayılan 30 sn, Meta client timeout'u 20 sn) beklenir. Bitmeyenler asynq tarafından kuyruğa iade edilir. Bu task'ler tekrar çalıştığında 1. maddedeki claim, durumu `sending` görüp çakışmayı engeller. Lease bitince 4. madde devreye girer.
 6. **Durum webhook'ları monoton işlenir:** Sıralama `accepted(1) < sent(2) < delivered(3) < read(4)`. Güncelleme yalnızca `rank` artıyorsa yapılır. `failed`, ancak `delivered` öncesindeyse uygulanır. Her event `message_status_events` tablosuna `(message_id, status)` unique olarak yazılır. Sayaçlar yalnızca gerçek bir geçiş olduğunda artırılır. Bu, sıra dışı gelen durum güncellemelerini ve sayaç yarışlarını çözer.
-7. **Opt-out kontrolü gönderimden hemen önce bir kez daha yapılır.** Kampanya oluşturma ile gönderim arasında opt-out olan alıcı `skipped_opted_out` olur.
+7. **İzin kontrolü gönderimden hemen önce bir kez daha yapılır.** İzin kategori bazlıdır (pazarlama / servis) ve kuralları tek yerdedir (`consent.Decide`, ayrıntı [`CONSENT.md`](CONSENT.md)): kuyruğa alırken (API, gelen kutusu, otomasyon), kampanya alıcıları oluşturulurken ve Meta çağrılmadan hemen önce uygulanır. Kuyruğa alındıktan sonra izni kalkan alıcının mesajı `skipped` olur (`failure_class = blocked_by_consent`, sebep `error_code`'da). Kesin engeller (çıkış, WhatsApp'ta pazarlamayı durdurma, ulaşılamayan numara) hiçbir ayarla aşılamaz.
 8. **24h pencere:** Serbest metin ve medya mesajları (template olmayanlar) yalnızca konuşmanın `customer_window_expires_at > now()` olduğu durumda gönderilir. Aksi halde istek API'de `422 SESSION_WINDOW_CLOSED` ile reddedilir (Meta'ya hiç gitmez). Kampanyada bu alıcılar `skipped_no_session` olur.
 
 ### 6.3 Rate limiting
@@ -223,6 +225,7 @@ worker campaign:dispatch           (task id: camp:<id>:dispatch — kampanya ba�
 worker message:send  → §6
 ```
 
+- **Ertelenen mesajlar pencerede yer tutmaz:** Meta'nın 131049 ile geri çevirdiği mesaj `deferred` olur ve `next_attempt_at`'e (en az 24 saat) kadar uçuştaki sayıma girmez; dispatcher diğer alıcılarla pencereyi doldurmaya devam eder. Kampanya, ertelenen mesajlar gönderilene ya da vazgeçilene kadar `running` kalır (bu sürede dakikada bir tık).
 - **Redis şişmez:** Tüm alıcılar asla kuyruğa basılmaz. Kuyrukta en fazla `pencere` kadar (varsayılan `throughput_mps × 10`) task bulunur. 100k alıcılı kampanya Redis'te birkaç yüz küçük task'tir (payload yalnızca ID).
 - **Pause:** `running → paused`. Dispatcher durur. Claim anında kampanyası duraklatılmış olan mesaj `held` olur. **Resume:** `paused → running` + dispatch. Dispatcher önce `held` mesajları yeniden kuyruğa alır. **Cancel:** `→ cancelled`. `pending` ve `held` kayıtlar `cancelled` olur.
 - **Planlanmış kampanya:** Scheduler her dakika `UPDATE … SET status='preparing' WHERE status='scheduled' AND scheduled_at <= now() RETURNING id` çalıştırır ve outbox'a yazar.
@@ -245,7 +248,8 @@ worker webhook:process (idempotent):
         outbox(automation.evaluate, webhook.deliver, realtime.publish, media.download)   ← yan etkiler yalnızca yeni mesajda
   - durum: §6.2 madde 6 ; biz_opaque_callback_data ile unknown uzlaştırma
   - template durum güncellemesi, numara kalite güncellemesi, hesap event'leri
-  - STOP / opt-out anahtar kelimeleri → consent kaydı (yapılandırılabilir)
+  - STOP / opt-out anahtar kelimeleri → kategori bazlı izin değişikliği + consent_events + `subscription_request` tetikleyicisi (listeler firma ayarı; CONSENT.md)
+  - `user_preferences` (WhatsApp'ta pazarlamayı Durdur/Devam) → kişinin `meta_marketing_stopped_at` bayrağı
 ```
 
 - `GET /webhooks/whatsapp`: `hub.mode=subscribe` **ve** `hub.verify_token` değeri `META_VERIFY_TOKEN` ile sabit zamanlı karşılaştırmada eşleşirse `hub.challenge` döner, aksi halde 403.
