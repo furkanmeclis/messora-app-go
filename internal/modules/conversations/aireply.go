@@ -394,17 +394,20 @@ func (s *Service) summarize(ctx context.Context, t *turn, reason Reason) Summary
 
 // lockTurn locks the conversation and checks that the turn may still act:
 // the AI still owns it (or still drafts in it) and the message is not
-// handled yet. It claims the message.
-func (s *Service) lockTurn(ctx context.Context, q *db.Queries, t *turn, needAI bool) (db.Conversation, bool, error) {
+// handled yet. It claims the message. A turn that may not act clears the
+// "thinking" status it set.
+func (s *Service) lockTurn(ctx context.Context, tx pgx.Tx, q *db.Queries, t *turn, needAI bool) (db.Conversation, bool, error) {
 	c, err := q.LockConversation(ctx, t.conv.ID)
 	if err != nil {
 		return c, false, err
 	}
-	if c.AiHandledMessageID != nil && *c.AiHandledMessageID == t.msgID {
-		return c, false, nil
-	}
-	if needAI && c.OwnerType != string(OwnerAI) || !needAI && c.AiMode != string(ModeSuggest) {
-		return c, false, nil // a person took over meanwhile
+	if (c.AiHandledMessageID != nil && *c.AiHandledMessageID == t.msgID) ||
+		(needAI && c.OwnerType != string(OwnerAI)) || (!needAI && c.AiMode != string(ModeSuggest)) {
+		// Done already, or a person took over meanwhile.
+		if c.AiStatus == "thinking" {
+			_, err = s.setAIStatus(ctx, tx, q, c.ID, "idle", "")
+		}
+		return c, false, err
 	}
 	return c, true, q.SetConversationAIHandled(ctx, db.SetConversationAIHandledParams{ID: c.ID, MessageID: &t.msgID})
 }
@@ -412,7 +415,7 @@ func (s *Service) lockTurn(ctx context.Context, q *db.Queries, t *turn, needAI b
 // escalate hands the conversation of a turn to a person.
 func (s *Service) escalate(ctx context.Context, t *turn, reason Reason, detail string, sum Summary, fields map[string]*string) error {
 	return s.withTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
-		c, ok, err := s.lockTurn(ctx, q, t, true)
+		c, ok, err := s.lockTurn(ctx, tx, q, t, true)
 		if err != nil || !ok {
 			return err
 		}
@@ -539,7 +542,7 @@ func (s *Service) disclosed(ctx context.Context, q *db.Queries, c db.Conversatio
 // consent rules apply) and runs the actions the reply asked for.
 func (s *Service) send(ctx context.Context, t *turn, reply ai.Reply, usageID *uuid.UUID, d Decision) error {
 	return s.withTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
-		c, ok, err := s.lockTurn(ctx, q, t, true)
+		c, ok, err := s.lockTurn(ctx, tx, q, t, true)
 		if err != nil || !ok {
 			return err
 		}
@@ -589,7 +592,7 @@ func (s *Service) send(ctx context.Context, t *turn, reply ai.Reply, usageID *uu
 // reply waiting for approval.
 func (s *Service) draft(ctx context.Context, t *turn, kind string, reply ai.Reply, usageID *uuid.UUID, decision ...Decision) error {
 	return s.withTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
-		c, ok, err := s.lockTurn(ctx, q, t, kind == "approval")
+		c, ok, err := s.lockTurn(ctx, tx, q, t, kind == "approval")
 		if err != nil || !ok {
 			return err
 		}

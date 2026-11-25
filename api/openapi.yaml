@@ -5968,7 +5968,7 @@ components:
         id: { type: string, format: uuid }
         kind: { $ref: "#/components/schemas/ConversationActivityKind" }
         actor_type: { type: string, enum: [user, api_key, system, ai] }
-        actor_name: { type: [string, "null"], description: The user who acted; null for the AI, the system and API keys. }
+        actor_name: { type: [string, "null"], description: "The user who acted; null for the AI, the system and API keys." }
         data:
           type: object
           additionalProperties: true
