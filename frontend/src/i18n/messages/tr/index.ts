@@ -28,6 +28,7 @@ import channels from './channels';
 import templates from './templates';
 import users from './users';
 import webhooks from './webhooks';
+import ai from './ai';
 
 export const tr: Messages = {
     common,
@@ -54,6 +55,7 @@ export const tr: Messages = {
     templates,
     users,
     webhooks,
+    ai,
     auth,
     overview,
     inbox,

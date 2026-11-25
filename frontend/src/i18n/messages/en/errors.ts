@@ -66,6 +66,20 @@ const errors = {
     USER_EXISTS: 'A user with this e-mail address already exists.',
     VALIDATION_ERROR: 'Check the highlighted fields: {detail}',
     WEBHOOK_LIMIT: 'The webhook limit has been reached.',
+    AI_DISABLED:
+        'AI is turned off for the company. Turn it on in Settings → AI.',
+    AI_NOT_CONFIGURED: 'AI is not configured: {detail}',
+    AI_RATE_LIMITED:
+        'The AI provider is rate limiting requests. Try again shortly.',
+    AI_QUOTA_EXCEEDED:
+        'The AI provider account has no credit or reached its spend limit.',
+    AI_AUTH_FAILED: 'The AI provider rejected the API key.',
+    AI_PROVIDER_UNAVAILABLE:
+        'The AI provider is unavailable or overloaded. Try again shortly.',
+    AI_BAD_REQUEST: 'The AI provider rejected the request: {detail}',
+    AI_REFUSED: 'The model declined to answer.',
+    AI_INVALID_OUTPUT: 'The model’s answer did not match the expected format.',
+    AI_PROVIDER_ERROR: 'The AI provider request failed: {detail}',
     NETWORK: 'The server could not be reached. Check your connection.',
 };
 export default errors;
