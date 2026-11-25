@@ -33,6 +33,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { useT } from '@/i18n/client';
 import type { ActionResult, Contact } from '@/lib/types';
+import { CONSENT_CATEGORIES, CONSENT_STATUSES } from '@/lib/consent';
 import { createContactAction } from './actions';
 import { useSubmit } from './use-submit';
 
@@ -47,6 +48,9 @@ type Filters = {
     group_id: string;
     segment_id: string;
     opted_out: string;
+    marketing_consent: string;
+    service_consent: string;
+    reachability: string;
 };
 
 function FilterSelect({
@@ -116,7 +120,10 @@ export function ContactFilters({
         filters.tag_id ||
         filters.group_id ||
         filters.segment_id ||
-        filters.opted_out;
+        filters.opted_out ||
+        filters.marketing_consent ||
+        filters.service_consent ||
+        filters.reachability;
     return (
         <div className="flex flex-wrap items-end gap-3">
             <form
@@ -180,6 +187,35 @@ export function ContactFilters({
                 ]}
                 onChange={(opted_out) => go({ opted_out })}
             />
+            {CONSENT_CATEGORIES.map((k) => (
+                <FilterSelect
+                    key={k}
+                    id={`filter-${k}-consent`}
+                    label={t(`consent.filters.${k}`)}
+                    value={filters[`${k}_consent`]}
+                    options={CONSENT_STATUSES.map((s) => ({
+                        id: s,
+                        name: t(`consent.statuses.${s}`),
+                    }))}
+                    onChange={(v) => go({ [`${k}_consent`]: v })}
+                />
+            ))}
+            <FilterSelect
+                id="filter-reachability"
+                label={t('consent.filters.reachability')}
+                value={filters.reachability}
+                options={[
+                    {
+                        id: 'meta_marketing_stopped',
+                        name: t('consent.flags.metaStopped'),
+                    },
+                    {
+                        id: 'undeliverable',
+                        name: t('consent.flags.undeliverable'),
+                    },
+                ]}
+                onChange={(reachability) => go({ reachability })}
+            />
             {active && (
                 <Button
                     variant="ghost"
@@ -201,9 +237,6 @@ export function ExportMenu({ query }: { query: string }) {
     const t = useT();
     const href = (format: 'csv' | 'xlsx') => {
         const sp = new URLSearchParams(query);
-        // The export has no consent filter; it always includes everyone
-        // matching the other filters.
-        sp.delete('opted_out');
         sp.set('format', format);
         return `/bff/contacts/export?${sp}`;
     };

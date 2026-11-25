@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
 import {
     Bell,
@@ -144,6 +145,7 @@ export function Topbar({
 }) {
     const t = useT();
     const pathname = usePathname();
+    const router = useRouter();
     const state = useRealtimeState();
     const { resolvedTheme, setTheme } = useTheme();
     const [palette, setPalette] = useState(false);
@@ -181,6 +183,27 @@ export function Topbar({
     }, []);
 
     useRealtimeEvents((_channel, e) => {
+        if (
+            e.type === 'notification.created' &&
+            e.kind === 'consent.opt_out_requested' &&
+            !e.synced
+        ) {
+            const conversation =
+                typeof e.conversation_id === 'string' ? e.conversation_id : '';
+            toast.warning(t('consent.notification.optOutRequested'), {
+                id: `consent-${String(e.contact_id ?? conversation)}`,
+                action: conversation
+                    ? {
+                          label: t('consent.notification.open'),
+                          onClick: () =>
+                              router.push(
+                                  `/inbox?status=all&c=${conversation}`,
+                              ),
+                      }
+                    : undefined,
+            });
+            return;
+        }
         if (e.type === 'conversation.updated') {
             const id = String(e.conversation_id);
             // A conversation reassigned to someone else is announced once

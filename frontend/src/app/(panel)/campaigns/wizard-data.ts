@@ -22,6 +22,8 @@ export type WizardData = {
     timezone: string;
     canStart: boolean;
     canEstimate: boolean;
+    /** May open Settings › Subscription & consent (settings.read). */
+    canConsentSettings: boolean;
     /** Custom attribute keys for {{attr:key}} mapping. */
     attributeKeys: string[];
     /** A contact whose values the preview shows. */
@@ -58,6 +60,7 @@ export async function loadWizardData(me: Me): Promise<WizardData> {
         timezone: me.user.timezone || 'UTC',
         canStart: can(me, 'campaigns.start'),
         canEstimate: can(me, 'segments.read'),
+        canConsentSettings: can(me, 'settings.read'),
         attributeKeys: attributeKeys ?? [],
         sample: sample?.[0] ?? null,
     };

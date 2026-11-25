@@ -5,6 +5,9 @@ import type { CampaignStatus } from '@/lib/types';
 import { NUMBER_LOCALE } from '@/lib/format';
 import { CAMPAIGN_STATUS_ICON, FallbackStatusIcon } from '@/lib/status-icons';
 import { cn } from '@/lib/utils';
+import { summarize, type Counts } from '@/lib/campaign-counts';
+import { isConsentReason } from '@/lib/consent';
+import type { Schemas } from '@/lib/types';
 
 export const CAMPAIGN_STATUSES: CampaignStatus[] = [
     'draft',
@@ -64,50 +67,7 @@ export function CampaignStatusBadge({ status }: { status: string }) {
     );
 }
 
-export type Counts = Record<string, number>;
-
-/** Aggregates the API's counters (recipients_* and message statuses). */
-export function summarize(counts: Counts, total: number) {
-    const n = (k: string) => counts[k] ?? 0;
-    const recipients = Math.max(n('recipients'), total);
-    const skipped = n('recipients_skipped');
-    const cancelled = n('recipients_cancelled') + n('cancelled');
-    const delivered = n('delivered');
-    const read = n('read');
-    const sent = n('sent');
-    const failed = n('failed');
-    const unknown = n('unknown');
-    const held = n('held');
-    const inFlight = n('pending') + n('sending');
-    const waiting = n('recipients_pending');
-    const done =
-        skipped +
-        n('recipients_cancelled') +
-        sent +
-        delivered +
-        read +
-        failed +
-        unknown +
-        n('cancelled');
-    return {
-        recipients,
-        skipped,
-        cancelled,
-        sent,
-        delivered,
-        read,
-        failed,
-        unknown,
-        held,
-        inFlight,
-        waiting,
-        done: Math.min(done, recipients),
-        percent:
-            recipients > 0
-                ? Math.min(100, Math.round((done / recipients) * 100))
-                : 0,
-    };
-}
+export { summarize, type Counts } from '@/lib/campaign-counts';
 
 const SEGMENTS = [
     { key: 'read', className: 'bg-emerald-600' },
@@ -209,4 +169,31 @@ export function audienceLabel(
             name: names[a.tag_id] ?? t('campaigns.audience.someTag'),
         });
     return '—';
+}
+
+/** A recipient's skip reason (consent reasons are translated). */
+export function skipReasonLabel(t: Translate, reason: string): string {
+    return isConsentReason(reason)
+        ? t(`consent.reasons.${reason}`)
+        : reason.replaceAll('_', ' ');
+}
+
+const FAILURE_CLASSES = [
+    'rejected_by_meta',
+    'temporary',
+    'permanent',
+    'user_stopped_marketing',
+    'undeliverable',
+    'ecosystem_limit',
+    'blocked_by_consent',
+    'cancelled',
+] as const;
+
+/** Why a message ended failed, skipped or cancelled. */
+export function failureClassLabel(
+    t: Translate,
+    c: NonNullable<Schemas['FailureClass']> | string,
+): string {
+    const known = FAILURE_CLASSES.find((x) => x === c);
+    return known ? t(`consent.failureClasses.${known}`) : c;
 }

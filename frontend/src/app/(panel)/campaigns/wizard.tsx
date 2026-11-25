@@ -71,11 +71,14 @@ import { formatInZone, utcToZoned, zonedToUtc } from '@/lib/timezone';
 import type { ActionResult, Campaign, Template } from '@/lib/types';
 import {
     audienceEstimateAction,
+    preflightAction,
     saveCampaignAction,
     startCampaignAction,
     type CampaignInput,
+    type Preflight,
 } from './actions';
 import { audienceLabel } from './campaign-ui';
+import { PreflightPanel } from './preflight';
 import type { WizardData } from './wizard-data';
 import { NUMBER_LOCALE } from '@/lib/format';
 
@@ -216,6 +219,9 @@ export function CampaignWizard({
     const [estimates, setEstimates] = useState<Record<string, number | null>>(
         {},
     );
+    const [preflights, setPreflights] = useState<
+        Record<string, ActionResult<Preflight>>
+    >({});
     const headingRef = useRef<HTMLHeadingElement>(null);
 
     const set = <K extends keyof State>(k: K, v: State[K]) =>
@@ -290,6 +296,46 @@ export function CampaignWizard({
         estimates,
         data.canEstimate,
     ]);
+
+    // The consent check runs on the review step for the chosen sender,
+    // template and audience (cached per combination).
+    const audienceChosen = s.audienceKind === 'all' || !!s.audienceId;
+    const preflightKey =
+        template && audienceChosen
+            ? `${audienceKey}|${sender?.id ?? s.phoneNumberId}|${templateKey(template)}`
+            : null;
+    const preflight = preflightKey ? preflights[preflightKey] : undefined;
+    useEffect(() => {
+        if (step !== 4 || !preflightKey || !template) return;
+        if (preflightKey in preflights) return;
+        let cancelled = false;
+        preflightAction({
+            audience:
+                s.audienceKind === 'all'
+                    ? { all: true }
+                    : { [`${s.audienceKind}_id`]: s.audienceId },
+            ...((sender?.id ?? s.phoneNumberId)
+                ? { phone_number_id: sender?.id ?? s.phoneNumberId }
+                : {}),
+            template_name: template.name,
+            template_language: template.language,
+        }).then((r) => {
+            if (!cancelled) setPreflights((p) => ({ ...p, [preflightKey]: r }));
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        step,
+        preflightKey,
+        preflights,
+        template,
+        sender,
+        s.audienceKind,
+        s.audienceId,
+        s.phoneNumberId,
+    ]);
+    const eligible = preflight?.ok ? preflight.data.eligible : undefined;
 
     // ── Validation ──────────────────────────────────────────────────────
     function validateStep(i: number): Record<string, string> {
@@ -974,6 +1020,13 @@ export function CampaignWizard({
                                 </dd>
                             </dl>
 
+                            {preflightKey && (
+                                <PreflightPanel
+                                    result={preflight}
+                                    canManageSettings={data.canConsentSettings}
+                                />
+                            )}
+
                             <details className="rounded-lg border p-3">
                                 <summary className="cursor-pointer text-sm font-medium">
                                     {t('campaigns.wizard.advanced')}
@@ -1157,16 +1210,22 @@ export function CampaignWizard({
                             {t('campaigns.wizard.confirmTitle')}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            {typeof estimate === 'number'
-                                ? t('campaigns.wizard.confirmAbout', {
-                                      count: estimate.toLocaleString(
-                                          NUMBER_LOCALE,
-                                      ),
+                            {typeof eligible === 'number'
+                                ? t('consent.preflight.confirmEligible', {
+                                      count: eligible,
+                                      n: eligible.toLocaleString(NUMBER_LOCALE),
                                       template: template?.name ?? '',
                                   })
-                                : t('campaigns.wizard.confirmContacts', {
-                                      template: template?.name ?? '',
-                                  })}
+                                : typeof estimate === 'number'
+                                  ? t('campaigns.wizard.confirmAbout', {
+                                        count: estimate.toLocaleString(
+                                            NUMBER_LOCALE,
+                                        ),
+                                        template: template?.name ?? '',
+                                    })
+                                  : t('campaigns.wizard.confirmContacts', {
+                                        template: template?.name ?? '',
+                                    })}
                             {t('campaigns.wizard.confirmTail')}
                         </AlertDialogDescription>
                     </AlertDialogHeader>

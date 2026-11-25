@@ -14,6 +14,7 @@ import {
     AlertCircle,
     ArrowDown,
     ArrowLeft,
+    Ban,
     Check,
     CheckCheck,
     Clock,
@@ -24,6 +25,7 @@ import {
     LayoutTemplate,
     MessageSquare,
     Paperclip,
+    PauseCircle,
     Search,
     Send,
     X,
@@ -83,6 +85,7 @@ import {
     type SampleContact,
 } from '@/lib/templates';
 import { cn } from '@/lib/utils';
+import { isConsentReason } from '@/lib/consent';
 import type { Conversation, InboxMessage, Template } from '@/lib/types';
 import type { ThreadData } from './page';
 import {
@@ -509,6 +512,14 @@ function Ticks({ status }: { status: InboxMessage['status'] }) {
             <CheckCheck className="size-3.5 text-sky-500" />
         ) : status === 'failed' ? (
             <AlertCircle className="size-3.5 text-destructive" />
+        ) : status === 'deferred' ? (
+            <Clock className="size-3.5 text-amber-600" />
+        ) : status === 'held' ? (
+            <PauseCircle className="size-3.5" />
+        ) : status === 'skipped' ? (
+            <Ban className="size-3.5 text-destructive" />
+        ) : status === 'cancelled' ? (
+            <Ban className="size-3.5" />
         ) : (
             <HelpCircle className="size-3.5" />
         );
@@ -577,6 +588,7 @@ function Bubble({
     conversationId: string;
     m: InboxMessage;
 }) {
+    const t = useT();
     const prefs = useDisplayPrefs();
     const formatDateTime = useFormatDateTime();
     const out = m.direction === 'outbound';
@@ -594,7 +606,8 @@ function Bubble({
                     out
                         ? 'rounded-tr-none bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]'
                         : 'rounded-tl-none bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]',
-                    m.status === 'failed' && 'ring-1 ring-destructive/60',
+                    (m.status === 'failed' || m.status === 'skipped') &&
+                        'ring-1 ring-destructive/60',
                 )}
             >
                 <MediaView conversationId={conversationId} m={m} />
@@ -603,6 +616,17 @@ function Bubble({
                 )}
                 {!m.body && !m.media && (
                     <p className="italic opacity-80">[{m.type}]</p>
+                )}
+                {m.status === 'skipped' && (
+                    <p
+                        className="flex items-start gap-1 text-xs text-destructive"
+                        data-testid="message-skipped"
+                    >
+                        <Ban className="mt-0.5 size-3 shrink-0" />
+                        {isConsentReason(m.error_code)
+                            ? t(`consent.reasons.${m.error_code}`)
+                            : t('inbox.status.skipped')}
+                    </p>
                 )}
                 {m.status === 'failed' && m.error_title && (
                     <p className="flex items-start gap-1 text-xs text-destructive">

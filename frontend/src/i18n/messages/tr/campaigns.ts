@@ -35,6 +35,7 @@ const campaigns: Messages['campaigns'] = {
         failed: 'Başarısız',
         unknown: 'Belirsiz',
         held: 'Bekletiliyor',
+        deferred: 'Ertelendi (Meta)',
         cancelled: 'İptal edildi',
     },
     progressValue: '%{percent} işlendi ({total} alıcının {done} tanesi)',
@@ -107,11 +108,13 @@ const campaigns: Messages['campaigns'] = {
             'Meta’ya gönderildi ancak yanıt kayboldu (zaman aşımı veya kopan bağlantı); bu yüzden Meta’nın mesajı kabul edip etmediği bilinmiyor. Messora bu mesajları asla otomatik olarak yeniden göndermez; Meta’nın durum webhook’u onları gönderildi, iletildi veya okundu olarak günceller.',
         heldHelp:
             'Kampanya duraklatılmışken sıraya alındı; devam ettirildiğinde gönderilir.',
+        deferredHelp:
+            'Meta, müşteri deneyimini korumak için bu mesajları bekletti (131049 hatası). Yaklaşık bir gün sonra yeniden denenirler; bu sırada gönderim penceresinde yer kaplamazlar.',
         window: 'Aynı anda gönderimde: {size} mesaj · oluşturulma {date}',
         automatic: 'otomatik',
         recipients: 'Alıcılar',
         recipientsHint:
-            'Her kişiye bir kez gönderilir; izni olmayan ve yinelenen numaralar atlanır.',
+            'Her kişiye bir kez gönderilir; izni elvermeyen kişiler ve yinelenen numaralar atlanır.',
         eventLog: 'Olay günlüğü',
         whatDoesMean: '“{label}” ne anlama geliyor?',
         keepAsIs: 'Vazgeç',
@@ -169,6 +172,8 @@ const campaigns: Messages['campaigns'] = {
             unknown: 'belirsiz',
             held: 'bekletiliyor',
             cancelled: 'iptal edildi',
+            deferred: 'ertelendi (Meta)',
+            skipped: 'gönderilmedi',
         },
         skipped: 'Atlandı',
         skippedReason: 'Atlandı: {reason}',

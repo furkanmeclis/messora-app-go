@@ -135,11 +135,63 @@ test('the contact is edited, tagged, noted and opted out', async () => {
         page.getByText('Prefers messages in the morning'),
     ).toBeVisible();
 
-    await page.getByLabel(/^Note/).fill('Asked by phone');
-    await page.getByRole('button', { name: 'Record opt-out' }).click();
-    await expect(page.getByTestId('consent-state')).toContainText('Opted out');
-    await page.getByRole('button', { name: 'Record opt-in' }).click();
-    await expect(page.getByTestId('consent-state')).toContainText('Subscribed');
+    // Consent is kept per category and changed by hand with a reason.
+    const changeConsent = async (
+        category: 'Marketing' | 'Service' | 'Both',
+        status: string,
+        reason?: string,
+    ) => {
+        await page.getByRole('button', { name: 'Change consent' }).click();
+        const dialog = page.getByRole('dialog');
+        await dialog.getByRole('combobox', { name: 'Category' }).click();
+        await page.getByRole('option', { name: category, exact: true }).click();
+        await dialog.getByRole('combobox', { name: 'New status' }).click();
+        await page.getByRole('option', { name: status, exact: true }).click();
+        if (reason) await dialog.getByLabel(/^Reason/).fill(reason);
+        await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(dialog).toHaveCount(0);
+    };
+    await changeConsent('Marketing', 'Opted out', 'Asked by phone');
+    await expect(page.getByTestId('consent-marketing')).toHaveAttribute(
+        'data-status',
+        'opted_out',
+    );
+    await expect(page.getByTestId('consent-marketing')).toContainText(
+        'Marketing: Opted out',
+    );
+    await expect(page.getByTestId('consent-service')).not.toHaveAttribute(
+        'data-status',
+        'opted_out',
+    );
+    await expect(
+        page.getByTestId('consent-event').filter({ hasText: 'Asked by phone' }),
+    ).toContainText('Opted out');
+
+    await changeConsent('Both', 'Opted in');
+    await expect(page.getByTestId('consent-marketing')).toHaveAttribute(
+        'data-status',
+        'opted_in',
+    );
+    await expect(page.getByTestId('consent-service')).toHaveAttribute(
+        'data-status',
+        'opted_in',
+    );
+});
+
+test('contacts are listed and filtered by consent', async () => {
+    const q = encodeURIComponent(PHONE(1));
+    await page.goto(`/contacts?q=${q}&marketing_consent=opted_in`);
+    const row = page.getByTestId('contact-row');
+    await expect(row).toHaveCount(1);
+    await expect(row.getByTestId('consent-marketing')).toHaveAttribute(
+        'data-status',
+        'opted_in',
+    );
+    await expect(page.getByLabel('Marketing consent')).toContainText(
+        'Opted in',
+    );
+    await page.goto(`/contacts?q=${q}&marketing_consent=opted_out`);
+    await expect(page.getByText('No matching contacts')).toBeVisible();
 });
 
 test('a CSV file is imported through the wizard', async () => {

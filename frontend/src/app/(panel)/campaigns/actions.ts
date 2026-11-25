@@ -159,6 +159,32 @@ export async function loadRecipientsAction(
     });
 }
 
+export type Preflight = Schemas['CampaignPreflight'];
+
+/**
+ * Who in the audience may receive the template under the consent rules
+ * (POST /campaigns/preflight): totals and blocked or warned counts by
+ * reason.
+ */
+export async function preflightAction(
+    input: Schemas['CampaignPreflightRequest'],
+): Promise<ActionResult<Preflight>> {
+    if (input.phone_number_id) check(input.phone_number_id);
+    for (const k of ['segment_id', 'group_id', 'tag_id'] as const) {
+        const v = input.audience[k];
+        if (v) check(v);
+    }
+    return runAction(
+        async () =>
+            (
+                await api<Preflight>('/campaigns/preflight', {
+                    method: 'POST',
+                    body: input,
+                })
+            ).data,
+    );
+}
+
 /**
  * Roughly how many contacts an audience reaches now. Opted-out contacts are
  * left out for "all contacts" because the campaign skips them anyway.

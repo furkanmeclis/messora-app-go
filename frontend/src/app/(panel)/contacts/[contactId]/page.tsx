@@ -18,12 +18,14 @@ import type {
     ContactGroup,
     Conversation,
     Note,
+    Schemas,
     Tag,
 } from '@/lib/types';
 import { PageHeading } from '../../panel-header';
 import { contactName, UUID_RE as UUID } from '../shared';
 import {
     ConsentCard,
+    ConsentHistoryCard,
     ContactForm,
     ContactFacts,
     DeleteContactButton,
@@ -88,12 +90,18 @@ export default async function ContactPage({
     }
     const canInbox =
         can(me, 'conversations.read') || can(me, 'conversations.read_all');
-    const [notes, tags, groups, conversation] = await Promise.all([
-        api<Note[]>(`/contacts/${contact.id}/notes`).then((r) => r.data),
-        api<Tag[]>('/tags').then((r) => r.data),
-        api<ContactGroup[]>('/groups').then((r) => r.data),
-        canInbox ? findConversation(contact) : Promise.resolve(undefined),
-    ]);
+    const [notes, tags, groups, conversation, consentEvents] =
+        await Promise.all([
+            api<Note[]>(`/contacts/${contact.id}/notes`).then((r) => r.data),
+            api<Tag[]>('/tags').then((r) => r.data),
+            api<ContactGroup[]>('/groups').then((r) => r.data),
+            canInbox ? findConversation(contact) : Promise.resolve(undefined),
+            api<Schemas['ConsentEvent'][]>(
+                `/contacts/${contact.id}/consent-events`,
+            )
+                .then((r) => r.data)
+                .catch(() => null),
+        ]);
     const canUpdate = can(me, 'contacts.update');
 
     return (
@@ -139,7 +147,12 @@ export default async function ContactPage({
                 />
                 <div className="space-y-6">
                     <ContactFacts contact={contact} />
-                    <ConsentCard contact={contact} canUpdate={canUpdate} />
+                    <ConsentCard
+                        key={contact.updated_at}
+                        contact={contact}
+                        canUpdate={canUpdate}
+                    />
+                    <ConsentHistoryCard events={consentEvents} />
                     <NotesCard
                         contactId={contact.id}
                         notes={notes}

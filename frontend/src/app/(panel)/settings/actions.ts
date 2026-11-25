@@ -103,3 +103,22 @@ export async function testSmtpAction(
         t('settings.email.testSent', { to }),
     );
 }
+
+/** Replaces the consent settings (policy, keywords, confirmations). */
+export async function saveConsentSettingsAction(
+    input: Schemas['ConsentSettings'],
+): Promise<ActionResult<Schemas['ConsentSettings']>> {
+    const t = await getT();
+    const res = await runAction(
+        async () =>
+            (
+                await api<Schemas['ConsentSettings']>('/settings/consent', {
+                    method: 'PUT',
+                    body: input,
+                })
+            ).data,
+        t('consent.settings.saved'),
+    );
+    if (res.ok) revalidatePath('/settings/consent');
+    return res;
+}

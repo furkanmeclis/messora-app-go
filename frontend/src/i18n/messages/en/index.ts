@@ -28,6 +28,7 @@ import channels from './channels';
 import templates from './templates';
 import users from './users';
 import webhooks from './webhooks';
+import consent from './consent';
 
 /**
  * The English dictionary defines the shape every language must match.
@@ -58,6 +59,7 @@ export const en = {
     templates,
     users,
     webhooks,
+    consent,
     auth,
     overview,
     inbox,

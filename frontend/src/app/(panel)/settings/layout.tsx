@@ -32,6 +32,11 @@ export default async function SettingsLayout({
             icon: 'email',
         },
         has('settings.read') && {
+            href: '/settings/consent',
+            label: t('consent.settings.tab'),
+            icon: 'consent',
+        },
+        has('settings.read') && {
             href: '/settings/security',
             label: t('settings.tabs.security'),
             icon: 'security',

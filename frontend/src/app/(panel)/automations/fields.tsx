@@ -36,6 +36,7 @@ import {
     type TemplateVars,
     templateVariables,
     TRIGGER_TYPES,
+    SUBSCRIPTION_KINDS,
     type TriggerForm,
 } from './model';
 import { TemplateParamsEditor } from '@/components/template-params';
@@ -923,6 +924,25 @@ export function TriggerFields({
                         hint={t('automations.trigger.campaignHint')}
                     />
                 </>
+            )}
+            {type === 'subscription_request' && (
+                <SelectField
+                    id="trigger-subscription"
+                    label={t('automations.trigger.subscription')}
+                    value={trigger.subscription || 'any'}
+                    disabled={readOnly}
+                    onChange={(v) =>
+                        onChange({ subscription: v === 'any' ? '' : v })
+                    }
+                    options={(['any', ...SUBSCRIPTION_KINDS] as const).map(
+                        (k) => ({
+                            value: k,
+                            label: t(mk(`automations.subscription.${k}`)),
+                        }),
+                    )}
+                    error={tErr('subscription')}
+                    hint={t('automations.trigger.subscriptionHint')}
+                />
             )}
             <DurationInput
                 id="trigger-cooldown"
