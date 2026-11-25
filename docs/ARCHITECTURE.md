@@ -286,7 +286,7 @@ worker webhook:process (idempotent):
 | `campaign:materialize`, `campaign:dispatch` | `campaigns` | 10 | Kaldığı yerden devam eder (cursor); `campaign_reaper` boşta kalan kampanyayı yeniden tetikler. |
 | `webhook:fanout`, `webhook:deliver` | `default` | 10 | Teslim denemeleri ve backoff `webhook_deliveries` tablosundadır; bu bütçe yalnızca kayıt yazılamadığında harcanır. |
 | `contacts:import` | `bulk` | 3 | |
-| Zamanlanmış işler (`maintenance:*`, `campaign:start_due`, `campaign:reaper`, `automation:reaper`, `webhook:cleanup`, `channels:token_check`, `license:check_in`) | `default` | 2 | Bir sonraki dilimde zaten yeniden çalışır. |
+| Zamanlanmış işler (`maintenance:*`, `campaign:start_due`, `campaign:reaper`, `offers:tick`, `automation:reaper`, `webhook:cleanup`, `channels:token_check`, `license:check_in`) | `default` | 2 | Bir sonraki dilimde zaten yeniden çalışır. |
 
 - **Ölü mektup (dead letter):** Bütçesi biten veya `SkipRetry` dönen task asynq "archived" kümesine geçer (asynq kuyruk başına en fazla 10.000 kaydı 90 gün tutar). Panelde **Sistem → Başarısız işler** (`GET /system/failed-jobs`, `settings.read`) bu kayıtları en yeniden eskiye listeler: tip, kuyruk, son hata (kimlik bilgileri maskelenir), başarısızlık zamanı, deneme sayısı ve payload'dan yalnızca `_id` ile biten alanlar. Payload'ın kendisi asla döndürülmez. `POST /system/failed-jobs/{queue}/{id}/retry` task'i tekrar kuyruğa alır (bütçesi bittiği için yeniden başarısız olursa hemen arşive döner), `DELETE …/{queue}/{id}` siler. İkisi `settings.update` ister ve audit log'a yazılır (`failed_job.retry`, `failed_job.delete`). Toplam sayı `/system/status` yanıtındaki `failed_jobs` alanında ve genel bakış sayfasında uyarı olarak görünür. Mesajlar için asıl kayıt yine DB'deki `failed` durumudur.
 - **Asynq notu:** v0.26 (1.0 öncesi). Sürüm `go.mod`'da sabit, asynq'e özgü kod `internal/platform/queue` arkasında. Böylece gerekirse değiştirilebilir. Asynq Redis'te `noeviction` gerektirir.
@@ -301,6 +301,7 @@ worker webhook:process (idempotent):
 |---|---|---|
 | Vadesi gelmiş planlı kampanyaları başlat | `campaign:start_due` | 1 dk |
 | Kampanya/gönderim reaper'ı: `sending`'de kalan mesajlar `unknown` olur, kuyruğu kaybolmuş `pending` mesajlar yeniden kuyruğa alınır, boşta kalan kampanya dispatcher'ı yeniden tetiklenir | `campaign:reaper` | 1 dk |
+| Süreli teklifler: `scheduled` → `active` → `expired`; biten teklifin kampanyaları `offer_expired` ile duraklar, `offer.updated` yayınlanır | `offers:tick` | 1 dk |
 | Otomasyon reaper'ı: süresi dolan beklemeler ve takılan koşular | `automation:reaper` | 1 dk |
 | Yayınlanmış outbox kayıtlarının temizliği (7 gün) | `maintenance:outbox_cleanup` | 1 sa |
 | Süresi dolmuş oturum ve idempotency anahtarı temizliği | `maintenance:identity_cleanup` | 1 sa |

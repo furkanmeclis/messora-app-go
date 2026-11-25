@@ -293,12 +293,81 @@ Campaigns, inbox replies and automation steps fill a template the same way
 | `buttons` | the dynamic end of URL buttons, by button position (`["", "summer-sale"]` fills button 2) |
 | `fallback` | a value for a placeholder that is empty for a contact; without it the contact is skipped |
 | `header_media` | the image, video or document of a media header: an uploaded media `id` (kept 30 days by Meta) or a public `https` `link` |
+| `location` | a location header: `latitude`, `longitude` (decimal degrees, sent as strings like Meta's examples), optional `name` and `address` (placeholders allowed) |
+| `coupon_code` | the code of the copy code button (15 characters in limited-time offers) |
+| `expiration_time_ms` | when a limited-time offer ends (Unix milliseconds); WhatsApp counts down to it |
+| `cards` | carousel cards in order: each `header_media`, `body` and `buttons` (URL suffix, or a quick reply's payload, by button position) |
+| `otp_code` | the code of an authentication template; Meta's body and the OTP button both take it |
+| `flow` | a Flow button: `flow_token` (Meta's default `unused`) and `flow_action_data` for the first screen |
 
 Before a campaign starts (and before an inbox reply or automation step is
 sent) the values are checked against the template: a missing header image,
-variable or URL button suffix is reported instead of failing at Meta for
-every recipient. Templates with a location header cannot be sent yet.
+location, variable, URL button suffix, coupon, offer end or card is reported
+instead of failing at Meta for every recipient.
+
+The send payload follows Meta's examples: components in the order header,
+body, `limited_time_offer`, buttons by index, `carousel`. Button `index` is
+the button's position in the template, so in a limited-time offer with a
+copy code button the URL button is index 1 (Meta: "if the template uses a
+copy code button, value must be 1"). Messora sends indexes as strings; Meta's
+own examples use both (carousel: strings, LTO: numbers).
 
 Creating a media-header template needs an example file for Meta's review:
 the panel uploads it with `POST /api/v1/templates/samples` (Meta's Resumable
 Upload API, which needs the account's App ID).
+
+## Template components
+
+`POST /api/v1/templates` checks the components against the limits Meta
+documents before anything is submitted
+(`internal/modules/channels/components.go`); a violation is a
+`VALIDATION_ERROR` whose `field` names the component, e.g.
+`components.2.buttons.1.text`. The panel's builder (`/templates/new`)
+checks the same limits as you type.
+
+| Component | Rules |
+|---|---|
+| Header | `TEXT` (60 characters, one variable with a sample), `IMAGE` / `VIDEO` / `DOCUMENT` (sample `header_handle` from `POST /templates/samples`), `LOCATION` (utility and marketing only; the place is given when sending). `GIF` is refused (Marketing Messages API only). |
+| Body | required; 1024 characters (600 in limited-time offers); `{{1}}, {{2}}…` without gaps or named `{{first_name}}` matching `parameter_format`; a sample for every variable |
+| Footer | 60 characters, no variables; not in limited-time offers or carousels |
+| Buttons | at most 10: quick reply ≤ 10 (kept in one block, before or after the others), URL ≤ 2 (one variable, at the end, with a sample), phone number ≤ 1 (20 characters), copy code ≤ 1 (sample ≤ 20), `VOICE_CALL` (label ≤ 20, `ttl_minutes` 1440–43200), `FLOW` (exactly one of `flow_id`, `flow_name`, `flow_json`; `flow_action` `navigate` or `data_exchange`). Labels ≤ 25 characters. |
+| Catalog | `MPM`, `SPM`, `CATALOG` buttons are refused: they need a connected product catalog, which Messora does not manage |
+| Carousel | marketing only; a body and 2–10 cards and nothing else; every card has an image or video header (all the same), an optional body (≤ 160, on all cards or none) and up to two quick reply / URL / phone buttons in the same order on every card |
+| Limited-time offer | marketing only; no footer; header optional, image or video; `limited_time_offer.text` ≤ 16; buttons: an optional copy code (sample ≤ 15) and exactly one URL button. The end is not part of the template: each message carries `expiration_time_ms`. WhatsApp web and desktop show that the offer is not supported. |
+| Authentication | Meta writes the body ("<code> is your verification code.") and footer: `BODY` takes only `add_security_recommendation`, `FOOTER` only `code_expiration_minutes` (1–90); exactly one `OTP` button: `COPY_CODE`, `ONE_TAP` or `ZERO_TAP` (the last two need 1–5 `supported_apps` with `package_name` and an 11-character `signature_hash`; zero-tap needs `zero_tap_terms_accepted: true`). Meta stores the OTP button as a URL button, which is how Messora recognises it after a sync. |
+
+Not verified against a live account (taken from Meta's reference pages):
+the maximum of one `VOICE_CALL` and one `FLOW` button per template (Meta
+names none; Messora allows one each), and whether utility templates may
+carry a copy code button.
+
+## Offers
+
+An offer (`/api/v1/offers`, permissions `templates.read` / `templates.manage`;
+panel: Templates → Offers) is what a campaign promotes: title, description,
+discount, product, start and end, image (`image_url` https and/or
+`image_media_id`), offer page, coupon and the template it is meant for.
+
+    draft ─publish (status scheduled)→ scheduled ─starts_at→ active ─ends_at→ expired
+
+The scheduler's `offers:tick` (every minute) moves published offers by the
+clock and publishes `offer.updated` on `campaign:all`. Ending an offer by
+hand (`PATCH … {"status":"expired"}`) is audited; expired offers are final.
+
+A campaign links one with `offer_id`:
+
+- **Limited-time offer template:** `expiration_time_ms` is always the
+  offer's `ends_at`; the copy code button takes the offer's coupon unless
+  the campaign set one; an empty image header takes the offer's image.
+- **Normal marketing template** (e.g. an image header and body variables):
+  the image fills an empty image header, and the placeholders
+  `{{offer_title}}`, `{{offer_discount}}`, `{{offer_coupon}}`,
+  `{{offer_ends}}` (UTC, `2006-01-02 15:04 UTC`), `{{offer_url}}`,
+  `{{offer_product}}` and `{{offer_description}}` can be used in any value.
+  Only limited-time offer templates show WhatsApp's countdown.
+- Creating or editing a campaign with an ended offer is refused (422);
+  starting or resuming one is refused with `409 OFFER_EXPIRED`.
+- When the offer ends mid-campaign the dispatcher (or the tick) pauses the
+  campaign with the event detail `{"reason": "offer_expired", …}`; the
+  remaining recipients wait. A scheduled campaign whose offer ended pauses
+  the same way when it starts.
