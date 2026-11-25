@@ -26,4 +26,7 @@ regexes = [
   '''msl1\.forged\.key''',
   # Made-up Meta tokens of the token lifecycle test.
   '''EAAG-[a-z0-9-]+-0123456789''',
+  # Made-up AI provider keys of the AI module tests.
+  '''sk-test-0123456789abcdef''',
+  '''sk-proj-AbCdEf0123456789xyz''',
 ]
