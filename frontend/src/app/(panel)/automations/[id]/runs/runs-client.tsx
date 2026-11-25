@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ClientDataTable } from '@/components/client-data-table';
 import { useEffect, useState, useTransition } from 'react';
 import { AlertCircle, History, Workflow } from 'lucide-react';
 import { notify } from '@/components/notify';
@@ -23,14 +25,6 @@ import {
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import {
     useFormatPrecise,
     useFormatDateTime,
@@ -104,6 +98,7 @@ export function RunList({
 }) {
     const t = useT();
     const formatDateTime = useFormatDateTime();
+    const router = useRouter();
     const [more, setMore] = useState<AutomationRun[]>([]);
     const [cursor, setCursor] = useState<string | undefined>(undefined);
     const [loaded, setLoaded] = useState(false);
@@ -116,7 +111,7 @@ export function RunList({
 
     if (runs.length === 0) {
         return (
-            <Empty className="py-12">
+            <Empty className="border py-12">
                 <EmptyHeader>
                     <EmptyMedia variant="icon">
                         <History />
@@ -130,37 +125,34 @@ export function RunList({
         );
     }
 
+    const canvasHref = (r: AutomationRun) =>
+        `/automations/${automationId}/runs/${r.id}`;
+
     return (
-        <div>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>
-                            {t('automations.runs.columns.status')}
-                        </TableHead>
-                        <TableHead>
-                            {t('automations.runs.columns.contact')}
-                        </TableHead>
-                        <TableHead>
-                            {t('automations.runs.columns.started')}
-                        </TableHead>
-                        <TableHead>
-                            {t('automations.runs.columns.finished')}
-                        </TableHead>
-                        <TableHead>
-                            {t('automations.runs.columns.error')}
-                        </TableHead>
-                        <TableHead>
-                            <span className="sr-only">
-                                {t('automations.runs.details')}
-                            </span>
-                        </TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {runs.map((r) => (
-                        <TableRow key={r.id} data-testid="run-row">
-                            <TableCell>
+        <div className="space-y-3">
+            <ClientDataTable
+                rows={runs}
+                rowId={(r) => r.id}
+                storageKey="automation-runs"
+                rowTestId="run-row"
+                searchText={(r) =>
+                    `${r.phone ?? ''} ${r.error ?? ''} ${t(
+                        mk(`automations.runs.status.${r.status}`),
+                    )}`
+                }
+                searchPlaceholder={t('table.search')}
+                noMatch={
+                    <p className="p-8 text-center text-sm text-muted-foreground">
+                        {t('table.noMatch')}
+                    </p>
+                }
+                columns={[
+                    {
+                        id: 'status',
+                        header: t('automations.runs.columns.status'),
+                        sortValue: (r) => r.status,
+                        cell: (r) => (
+                            <>
                                 <StatusBadge status={r.status} />
                                 {r.status === 'waiting' && r.resume_at && (
                                     <div className="mt-1 text-xs text-muted-foreground">
@@ -169,8 +161,15 @@ export function RunList({
                                         })}
                                     </div>
                                 )}
-                            </TableCell>
-                            <TableCell className="font-mono text-sm">
+                            </>
+                        ),
+                    },
+                    {
+                        id: 'contact',
+                        header: t('automations.runs.columns.contact'),
+                        sortValue: (r) => r.phone ?? null,
+                        cell: (r) => (
+                            <span className="font-mono text-sm">
                                 {r.contact_id && r.phone ? (
                                     <Link
                                         href={`/contacts/${r.contact_id}`}
@@ -181,64 +180,96 @@ export function RunList({
                                 ) : (
                                     (r.phone ?? '—')
                                 )}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
+                            </span>
+                        ),
+                    },
+                    {
+                        id: 'started',
+                        header: t('automations.runs.columns.started'),
+                        sortValue: (r) => r.created_at,
+                        cell: (r) => (
+                            <span className="text-sm whitespace-nowrap text-muted-foreground">
                                 {formatDateTime(r.created_at)}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
+                            </span>
+                        ),
+                    },
+                    {
+                        id: 'finished',
+                        header: t('automations.runs.columns.finished'),
+                        sortValue: (r) => r.finished_at ?? null,
+                        cell: (r) => (
+                            <span className="text-sm whitespace-nowrap text-muted-foreground">
                                 {formatDateTime(r.finished_at)}
-                            </TableCell>
-                            <TableCell className="max-w-64 truncate text-sm text-destructive">
-                                <span title={r.error ?? undefined}>
-                                    {r.error ?? ''}
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <div className="flex justify-end gap-1">
-                                    {(r.visited?.length ?? 0) > 0 && (
-                                        <Button
-                                            asChild
-                                            size="icon-sm"
-                                            variant="ghost"
-                                            aria-label={t(
-                                                'automations.runs.viewOnCanvasOf',
-                                                {
-                                                    time: formatDateTime(
-                                                        r.created_at,
-                                                    ),
-                                                },
-                                            )}
-                                        >
-                                            <Link
-                                                href={`/automations/${automationId}/runs/${r.id}`}
-                                            >
-                                                <Workflow />
-                                            </Link>
-                                        </Button>
-                                    )}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setOpen(r.id)}
-                                        aria-label={t(
-                                            'automations.runs.detailsOf',
-                                            {
-                                                time: formatDateTime(
-                                                    r.created_at,
-                                                ),
-                                            },
-                                        )}
-                                    >
-                                        {t('automations.runs.details')}
-                                    </Button>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+                            </span>
+                        ),
+                    },
+                    {
+                        id: 'error',
+                        header: t('automations.runs.columns.error'),
+                        sortValue: (r) => r.error ?? null,
+                        cell: (r) => (
+                            <div
+                                className="max-w-64 truncate text-sm text-destructive"
+                                title={r.error ?? undefined}
+                            >
+                                {r.error ?? ''}
+                            </div>
+                        ),
+                    },
+                ]}
+                rowActions={(r) => (
+                    <div className="flex justify-end gap-1">
+                        {(r.visited?.length ?? 0) > 0 && (
+                            <Button
+                                asChild
+                                size="icon-sm"
+                                variant="ghost"
+                                aria-label={t(
+                                    'automations.runs.viewOnCanvasOf',
+                                    { time: formatDateTime(r.created_at) },
+                                )}
+                            >
+                                <Link href={canvasHref(r)}>
+                                    <Workflow />
+                                </Link>
+                            </Button>
+                        )}
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setOpen(r.id)}
+                            aria-label={t('automations.runs.detailsOf', {
+                                time: formatDateTime(r.created_at),
+                            })}
+                        >
+                            {t('automations.runs.details')}
+                        </Button>
+                    </div>
+                )}
+                rowMenu={(r) => [
+                    [
+                        {
+                            id: 'details',
+                            label: t('automations.runs.details'),
+                            icon: History,
+                            run: () => setOpen(r.id),
+                        },
+                        ...((r.visited?.length ?? 0) > 0
+                            ? [
+                                  {
+                                      id: 'canvas',
+                                      label: t('automations.runs.viewOnCanvas'),
+                                      icon: Workflow,
+                                      run: () => router.push(canvasHref(r)),
+                                  },
+                              ]
+                            : []),
+                    ],
+                ]}
+                onRowClick={(r) => setOpen(r.id)}
+            />
             {next && (
-                <div className="border-t p-3 text-center">
+                <div className="text-center">
                     <Button
                         variant="outline"
                         disabled={pending}

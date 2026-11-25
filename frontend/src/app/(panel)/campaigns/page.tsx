@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Campaign } from '@/lib/types';
@@ -48,17 +47,13 @@ export default async function CampaignsPage({
             />
             <div className="space-y-4">
                 <StatusFilter status={status} />
-                <Card>
-                    <CardContent className="p-0">
-                        <CampaignList
-                            key={status}
-                            initial={list.data}
-                            initialCursor={list.nextCursor}
-                            status={status}
-                            canCreate={can(me, 'campaigns.create')}
-                        />
-                    </CardContent>
-                </Card>
+                <CampaignList
+                    key={status}
+                    initial={list.data}
+                    initialCursor={list.nextCursor}
+                    status={status}
+                    canCreate={can(me, 'campaigns.create')}
+                />
             </div>
         </>
     );

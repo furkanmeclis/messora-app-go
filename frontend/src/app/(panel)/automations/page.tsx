@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
@@ -40,16 +39,12 @@ export default async function AutomationsPage() {
                     )
                 }
             />
-            <Card>
-                <CardContent className="p-0">
-                    <AutomationTable
-                        automations={list.data}
-                        phones={names.phones}
-                        campaigns={names.campaigns}
-                        canManage={canManage}
-                    />
-                </CardContent>
-            </Card>
+            <AutomationTable
+                automations={list.data}
+                phones={names.phones}
+                campaigns={names.campaigns}
+                canManage={canManage}
+            />
         </>
     );
 }

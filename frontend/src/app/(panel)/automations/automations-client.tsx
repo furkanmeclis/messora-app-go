@@ -16,17 +16,10 @@ import {
     EmptyTitle,
 } from '@/components/ui/empty';
 import { Switch } from '@/components/ui/switch';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
-import { useLocale, useT } from '@/i18n/client';
-import { intlLocale } from '@/i18n/config';
+import { useT } from '@/i18n/client';
+import { NUMBER_LOCALE } from '@/lib/format';
+import { ClientDataTable } from '@/components/client-data-table';
 import type { Automation } from '@/lib/types';
 import { deleteAutomationAction, setActiveAction } from './actions';
 import { describeTrigger } from './model';
@@ -51,7 +44,7 @@ export function AutomationTable({
     canManage: boolean;
 }) {
     const t = useT();
-    const locale = useLocale();
+    const router = useRouter();
     const formatDateTime = useFormatDateTime();
     const names = {
         phones: new Map(phones.map((p) => [p.id, p.label])),
@@ -59,7 +52,7 @@ export function AutomationTable({
     };
     if (automations.length === 0) {
         return (
-            <Empty className="py-12">
+            <Empty className="border py-12">
                 <EmptyHeader>
                     <EmptyMedia variant="icon">
                         <Workflow />
@@ -82,33 +75,34 @@ export function AutomationTable({
         );
     }
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>{t('automations.list.columns.name')}</TableHead>
-                    <TableHead>
-                        {t('automations.list.columns.trigger')}
-                    </TableHead>
-                    <TableHead>
-                        {t('automations.list.columns.active')}
-                    </TableHead>
-                    <TableHead className="text-right">
-                        {t('automations.list.columns.runs')}
-                    </TableHead>
-                    <TableHead>
-                        {t('automations.list.columns.lastRun')}
-                    </TableHead>
-                    <TableHead>
-                        <span className="sr-only">
-                            {t('automations.list.columns.actions')}
-                        </span>
-                    </TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {automations.map((a) => (
-                    <TableRow key={a.id} data-testid="automation-row">
-                        <TableCell className="max-w-56">
+        <ClientDataTable
+            rows={automations}
+            rowId={(a) => a.id}
+            storageKey="automations"
+            rowTestId="automation-row"
+            initialSort="name"
+            searchText={(a) =>
+                `${a.name} ${a.description ?? ''} ${describeTrigger(
+                    a.trigger_type,
+                    a.trigger,
+                    t,
+                    names,
+                )}`
+            }
+            searchPlaceholder={t('table.search')}
+            noMatch={
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                    {t('table.noMatch')}
+                </p>
+            }
+            columns={[
+                {
+                    id: 'name',
+                    header: t('automations.list.columns.name'),
+                    hideable: false,
+                    sortValue: (a) => a.name,
+                    cell: (a) => (
+                        <div className="max-w-56 min-w-0">
                             <Link
                                 href={`/automations/${a.id}`}
                                 className="font-medium hover:underline"
@@ -120,68 +114,108 @@ export function AutomationTable({
                                     {a.description}
                                 </div>
                             )}
-                        </TableCell>
-                        <TableCell className="max-w-80 text-sm whitespace-normal">
+                        </div>
+                    ),
+                },
+                {
+                    id: 'trigger',
+                    header: t('automations.list.columns.trigger'),
+                    sortValue: (a) =>
+                        describeTrigger(a.trigger_type, a.trigger, t, names),
+                    cell: (a) => (
+                        <div className="max-w-80 text-sm whitespace-normal">
                             {describeTrigger(
                                 a.trigger_type,
                                 a.trigger,
                                 t,
                                 names,
                             )}
-                        </TableCell>
-                        <TableCell>
-                            <ActiveSwitch
-                                automation={a}
-                                disabled={!canManage}
-                            />
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                            {a.run_count.toLocaleString(intlLocale(locale))}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        </div>
+                    ),
+                },
+                {
+                    id: 'active',
+                    header: t('automations.list.columns.active'),
+                    sortValue: (a) => (a.active ? 1 : 0),
+                    cell: (a) => (
+                        <ActiveSwitch automation={a} disabled={!canManage} />
+                    ),
+                },
+                {
+                    id: 'runs',
+                    header: t('automations.list.columns.runs'),
+                    className: 'text-right',
+                    sortValue: (a) => a.run_count,
+                    cell: (a) => (
+                        <span className="tabular-nums">
+                            {a.run_count.toLocaleString(NUMBER_LOCALE)}
+                        </span>
+                    ),
+                },
+                {
+                    id: 'lastRun',
+                    header: t('automations.list.columns.lastRun'),
+                    sortValue: (a) => a.last_run_at ?? null,
+                    cell: (a) => (
+                        <span className="text-sm whitespace-nowrap text-muted-foreground">
                             {a.last_run_at
                                 ? formatDateTime(a.last_run_at)
                                 : t('automations.list.never')}
-                        </TableCell>
-                        <TableCell>
-                            <div className="flex justify-end gap-1">
-                                <Button
-                                    asChild
-                                    size="icon-sm"
-                                    variant="ghost"
-                                    aria-label={t('automations.list.runsOf', {
-                                        name: a.name,
-                                    })}
-                                >
-                                    <Link href={`/automations/${a.id}/runs`}>
-                                        <History />
-                                    </Link>
-                                </Button>
-                                <Button
-                                    asChild
-                                    size="icon-sm"
-                                    variant="ghost"
-                                    aria-label={
-                                        canManage
-                                            ? t('automations.list.edit', {
-                                                  name: a.name,
-                                              })
-                                            : t('automations.list.view', {
-                                                  name: a.name,
-                                              })
-                                    }
-                                >
-                                    <Link href={`/automations/${a.id}`}>
-                                        <Pencil />
-                                    </Link>
-                                </Button>
-                                {canManage && <DeleteButton automation={a} />}
-                            </div>
-                        </TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
+                        </span>
+                    ),
+                },
+            ]}
+            rowActions={(a) => (
+                <div className="flex justify-end gap-1">
+                    <Button
+                        asChild
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={t('automations.list.runsOf', {
+                            name: a.name,
+                        })}
+                    >
+                        <Link href={`/automations/${a.id}/runs`}>
+                            <History />
+                        </Link>
+                    </Button>
+                    <Button
+                        asChild
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={
+                            canManage
+                                ? t('automations.list.edit', { name: a.name })
+                                : t('automations.list.view', { name: a.name })
+                        }
+                    >
+                        <Link href={`/automations/${a.id}`}>
+                            <Pencil />
+                        </Link>
+                    </Button>
+                    {canManage && <DeleteButton automation={a} />}
+                </div>
+            )}
+            rowMenu={(a) => [
+                [
+                    {
+                        id: 'open',
+                        label: canManage
+                            ? t('automations.list.edit', { name: a.name })
+                            : t('automations.list.view', { name: a.name }),
+                        icon: Pencil,
+                        run: () => router.push(`/automations/${a.id}`),
+                    },
+                    {
+                        id: 'runs',
+                        label: t('automations.list.runsOf', { name: a.name }),
+                        icon: History,
+                        run: () => router.push(`/automations/${a.id}/runs`),
+                    },
+                ],
+            ]}
+            onRowClick={(a) => router.push(`/automations/${a.id}`)}
+        />
     );
 }
 
