@@ -842,7 +842,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Phone numbers of every connected account */
+        /**
+         * Phone numbers of every connected account
+         * @description WhatsApp phone numbers of every connected Business account, with Meta's quality rating, messaging limit and throughput. Use the `id` as `phone_number_id` when sending.
+         */
         get: operations['listPhoneNumbers'];
         put?: never;
         post?: never;
@@ -893,7 +896,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Message templates mirrored from Meta */
+        /**
+         * Message templates mirrored from Meta
+         * @description Message templates mirrored from Meta, with their approval status, category, language and components. Filter by account and status. Only `APPROVED` templates can be sent.
+         */
         get: operations['listTemplates'];
         put?: never;
         /** Submit a template for Meta's review */
@@ -928,7 +934,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Time-limited offers */
+        /**
+         * Time-limited offers
+         * @description Time-limited offers (title, discount, coupon, start and end), latest end first; filter with `status`. A campaign linked to an offer fills limited-time offer templates from it.
+         */
         get: operations['listOffers'];
         put?: never;
         /**
@@ -949,7 +958,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One offer */
+        /**
+         * One offer
+         * @description One offer with its template, coupon code, image and validity window.
+         */
         get: operations['getOffer'];
         put?: never;
         post?: never;
@@ -1031,7 +1043,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A message and its delivery state */
+        /**
+         * A message and its delivery state
+         * @description One message and its delivery state (sent, delivered, read or failed with the WhatsApp error), plus pricing once Meta has reported it.
+         */
         get: operations['getMessage'];
         put?: never;
         post?: never;
@@ -1048,10 +1063,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Contacts, newest first */
+        /**
+         * Contacts, newest first
+         * @description Contacts matching the filters, newest first (or by `sort`). Paged with `cursor`, or with `page` for numbered pages (then `meta.total` is set).
+         */
         get: operations['listContacts'];
         put?: never;
-        /** Add a contact */
+        /**
+         * Add a contact
+         * @description Adds a contact by phone number (international format; it is normalised to E.164). Tags given by name are created when they do not exist. A phone number that already exists answers 409.
+         */
         post: operations['createContact'];
         delete?: never;
         options?: never;
@@ -1066,7 +1087,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Custom attribute keys in use (for {{attr:key}} placeholders) */
+        /**
+         * Custom attribute keys in use (for {{attr:key}} placeholders)
+         * @description The keys of custom contact attributes in use, most used first, for building `{{attr:key}}` template placeholders.
+         */
         get: operations['listContactAttributeKeys'];
         put?: never;
         post?: never;
@@ -1103,15 +1127,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A contact with tags and groups */
+        /**
+         * A contact with tags and groups
+         * @description One contact with tags, groups, custom attributes and per-category consent.
+         */
         get: operations['getContact'];
         put?: never;
         post?: never;
-        /** Delete a contact and its message history */
+        /**
+         * Delete a contact and its message history
+         * @description Deletes the contact and its message history. This cannot be undone.
+         */
         delete: operations['deleteContact'];
         options?: never;
         head?: never;
-        /** Edit a contact; an empty string clears an optional field */
+        /**
+         * Edit a contact; an empty string clears an optional field
+         * @description Changes the given fields only. An empty string clears an optional field; `tags` and `group_ids`, when given, replace the current lists.
+         */
         patch: operations['updateContact'];
         trace?: never;
     };
@@ -1142,7 +1175,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The contact's consent history, newest first (at most 100) */
+        /**
+         * The contact's consent history, newest first (at most 100)
+         * @description Every consent change of the contact (opt-in, opt-out, requests detected from keywords, Meta stops) with its source and note, newest first, at most 100.
+         */
         get: operations['listConsentEvents'];
         put?: never;
         post?: never;
@@ -1194,7 +1230,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Download matching contacts as CSV or Excel */
+        /**
+         * Download matching contacts as CSV or Excel
+         * @description Streams every contact matching the filters (the same filters as GET /contacts) as a CSV file (UTF-8 with a header row) or an Excel workbook. Large exports are streamed, not buffered.
+         */
         get: operations['exportContacts'];
         put?: never;
         post?: never;
@@ -1300,7 +1339,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Tags with contact counts */
+        /**
+         * Tags with contact counts
+         * @description Tags with the number of contacts that carry them.
+         */
         get: operations['listTags'];
         put?: never;
         /** Create a tag (returns the existing one for a duplicate name) */
@@ -1356,7 +1398,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Contact groups with member counts */
+        /**
+         * Contact groups with member counts
+         * @description Contact groups with their member counts. Use a group as a campaign audience or to filter contacts.
+         */
         get: operations['listGroups'];
         put?: never;
         /** Create a group */
@@ -1414,7 +1459,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add or remove contacts */
+        /**
+         * Add or remove contacts
+         * @description Adds contacts to the group or removes them from it, up to 1000 per request. Returns how many memberships changed.
+         */
         post: operations['changeGroupMembers'];
         delete?: never;
         options?: never;
@@ -1429,7 +1477,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Saved segments */
+        /**
+         * Saved segments
+         * @description Saved segments (dynamic audiences defined by rules on contact fields, tags and groups).
+         */
         get: operations['listSegments'];
         put?: never;
         /** Save a segment */
@@ -1484,7 +1535,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A segment with its current size */
+        /**
+         * A segment with its current size
+         * @description One segment with its rule definition and the number of contacts that match it now.
+         */
         get: operations['getSegment'];
         put?: never;
         post?: never;
@@ -1563,10 +1617,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Campaigns, newest first */
+        /**
+         * Campaigns, newest first
+         * @description Campaigns of every status, newest first; filter with `status`. `counts` holds live recipient and message counts. Paged with `cursor`.
+         */
         get: operations['listCampaigns'];
         put?: never;
-        /** Create a draft campaign */
+        /**
+         * Create a draft campaign
+         * @description Creates a campaign in `draft` status: a template, its parameters and exactly one audience (segment, group, tag or all contacts). Nothing is sent until you start it. Check the audience first with POST /campaigns/preflight.
+         */
         post: operations['createCampaign'];
         delete?: never;
         options?: never;
@@ -1601,7 +1661,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A campaign with live counts */
+        /**
+         * A campaign with live counts
+         * @description The campaign with live counts: recipients by state and messages by delivery status.
+         */
         get: operations['getCampaign'];
         put?: never;
         post?: never;
@@ -1609,7 +1672,10 @@ export interface paths {
         delete: operations['deleteCampaign'];
         options?: never;
         head?: never;
-        /** Edit a draft or scheduled campaign */
+        /**
+         * Edit a draft or scheduled campaign
+         * @description Changes a campaign that has not started yet (`draft` or `scheduled`). Only the given fields change. A running or finished campaign answers 409.
+         */
         patch: operations['updateCampaign'];
         trace?: never;
     };
@@ -1622,7 +1688,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start now, or schedule with `scheduled_at` */
+        /**
+         * Start now, or schedule with `scheduled_at`
+         * @description Starts a draft campaign now, or schedules it when `scheduled_at` (a future time) is given. Consent rules are checked again for every message right before it is sent.
+         */
         post: operations['startCampaign'];
         delete?: never;
         options?: never;
@@ -1639,7 +1708,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pause sending; unsent messages are held */
+        /**
+         * Pause sending; unsent messages are held
+         * @description Pauses a running campaign. Messages not handed to WhatsApp yet are held and go out after POST /campaigns/{campaignId}/resume; nothing is sent twice.
+         */
         post: operations['pauseCampaign'];
         delete?: never;
         options?: never;
@@ -1656,7 +1728,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume a paused campaign */
+        /**
+         * Resume a paused campaign
+         * @description Continues a paused campaign with the recipients that were not sent yet. Refused when the linked offer has ended.
+         */
         post: operations['resumeCampaign'];
         delete?: never;
         options?: never;
@@ -1673,7 +1748,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Stop for good; unsent messages are cancelled */
+        /**
+         * Stop for good; unsent messages are cancelled
+         * @description Stops the campaign for good. Messages already sent stay sent; recipients that were not sent yet are cancelled. A cancelled campaign cannot be resumed.
+         */
         post: operations['cancelCampaign'];
         delete?: never;
         options?: never;
@@ -1688,7 +1766,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lifecycle events (started, paused, resumed, completed …) */
+        /**
+         * Lifecycle events (started, paused, resumed, completed …)
+         * @description The lifecycle of the campaign (created, scheduled, started, paused with reason, resumed, completed …), newest first, with who triggered each step.
+         */
         get: operations['listCampaignEvents'];
         put?: never;
         post?: never;
@@ -1705,7 +1786,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Recipients with their message state */
+        /**
+         * Recipients with their message state
+         * @description The recipients of the campaign with each recipient's state (pending, queued, skipped, cancelled), the message status and the failure reason. Filter with `state`; paged with `cursor`.
+         */
         get: operations['listCampaignRecipients'];
         put?: never;
         post?: never;
@@ -1722,7 +1806,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Conversations visible to the caller, most recent activity first */
+        /**
+         * Conversations visible to the caller, most recent activity first
+         * @description Conversations the caller may see, most recent activity first. Filter by status, assignee (`me`, `unassigned` or a user ID), unread, phone number or a contact search. Paged with `cursor`.
+         */
         get: operations['listConversations'];
         put?: never;
         post?: never;
@@ -1739,7 +1826,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A conversation with its contact and 24-hour window */
+        /**
+         * A conversation with its contact and 24-hour window
+         * @description One conversation with its contact, phone number, assignee and whether the 24-hour customer service window is open.
+         */
         get: operations['getConversation'];
         put?: never;
         post?: never;
@@ -1756,7 +1846,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Message history, newest first */
+        /**
+         * Message history, newest first
+         * @description Messages of the conversation in both directions, newest first, with delivery state and media. Paged with `cursor`.
+         */
         get: operations['listConversationMessages'];
         put?: never;
         /**
@@ -1778,7 +1871,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Assign the conversation to a user, or unassign it with null */
+        /**
+         * Assign the conversation to a user, or unassign it with null
+         * @description Assigns the conversation to a user, or unassigns it with `"assignee_id": null`. The assignee must be an active user who may work the inbox.
+         */
         put: operations['assignConversation'];
         post?: never;
         delete?: never;
@@ -1796,7 +1892,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close the conversation; the next customer message reopens it */
+        /**
+         * Close the conversation; the next customer message reopens it
+         * @description Marks the conversation closed. The next message from the customer reopens it automatically.
+         */
         post: operations['closeConversation'];
         delete?: never;
         options?: never;
@@ -1813,7 +1912,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reopen a closed conversation */
+        /**
+         * Reopen a closed conversation
+         * @description Reopens a closed conversation without waiting for a customer message.
+         */
         post: operations['reopenConversation'];
         delete?: never;
         options?: never;
@@ -1845,7 +1947,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Assignment and status history, newest first (last 100) */
+        /**
+         * Assignment and status history, newest first (last 100)
+         * @description Assignment and status changes of the conversation (assigned, closed, reopened, opt-out requests …), newest first, the last 100.
+         */
         get: operations['listConversationEvents'];
         put?: never;
         post?: never;
@@ -1882,7 +1987,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Automations with run counts */
+        /**
+         * Automations with run counts
+         * @description All automations with their trigger, steps and how often they ran. Automations are built in the panel; the API reads them, for example to show an integration which flows are active.
+         */
         get: operations['listAutomations'];
         put?: never;
         /** Create an automation (inactive until enabled) */
@@ -1900,7 +2008,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** An automation */
+        /**
+         * An automation
+         * @description One automation with its trigger options, steps (each with a stable id) and canvas layout.
+         */
         get: operations['getAutomation'];
         put?: never;
         post?: never;
@@ -1956,7 +2067,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Event types an endpoint can subscribe to */
+        /**
+         * Event types an endpoint can subscribe to
+         * @description Every event type an endpoint can subscribe to, with a short description. See the webhooks guide for the payload of each.
+         */
         get: operations['listWebhookEventTypes'];
         put?: never;
         post?: never;
@@ -1973,7 +2087,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Registered endpoints, newest first */
+        /**
+         * Registered endpoints, newest first
+         * @description Registered webhook endpoints with their event types and status, newest first. Secrets are never returned here.
+         */
         get: operations['listWebhookEndpoints'];
         put?: never;
         /**
@@ -1994,11 +2111,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One endpoint */
+        /**
+         * One endpoint
+         * @description One webhook endpoint; the signing secret is not included (only its last four characters).
+         */
         get: operations['getWebhookEndpoint'];
         put?: never;
         post?: never;
-        /** Delete an endpoint and its delivery log */
+        /**
+         * Delete an endpoint and its delivery log
+         * @description Deletes the endpoint and its delivery log. Pending deliveries are dropped.
+         */
         delete: operations['deleteWebhookEndpoint'];
         options?: never;
         head?: never;
@@ -2056,7 +2179,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Delivery log of an endpoint, newest first */
+        /**
+         * Delivery log of an endpoint, newest first
+         * @description Deliveries to the endpoint, newest first, with attempts, the last HTTP status, duration, error and the start of the receiver's answer. Filter with `status`; paged with `cursor`.
+         */
         get: operations['listWebhookDeliveries'];
         put?: never;
         post?: never;
@@ -2536,6 +2662,16 @@ export interface components {
             service_consent?: components['schemas']['ConsentStatus'];
             reachability?: components['schemas']['Reachability'];
         };
+        /**
+         * @example {
+         *       "action": "add_tag",
+         *       "ids": [
+         *         "019a8c2e-4f1b-7a09-9c3d-5e7a10000009",
+         *         "019a8c2e-4f1b-7a18-9c3d-5e7a10000018"
+         *       ],
+         *       "tag_name": "winter-2026"
+         *     }
+         */
         ContactBulkRequest: {
             /** @enum {string} */
             action:
@@ -2556,6 +2692,12 @@ export interface components {
             /** Format: uuid */
             group_id?: string;
         };
+        /**
+         * @example {
+         *       "matched": 120,
+         *       "affected": 117
+         *     }
+         */
         ContactBulkResult: {
             /**
              * Format: int64
@@ -2595,6 +2737,22 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a01-9c3d-5e7a10000001",
+         *       "name": "CRM integration",
+         *       "prefix": "msk_live_3f9a",
+         *       "scopes": [
+         *         "messages.send",
+         *         "contacts.read",
+         *         "contacts.update"
+         *       ],
+         *       "created_by": "Ayşe Yılmaz",
+         *       "created_at": "2026-11-02T08:15:00Z",
+         *       "last_used_at": "2026-11-25T09:29:41Z",
+         *       "expires_at": null
+         *     }
+         */
         ApiKey: {
             /** Format: uuid */
             id: string;
@@ -2797,6 +2955,22 @@ export interface components {
             phone_numbers: number;
             templates: number;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
+         *       "account_id": "019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f",
+         *       "account_name": "Messora Demo",
+         *       "phone_number_id": "106540352242922",
+         *       "display_phone_number": "+90 212 555 01 23",
+         *       "verified_name": "Messora Demo",
+         *       "quality_rating": "GREEN",
+         *       "messaging_limit": "TIER_10K",
+         *       "throughput_level": "STANDARD",
+         *       "throughput_mps": 80,
+         *       "signals_checked_at": "2026-11-25T09:00:00Z",
+         *       "is_default": true
+         *     }
+         */
         PhoneNumber: {
             /** Format: uuid */
             id: string;
@@ -2827,6 +3001,38 @@ export interface components {
             signature_verification: boolean;
             fields?: string[];
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a14-9c3d-5e7a10000014",
+         *       "account_id": "019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f",
+         *       "account_name": "Messora Demo",
+         *       "meta_template_id": "1204587366452271",
+         *       "name": "winter_sale",
+         *       "language": "tr",
+         *       "category": "MARKETING",
+         *       "status": "APPROVED",
+         *       "parameter_format": "POSITIONAL",
+         *       "components": [
+         *         {
+         *           "type": "BODY",
+         *           "text": "Merhaba {{1}}, kış indirimi başladı: tüm ürünlerde {{2}} indirim!"
+         *         },
+         *         {
+         *           "type": "BUTTONS",
+         *           "buttons": [
+         *             {
+         *               "type": "URL",
+         *               "text": "Alışverişe başla",
+         *               "url": "https://shop.example.com/{{1}}"
+         *             }
+         *           ]
+         *         }
+         *       ],
+         *       "rejected_reason": "NONE",
+         *       "quality_score": "GREEN",
+         *       "synced_at": "2026-11-25T06:00:00Z"
+         *     }
+         */
         Template: {
             /** Format: uuid */
             id: string;
@@ -2864,6 +3070,26 @@ export interface components {
         };
         /** @enum {string} */
         OfferStatus: 'draft' | 'scheduled' | 'active' | 'expired';
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a13-9c3d-5e7a10000013",
+         *       "title": "Winter sale",
+         *       "description": "All coats and boots",
+         *       "discount_text": "25% off",
+         *       "product": "Winter collection",
+         *       "starts_at": "2026-11-25T00:00:00Z",
+         *       "ends_at": "2026-11-30T21:00:00Z",
+         *       "image_url": "https://shop.example.com/img/winter.jpg",
+         *       "image_media_id": null,
+         *       "cta_url": "https://shop.example.com/winter",
+         *       "coupon_code": "WINTER25",
+         *       "template_id": "019a8c2e-4f1b-7a14-9c3d-5e7a10000014",
+         *       "status": "active",
+         *       "created_by": "019a8c2e-4f1b-7a07-9c3d-5e7a10000007",
+         *       "created_at": "2026-11-20T10:00:00Z",
+         *       "updated_at": "2026-11-20T10:00:00Z"
+         *     }
+         */
         Offer: {
             /** Format: uuid */
             id: string;
@@ -3011,6 +3237,32 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a12-9c3d-5e7a10000012",
+         *       "phone_number_id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
+         *       "contact_id": "019a8c2e-4f1b-7a09-9c3d-5e7a10000009",
+         *       "to": "+905321234567",
+         *       "direction": "outbound",
+         *       "wamid": "wamid.HBgMOTA1MzIxMjM0NTY3FQIAERgSMjU0RkJBQ0E4QjM3QzFGRTlGAA==",
+         *       "type": "text",
+         *       "body": "Siparişiniz yola çıktı.",
+         *       "status": "delivered",
+         *       "error_code": null,
+         *       "error_title": null,
+         *       "failure_class": null,
+         *       "next_attempt_at": null,
+         *       "sent_at": "2026-11-25T09:30:01Z",
+         *       "delivered_at": "2026-11-25T09:30:04Z",
+         *       "read_at": null,
+         *       "failed_at": null,
+         *       "created_at": "2026-11-25T09:30:00Z",
+         *       "pricing_category": "service",
+         *       "pricing_type": "free_customer_service",
+         *       "cost_amount": "0",
+         *       "cost_currency": "TRY"
+         *     }
+         */
         Message: {
             /** Format: uuid */
             id: string;
@@ -3153,6 +3405,57 @@ export interface components {
             name: string;
             color: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a09-9c3d-5e7a10000009",
+         *       "phone": "+905321234567",
+         *       "name": "Ayşe Yılmaz",
+         *       "profile_name": "Ayşe",
+         *       "email": "ayse@example.com",
+         *       "var1": "Gold",
+         *       "var2": null,
+         *       "var3": null,
+         *       "var4": null,
+         *       "var5": null,
+         *       "attributes": {
+         *         "city": "İstanbul",
+         *         "customer_no": "C-10293"
+         *       },
+         *       "tags": [
+         *         {
+         *           "id": "019a8c2e-4f1b-7a0c-9c3d-5e7a1000000c",
+         *           "name": "vip",
+         *           "color": "#16a34a"
+         *         }
+         *       ],
+         *       "group_ids": [
+         *         "019a8c2e-4f1b-7a0d-9c3d-5e7a1000000d"
+         *       ],
+         *       "opted_out": false,
+         *       "opted_out_at": null,
+         *       "consent": {
+         *         "marketing": {
+         *           "status": "opted_in",
+         *           "updated_at": "2026-10-01T10:00:00Z",
+         *           "source": "import",
+         *           "reason": null
+         *         },
+         *         "service": {
+         *           "status": "unknown",
+         *           "updated_at": null,
+         *           "source": null,
+         *           "reason": null
+         *         },
+         *         "meta_marketing_stopped_at": null,
+         *         "undeliverable_at": null,
+         *         "undeliverable_code": null
+         *       },
+         *       "last_inbound_at": "2026-11-25T08:41:00Z",
+         *       "source": "api",
+         *       "created_at": "2026-09-12T07:30:00Z",
+         *       "updated_at": "2026-11-25T08:41:00Z"
+         *     }
+         */
         Contact: {
             /** Format: uuid */
             id: string;
@@ -3199,12 +3502,42 @@ export interface components {
             tags?: string[];
             group_ids?: string[];
         };
+        /**
+         * @example {
+         *       "phone": "+905321234567",
+         *       "name": "Ayşe Yılmaz",
+         *       "email": "ayse@example.com",
+         *       "var1": "Gold",
+         *       "attributes": {
+         *         "city": "İstanbul",
+         *         "customer_no": "C-10293"
+         *       },
+         *       "tags": [
+         *         "vip"
+         *       ]
+         *     }
+         */
         CreateContactRequest: components['schemas']['ContactFields'] & {
             phone: string;
         };
+        /**
+         * @example {
+         *       "email": "ayse.yilmaz@example.com",
+         *       "attributes": {
+         *         "city": "Ankara"
+         *       }
+         *     }
+         */
         UpdateContactRequest: components['schemas']['ContactFields'] &
             Record<string, never>;
-        /** @description Give kind (legacy, both categories) or status. */
+        /**
+         * @description Give kind (legacy, both categories) or status.
+         * @example {
+         *       "status": "opted_out",
+         *       "category": "marketing",
+         *       "note": "Asked by phone not to receive promotions"
+         *     }
+         */
         ConsentRequest: {
             /**
              * @description Legacy: opt_in / opt_out sets both categories to opted_in / opted_out.
@@ -3253,6 +3586,18 @@ export interface components {
             undeliverable_at: string | null;
             undeliverable_code: string | null;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a0b-9c3d-5e7a1000000b",
+         *       "kind": "opt_out",
+         *       "category": "marketing",
+         *       "status": "opted_out",
+         *       "source": "keyword",
+         *       "note": "Customer wrote \"STOP\"",
+         *       "actor_name": null,
+         *       "created_at": "2026-11-24T18:02:11Z"
+         *     }
+         */
         ConsentEvent: {
             /** Format: uuid */
             id: string;
@@ -3340,6 +3685,14 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a0c-9c3d-5e7a1000000c",
+         *       "name": "vip",
+         *       "color": "#16a34a",
+         *       "contact_count": 312
+         *     }
+         */
         Tag: {
             /** Format: uuid */
             id: string;
@@ -3352,6 +3705,15 @@ export interface components {
             name?: string;
             color?: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a0d-9c3d-5e7a1000000d",
+         *       "name": "Newsletter",
+         *       "description": "Subscribed on the website",
+         *       "member_count": 1520,
+         *       "created_at": "2026-08-01T09:00:00Z"
+         *     }
+         */
         Group: {
             /** Format: uuid */
             id: string;
@@ -3366,11 +3728,24 @@ export interface components {
             name?: string;
             description?: string;
         };
+        /**
+         * @example {
+         *       "action": "add",
+         *       "contact_ids": [
+         *         "019a8c2e-4f1b-7a09-9c3d-5e7a10000009"
+         *       ]
+         *     }
+         */
         GroupMembersRequest: {
             /** @enum {string} */
             action: 'add' | 'remove';
             contact_ids: string[];
         };
+        /**
+         * @example {
+         *       "count": 25
+         *     }
+         */
         Count: {
             /** Format: int64 */
             count: number;
@@ -3379,6 +3754,31 @@ export interface components {
         SegmentDefinition: {
             [key: string]: unknown;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a05-9c3d-5e7a10000005",
+         *       "name": "Active VIPs",
+         *       "description": "VIP customers who wrote in the last 90 days",
+         *       "definition": {
+         *         "op": "and",
+         *         "rules": [
+         *           {
+         *             "field": "tag",
+         *             "operator": "has",
+         *             "value": "vip"
+         *           },
+         *           {
+         *             "field": "last_inbound_at",
+         *             "operator": "within_days",
+         *             "value": 90
+         *           }
+         *         ]
+         *       },
+         *       "contact_count": 4200,
+         *       "created_at": "2026-10-01T09:00:00Z",
+         *       "updated_at": "2026-11-10T14:00:00Z"
+         *     }
+         */
         Segment: {
             /** Format: uuid */
             id: string;
@@ -3551,6 +3951,42 @@ export interface components {
             body: string;
             status: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a0e-9c3d-5e7a1000000e",
+         *       "contact": {
+         *         "id": "019a8c2e-4f1b-7a09-9c3d-5e7a10000009",
+         *         "phone": "+905321234567",
+         *         "name": "Ayşe Yılmaz",
+         *         "profile_name": "Ayşe",
+         *         "opted_out": false
+         *       },
+         *       "phone_number": {
+         *         "id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
+         *         "account_id": "019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f",
+         *         "display_phone_number": "+90 212 555 01 23",
+         *         "verified_name": "Messora Demo"
+         *       },
+         *       "status": "open",
+         *       "assignee": {
+         *         "id": "019a8c2e-4f1b-7a07-9c3d-5e7a10000007",
+         *         "name": "Mehmet Kaya"
+         *       },
+         *       "unread_count": 2,
+         *       "last_message_at": "2026-11-25T08:41:00Z",
+         *       "last_inbound_at": "2026-11-25T08:41:00Z",
+         *       "window_open": true,
+         *       "window_expires_at": "2026-11-26T08:41:00Z",
+         *       "last_message": {
+         *         "direction": "inbound",
+         *         "type": "text",
+         *         "body": "Siparişim ne zaman gelir?",
+         *         "status": "received"
+         *       },
+         *       "closed_at": null,
+         *       "created_at": "2026-11-20T12:00:00Z"
+         *     }
+         */
         Conversation: {
             /** Format: uuid */
             id: string;
@@ -3597,6 +4033,28 @@ export interface components {
             /** @enum {string} */
             status: 'pending' | 'stored' | 'failed';
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a11-9c3d-5e7a10000011",
+         *       "direction": "outbound",
+         *       "type": "text",
+         *       "body": "Kargonuz yarın teslim edilecek.",
+         *       "status": "delivered",
+         *       "failure_class": null,
+         *       "wamid": "wamid.HBgMOTA1MzIxMjM0NTY3FQIAERgSMjU0RkJBQ0E4QjM3QzFGRTlGAA==",
+         *       "reply_to_wamid": null,
+         *       "source": "api",
+         *       "error_code": null,
+         *       "error_title": null,
+         *       "media": null,
+         *       "occurred_at": "2026-11-25T08:45:00Z",
+         *       "sent_at": "2026-11-25T08:45:01Z",
+         *       "delivered_at": "2026-11-25T08:45:03Z",
+         *       "read_at": null,
+         *       "failed_at": null,
+         *       "created_at": "2026-11-25T08:45:00Z"
+         *     }
+         */
         InboxMessage: {
             /** Format: uuid */
             id: string;
@@ -3647,6 +4105,14 @@ export interface components {
             data: components['schemas']['InboxMessage'][];
             meta: components['schemas']['Meta'];
         };
+        /**
+         * @example {
+         *       "type": "text",
+         *       "text": {
+         *         "body": "Kargonuz yarın teslim edilecek."
+         *       }
+         *     }
+         */
         ReplyRequest: {
             /** @enum {string} */
             type:
@@ -3669,6 +4135,11 @@ export interface components {
             };
             media?: components['schemas']['MediaRef'];
         };
+        /**
+         * @example {
+         *       "assignee_id": "019a8c2e-4f1b-7a07-9c3d-5e7a10000007"
+         *     }
+         */
         AssignConversationRequest: {
             /**
              * Format: uuid
@@ -3676,6 +4147,19 @@ export interface components {
              */
             assignee_id: string | null;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a10-9c3d-5e7a10000010",
+         *       "kind": "assigned",
+         *       "actor_type": "api_key",
+         *       "actor_name": null,
+         *       "assignee": {
+         *         "id": "019a8c2e-4f1b-7a07-9c3d-5e7a10000007",
+         *         "name": "Mehmet Kaya"
+         *       },
+         *       "created_at": "2026-11-25T08:42:00Z"
+         *     }
+         */
         ConversationEvent: {
             /** Format: uuid */
             id: string;
@@ -3821,6 +4305,42 @@ export interface components {
             link?: string;
             filename?: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a03-9c3d-5e7a10000003",
+         *       "name": "Winter sale",
+         *       "status": "running",
+         *       "phone_number_id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
+         *       "template_name": "winter_sale",
+         *       "template_language": "tr",
+         *       "template_params": {
+         *         "body": [
+         *           "{{first_name}}",
+         *           "25%"
+         *         ]
+         *       },
+         *       "audience": {
+         *         "segment_id": "019a8c2e-4f1b-7a05-9c3d-5e7a10000005"
+         *       },
+         *       "window_size": 0,
+         *       "total_recipients": 4200,
+         *       "counts": {
+         *         "recipients_pending": 1800,
+         *         "recipients_skipped": 35,
+         *         "sent": 2365,
+         *         "delivered": 2290,
+         *         "read": 1410,
+         *         "failed": 12
+         *       },
+         *       "scheduled_at": null,
+         *       "started_at": "2026-11-25T09:00:00Z",
+         *       "finished_at": null,
+         *       "last_error": null,
+         *       "offer_id": null,
+         *       "created_at": "2026-11-24T15:20:00Z",
+         *       "updated_at": "2026-11-25T09:00:00Z"
+         *     }
+         */
         Campaign: {
             /** Format: uuid */
             id: string;
@@ -3857,6 +4377,22 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * @example {
+         *       "name": "Winter sale",
+         *       "template_name": "winter_sale",
+         *       "template_language": "tr",
+         *       "template_params": {
+         *         "body": [
+         *           "{{first_name}}",
+         *           "25%"
+         *         ]
+         *       },
+         *       "audience": {
+         *         "segment_id": "019a8c2e-4f1b-7a05-9c3d-5e7a10000005"
+         *       }
+         *     }
+         */
         CreateCampaignRequest: {
             name: string;
             /** Format: uuid */
@@ -3872,6 +4408,14 @@ export interface components {
              */
             offer_id?: string;
         };
+        /**
+         * @example {
+         *       "name": "Winter sale (final week)",
+         *       "audience": {
+         *         "tag_id": "019a8c2e-4f1b-7a0c-9c3d-5e7a1000000c"
+         *       }
+         *     }
+         */
         UpdateCampaignRequest: {
             name?: string;
             /** Format: uuid */
@@ -3889,6 +4433,17 @@ export interface components {
             /** @description Unlink the offer. */
             clear_offer?: boolean;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a06-9c3d-5e7a10000006",
+         *       "kind": "paused",
+         *       "detail": {
+         *         "reason": "manual"
+         *       },
+         *       "actor_id": "019a8c2e-4f1b-7a07-9c3d-5e7a10000007",
+         *       "created_at": "2026-11-25T09:20:00Z"
+         *     }
+         */
         CampaignEventItem: {
             /** Format: uuid */
             id: string;
@@ -3901,6 +4456,20 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a08-9c3d-5e7a10000008",
+         *       "contact_id": "019a8c2e-4f1b-7a09-9c3d-5e7a10000009",
+         *       "phone": "+905321234567",
+         *       "state": "queued",
+         *       "skip_reason": null,
+         *       "message_id": "019a8c2e-4f1b-7a0a-9c3d-5e7a1000000a",
+         *       "message_status": "delivered",
+         *       "error_code": null,
+         *       "error_title": null,
+         *       "failure_class": null
+         *     }
+         */
         CampaignRecipient: {
             /** Format: uuid */
             id: string;
@@ -3917,6 +4486,15 @@ export interface components {
             error_title?: string | null;
             failure_class?: components['schemas']['FailureClass'];
         };
+        /**
+         * @example {
+         *       "audience": {
+         *         "segment_id": "019a8c2e-4f1b-7a05-9c3d-5e7a10000005"
+         *       },
+         *       "template_name": "winter_sale",
+         *       "template_language": "tr"
+         *     }
+         */
         CampaignPreflightRequest: {
             audience: components['schemas']['CampaignAudience'];
             /**
@@ -3941,6 +4519,36 @@ export interface components {
             /** @description A hard block cannot be overridden by any setting. */
             hard: boolean;
         };
+        /**
+         * @example {
+         *       "category": "marketing",
+         *       "unknown_marketing": "allow",
+         *       "total": 4200,
+         *       "eligible": 4165,
+         *       "warned": 610,
+         *       "blocked": 35,
+         *       "hard_blocked": 35,
+         *       "blocked_reasons": [
+         *         {
+         *           "reason": "opted_out",
+         *           "count": 30,
+         *           "hard": true
+         *         },
+         *         {
+         *           "reason": "undeliverable",
+         *           "count": 5,
+         *           "hard": true
+         *         }
+         *       ],
+         *       "warned_reasons": [
+         *         {
+         *           "reason": "consent_unknown",
+         *           "count": 610,
+         *           "hard": false
+         *         }
+         *       ]
+         *     }
+         */
         CampaignPreflight: {
             /**
              * @description From the template.
@@ -4033,6 +4641,53 @@ export interface components {
         AutomationLayout: {
             [key: string]: components['schemas']['AutomationPoint'];
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a02-9c3d-5e7a10000002",
+         *       "name": "Order status reply",
+         *       "description": "Answers \"kargo\" questions with the tracking link.",
+         *       "active": true,
+         *       "trigger_type": "message_received",
+         *       "trigger": {
+         *         "match": "contains",
+         *         "keywords": [
+         *           "kargo",
+         *           "sipariş"
+         *         ]
+         *       },
+         *       "steps": [
+         *         {
+         *           "id": "s1",
+         *           "type": "reply",
+         *           "text": "Merhaba {{first_name}}, siparişinizi https://shop.example.com/track adresinden izleyebilirsiniz."
+         *         },
+         *         {
+         *           "id": "s2",
+         *           "type": "add_tag",
+         *           "tag": "order-question"
+         *         }
+         *       ],
+         *       "layout": {
+         *         "trigger": {
+         *           "x": 0,
+         *           "y": 0
+         *         },
+         *         "s1": {
+         *           "x": 0,
+         *           "y": 140
+         *         },
+         *         "s2": {
+         *           "x": 0,
+         *           "y": 280
+         *         }
+         *       },
+         *       "version": 3,
+         *       "run_count": 1284,
+         *       "last_run_at": "2026-11-25T09:12:08Z",
+         *       "created_at": "2026-10-14T11:00:00Z",
+         *       "updated_at": "2026-11-20T16:45:00Z"
+         *     }
+         */
         Automation: {
             /** Format: uuid */
             id: string;
@@ -4148,10 +4803,32 @@ export interface components {
             | 'contact.updated'
             | 'contact.opted_out'
             | 'contact.opted_in';
+        /**
+         * @example {
+         *       "type": "message.received",
+         *       "description": "A customer sent a message."
+         *     }
+         */
         WebhookEventTypeInfo: {
             type: components['schemas']['WebhookEventType'];
             description: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a17-9c3d-5e7a10000017",
+         *       "url": "https://crm.example.com/hooks/messora",
+         *       "description": "CRM sync",
+         *       "event_types": [
+         *         "message.received",
+         *         "conversation.closed"
+         *       ],
+         *       "active": true,
+         *       "secret_last4": "7b9a",
+         *       "disabled_reason": null,
+         *       "created_at": "2026-11-01T10:00:00Z",
+         *       "updated_at": "2026-11-01T10:00:00Z"
+         *     }
+         */
         WebhookEndpoint: {
             /** Format: uuid */
             id: string;
@@ -4168,11 +4845,40 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * @example {
+         *       "endpoint": {
+         *         "id": "019a8c2e-4f1b-7a17-9c3d-5e7a10000017",
+         *         "url": "https://crm.example.com/hooks/messora",
+         *         "description": "CRM sync",
+         *         "event_types": [
+         *           "message.received",
+         *           "conversation.closed"
+         *         ],
+         *         "active": true,
+         *         "secret_last4": "7b9a",
+         *         "disabled_reason": null,
+         *         "created_at": "2026-11-01T10:00:00Z",
+         *         "updated_at": "2026-11-01T10:00:00Z"
+         *       },
+         *       "secret": "whsec_5f0d3c8e2a9b4e17a6c1d0f97e3b7b9a"
+         *     }
+         */
         WebhookEndpointSecret: {
             endpoint: components['schemas']['WebhookEndpoint'];
             /** @description Signing secret (`whsec_…`). Shown once; store it securely. */
             secret: string;
         };
+        /**
+         * @example {
+         *       "url": "https://crm.example.com/hooks/messora",
+         *       "description": "CRM sync",
+         *       "event_types": [
+         *         "message.received",
+         *         "conversation.closed"
+         *       ]
+         *     }
+         */
         CreateWebhookEndpointRequest: {
             url: string;
             description?: string;
@@ -4180,6 +4886,16 @@ export interface components {
             /** @default true */
             active: boolean;
         };
+        /**
+         * @example {
+         *       "event_types": [
+         *         "message.received",
+         *         "message.status",
+         *         "conversation.closed"
+         *       ],
+         *       "active": true
+         *     }
+         */
         UpdateWebhookEndpointRequest: {
             url?: string;
             description?: string;
@@ -4189,6 +4905,24 @@ export interface components {
         /** @enum {string} */
         WebhookDeliveryStatus:
             'pending' | 'delivering' | 'retrying' | 'succeeded' | 'failed';
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a15-9c3d-5e7a10000015",
+         *       "event_id": "019a8c2e-4f1b-7a16-9c3d-5e7a10000016",
+         *       "event_type": "message.received",
+         *       "endpoint_id": "019a8c2e-4f1b-7a17-9c3d-5e7a10000017",
+         *       "status": "succeeded",
+         *       "attempts": 1,
+         *       "next_attempt_at": null,
+         *       "last_attempt_at": "2026-11-25T08:41:01Z",
+         *       "last_status_code": 200,
+         *       "last_duration_ms": 84,
+         *       "last_error": null,
+         *       "last_response_body": "{\"ok\":true}",
+         *       "delivered_at": "2026-11-25T08:41:01Z",
+         *       "created_at": "2026-11-25T08:41:00Z"
+         *     }
+         */
         WebhookDelivery: {
             /** Format: uuid */
             id: string;
@@ -4243,6 +4977,15 @@ export interface components {
             data: components['schemas']['WebhookDelivery'][];
             meta: components['schemas']['Meta'];
         };
+        /**
+         * @example {
+         *       "id": "1013859600285441",
+         *       "mime_type": "image/jpeg",
+         *       "filename": "invoice.jpg",
+         *       "size": 184320,
+         *       "expires_at": "2026-12-25T09:30:00Z"
+         *     }
+         */
         UploadedMedia: {
             /** @description Meta media ID for media.id in a message. */
             id: string;
@@ -4394,6 +5137,143 @@ export interface components {
                 'application/json': components['schemas']['ErrorEnvelope'];
             };
         };
+        /** @description Missing, invalid, expired or revoked credentials. */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "UNAUTHORIZED",
+                 *         "message": "Authentication required",
+                 *         "details": []
+                 *       },
+                 *       "meta": {
+                 *         "request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"
+                 *       }
+                 *     }
+                 */
+                'application/json': components['schemas']['ErrorEnvelope'];
+            };
+        };
+        /** @description The credentials lack the required scope (or cannot be used for this operation). */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "FORBIDDEN",
+                 *         "message": "Missing permission: contacts.read",
+                 *         "details": []
+                 *       },
+                 *       "meta": {
+                 *         "request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"
+                 *       }
+                 *     }
+                 */
+                'application/json': components['schemas']['ErrorEnvelope'];
+            };
+        };
+        /** @description The resource does not exist (or is not visible to the caller). */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "NOT_FOUND",
+                 *         "message": "Contact not found",
+                 *         "details": []
+                 *       },
+                 *       "meta": {
+                 *         "request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"
+                 *       }
+                 *     }
+                 */
+                'application/json': components['schemas']['ErrorEnvelope'];
+            };
+        };
+        /** @description The request conflicts with the current state (e.g. a duplicate, a campaign in the wrong status, or an Idempotency-Key reused with a different body). */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "IDEMPOTENCY_KEY_REUSED",
+                 *         "message": "This Idempotency-Key was used with a different request",
+                 *         "details": []
+                 *       },
+                 *       "meta": {
+                 *         "request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"
+                 *       }
+                 *     }
+                 */
+                'application/json': components['schemas']['ErrorEnvelope'];
+            };
+        };
+        /** @description The request does not match the schema or a business rule; `details` names the fields. */
+        ValidationFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "VALIDATION_ERROR",
+                 *         "message": "Invalid request",
+                 *         "details": [
+                 *           {
+                 *             "field": "to",
+                 *             "code": "invalid",
+                 *             "message": "must be in E.164 format"
+                 *           }
+                 *         ]
+                 *       },
+                 *       "meta": {
+                 *         "request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"
+                 *       }
+                 *     }
+                 */
+                'application/json': components['schemas']['ErrorEnvelope'];
+            };
+        };
+        /** @description Too many requests; the per-key budget is used up. Wait `Retry-After` seconds. */
+        RateLimited: {
+            headers: {
+                'Retry-After': components['headers']['Retry-After'];
+                'RateLimit-Limit': components['headers']['RateLimit-Limit'];
+                'RateLimit-Remaining': components['headers']['RateLimit-Remaining'];
+                'RateLimit-Reset': components['headers']['RateLimit-Reset'];
+                'RateLimit-Policy': components['headers']['RateLimit-Policy'];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "RATE_LIMITED",
+                 *         "message": "Too many requests",
+                 *         "details": []
+                 *       },
+                 *       "meta": {
+                 *         "request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"
+                 *       }
+                 *     }
+                 */
+                'application/json': components['schemas']['ErrorEnvelope'];
+            };
+        };
     };
     parameters: {
         UserId: string;
@@ -4427,7 +5307,18 @@ export interface components {
         IdempotencyKey: string;
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Requests allowed in a burst (the per-minute budget of the caller). */
+        'RateLimit-Limit': number;
+        /** @description Requests the caller can still make right now. */
+        'RateLimit-Remaining': number;
+        /** @description Seconds until the full budget is available again. */
+        'RateLimit-Reset': number;
+        /** @description The quota policy: `<limit>;w=<window seconds>`. */
+        'RateLimit-Policy': string;
+        /** @description Seconds to wait before the next request is allowed. */
+        'Retry-After': number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -5505,6 +6396,9 @@ export interface operations {
                     'application/json': components['schemas']['ApiKeyResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -5760,6 +6654,9 @@ export interface operations {
                     'application/json': components['schemas']['PhoneNumberListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -5826,6 +6723,10 @@ export interface operations {
                     'application/json': components['schemas']['TemplateListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -5898,6 +6799,10 @@ export interface operations {
                     'application/json': components['schemas']['OfferListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -5949,6 +6854,11 @@ export interface operations {
                     'application/json': components['schemas']['OfferResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6025,6 +6935,11 @@ export interface operations {
                     'application/json': components['schemas']['MessageResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6082,6 +6997,11 @@ export interface operations {
                     'application/json': components['schemas']['UploadedMediaResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6105,6 +7025,11 @@ export interface operations {
                     'application/json': components['schemas']['MessageResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6144,6 +7069,10 @@ export interface operations {
                     'application/json': components['schemas']['ContactListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6172,6 +7101,11 @@ export interface operations {
                     'application/json': components['schemas']['ContactResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6190,12 +7124,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         "city",
+                     *         "customer_no",
+                     *         "plan"
+                     *       ],
+                     *       "meta": {
+                     *         "request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"
+                     *       }
+                     *     }
+                     */
                     'application/json': {
                         data: string[];
                         meta: components['schemas']['Meta'];
                     };
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6221,6 +7170,11 @@ export interface operations {
                     'application/json': components['schemas']['ContactBulkResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6244,6 +7198,11 @@ export interface operations {
                     'application/json': components['schemas']['ContactResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6265,6 +7224,11 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6292,6 +7256,11 @@ export interface operations {
                     'application/json': components['schemas']['ContactResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6319,6 +7288,12 @@ export interface operations {
                     'application/json': components['schemas']['ContactResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6342,6 +7317,11 @@ export interface operations {
                     'application/json': components['schemas']['ConsentEventListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6448,6 +7428,10 @@ export interface operations {
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': string;
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6614,6 +7598,9 @@ export interface operations {
                     'application/json': components['schemas']['TagListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6734,6 +7721,9 @@ export interface operations {
                     'application/json': components['schemas']['GroupListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6860,6 +7850,12 @@ export interface operations {
                     'application/json': components['schemas']['CountResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6881,6 +7877,9 @@ export interface operations {
                     'application/json': components['schemas']['SegmentListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -6982,6 +7981,11 @@ export interface operations {
                     'application/json': components['schemas']['SegmentResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7126,6 +8130,10 @@ export interface operations {
                     'application/json': components['schemas']['CampaignListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7154,6 +8162,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7179,6 +8192,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignPreflightResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7202,6 +8220,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7250,6 +8273,12 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7267,6 +8296,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "scheduled_at": "2026-11-26T07:00:00Z"
+                 *     }
+                 */
                 'application/json': {
                     /** Format: date-time */
                     scheduled_at?: string;
@@ -7283,6 +8317,12 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7306,6 +8346,12 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7329,6 +8375,12 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7352,6 +8404,12 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7375,6 +8433,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignEventListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7403,6 +8466,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignRecipientListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7436,6 +8504,10 @@ export interface operations {
                     'application/json': components['schemas']['ConversationListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7459,6 +8531,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7486,6 +8563,11 @@ export interface operations {
                     'application/json': components['schemas']['InboxMessageListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7516,6 +8598,12 @@ export interface operations {
                     'application/json': components['schemas']['InboxMessageResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7543,6 +8631,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7566,6 +8659,12 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7589,6 +8688,12 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7635,6 +8740,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationEventListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7659,6 +8769,11 @@ export interface operations {
                     'application/octet-stream': string;
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7680,6 +8795,9 @@ export interface operations {
                     'application/json': components['schemas']['AutomationListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7728,6 +8846,11 @@ export interface operations {
                     'application/json': components['schemas']['AutomationResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7847,6 +8970,9 @@ export interface operations {
                     'application/json': components['schemas']['WebhookEventTypeListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7868,6 +8994,9 @@ export interface operations {
                     'application/json': components['schemas']['WebhookEndpointListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7896,6 +9025,11 @@ export interface operations {
                     'application/json': components['schemas']['WebhookEndpointSecretResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7919,6 +9053,11 @@ export interface operations {
                     'application/json': components['schemas']['WebhookEndpointResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7940,6 +9079,11 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7967,6 +9111,11 @@ export interface operations {
                     'application/json': components['schemas']['WebhookEndpointResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -7990,6 +9139,12 @@ export interface operations {
                     'application/json': components['schemas']['WebhookEndpointSecretResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -8013,6 +9168,12 @@ export interface operations {
                     'application/json': components['schemas']['WebhookDeliveryResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -8041,6 +9202,11 @@ export interface operations {
                     'application/json': components['schemas']['WebhookDeliveryListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -8064,6 +9230,12 @@ export interface operations {
                     'application/json': components['schemas']['WebhookDeliveryResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
