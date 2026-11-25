@@ -13,6 +13,7 @@ import {
     Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ClientDataTable } from '@/components/client-data-table';
 import { TextField } from '@/components/forms';
 import { newIdempotencyKey, notify } from '@/components/notify';
 import { useReauth } from '@/components/reauth';
@@ -55,14 +56,6 @@ import { FieldGroup } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
 import type {
@@ -662,6 +655,15 @@ function DisconnectButton({ account }: { account: WhatsAppAccount }) {
 
 // ── Phone numbers ─────────────────────────────────────────────────────────
 
+const QUALITY_RANK: Record<string, number> = {
+    GREEN: 0,
+    HIGH: 0,
+    YELLOW: 1,
+    MEDIUM: 1,
+    RED: 2,
+    LOW: 2,
+};
+
 export function PhoneNumberTable({
     numbers,
     manage,
@@ -672,45 +674,71 @@ export function PhoneNumberTable({
     const t = useT();
     const { guard } = useReauth();
     const [pending, startTransition] = useTransition();
-    if (numbers.length === 0) {
-        return (
-            <p className="p-6 text-sm text-muted-foreground">
-                {t('channels.numbers.empty')}
-            </p>
-        );
-    }
+    const setDefault = (n: PhoneNumber) =>
+        startTransition(async () => {
+            notify(await guard(() => setDefaultNumberAction(n.id)));
+        });
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>{t('channels.numbers.number')}</TableHead>
-                    <TableHead>{t('channels.numbers.verifiedName')}</TableHead>
-                    <TableHead>{t('channels.numbers.account')}</TableHead>
-                    <TableHead>{t('channels.numbers.quality')}</TableHead>
-                    <TableHead>
-                        {t('channels.numbers.messagingLimit')}
-                    </TableHead>
-                    <TableHead>
-                        <span className="sr-only">
-                            {t('channels.numbers.default')}
-                        </span>
-                    </TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {numbers.map((n) => (
-                    <TableRow key={n.id}>
-                        <TableCell className="font-mono">
+        <ClientDataTable
+            rows={numbers}
+            rowId={(n) => n.id}
+            storageKey="phone-numbers"
+            initialSort="number"
+            searchText={(n) =>
+                `${n.display_phone_number} ${n.verified_name} ${n.account_name}`
+            }
+            searchPlaceholder={t('table.search')}
+            empty={
+                <p className="p-6 text-sm text-muted-foreground">
+                    {t('channels.numbers.empty')}
+                </p>
+            }
+            noMatch={
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                    {t('table.noMatch')}
+                </p>
+            }
+            columns={[
+                {
+                    id: 'number',
+                    header: t('channels.numbers.number'),
+                    hideable: false,
+                    sortValue: (n) => n.display_phone_number,
+                    cell: (n) => (
+                        <span className="font-mono whitespace-nowrap">
                             {n.display_phone_number}
-                        </TableCell>
-                        <TableCell>{n.verified_name || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">
+                        </span>
+                    ),
+                },
+                {
+                    id: 'verifiedName',
+                    header: t('channels.numbers.verifiedName'),
+                    sortValue: (n) => n.verified_name || undefined,
+                    cell: (n) => n.verified_name || '—',
+                },
+                {
+                    id: 'account',
+                    header: t('channels.numbers.account'),
+                    sortValue: (n) => n.account_name,
+                    cell: (n) => (
+                        <span className="text-muted-foreground">
                             {n.account_name}
-                        </TableCell>
-                        <TableCell>
-                            <QualityBadge rating={n.quality_rating} />
-                        </TableCell>
-                        <TableCell className="text-sm">
+                        </span>
+                    ),
+                },
+                {
+                    id: 'quality',
+                    header: t('channels.numbers.quality'),
+                    sortValue: (n) =>
+                        QUALITY_RANK[n.quality_rating.toUpperCase()],
+                    cell: (n) => <QualityBadge rating={n.quality_rating} />,
+                },
+                {
+                    id: 'messagingLimit',
+                    header: t('channels.numbers.messagingLimit'),
+                    sortValue: (n) => n.messaging_limit || undefined,
+                    cell: (n) => (
+                        <div className="text-sm">
                             {n.messaging_limit || '—'}
                             {n.throughput_level && (
                                 <div className="text-xs text-muted-foreground">
@@ -719,39 +747,57 @@ export function PhoneNumberTable({
                                     })}
                                 </div>
                             )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                            {n.is_default ? (
-                                <Badge>
-                                    <Star /> {t('channels.numbers.default')}
-                                </Badge>
-                            ) : (
-                                manage && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={pending}
-                                        onClick={() =>
-                                            startTransition(async () => {
-                                                notify(
-                                                    await guard(() =>
-                                                        setDefaultNumberAction(
-                                                            n.id,
-                                                        ),
-                                                    ),
-                                                );
-                                            })
-                                        }
-                                    >
-                                        {t('channels.numbers.setDefault')}
-                                    </Button>
-                                )
-                            )}
-                        </TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
+                        </div>
+                    ),
+                },
+            ]}
+            rowActions={(n) =>
+                n.is_default ? (
+                    <Badge>
+                        <Star /> {t('channels.numbers.default')}
+                    </Badge>
+                ) : (
+                    manage && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => setDefault(n)}
+                        >
+                            {t('channels.numbers.setDefault')}
+                        </Button>
+                    )
+                )
+            }
+            rowMenu={(n) => [
+                [
+                    {
+                        id: 'copy',
+                        label: t('contextMenu.copyPhone'),
+                        icon: Phone,
+                        run: () =>
+                            void navigator.clipboard
+                                .writeText(n.display_phone_number)
+                                .then(
+                                    () =>
+                                        toast.success(t('contextMenu.copied')),
+                                    () => undefined,
+                                ),
+                    },
+                    ...(manage && !n.is_default
+                        ? [
+                              {
+                                  id: 'default',
+                                  label: t('channels.numbers.setDefault'),
+                                  icon: Star,
+                                  disabled: pending,
+                                  run: () => setDefault(n),
+                              },
+                          ]
+                        : []),
+                ],
+            ]}
+        />
     );
 }
 

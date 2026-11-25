@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
@@ -31,16 +30,12 @@ export default async function AuditPage({
                 title={t('audit.title')}
                 description={t('audit.description')}
             />
-            <Card>
-                <CardContent className="p-0">
-                    <AuditTable
-                        key={action ?? ''}
-                        initial={first.data}
-                        initialCursor={first.nextCursor}
-                        action={action}
-                    />
-                </CardContent>
-            </Card>
+            <AuditTable
+                key={action ?? ''}
+                initial={first.data}
+                initialCursor={first.nextCursor}
+                action={action}
+            />
         </>
     );
 }

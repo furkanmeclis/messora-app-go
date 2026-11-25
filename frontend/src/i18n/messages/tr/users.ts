@@ -39,10 +39,12 @@ const users: Messages['users'] = {
         send: 'Davet gönder',
     },
     invitation: {
-        details: '{role} · davet eden: {by} · son geçerlilik: {expires}',
+        invitedBy: 'Davet eden',
+        expires: 'Son geçerlilik',
         unknown: 'bilinmiyor',
         expired: 'Süresi doldu',
         revoke: 'İptal et',
+        revokedMany: '{count} davet iptal edildi.',
     },
     invitationRevoked: 'Davet iptal edildi.',
     roleSummary: {

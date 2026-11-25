@@ -1,8 +1,9 @@
 'use client';
 
 import { useActionState, useState, useTransition } from 'react';
-import { Copy, UserPlus } from 'lucide-react';
+import { Ban, Copy, Mail, UserCheck, UserPlus, UserX } from 'lucide-react';
 import { toast } from 'sonner';
+import { ClientDataTable } from '@/components/client-data-table';
 import {
     FormStatus,
     SubmitButton,
@@ -29,14 +30,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
+import { Spinner } from '@/components/ui/spinner';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
 import type {
@@ -59,6 +53,13 @@ const RANK: Record<string, number> = {
     manager: 20,
     agent: 30,
 };
+
+function copyText(text: string, done: string) {
+    void navigator.clipboard.writeText(text).then(
+        () => toast.success(done),
+        () => undefined,
+    );
+}
 
 export function UserTable({
     users,
@@ -83,121 +84,161 @@ export function UserTable({
         startTransition(
             async () => void notify(await updateUserAction(id, patch)),
         );
+    const editable = (u: User) =>
+        u.id !== meId && (meIsOwner || (RANK[u.role.key] ?? 0) > myRank);
+    const toggle = (u: User) =>
+        update(u.id, {
+            status: u.status === 'active' ? 'disabled' : 'active',
+        });
 
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>{t('users.columns.name')}</TableHead>
-                    <TableHead>{t('users.columns.role')}</TableHead>
-                    <TableHead>{t('users.columns.twoFactor')}</TableHead>
-                    <TableHead>{t('users.columns.lastSignIn')}</TableHead>
-                    <TableHead className="text-right">
-                        {t('users.columns.status')}
-                    </TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {users.map((u) => {
-                    const editable =
-                        u.id !== meId &&
-                        (meIsOwner || (RANK[u.role.key] ?? 0) > myRank);
-                    return (
-                        <TableRow key={u.id}>
-                            <TableCell>
-                                <div className="font-medium">{u.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                    {u.email}
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                {editable ? (
-                                    <Select
-                                        defaultValue={u.role.key}
-                                        disabled={pending}
-                                        onValueChange={(role) =>
-                                            update(u.id, { role })
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            className="w-32"
-                                            aria-label={t('users.roleOf', {
-                                                name: u.name,
-                                            })}
-                                        >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {roles.map((r) => (
-                                                <SelectItem
-                                                    key={r.key}
-                                                    value={r.key}
-                                                >
-                                                    {r.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <span>
-                                        {t(
-                                            `settings.security.roles.${u.role.key}`,
-                                        )}
-                                    </span>
-                                )}
-                            </TableCell>
-                            <TableCell>
-                                <Badge
-                                    variant={
-                                        u.mfa_enabled ? 'secondary' : 'outline'
-                                    }
-                                >
-                                    {u.mfa_enabled
-                                        ? t('users.on')
-                                        : t('users.off')}
-                                </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                                {formatDateTime(u.last_login_at)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                                {editable ? (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={pending}
-                                        onClick={() =>
-                                            update(u.id, {
-                                                status:
-                                                    u.status === 'active'
-                                                        ? 'disabled'
-                                                        : 'active',
-                                            })
-                                        }
-                                    >
-                                        {u.status === 'active'
-                                            ? t('users.disable')
-                                            : t('users.enable')}
-                                    </Button>
-                                ) : (
-                                    <Badge
-                                        variant={
-                                            u.status === 'active'
-                                                ? 'secondary'
-                                                : 'destructive'
-                                        }
-                                    >
-                                        {u.id === meId
-                                            ? t('users.you')
-                                            : t(`users.statuses.${u.status}`)}
+        <ClientDataTable
+            rows={users}
+            rowId={(u) => u.id}
+            storageKey="users"
+            initialSort="name"
+            searchText={(u) => `${u.name} ${u.email}`}
+            searchPlaceholder={t('table.search')}
+            noMatch={
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                    {t('table.noMatch')}
+                </p>
+            }
+            columns={[
+                {
+                    id: 'name',
+                    header: t('users.columns.name'),
+                    hideable: false,
+                    sortValue: (u) => u.name,
+                    cell: (u) => (
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 font-medium">
+                                {u.name}
+                                {u.id === meId && (
+                                    <Badge variant="outline">
+                                        {t('users.you')}
                                     </Badge>
                                 )}
-                            </TableCell>
-                        </TableRow>
-                    );
-                })}
-            </TableBody>
-        </Table>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                                {u.email}
+                            </div>
+                        </div>
+                    ),
+                },
+                {
+                    id: 'role',
+                    header: t('users.columns.role'),
+                    sortValue: (u) => RANK[u.role.key] ?? 99,
+                    cell: (u) =>
+                        editable(u) ? (
+                            <Select
+                                defaultValue={u.role.key}
+                                disabled={pending}
+                                onValueChange={(role) => update(u.id, { role })}
+                            >
+                                <SelectTrigger
+                                    className="w-32"
+                                    aria-label={t('users.roleOf', {
+                                        name: u.name,
+                                    })}
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {roles.map((r) => (
+                                        <SelectItem key={r.key} value={r.key}>
+                                            {r.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <span>
+                                {t(`settings.security.roles.${u.role.key}`)}
+                            </span>
+                        ),
+                },
+                {
+                    id: 'twoFactor',
+                    header: t('users.columns.twoFactor'),
+                    sortValue: (u) => (u.mfa_enabled ? 1 : 0),
+                    cell: (u) => (
+                        <Badge
+                            variant={u.mfa_enabled ? 'secondary' : 'outline'}
+                        >
+                            {u.mfa_enabled ? t('users.on') : t('users.off')}
+                        </Badge>
+                    ),
+                },
+                {
+                    id: 'lastSignIn',
+                    header: t('users.columns.lastSignIn'),
+                    sortValue: (u) => u.last_login_at,
+                    cell: (u) => (
+                        <span className="text-sm whitespace-nowrap text-muted-foreground">
+                            {formatDateTime(u.last_login_at)}
+                        </span>
+                    ),
+                },
+                {
+                    id: 'status',
+                    header: t('users.columns.status'),
+                    sortValue: (u) => u.status,
+                    cell: (u) => (
+                        <Badge
+                            variant={
+                                u.status === 'active'
+                                    ? 'secondary'
+                                    : 'destructive'
+                            }
+                        >
+                            {t(`users.statuses.${u.status}`)}
+                        </Badge>
+                    ),
+                },
+            ]}
+            rowActions={(u) =>
+                editable(u) ? (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => toggle(u)}
+                    >
+                        {u.status === 'active'
+                            ? t('users.disable')
+                            : t('users.enable')}
+                    </Button>
+                ) : null
+            }
+            rowMenu={(u) => [
+                [
+                    {
+                        id: 'email',
+                        label: t('contextMenu.copyEmail'),
+                        icon: Mail,
+                        run: () => copyText(u.email, t('contextMenu.copied')),
+                    },
+                    ...(editable(u)
+                        ? [
+                              {
+                                  id: 'status',
+                                  label:
+                                      u.status === 'active'
+                                          ? t('users.disable')
+                                          : t('users.enable'),
+                                  icon:
+                                      u.status === 'active' ? UserX : UserCheck,
+                                  danger: u.status === 'active',
+                                  disabled: pending,
+                                  run: () => toggle(u),
+                              },
+                          ]
+                        : []),
+                ],
+            ]}
+        />
     );
 }
 
@@ -328,46 +369,123 @@ export function InvitationList({ invitations }: { invitations: Invitation[] }) {
     const t = useT();
     const formatDateTime = useFormatDateTime();
     const [pending, startTransition] = useTransition();
+    const revoke = (ids: string[], done?: () => void) =>
+        startTransition(async () => {
+            if (ids.length === 1) {
+                if (notify(await revokeInvitationAction(ids[0]!))) done?.();
+                return;
+            }
+            let revoked = 0;
+            for (const id of ids) {
+                const r = await revokeInvitationAction(id);
+                if (!r.ok) {
+                    toast.error(r.message);
+                    break;
+                }
+                revoked++;
+            }
+            if (revoked > 0) {
+                toast.success(
+                    t('users.invitation.revokedMany', { count: revoked }),
+                );
+                done?.();
+            }
+        });
     return (
-        <ul className="divide-y rounded-md border">
-            {invitations.map((i) => (
-                <li key={i.id} className="flex items-center gap-3 p-3 text-sm">
-                    <div className="min-w-0 flex-1">
-                        <div className="font-medium">{i.email}</div>
-                        <div className="text-muted-foreground">
-                            {t('users.invitation.details', {
-                                role: t(
-                                    `settings.security.roles.${i.role.key}`,
-                                ),
-                                by:
-                                    i.invited_by ??
-                                    t('users.invitation.unknown'),
-                                expires: formatDateTime(i.expires_at),
-                            })}
-                        </div>
-                    </div>
-                    {i.status === 'expired' && (
-                        <Badge variant="outline">
-                            {t('users.invitation.expired')}
-                        </Badge>
-                    )}
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={pending}
-                        onClick={() =>
-                            startTransition(
-                                async () =>
-                                    void notify(
-                                        await revokeInvitationAction(i.id),
-                                    ),
-                            )
-                        }
-                    >
-                        {t('users.invitation.revoke')}
-                    </Button>
-                </li>
-            ))}
-        </ul>
+        <ClientDataTable
+            rows={invitations}
+            rowId={(i) => i.id}
+            storageKey="invitations"
+            initialSort="expires"
+            searchText={(i) => `${i.email} ${i.invited_by ?? ''}`}
+            searchPlaceholder={t('table.search')}
+            noMatch={
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                    {t('table.noMatch')}
+                </p>
+            }
+            selectable
+            bulkActions={(ids, clear) => (
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={pending}
+                    onClick={() => revoke(ids, clear)}
+                >
+                    {pending ? <Spinner /> : <Ban />}
+                    {t('users.invitation.revoke')}
+                </Button>
+            )}
+            columns={[
+                {
+                    id: 'email',
+                    header: t('users.invite.email'),
+                    hideable: false,
+                    sortValue: (i) => i.email,
+                    cell: (i) => <span className="font-medium">{i.email}</span>,
+                },
+                {
+                    id: 'role',
+                    header: t('users.columns.role'),
+                    sortValue: (i) => RANK[i.role.key] ?? 99,
+                    cell: (i) => t(`settings.security.roles.${i.role.key}`),
+                },
+                {
+                    id: 'invitedBy',
+                    header: t('users.invitation.invitedBy'),
+                    sortValue: (i) => i.invited_by,
+                    cell: (i) => (
+                        <span className="text-sm text-muted-foreground">
+                            {i.invited_by ?? t('users.invitation.unknown')}
+                        </span>
+                    ),
+                },
+                {
+                    id: 'expires',
+                    header: t('users.invitation.expires'),
+                    sortValue: (i) => i.expires_at,
+                    cell: (i) => (
+                        <span className="flex items-center gap-2 text-sm whitespace-nowrap text-muted-foreground">
+                            {formatDateTime(i.expires_at)}
+                            {i.status === 'expired' && (
+                                <Badge variant="outline">
+                                    {t('users.invitation.expired')}
+                                </Badge>
+                            )}
+                        </span>
+                    ),
+                },
+            ]}
+            rowActions={(i) => (
+                <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => revoke([i.id])}
+                >
+                    {t('users.invitation.revoke')}
+                </Button>
+            )}
+            rowMenu={(i) => [
+                [
+                    {
+                        id: 'email',
+                        label: t('contextMenu.copyEmail'),
+                        icon: Mail,
+                        run: () => copyText(i.email, t('contextMenu.copied')),
+                    },
+                ],
+                [
+                    {
+                        id: 'revoke',
+                        label: t('users.invitation.revoke'),
+                        icon: Ban,
+                        danger: true,
+                        disabled: pending,
+                        run: () => revoke([i.id]),
+                    },
+                ],
+            ]}
+        />
     );
 }

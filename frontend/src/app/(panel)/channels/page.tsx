@@ -61,7 +61,7 @@ export default async function ChannelsPage() {
                             {t('channels.numbers.description')}
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="p-0">
+                    <CardContent>
                         <PhoneNumberTable numbers={numbers} manage={manage} />
                     </CardContent>
                 </Card>

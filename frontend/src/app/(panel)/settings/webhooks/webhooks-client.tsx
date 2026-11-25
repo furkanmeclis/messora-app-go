@@ -1,6 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import {
+    Fragment,
+    useCallback,
+    useEffect,
+    useState,
+    useTransition,
+} from 'react';
 import {
     Copy,
     MoreHorizontal,
@@ -13,6 +19,8 @@ import {
     Webhook,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ClientDataTable } from '@/components/client-data-table';
+import type { MenuGroup } from '@/components/context-menu';
 import { TextField } from '@/components/forms';
 import { newIdempotencyKey, notify } from '@/components/notify';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -70,16 +78,9 @@ import {
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
+import { NUMBER_LOCALE } from '@/lib/format';
 import type { ActionResult, Schemas } from '@/lib/types';
 import {
     createWebhookAction,
@@ -336,207 +337,7 @@ function EditEndpointDialog({
     );
 }
 
-type Confirm = 'rotate' | 'delete' | null;
-
-function EndpointRow({
-    endpoint,
-    catalogue,
-}: {
-    endpoint: Endpoint;
-    catalogue: EventInfo[];
-}) {
-    const t = useT();
-    const [pending, startTransition] = useTransition();
-    const [editing, setEditing] = useState(false);
-    const [logOpen, setLogOpen] = useState(false);
-    const [confirm, setConfirm] = useState<Confirm>(null);
-    const [secret, setSecret] = useState<string | null>(null);
-
-    const run = (fn: () => Promise<ActionResult<unknown>>) =>
-        startTransition(async () => void notify(await fn()));
-
-    return (
-        <TableRow>
-            <TableCell className="max-w-sm">
-                <div
-                    className="truncate font-mono text-xs"
-                    title={endpoint.url}
-                >
-                    {endpoint.url}
-                </div>
-                {endpoint.description && (
-                    <div className="truncate text-sm text-muted-foreground">
-                        {endpoint.description}
-                    </div>
-                )}
-            </TableCell>
-            <TableCell>
-                <div className="flex max-w-xs flex-wrap gap-1">
-                    {endpoint.event_types.map((type) => (
-                        <Badge
-                            key={type}
-                            variant="outline"
-                            className="font-mono text-xs"
-                        >
-                            {type}
-                        </Badge>
-                    ))}
-                </div>
-            </TableCell>
-            <TableCell>
-                {endpoint.active ? (
-                    <Badge variant="secondary">{t('webhooks.active')}</Badge>
-                ) : (
-                    <div className="grid gap-1">
-                        <Badge variant="destructive">
-                            {t('webhooks.disabled')}
-                        </Badge>
-                        {endpoint.disabled_reason && (
-                            <span className="text-xs text-muted-foreground">
-                                {endpoint.disabled_reason}
-                            </span>
-                        )}
-                    </div>
-                )}
-            </TableCell>
-            <TableCell className="font-mono text-xs text-muted-foreground">
-                whsec_…{endpoint.secret_last4}
-            </TableCell>
-            <TableCell className="text-right whitespace-nowrap">
-                <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setLogOpen(true)}
-                >
-                    <ScrollText /> {t('webhooks.deliveries')}
-                </Button>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            aria-label={t('webhooks.moreActions')}
-                            disabled={pending}
-                            className="ml-1"
-                        >
-                            {pending ? <Spinner /> : <MoreHorizontal />}
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => setEditing(true)}>
-                            <Pencil /> {t('common.edit')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onSelect={() =>
-                                run(() => sendWebhookTestAction(endpoint.id))
-                            }
-                        >
-                            <Send /> {t('webhooks.sendTest')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onSelect={() =>
-                                run(() =>
-                                    setWebhookActiveAction(
-                                        endpoint.id,
-                                        !endpoint.active,
-                                    ),
-                                )
-                            }
-                        >
-                            <Webhook />{' '}
-                            {endpoint.active
-                                ? t('webhooks.disable')
-                                : t('webhooks.enable')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => setConfirm('rotate')}>
-                            <RotateCw /> {t('webhooks.rotateSecret')}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                            variant="destructive"
-                            onSelect={() => setConfirm('delete')}
-                        >
-                            <Trash2 /> {t('common.delete')}
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-
-                <EditEndpointDialog
-                    endpoint={endpoint}
-                    catalogue={catalogue}
-                    open={editing}
-                    onOpenChange={setEditing}
-                />
-                <DeliveryLog
-                    endpoint={endpoint}
-                    open={logOpen}
-                    onOpenChange={setLogOpen}
-                />
-                <AlertDialog
-                    open={confirm !== null}
-                    onOpenChange={(o) => !o && setConfirm(null)}
-                >
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {confirm === 'rotate'
-                                    ? t('webhooks.confirmRotateTitle')
-                                    : t('webhooks.confirmDeleteTitle')}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {confirm === 'rotate'
-                                    ? t('webhooks.confirmRotateBody')
-                                    : t('webhooks.confirmDeleteBody')}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>
-                                {t('common.cancel')}
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                variant={
-                                    confirm === 'delete'
-                                        ? 'destructive'
-                                        : 'default'
-                                }
-                                onClick={() => {
-                                    if (confirm === 'delete') {
-                                        run(() =>
-                                            deleteWebhookAction(endpoint.id),
-                                        );
-                                        return;
-                                    }
-                                    startTransition(async () => {
-                                        const r =
-                                            await rotateWebhookSecretAction(
-                                                endpoint.id,
-                                            );
-                                        if (notify(r)) setSecret(r.data);
-                                    });
-                                }}
-                            >
-                                {confirm === 'rotate'
-                                    ? t('webhooks.rotate')
-                                    : t('common.delete')}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-                <Dialog
-                    open={secret !== null}
-                    onOpenChange={(o) => !o && setSecret(null)}
-                >
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>{t('webhooks.newSecret')}</DialogTitle>
-                        </DialogHeader>
-                        {secret && <SecretNotice secret={secret} />}
-                    </DialogContent>
-                </Dialog>
-            </TableCell>
-        </TableRow>
-    );
-}
+type Confirm = { kind: 'rotate' | 'delete'; endpoint: Endpoint } | null;
 
 export function EndpointTable({
     endpoints,
@@ -546,42 +347,317 @@ export function EndpointTable({
     catalogue: EventInfo[];
 }) {
     const t = useT();
-    if (endpoints.length === 0) {
-        return (
-            <Empty className="py-12">
-                <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                        <Webhook />
-                    </EmptyMedia>
-                    <EmptyTitle>{t('webhooks.empty')}</EmptyTitle>
-                    <EmptyDescription>
-                        {t('webhooks.emptyHint')}
-                    </EmptyDescription>
-                </EmptyHeader>
-            </Empty>
-        );
-    }
+    const [pending, startTransition] = useTransition();
+    const [busyId, setBusyId] = useState<string | null>(null);
+    // The endpoint a dialog shows stays set while the dialog animates out.
+    const [editFor, setEditFor] = useState<Endpoint | null>(null);
+    const [editing, setEditing] = useState(false);
+    const [logFor, setLogFor] = useState<Endpoint | null>(null);
+    const [logOpen, setLogOpen] = useState(false);
+    const [confirm, setConfirm] = useState<Confirm>(null);
+    const [secret, setSecret] = useState<string | null>(null);
+
+    const run = (id: string, fn: () => Promise<ActionResult<unknown>>) =>
+        startTransition(async () => {
+            setBusyId(id);
+            notify(await fn());
+            setBusyId(null);
+        });
+    const edit = (e: Endpoint) => {
+        setEditFor(e);
+        setEditing(true);
+    };
+    const openLog = (e: Endpoint) => {
+        setLogFor(e);
+        setLogOpen(true);
+    };
+
+    const actions = (e: Endpoint): MenuGroup[] => [
+        [
+            {
+                id: 'deliveries',
+                label: t('webhooks.deliveries'),
+                icon: ScrollText,
+                run: () => openLog(e),
+            },
+            {
+                id: 'edit',
+                label: t('common.edit'),
+                icon: Pencil,
+                run: () => edit(e),
+            },
+            {
+                id: 'test',
+                label: t('webhooks.sendTest'),
+                icon: Send,
+                disabled: pending,
+                run: () => run(e.id, () => sendWebhookTestAction(e.id)),
+            },
+            {
+                id: 'active',
+                label: e.active ? t('webhooks.disable') : t('webhooks.enable'),
+                icon: Webhook,
+                disabled: pending,
+                run: () =>
+                    run(e.id, () => setWebhookActiveAction(e.id, !e.active)),
+            },
+            {
+                id: 'rotate',
+                label: t('webhooks.rotateSecret'),
+                icon: RotateCw,
+                run: () => setConfirm({ kind: 'rotate', endpoint: e }),
+            },
+        ],
+        [
+            {
+                id: 'delete',
+                label: t('common.delete'),
+                icon: Trash2,
+                danger: true,
+                run: () => setConfirm({ kind: 'delete', endpoint: e }),
+            },
+        ],
+    ];
+
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>{t('webhooks.columns.endpoint')}</TableHead>
-                    <TableHead>{t('webhooks.columns.events')}</TableHead>
-                    <TableHead>{t('webhooks.columns.status')}</TableHead>
-                    <TableHead>{t('webhooks.columns.secret')}</TableHead>
-                    <TableHead />
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {endpoints.map((e) => (
-                    <EndpointRow
-                        key={e.id}
-                        endpoint={e}
-                        catalogue={catalogue}
-                    />
-                ))}
-            </TableBody>
-        </Table>
+        <>
+            <ClientDataTable
+                rows={endpoints}
+                rowId={(e) => e.id}
+                storageKey="webhook-endpoints"
+                initialSort="endpoint"
+                searchText={(e) =>
+                    `${e.url} ${e.description ?? ''} ${e.event_types.join(' ')}`
+                }
+                searchPlaceholder={t('table.search')}
+                empty={
+                    <Empty className="py-12">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <Webhook />
+                            </EmptyMedia>
+                            <EmptyTitle>{t('webhooks.empty')}</EmptyTitle>
+                            <EmptyDescription>
+                                {t('webhooks.emptyHint')}
+                            </EmptyDescription>
+                        </EmptyHeader>
+                    </Empty>
+                }
+                noMatch={
+                    <p className="p-8 text-center text-sm text-muted-foreground">
+                        {t('table.noMatch')}
+                    </p>
+                }
+                columns={[
+                    {
+                        id: 'endpoint',
+                        header: t('webhooks.columns.endpoint'),
+                        hideable: false,
+                        sortValue: (e) => e.url,
+                        className: 'max-w-sm',
+                        cell: (e) => (
+                            <div className="min-w-0">
+                                <div
+                                    className="truncate font-mono text-xs"
+                                    title={e.url}
+                                >
+                                    {e.url}
+                                </div>
+                                {e.description && (
+                                    <div className="truncate text-sm text-muted-foreground">
+                                        {e.description}
+                                    </div>
+                                )}
+                            </div>
+                        ),
+                    },
+                    {
+                        id: 'events',
+                        header: t('webhooks.columns.events'),
+                        sortValue: (e) => e.event_types.length,
+                        cell: (e) => (
+                            <div className="flex max-w-xs flex-wrap gap-1">
+                                {e.event_types.map((type) => (
+                                    <Badge
+                                        key={type}
+                                        variant="outline"
+                                        className="font-mono text-xs"
+                                    >
+                                        {type}
+                                    </Badge>
+                                ))}
+                            </div>
+                        ),
+                    },
+                    {
+                        id: 'status',
+                        header: t('webhooks.columns.status'),
+                        sortValue: (e) => (e.active ? 0 : 1),
+                        cell: (e) =>
+                            e.active ? (
+                                <Badge variant="secondary">
+                                    {t('webhooks.active')}
+                                </Badge>
+                            ) : (
+                                <div className="grid gap-1">
+                                    <Badge variant="destructive">
+                                        {t('webhooks.disabled')}
+                                    </Badge>
+                                    {e.disabled_reason && (
+                                        <span className="text-xs text-muted-foreground">
+                                            {e.disabled_reason}
+                                        </span>
+                                    )}
+                                </div>
+                            ),
+                    },
+                    {
+                        id: 'secret',
+                        header: t('webhooks.columns.secret'),
+                        cell: (e) => (
+                            <span className="font-mono text-xs text-muted-foreground">
+                                whsec_…{e.secret_last4}
+                            </span>
+                        ),
+                    },
+                ]}
+                rowActions={(e) => (
+                    <span className="whitespace-nowrap">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openLog(e)}
+                        >
+                            <ScrollText /> {t('webhooks.deliveries')}
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    aria-label={t('webhooks.moreActions')}
+                                    disabled={busyId === e.id}
+                                    className="ml-1"
+                                >
+                                    {busyId === e.id ? (
+                                        <Spinner />
+                                    ) : (
+                                        <MoreHorizontal />
+                                    )}
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                {actions(e).map((group, gi) => (
+                                    <Fragment key={gi}>
+                                        {gi > 0 && <DropdownMenuSeparator />}
+                                        {group
+                                            .filter(
+                                                (i) => i.id !== 'deliveries',
+                                            )
+                                            .map((i) => (
+                                                <DropdownMenuItem
+                                                    key={i.id}
+                                                    variant={
+                                                        i.danger
+                                                            ? 'destructive'
+                                                            : 'default'
+                                                    }
+                                                    disabled={i.disabled}
+                                                    onSelect={i.run}
+                                                >
+                                                    {i.icon && <i.icon />}{' '}
+                                                    {i.label}
+                                                </DropdownMenuItem>
+                                            ))}
+                                    </Fragment>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </span>
+                )}
+                rowMenu={actions}
+                onRowClick={openLog}
+            />
+
+            {editFor && (
+                <EditEndpointDialog
+                    key={editFor.id}
+                    endpoint={editFor}
+                    catalogue={catalogue}
+                    open={editing}
+                    onOpenChange={setEditing}
+                />
+            )}
+            {logFor && (
+                <DeliveryLog
+                    key={logFor.id}
+                    endpoint={logFor}
+                    open={logOpen}
+                    onOpenChange={setLogOpen}
+                />
+            )}
+            <AlertDialog
+                open={confirm !== null}
+                onOpenChange={(o) => !o && setConfirm(null)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {confirm?.kind === 'rotate'
+                                ? t('webhooks.confirmRotateTitle')
+                                : t('webhooks.confirmDeleteTitle')}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirm?.kind === 'rotate'
+                                ? t('webhooks.confirmRotateBody')
+                                : t('webhooks.confirmDeleteBody')}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>
+                            {t('common.cancel')}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            variant={
+                                confirm?.kind === 'delete'
+                                    ? 'destructive'
+                                    : 'default'
+                            }
+                            onClick={() => {
+                                if (!confirm) return;
+                                const id = confirm.endpoint.id;
+                                if (confirm.kind === 'delete') {
+                                    run(id, () => deleteWebhookAction(id));
+                                    return;
+                                }
+                                startTransition(async () => {
+                                    setBusyId(id);
+                                    const r =
+                                        await rotateWebhookSecretAction(id);
+                                    setBusyId(null);
+                                    if (notify(r)) setSecret(r.data);
+                                });
+                            }}
+                        >
+                            {confirm?.kind === 'rotate'
+                                ? t('webhooks.rotate')
+                                : t('common.delete')}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <Dialog
+                open={secret !== null}
+                onOpenChange={(o) => !o && setSecret(null)}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t('webhooks.newSecret')}</DialogTitle>
+                    </DialogHeader>
+                    {secret && <SecretNotice secret={secret} />}
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 
@@ -596,90 +672,6 @@ const STATUS_VARIANT: Record<
     delivering: 'default',
 };
 
-function DeliveryItem({
-    d,
-    onChange,
-}: {
-    d: Delivery;
-    onChange: (d: Delivery) => void;
-}) {
-    const t = useT();
-    const formatDateTime = useFormatDateTime();
-    const [pending, startTransition] = useTransition();
-    const [open, setOpen] = useState(false);
-    return (
-        <li className="space-y-2 border-b py-3 last:border-b-0">
-            <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={STATUS_VARIANT[d.status]}>
-                    {t(`webhooks.deliveryStatuses.${d.status}`)}
-                </Badge>
-                <span className="font-mono text-xs">{d.event_type}</span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                    {formatDateTime(d.last_attempt_at ?? d.created_at)}
-                </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span>{t('webhooks.attempts', { count: d.attempts })}</span>
-                {d.last_status_code != null && (
-                    <span>HTTP {d.last_status_code}</span>
-                )}
-                {d.last_duration_ms != null && (
-                    <span>{d.last_duration_ms} ms</span>
-                )}
-                {d.next_attempt_at && (
-                    <span>
-                        {t('webhooks.nextTry', {
-                            time: formatDateTime(d.next_attempt_at),
-                        })}
-                    </span>
-                )}
-                <span className="ml-auto flex gap-1">
-                    {(d.last_error || d.last_response_body) && (
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setOpen((o) => !o)}
-                        >
-                            {open
-                                ? t('webhooks.hideDetails')
-                                : t('webhooks.details')}
-                        </Button>
-                    )}
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={pending || d.status === 'delivering'}
-                        onClick={() =>
-                            startTransition(async () => {
-                                const r = await redeliverWebhookAction(d.id);
-                                if (notify(r)) onChange(r.data);
-                            })
-                        }
-                    >
-                        {pending ? <Spinner /> : <RotateCw />}{' '}
-                        {t('webhooks.redeliver')}
-                    </Button>
-                </span>
-            </div>
-            {open && (
-                <div className="space-y-2 rounded-md bg-muted p-2 text-xs">
-                    <div className="font-mono text-muted-foreground">
-                        {t('webhooks.event', { id: d.event_id })}
-                    </div>
-                    {d.last_error && (
-                        <div className="text-destructive">{d.last_error}</div>
-                    )}
-                    {d.last_response_body && (
-                        <pre className="max-h-40 overflow-auto font-mono break-all whitespace-pre-wrap">
-                            {d.last_response_body}
-                        </pre>
-                    )}
-                </div>
-            )}
-        </li>
-    );
-}
-
 function DeliveryLog({
     endpoint,
     open,
@@ -690,10 +682,14 @@ function DeliveryLog({
     onOpenChange: (o: boolean) => void;
 }) {
     const t = useT();
+    const formatDateTime = useFormatDateTime();
     const [status, setStatus] = useState<DeliveryStatus | 'all'>('all');
     const [items, setItems] = useState<Delivery[]>([]);
     const [next, setNext] = useState<string | undefined>();
     const [loading, startLoading] = useTransition();
+    const [redelivering, startRedeliver] = useTransition();
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [details, setDetails] = useState<Delivery | null>(null);
 
     const load = useCallback(
         (cursor?: string) =>
@@ -718,82 +714,230 @@ function DeliveryLog({
         if (open) load();
     }, [open, load]);
 
+    const redeliver = (d: Delivery) =>
+        startRedeliver(async () => {
+            setBusyId(d.id);
+            const r = await redeliverWebhookAction(d.id);
+            setBusyId(null);
+            if (notify(r))
+                setItems((prev) =>
+                    prev.map((x) => (x.id === r.data.id ? r.data : x)),
+                );
+        });
+    const hasDetails = (d: Delivery) =>
+        Boolean(d.last_error || d.last_response_body);
+
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+            <SheetContent className="w-full overflow-y-auto sm:max-w-4xl">
                 <SheetHeader>
                     <SheetTitle>{t('webhooks.log.title')}</SheetTitle>
                     <SheetDescription className="truncate font-mono text-xs">
                         {endpoint.url}
                     </SheetDescription>
                 </SheetHeader>
-                <div className="flex items-center gap-2 px-4">
-                    <Select
-                        value={status}
-                        onValueChange={(v) =>
-                            setStatus(v as DeliveryStatus | 'all')
+                <div className="space-y-3 px-4 pb-4">
+                    <ClientDataTable
+                        rows={items}
+                        rowId={(d) => d.id}
+                        storageKey="webhook-deliveries"
+                        initialSort="-when"
+                        searchText={(d) =>
+                            `${d.event_type} ${d.event_id} ${d.last_status_code ?? ''} ${d.last_error ?? ''}`
                         }
-                    >
-                        <SelectTrigger
-                            className="w-40"
-                            aria-label={t('webhooks.log.status')}
-                        >
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">
-                                {t('webhooks.log.allStatuses')}
-                            </SelectItem>
-                            <SelectItem value="succeeded">
-                                {t('webhooks.log.succeeded')}
-                            </SelectItem>
-                            <SelectItem value="failed">
-                                {t('webhooks.log.failed')}
-                            </SelectItem>
-                            <SelectItem value="retrying">
-                                {t('webhooks.log.retrying')}
-                            </SelectItem>
-                            <SelectItem value="pending">
-                                {t('webhooks.log.pending')}
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={loading}
-                        onClick={() => load()}
-                    >
-                        {loading ? <Spinner /> : <RotateCw />}{' '}
-                        {t('webhooks.log.refresh')}
-                    </Button>
-                </div>
-                <div className="px-4 pb-4">
-                    {items.length === 0 && !loading ? (
-                        <p className="py-8 text-center text-sm text-muted-foreground">
-                            {t('webhooks.log.empty')}
-                        </p>
-                    ) : (
-                        <ul>
-                            {items.map((d) => (
-                                <DeliveryItem
-                                    key={d.id}
-                                    d={d}
-                                    onChange={(u) =>
-                                        setItems((prev) =>
-                                            prev.map((x) =>
-                                                x.id === u.id ? u : x,
-                                            ),
-                                        )
+                        searchPlaceholder={t('table.search')}
+                        toolbar={
+                            <>
+                                <Select
+                                    value={status}
+                                    onValueChange={(v) =>
+                                        setStatus(v as DeliveryStatus | 'all')
                                     }
-                                />
-                            ))}
-                        </ul>
-                    )}
+                                >
+                                    <SelectTrigger
+                                        className="w-40"
+                                        aria-label={t('webhooks.log.status')}
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">
+                                            {t('webhooks.log.allStatuses')}
+                                        </SelectItem>
+                                        <SelectItem value="succeeded">
+                                            {t('webhooks.log.succeeded')}
+                                        </SelectItem>
+                                        <SelectItem value="failed">
+                                            {t('webhooks.log.failed')}
+                                        </SelectItem>
+                                        <SelectItem value="retrying">
+                                            {t('webhooks.log.retrying')}
+                                        </SelectItem>
+                                        <SelectItem value="pending">
+                                            {t('webhooks.log.pending')}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={loading}
+                                    onClick={() => load()}
+                                >
+                                    {loading ? <Spinner /> : <RotateCw />}{' '}
+                                    {t('webhooks.log.refresh')}
+                                </Button>
+                            </>
+                        }
+                        empty={
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                {loading
+                                    ? t('table.loading')
+                                    : t('webhooks.log.empty')}
+                            </p>
+                        }
+                        noMatch={
+                            <p className="p-8 text-center text-sm text-muted-foreground">
+                                {t('table.noMatch')}
+                            </p>
+                        }
+                        columns={[
+                            {
+                                id: 'status',
+                                header: t('webhooks.log.status'),
+                                sortValue: (d) => d.status,
+                                cell: (d) => (
+                                    <Badge variant={STATUS_VARIANT[d.status]}>
+                                        {t(
+                                            `webhooks.deliveryStatuses.${d.status}`,
+                                        )}
+                                    </Badge>
+                                ),
+                            },
+                            {
+                                id: 'event',
+                                header: t('webhooks.eventColumn'),
+                                hideable: false,
+                                sortValue: (d) => d.event_type,
+                                cell: (d) => (
+                                    <span className="font-mono text-xs">
+                                        {d.event_type}
+                                    </span>
+                                ),
+                            },
+                            {
+                                id: 'attempts',
+                                header: t('webhooks.attemptsColumn'),
+                                className: 'text-right',
+                                sortValue: (d) => d.attempts,
+                                cell: (d) => (
+                                    <div className="text-xs text-muted-foreground tabular-nums">
+                                        {t('webhooks.attempts', {
+                                            count: d.attempts,
+                                        })}
+                                        {d.next_attempt_at && (
+                                            <div>
+                                                {t('webhooks.nextTry', {
+                                                    time: formatDateTime(
+                                                        d.next_attempt_at,
+                                                    ),
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                ),
+                            },
+                            {
+                                id: 'response',
+                                header: t('webhooks.responseColumn'),
+                                sortValue: (d) => d.last_status_code,
+                                cell: (d) => (
+                                    <div className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                                        {d.last_status_code != null
+                                            ? `HTTP ${d.last_status_code}`
+                                            : '—'}
+                                        {d.last_duration_ms != null && (
+                                            <div>
+                                                {d.last_duration_ms.toLocaleString(
+                                                    NUMBER_LOCALE,
+                                                )}{' '}
+                                                ms
+                                            </div>
+                                        )}
+                                    </div>
+                                ),
+                            },
+                            {
+                                id: 'when',
+                                header: t('webhooks.whenColumn'),
+                                sortValue: (d) =>
+                                    d.last_attempt_at ?? d.created_at,
+                                cell: (d) => (
+                                    <span className="text-xs whitespace-nowrap text-muted-foreground">
+                                        {formatDateTime(
+                                            d.last_attempt_at ?? d.created_at,
+                                        )}
+                                    </span>
+                                ),
+                            },
+                        ]}
+                        rowActions={(d) => (
+                            <span className="flex justify-end gap-1">
+                                {hasDetails(d) && (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setDetails(d)}
+                                    >
+                                        {t('webhooks.details')}
+                                    </Button>
+                                )}
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                        redelivering ||
+                                        d.status === 'delivering'
+                                    }
+                                    onClick={() => redeliver(d)}
+                                >
+                                    {busyId === d.id ? (
+                                        <Spinner />
+                                    ) : (
+                                        <RotateCw />
+                                    )}{' '}
+                                    {t('webhooks.redeliver')}
+                                </Button>
+                            </span>
+                        )}
+                        rowMenu={(d) => [
+                            [
+                                ...(hasDetails(d)
+                                    ? [
+                                          {
+                                              id: 'details',
+                                              label: t('webhooks.details'),
+                                              icon: ScrollText,
+                                              run: () => setDetails(d),
+                                          },
+                                      ]
+                                    : []),
+                                {
+                                    id: 'redeliver',
+                                    label: t('webhooks.redeliver'),
+                                    icon: RotateCw,
+                                    disabled:
+                                        redelivering ||
+                                        d.status === 'delivering',
+                                    run: () => redeliver(d),
+                                },
+                            ],
+                        ]}
+                    />
                     {next && (
                         <Button
                             variant="outline"
-                            className="mt-3 w-full"
+                            className="w-full"
                             disabled={loading}
                             onClick={() => load(next)}
                         >
@@ -801,6 +945,32 @@ function DeliveryLog({
                         </Button>
                     )}
                 </div>
+                <Dialog
+                    open={details !== null}
+                    onOpenChange={(o) => !o && setDetails(null)}
+                >
+                    <DialogContent className="max-h-[90svh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>{t('webhooks.details')}</DialogTitle>
+                            <DialogDescription className="font-mono text-xs">
+                                {details &&
+                                    t('webhooks.event', {
+                                        id: details.event_id,
+                                    })}
+                            </DialogDescription>
+                        </DialogHeader>
+                        {details?.last_error && (
+                            <p className="text-sm text-destructive">
+                                {details.last_error}
+                            </p>
+                        )}
+                        {details?.last_response_body && (
+                            <pre className="max-h-80 overflow-auto rounded-md bg-muted p-2 font-mono text-xs break-all whitespace-pre-wrap">
+                                {details.last_response_body}
+                            </pre>
+                        )}
+                    </DialogContent>
+                </Dialog>
             </SheetContent>
         </Sheet>
     );

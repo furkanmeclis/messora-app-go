@@ -37,10 +37,12 @@ const users = {
         send: 'Send invitation',
     },
     invitation: {
-        details: '{role} · invited by {by} · expires {expires}',
+        invitedBy: 'Invited by',
+        expires: 'Expires',
         unknown: 'unknown',
         expired: 'Expired',
         revoke: 'Revoke',
+        revokedMany: '{count} invitation revoked.|{count} invitations revoked.',
     },
     invitationRevoked: 'Invitation revoked.',
     roleSummary: {
