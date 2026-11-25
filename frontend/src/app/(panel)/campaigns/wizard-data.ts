@@ -3,6 +3,7 @@ import 'server-only';
 import { api } from '@/lib/server/api';
 import { can } from '@/lib/server/auth';
 import type {
+    Campaign,
     Contact,
     ContactGroup,
     Me,
@@ -31,6 +32,8 @@ export type WizardData = {
     sample: Contact | null;
     /** Offers a campaign can link (templates.read), ended ones last. */
     offers: Offer[] | null;
+    /** Finished campaigns whose unreached customers can be targeted again. */
+    finished: { id: string; name: string }[] | null;
 };
 
 /** Everything the campaign wizard offers, limited to what the role sees. */
@@ -50,6 +53,7 @@ export async function loadWizardData(me: Me): Promise<WizardData> {
         attributeKeys,
         sample,
         offers,
+        campaigns,
     ] = await Promise.all([
         maybe<PhoneNumber[]>('channels.read', '/channels/phone-numbers'),
         maybe<Template[]>('templates.read', '/templates?status=APPROVED'),
@@ -59,6 +63,7 @@ export async function loadWizardData(me: Me): Promise<WizardData> {
         maybe<string[]>('contacts.read', '/contacts/attribute-keys'),
         maybe<Contact[]>('contacts.read', '/contacts?limit=1&opted_out=false'),
         maybe<Offer[]>('templates.read', '/offers'),
+        maybe<Campaign[]>('campaigns.read', '/campaigns?limit=200'),
     ]);
     return {
         numbers,
@@ -73,5 +78,11 @@ export async function loadWizardData(me: Me): Promise<WizardData> {
         attributeKeys: attributeKeys ?? [],
         sample: sample?.[0] ?? null,
         offers,
+        finished:
+            campaigns
+                ?.filter((c) =>
+                    ['completed', 'cancelled', 'failed'].includes(c.status),
+                )
+                .map((c) => ({ id: c.id, name: c.name })) ?? null,
     };
 }

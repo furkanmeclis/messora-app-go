@@ -8,6 +8,7 @@ import type {
     CampaignEventItem,
     CampaignRecipient,
     PhoneNumber,
+    Schemas,
 } from '@/lib/types';
 import { CampaignDashboard } from './dashboard';
 
@@ -29,12 +30,15 @@ export default async function CampaignPage({
     let campaign: Campaign;
     let events: CampaignEventItem[];
     let recipients: { data: CampaignRecipient[]; nextCursor?: string };
+    let pauses: Schemas['CampaignPause'][];
     try {
-        const [c, e, r] = await Promise.all([
+        const [c, e, r, p] = await Promise.all([
             api<Campaign>(`/campaigns/${id}`),
             api<CampaignEventItem[]>(`/campaigns/${id}/events`),
             api<CampaignRecipient[]>(`/campaigns/${id}/recipients?limit=50`),
+            api<Schemas['CampaignPause'][]>(`/campaigns/${id}/pauses`),
         ]);
+        pauses = p.data;
         campaign = c.data;
         events = e.data;
         recipients = { data: r.data, nextCursor: r.nextCursor };
@@ -53,6 +57,7 @@ export default async function CampaignPage({
     return (
         <CampaignDashboard
             campaign={campaign}
+            pauses={pauses}
             events={events}
             recipients={recipients.data}
             recipientsCursor={recipients.nextCursor}

@@ -290,11 +290,11 @@ test('a paused campaign resumes and its dashboard follows it live', async ({
     // Resume after confirming; the engine sends (the disabled account fails
     // each message at once) and completes, and the page follows over
     // realtime without a reload.
-    await page.getByRole('button', { name: 'Resume' }).click();
-    await page
-        .getByRole('alertdialog')
-        .getByRole('button', { name: 'Resume' })
-        .click();
+    await page.getByTestId('resume-open').click();
+    // The pre-resume summary counts what is left, consent checked again.
+    const resume = page.getByRole('dialog');
+    await expect(resume.getByTestId('preview-remaining')).toHaveText('3');
+    await resume.getByTestId('resume-confirm').click();
     await expect(page.getByTestId('campaign-status')).toHaveAttribute(
         'data-status',
         'completed',
@@ -538,5 +538,120 @@ test('the review step shows who consent keeps from the campaign', async ({
     );
     // A hard block cannot be overridden from here.
     await expect(preflight.getByRole('button')).toHaveCount(0);
+    noErrors();
+});
+
+test('unreached customers of a finished campaign are targeted again, with a priority', async ({
+    page,
+}) => {
+    const noErrors = watchErrors(page);
+    // A finished campaign on the seeded channel: contact 1 failed with a
+    // temporary error, contact 2 was blocked by consent (never selectable),
+    // contact 3 was never sent (the campaign was cancelled).
+    const first = `E2E first wave ${TAG}`;
+    sql(`
+        UPDATE contacts SET marketing_consent = 'opted_in', marketing_consent_at = now(),
+                            marketing_consent_source = 'manual', opted_out_at = NULL
+        WHERE phone_e164 IN ('+90555${TAG}1', '+90555${TAG}3');
+        WITH k AS (INSERT INTO campaigns (name, status, phone_number_id, template_name, template_language,
+                                          audience, total_recipients, started_at, finished_at)
+                   SELECT '${first}', 'cancelled', id, 'e2e_promo', 'en_US', '{"all":true}', 3, now(), now()
+                   FROM phone_numbers WHERE phone_number_id = '9002${TAG}' RETURNING id, phone_number_id),
+             m AS (INSERT INTO messages (phone_number_id, contact_id, direction, type, status, status_rank, source,
+                                         campaign_id, failure_class, error_code)
+                   SELECT k.phone_number_id, c.id, 'outbound', 'template', 'failed', 6, 'campaign', k.id, 'temporary', '131000'
+                   FROM k, contacts c WHERE c.phone_e164 = '+90555${TAG}1' RETURNING id, contact_id)
+        INSERT INTO campaign_recipients (campaign_id, contact_id, phone_e164, state, skip_reason, message_id)
+        SELECT k.id, c.id, c.phone_e164,
+               CASE c.phone_e164 WHEN '+90555${TAG}1' THEN 'queued' WHEN '+90555${TAG}2' THEN 'skipped' ELSE 'cancelled' END,
+               CASE c.phone_e164 WHEN '+90555${TAG}2' THEN 'opted_out' END,
+               (SELECT m.id FROM m WHERE m.contact_id = c.id)
+        FROM k, contacts c WHERE c.phone_e164 LIKE '+90555${TAG}_';`);
+
+    const name = `E2E second wave ${TAG}`;
+    await signIn(page);
+    await page.goto('/campaigns/new');
+    await page.getByLabel('Name', { exact: true }).fill(name);
+    await page.getByRole('combobox', { name: 'Sender' }).click();
+    await page.getByRole('option', { name: new RegExp(`555 ${TAG}`) }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('combobox', { name: 'Template' }).click();
+    await page.getByRole('option', { name: /e2e_promo/ }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('combobox', { name: 'Body {{1}}' }).click();
+    await page.getByRole('option', { name: 'First name' }).click();
+    await page.getByLabel('If empty: First name').fill('there');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await expect(
+        page.getByRole('heading', { name: '4. Audience' }),
+    ).toBeVisible();
+    await page.getByRole('radio', { name: 'Not reached before' }).check();
+    await page.getByRole('combobox', { name: 'Earlier campaign' }).click();
+    await page.getByRole('option', { name: first }).click();
+
+    // Live summary per reason; hard blocks are listed but not selectable.
+    const prev = page.getByTestId('previous-audience');
+    await expect(prev.getByTestId('class-count-temporary')).toHaveText('1');
+    await expect(prev.getByTestId('class-count-never_sent')).toHaveText('1');
+    await expect(prev).toContainText('Blocked by consent (1)');
+    await expect(page.getByTestId('previous-summary')).toContainText(
+        '2 will be sent',
+    );
+    await prev.getByTestId('class-never_sent').click();
+    await expect(page.getByTestId('previous-summary')).toContainText(
+        '1 will be sent',
+    );
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await expect(
+        page.getByRole('heading', { name: '5. Review' }),
+    ).toBeVisible();
+    await expect(page.getByText(`Not reached by ${first}`)).toBeVisible();
+    await page.getByTestId('wizard-priority').click();
+    await page.getByRole('option', { name: 'High' }).click();
+    await page.getByRole('button', { name: 'Save draft' }).click();
+    await expect(page).toHaveURL(/\/campaigns\/[0-9a-f-]{36}$/);
+
+    const stored = JSON.parse(
+        sql(
+            `SELECT json_build_object('audience', audience, 'priority', priority)::text FROM campaigns WHERE name = '${name}'`,
+        ),
+    ) as {
+        priority: string;
+        audience: { previous_campaign: { classes: string[] } };
+    };
+    expect(stored.priority).toBe('high');
+    expect(stored.audience.previous_campaign.classes.sort()).toEqual([
+        'ecosystem_limit',
+        'temporary',
+    ]);
+
+    // The priority can be changed on the detail page.
+    const engine = page.getByTestId('campaign-engine');
+    await expect(engine.getByTestId('priority-select')).toContainText('High');
+    await engine.getByTestId('priority-select').click();
+    await page.getByRole('option', { name: 'Low' }).click();
+    await expect(page.getByText('Priority changed.')).toBeVisible();
+    await expect
+        .poll(() =>
+            sql(`SELECT priority FROM campaigns WHERE name = '${name}'`),
+        )
+        .toBe('low');
+    expect(
+        count(
+            `SELECT count(*) FROM audit_logs a JOIN campaigns c ON c.id = a.entity_id
+             WHERE c.name = '${name}' AND a.action = 'campaign.priority_change'`,
+        ),
+    ).toBe(1);
+
+    // The list shows it too.
+    await page.goto('/campaigns');
+    await expect(
+        page
+            .getByTestId('campaign-row')
+            .filter({ hasText: name })
+            .getByTestId('campaign-priority'),
+    ).toHaveText('Low');
     noErrors();
 });

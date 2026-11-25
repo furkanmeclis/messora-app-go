@@ -3963,7 +3963,7 @@ export interface components {
             paused_by?: string | null;
             /**
              * Format: date-time
-             * @description When it resumes by itself (limit frees up
+             * @description When it resumes by itself (limit frees up, or a scheduled resume).
              */
             resume_at?: string | null;
             /**
