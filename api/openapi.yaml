@@ -2303,7 +2303,7 @@ paths:
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
         - { name: state, in: query, schema: { type: string, enum: [pending, queued, skipped, cancelled, retry] } }
-        - { name: class, in: query, description: Only recipients not reached for this reason., schema: { $ref: "#/components/schemas/UnreachedClass" } }
+        - { name: class, in: query, description: "Only recipients not reached for this reason.", schema: { $ref: "#/components/schemas/UnreachedClass" } }
         - { $ref: "#/components/parameters/Cursor" }
         - { $ref: "#/components/parameters/Limit" }
       responses:
@@ -4984,7 +4984,7 @@ components:
         paused_reason: { type: [string, "null"], description: "Why it is paused: manual, messaging_limit, offer_expired, license_restricted …" }
         paused_at: { type: [string, "null"], format: date-time }
         paused_by: { type: [string, "null"], format: uuid }
-        resume_at: { type: [string, "null"], format: date-time, description: When it resumes by itself (limit frees up, or a scheduled resume). }
+        resume_at: { type: [string, "null"], format: date-time, description: "When it resumes by itself (limit frees up, or a scheduled resume)." }
         send_rate: { type: [number, "null"], format: double, description: Measured rate in messages per second. }
         eta_seconds: { type: [integer, "null"], format: int64, description: Estimated time left at the measured rate. }
         created_at: { type: string, format: date-time }

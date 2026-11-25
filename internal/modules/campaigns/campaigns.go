@@ -886,10 +886,12 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 				}
 			}
 		}
-		if limitHit {
+		if limitHit && queued == 0 && pl.Limit.InFlight == 0 {
 			// The next customer would exceed the portfolio's messaging
 			// limit: wait (paused_limit) until the oldest counted customer
-			// ages out; the scheduler job resumes the campaign then.
+			// ages out; the scheduler job resumes the campaign then. While
+			// messages are still in flight the budget is only an upper
+			// bound (some of them may not count), so the tick just waits.
 			_, err := s.transition(ctx, q, tx, id, "paused_limit", []string{"running"}, "paused_limit", pl.limitDetail(), nil, nil)
 			return err
 		}

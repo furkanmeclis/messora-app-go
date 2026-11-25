@@ -257,6 +257,10 @@ func TestCampaignLifecycleAndPersonalisation(t *testing.T) {
 	// Webhook statuses flow into campaign counts.
 	var wamid string
 	_ = h.pool.QueryRow(context.Background(), "SELECT wamid FROM messages WHERE campaign_id = $1 LIMIT 1", id).Scan(&wamid)
+	// Dispatcher ticks share the two-second progress throttle; let it lapse.
+	if _, err := h.pool.Exec(context.Background(), "UPDATE campaigns SET progress_published_at = now() - interval '1 minute' WHERE id = $1", id); err != nil {
+		t.Fatal(err)
+	}
 	before := h.count("SELECT count(*) FROM outbox_events WHERE topic = 'rt:campaign:' || $1::text", id)
 	h.webhook(whatsapptest.StatusUpdate(testPNID, wamid, "delivered", "x", "", time.Now(), 0))
 	if after := h.count("SELECT count(*) FROM outbox_events WHERE topic = 'rt:campaign:' || $1::text", id); after != before+1 {
