@@ -188,7 +188,7 @@ Aşağıdaki önerilerin hepsi kabul edildi: (1) yetki izolasyonu 16C'de, firmal
 | P2 Gönderim motoru | bekliyor |
 | P3 Analitik ve rapor | bekliyor |
 | P4 Şablon ve teklif | bekliyor |
-| P5 AI sağlayıcı ve profil | bekliyor |
+| P5 AI sağlayıcı ve profil | ✅ tamamlandı (2026-11-25), bkz. docs/AI.md — açık doğrulamalar: gerçek hesaplarla yapılandırılmış çıktı şemasının (nullable tipler) Anthropic/Gemini tarafından kabulü, Gemini `toolUsePromptTokenCount` faturalaması, seed fiyatların yönetici onayı |
 | P6 Sohbet zekâsı ve devir | bekliyor |
 | P7 AI müşteri zekâsı ve maliyet | bekliyor |
 | P8 Otomasyon ve presetler | bekliyor |

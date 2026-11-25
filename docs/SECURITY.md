@@ -42,6 +42,7 @@ automations.read  automations.manage
 channels.read  channels.manage           (WhatsApp hesap/numara, Meta token)
 webhooks.manage  api_keys.manage
 settings.read  settings.update  users.manage  audit.read
+ai.read  ai.manage                       (AI sağlayıcıları, fiyatlar, AI profilleri; bkz. docs/AI.md)
 messages.send                             (API key scope'u)
 ```
 
@@ -49,7 +50,7 @@ messages.send                             (API key scope'u)
 |---|---|
 | Owner | Tüm izinler. Owner sayısı 0'a düşürülemez. |
 | Admin | Owner dışındaki tüm izinler (Owner atayamaz ve silemez). |
-| Manager | Contacts, segments, campaigns, templates (okuma), automations, conversations (tümü), audit (okuma). Kullanıcı, kanal ve API key yönetimi yok. |
+| Manager | Contacts, segments, campaigns, templates (okuma), automations, conversations (tümü), audit (okuma), AI (okuma). Kullanıcı, kanal, AI ve API key yönetimi yok. |
 | Agent | `conversations.read` (yalnızca atanmış ve atanmamış konuşmalar, ayarla değişir), `conversations.reply`, `contacts.read/update`, `templates.read`. |
 
 - İzin kontrolü handler seviyesinde middleware (`RequirePermission`) ile, kaynak kapsamı (Agent ataması) servis seviyesinde yapılır.
