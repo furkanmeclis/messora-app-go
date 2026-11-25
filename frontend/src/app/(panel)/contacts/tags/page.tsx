@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
@@ -24,11 +23,7 @@ export default async function TagsPage() {
                 description={t('contacts.tags.description')}
                 actions={canManage && <TagDialog />}
             />
-            <Card>
-                <CardContent className="p-0">
-                    <TagTable tags={tags} canManage={canManage} />
-                </CardContent>
-            </Card>
+            <TagTable tags={tags} canManage={canManage} />
         </>
     );
 }

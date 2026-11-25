@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
     Area,
     AreaChart,
@@ -14,12 +15,14 @@ import {
     Activity,
     CheckCheck,
     Eye,
+    Megaphone,
     MessageCircleReply,
     Send,
     ShieldCheck,
     Sparkles,
     Users,
 } from 'lucide-react';
+import { ClientDataTable } from '@/components/client-data-table';
 import { useFormatDate } from '@/components/display-preferences';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -37,14 +40,6 @@ import {
     ChartTooltipContent,
     type ChartConfig,
 } from '@/components/ui/chart';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import {
     Tooltip,
     TooltipContent,
@@ -136,6 +131,7 @@ export function AudienceInsightsView({
     contactsHref?: string;
 }) {
     const t = useT();
+    const router = useRouter();
     const formatDate = useFormatDate();
     const { summary: s, messaging: m } = data;
     const delivery = rate(m.delivered, m.sent);
@@ -451,148 +447,197 @@ export function AudienceInsightsView({
                                     </ChartContainer>
                                 </div>
                             )}
-                            <div className="overflow-x-auto rounded-lg border">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>
-                                                {t('insights.campaigns.name')}
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                {t('insights.campaigns.reach')}
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                {t(
-                                                    'insights.campaigns.delivered',
-                                                )}
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                {t('insights.campaigns.read')}
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                {t(
-                                                    'insights.campaigns.replied',
-                                                )}
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                {t('insights.campaigns.failed')}
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                {t(
-                                                    'insights.campaigns.optOuts',
-                                                )}
-                                            </TableHead>
-                                            <TableHead>
-                                                {t(
-                                                    'insights.campaigns.started',
-                                                )}
-                                            </TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {data.campaigns.map((c) => (
-                                            <TableRow
-                                                key={c.id}
-                                                data-testid="insight-campaign"
-                                            >
-                                                <TableCell className="min-w-56">
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <Link
-                                                            href={`/campaigns/${c.id}`}
-                                                            className="font-medium hover:underline"
-                                                        >
-                                                            {c.name}
-                                                        </Link>
-                                                        <Tooltip>
-                                                            <TooltipTrigger
-                                                                asChild
+                            <ClientDataTable
+                                rows={data.campaigns}
+                                rowId={(c) => c.id}
+                                storageKey="insight-campaigns"
+                                initialSort="-started"
+                                pageSize={10}
+                                rowTestId="insight-campaign"
+                                searchText={(c) =>
+                                    `${c.name} ${c.template_name}`
+                                }
+                                searchPlaceholder={t('table.search')}
+                                noMatch={
+                                    <p className="p-8 text-center text-sm text-muted-foreground">
+                                        {t('table.noMatch')}
+                                    </p>
+                                }
+                                columns={[
+                                    {
+                                        id: 'name',
+                                        header: t('insights.campaigns.name'),
+                                        hideable: false,
+                                        className: 'min-w-56',
+                                        sortValue: (c) => c.name,
+                                        cell: (c) => (
+                                            <>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <Link
+                                                        href={`/campaigns/${c.id}`}
+                                                        className="font-medium hover:underline"
+                                                    >
+                                                        {c.name}
+                                                    </Link>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Badge
+                                                                variant={
+                                                                    c.targeted
+                                                                        ? 'default'
+                                                                        : 'secondary'
+                                                                }
                                                             >
-                                                                <Badge
-                                                                    variant={
-                                                                        c.targeted
-                                                                            ? 'default'
-                                                                            : 'secondary'
-                                                                    }
-                                                                >
-                                                                    {c.targeted
-                                                                        ? t(
-                                                                              'insights.campaigns.targeted',
-                                                                          )
-                                                                        : t(
-                                                                              'insights.campaigns.indirect',
-                                                                          )}
-                                                                </Badge>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
                                                                 {c.targeted
                                                                     ? t(
-                                                                          'insights.campaigns.targetedHint',
+                                                                          'insights.campaigns.targeted',
                                                                       )
                                                                     : t(
-                                                                          'insights.campaigns.indirectHint',
+                                                                          'insights.campaigns.indirect',
                                                                       )}
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </div>
-                                                    <p className="font-mono text-xs text-muted-foreground">
-                                                        {c.template_name}
-                                                    </p>
-                                                </TableCell>
-                                                <TableCell className="text-right tabular-nums">
-                                                    {t(
-                                                        'insights.campaigns.reachOf',
-                                                        {
-                                                            reached: n(
-                                                                c.reached,
-                                                            ),
-                                                            total: n(
-                                                                c.total_recipients,
-                                                            ),
-                                                        },
-                                                    )}
-                                                </TableCell>
-                                                <RateCell
-                                                    part={c.delivered}
-                                                    whole={c.sent}
-                                                />
-                                                <RateCell
-                                                    part={c.read}
-                                                    whole={c.delivered}
-                                                />
-                                                <RateCell
-                                                    part={c.replied}
-                                                    whole={c.sent}
-                                                />
-                                                <TableCell
-                                                    className={cn(
-                                                        'text-right tabular-nums',
-                                                        c.failed > 0 &&
-                                                            'text-destructive',
-                                                    )}
-                                                >
-                                                    {n(c.failed)}
-                                                </TableCell>
-                                                <TableCell
-                                                    className={cn(
-                                                        'text-right tabular-nums',
-                                                        c.opted_out_after > 0 &&
-                                                            'text-amber-600',
-                                                    )}
-                                                >
-                                                    {n(c.opted_out_after)}
-                                                </TableCell>
-                                                <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
-                                                    {c.started_at
-                                                        ? formatDate(
-                                                              c.started_at,
-                                                          )
-                                                        : '—'}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                                                            </Badge>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {c.targeted
+                                                                ? t(
+                                                                      'insights.campaigns.targetedHint',
+                                                                  )
+                                                                : t(
+                                                                      'insights.campaigns.indirectHint',
+                                                                  )}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </div>
+                                                <p className="font-mono text-xs text-muted-foreground">
+                                                    {c.template_name}
+                                                </p>
+                                            </>
+                                        ),
+                                    },
+                                    {
+                                        id: 'reach',
+                                        header: t('insights.campaigns.reach'),
+                                        className: 'text-right',
+                                        sortValue: (c) => c.reached,
+                                        cell: (c) => (
+                                            <span className="whitespace-nowrap tabular-nums">
+                                                {t(
+                                                    'insights.campaigns.reachOf',
+                                                    {
+                                                        reached: n(c.reached),
+                                                        total: n(
+                                                            c.total_recipients,
+                                                        ),
+                                                    },
+                                                )}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        id: 'delivered',
+                                        header: t(
+                                            'insights.campaigns.delivered',
+                                        ),
+                                        className: 'text-right',
+                                        sortValue: (c) =>
+                                            rate(c.delivered, c.sent),
+                                        cell: (c) => (
+                                            <RateCell
+                                                part={c.delivered}
+                                                whole={c.sent}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        id: 'read',
+                                        header: t('insights.campaigns.read'),
+                                        className: 'text-right',
+                                        sortValue: (c) =>
+                                            rate(c.read, c.delivered),
+                                        cell: (c) => (
+                                            <RateCell
+                                                part={c.read}
+                                                whole={c.delivered}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        id: 'replied',
+                                        header: t('insights.campaigns.replied'),
+                                        className: 'text-right',
+                                        sortValue: (c) =>
+                                            rate(c.replied, c.sent),
+                                        cell: (c) => (
+                                            <RateCell
+                                                part={c.replied}
+                                                whole={c.sent}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        id: 'failed',
+                                        header: t('insights.campaigns.failed'),
+                                        className: 'text-right',
+                                        sortValue: (c) => c.failed,
+                                        cell: (c) => (
+                                            <span
+                                                className={cn(
+                                                    'tabular-nums',
+                                                    c.failed > 0 &&
+                                                        'text-destructive',
+                                                )}
+                                            >
+                                                {n(c.failed)}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        id: 'optOuts',
+                                        header: t('insights.campaigns.optOuts'),
+                                        className: 'text-right',
+                                        sortValue: (c) => c.opted_out_after,
+                                        cell: (c) => (
+                                            <span
+                                                className={cn(
+                                                    'tabular-nums',
+                                                    c.opted_out_after > 0 &&
+                                                        'text-amber-600',
+                                                )}
+                                            >
+                                                {n(c.opted_out_after)}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        id: 'started',
+                                        header: t('insights.campaigns.started'),
+                                        sortValue: (c) => c.started_at,
+                                        cell: (c) => (
+                                            <span className="text-sm whitespace-nowrap text-muted-foreground">
+                                                {c.started_at
+                                                    ? formatDate(c.started_at)
+                                                    : '—'}
+                                            </span>
+                                        ),
+                                    },
+                                ]}
+                                rowMenu={(c) => [
+                                    [
+                                        {
+                                            id: 'open',
+                                            label: c.name,
+                                            icon: Megaphone,
+                                            run: () =>
+                                                router.push(
+                                                    `/campaigns/${c.id}`,
+                                                ),
+                                        },
+                                    ],
+                                ]}
+                                onRowClick={(c) =>
+                                    router.push(`/campaigns/${c.id}`)
+                                }
+                            />
                         </>
                     )}
                 </CardContent>
@@ -647,11 +692,11 @@ export function AudienceInsightsView({
 function RateCell({ part, whole }: { part: number; whole: number }) {
     const r = rate(part, whole);
     return (
-        <TableCell className="text-right tabular-nums">
+        <span className="whitespace-nowrap tabular-nums">
             <span className="font-medium">{pct(r)}</span>
             <span className="ml-1 text-xs text-muted-foreground">
                 {n(part)}
             </span>
-        </TableCell>
+        </span>
     );
 }
