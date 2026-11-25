@@ -4772,7 +4772,7 @@ export interface components {
             kind: components['schemas']['ConversationActivityKind'];
             /** @enum {string} */
             actor_type: 'user' | 'api_key' | 'system' | 'ai';
-            /** @description The user who acted; null for the AI */
+            /** @description The user who acted; null for the AI, the system and API keys. */
             actor_name: string | null;
             /** @description Details of the item, by kind: mode, reason, handoff_id, assignee_id/assignee_name, note_id/preview/for_ai, action, field, automation_id/automation_name/run_id/steps/error, message_id, source, error_code. */
             data: {

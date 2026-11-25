@@ -260,7 +260,7 @@ func TestAIHandoffBothDirections(t *testing.T) {
 	}
 	h.drain()
 	if len(h.metaTexts()) != 3 {
-		t.Fatalf("unanswered message: %v", h.metaTexts())
+		t.Fatalf("unanswered message: %v\n%v\n%v", h.metaTexts(), h.conversation(owner, id), h.activityKinds(owner, id))
 	}
 
 	// An agent's reply takes the conversation back.
