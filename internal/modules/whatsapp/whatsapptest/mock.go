@@ -42,8 +42,8 @@ type Sent struct {
 	Token         string
 	Message       whatsapp.Message
 	// Raw is the request body exactly as received.
-	Raw           json.RawMessage
-	WAMID         string // empty when the scripted behavior failed
+	Raw   json.RawMessage
+	WAMID string // empty when the scripted behavior failed
 }
 
 // Server is the mock.
@@ -61,7 +61,7 @@ type Server struct {
 	exchanged map[string]string // short-lived token → long-lived token
 	currency  map[string]string // waba → currency
 	pricing   map[string][]whatsapp.PricingDataPoint
-	pricingQ  []string // pricing_analytics field expansions requested
+	pricingQ  []string          // pricing_analytics field expansions requested
 	created   []json.RawMessage // template creation bodies, as received
 }
 
