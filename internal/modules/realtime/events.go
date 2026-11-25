@@ -38,23 +38,67 @@ const (
 	// or changed status (published on campaign:all).
 	TypeOfferUpdated = "offer.updated"
 
-	// Reserved for Phase 16C producers (defined, not published yet).
-
-	// TypeConversationHandoff: a conversation moved between the AI agent,
-	// an automation and a person.
+	// TypeConversationHandoff: a conversation moved between the AI and a
+	// person (ConversationChannels).
 	TypeConversationHandoff = "conversation.handoff"
-	// TypeConversationActivity: someone is typing in or viewing a
-	// conversation.
+	// TypeConversationActivity: an item was added to a conversation's
+	// activity timeline (ConversationChannel).
 	TypeConversationActivity = "conversation.activity"
-	// TypeAutomationRunUpdated: an automation run started, advanced or ended.
+	// TypeAutomationRunUpdated: an automation run tied to a conversation
+	// started, advanced or ended (ConversationChannel).
 	TypeAutomationRunUpdated = "automation.run.updated"
-	// TypeCampaignProgress: frequent campaign counters.
+	// TypeCampaignProgress: frequent campaign counters (reserved).
 	TypeCampaignProgress = "campaign.progress"
-	// TypeAIStatus: the AI agent's state in a conversation.
+	// TypeAIStatus: the AI's state in a conversation: thinking, idle or
+	// error (ConversationChannel).
 	TypeAIStatus = "ai.status"
 	// TypeNotificationCreated: a notice for one user or for everyone.
 	TypeNotificationCreated = "notification.created"
 )
+
+// ActivityEvent announces a new item of a conversation's timeline; the
+// client fetches it from /conversations/{id}/activity.
+type ActivityEvent struct {
+	Envelope
+	ConversationID uuid.UUID `json:"conversation_id"`
+	ActivityID     uuid.UUID `json:"activity_id"`
+	Kind           string    `json:"kind"`
+	At             time.Time `json:"at"`
+}
+
+// AIStatusEvent is the AI's state in a conversation. Detail is a short
+// machine-readable reason with status error (e.g. disabled, rate_limited).
+type AIStatusEvent struct {
+	Envelope
+	ConversationID uuid.UUID `json:"conversation_id"`
+	Status         string    `json:"status"`
+	Detail         string    `json:"detail,omitempty"`
+}
+
+// HandoffEvent announces a change of a conversation's owner or AI mode.
+// Pending is set while an escalation waits for a person.
+type HandoffEvent struct {
+	Envelope
+	ConversationID uuid.UUID  `json:"conversation_id"`
+	HandoffID      *uuid.UUID `json:"handoff_id,omitempty"`
+	OwnerType      string     `json:"owner_type"`
+	AIMode         string     `json:"ai_mode"`
+	Reason         string     `json:"reason,omitempty"`
+	Pending        bool       `json:"pending"`
+	AssigneeID     *uuid.UUID `json:"assignee_id"`
+}
+
+// AutomationRunEvent is the state of an automation run of a conversation.
+type AutomationRunEvent struct {
+	Envelope
+	RunID          uuid.UUID  `json:"run_id"`
+	AutomationID   uuid.UUID  `json:"automation_id"`
+	ConversationID uuid.UUID  `json:"conversation_id"`
+	Status         string     `json:"status"`
+	StartedBy      string     `json:"started_by"`
+	StepsDone      int64      `json:"steps_done"`
+	FinishedAt     *time.Time `json:"finished_at,omitempty"`
+}
 
 // Envelope is the common head of every event:
 //
@@ -164,13 +208,18 @@ type ConversationEvent struct {
 	UnreadCount    int32      `json:"unread_count"`
 	LastMessageAt  time.Time  `json:"last_message_at"`
 	At             time.Time  `json:"at"`
+	OwnerType      string     `json:"owner_type"`
+	AIMode         string     `json:"ai_mode"`
+	AIStatus       string     `json:"ai_status"`
+	PendingHandoff bool       `json:"pending_handoff"`
 }
 
 // NewConversationEvent describes c.
 func NewConversationEvent(c db.Conversation) ConversationEvent {
 	return ConversationEvent{Envelope: NewEnvelope(TypeConversationUpdated), ConversationID: c.ID, ContactID: c.ContactID,
 		PhoneNumberID: c.PhoneNumberID, Status: c.Status, AssigneeID: c.AssigneeID, UnreadCount: c.UnreadCount,
-		LastMessageAt: c.LastMessageAt.UTC(), At: c.UpdatedAt.UTC()}
+		LastMessageAt: c.LastMessageAt.UTC(), At: c.UpdatedAt.UTC(), OwnerType: c.OwnerType, AIMode: c.AiMode,
+		AIStatus: c.AiStatus, PendingHandoff: c.PendingHandoffID != nil}
 }
 
 // AudienceChannel is the channel of the users with conversations.read (but

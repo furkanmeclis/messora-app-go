@@ -135,9 +135,10 @@ SELECT * FROM contacts WHERE id = @id;
 
 -- name: InsertOutboundMessage :one
 INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank,
-                      reply_to_wamid, source, created_by, consent_category)
+                      reply_to_wamid, source, created_by, consent_category, sent_by, ai_usage_id)
 VALUES (@id, @phone_number_id, @contact_id, 'outbound', @type, @body, @payload, 'pending', 0,
-        sqlc.narg(reply_to_wamid), @source, sqlc.narg(created_by), sqlc.narg(consent_category))
+        sqlc.narg(reply_to_wamid), @source, sqlc.narg(created_by), sqlc.narg(consent_category),
+        sqlc.narg(sent_by), sqlc.narg(ai_usage_id))
 RETURNING *;
 
 -- name: InsertInboundMessage :one

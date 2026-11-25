@@ -478,7 +478,7 @@ func (q *Queries) InsertCampaignEvent(ctx context.Context, arg InsertCampaignEve
 const insertCampaignMessage = `-- name: InsertCampaignMessage :one
 INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank, source, campaign_id, consent_category)
 VALUES ($1, $2, $3, 'outbound', 'template', $4, $5, 'pending', 0, 'campaign', $6, $7)
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, sent_by, ai_usage_id
 `
 
 type InsertCampaignMessageParams struct {
@@ -539,6 +539,8 @@ func (q *Queries) InsertCampaignMessage(ctx context.Context, arg InsertCampaignM
 		&i.FailureClass,
 		&i.ConsentCategory,
 		&i.NextAttemptAt,
+		&i.SentBy,
+		&i.AiUsageID,
 	)
 	return i, err
 }

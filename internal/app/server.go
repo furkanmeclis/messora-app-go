@@ -178,6 +178,10 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// AI provider calls go through an SSRF-safe client (https, public
 	// addresses only); the fake provider only with AI_FAKE_PROVIDER.
 	aiSvc := ai.New(pool, sealer, ai.Options{AllowFake: cfg.AIFakeProvider}, log)
+	// The AI reply loop: inbound messages of conversations the AI answers
+	// schedule an ai:reply turn (see conversations.HandleAIReply).
+	inbox.SetAI(aiSvc)
+	msg.SetInboundHook(inbox.OnInbound)
 	return &services{cfg: cfg, ai: aiSvc, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
 		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil

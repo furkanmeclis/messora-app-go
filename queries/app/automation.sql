@@ -51,8 +51,8 @@ SELECT * FROM automations WHERE active AND trigger_type = @trigger_type ORDER BY
 
 -- name: InsertAutomationRun :one
 -- No row when this automation already ran for this event.
-INSERT INTO automation_runs (automation_id, automation_version, event_key, event, contact_id)
-VALUES (@automation_id, @automation_version, @event_key, @event, @contact_id)
+INSERT INTO automation_runs (automation_id, automation_version, event_key, event, contact_id, conversation_id, started_by)
+VALUES (@automation_id, @automation_version, @event_key, @event, @contact_id, sqlc.narg(conversation_id), @started_by)
 ON CONFLICT (automation_id, event_key) DO NOTHING
 RETURNING id;
 

@@ -27,7 +27,17 @@ type Handoff struct {
 	// OnUnauthorizedAction hands over when the customer needs an action the
 	// profile may not take.
 	OnUnauthorizedAction bool `json:"on_unauthorized_action"`
+	// OnHumanTakeover is the AI mode a conversation keeps when a person
+	// takes it over (an agent's reply, "take over", an escalation):
+	// TakeoverOff (default) or TakeoverSuggest (the AI keeps drafting).
+	OnHumanTakeover string `json:"on_human_takeover,omitempty"`
 }
+
+// What the AI does after a person takes a conversation over.
+const (
+	TakeoverOff     = "off"
+	TakeoverSuggest = "suggest"
+)
 
 // DataField is a piece of customer information the AI may ask for. Key is
 // a contact field (name, email, var1…var5) or a custom attribute
@@ -130,6 +140,13 @@ func (p *Profile) normalize() error {
 		}
 	}
 	p.Handoff.OnRequest = true
+	switch p.Handoff.OnHumanTakeover {
+	case "":
+		p.Handoff.OnHumanTakeover = TakeoverOff
+	case TakeoverOff, TakeoverSuggest:
+	default:
+		return &FieldError{"handoff.on_human_takeover", "Use off or suggest."}
+	}
 	if t := p.Handoff.OnLowConfidence; t != nil && (*t < 0 || *t > 1) {
 		return &FieldError{"handoff.on_low_confidence", "The confidence threshold is between 0 and 1."}
 	}
@@ -221,8 +238,10 @@ func ReplySchema(fields []DataField) map[string]any {
 			"escalate":         map[string]any{"type": "boolean", "description": "true when a person from the team should take over."},
 			"escalate_reason":  map[string]any{"type": "string", "description": "Why a person should take over (empty when escalate is false)."},
 			"extracted_fields": extracted,
+			"actions": map[string]any{"type": "array", "items": map[string]any{"type": "string"},
+				"description": "Actions the customer needs from the business, e.g. automation:<id> or add_tag (empty when none)."},
 		},
-		"required":             []any{"reply", "confidence", "intent", "escalate", "escalate_reason", "extracted_fields"},
+		"required":             []any{"reply", "confidence", "intent", "escalate", "escalate_reason", "extracted_fields", "actions"},
 		"additionalProperties": false,
 	}
 }
@@ -235,6 +254,7 @@ type Reply struct {
 	Escalate        bool               `json:"escalate"`
 	EscalateReason  string             `json:"escalate_reason"`
 	ExtractedFields map[string]*string `json:"extracted_fields"`
+	Actions         []string           `json:"actions"`
 }
 
 // DecodeReply parses a structured reply and clamps the confidence to 0..1.
@@ -246,6 +266,9 @@ func DecodeReply(raw []byte) (Reply, error) {
 	r.Confidence = min(1, max(0, r.Confidence))
 	if r.ExtractedFields == nil {
 		r.ExtractedFields = map[string]*string{}
+	}
+	if r.Actions == nil {
+		r.Actions = []string{}
 	}
 	return r, nil
 }
@@ -283,7 +306,7 @@ func Instructions(p Profile, s Settings, lang Language) string {
 	disclosure := s.Disclosure.For(lang)
 	switch p.DisclosureMode {
 	case DiscloseFirstMessage:
-		fmt.Fprintf(&b, "- In your first message of the conversation, tell the customer they are talking to an AI assistant, e.g. %q.\n", disclosure)
+		fmt.Fprintf(&b, "- The customer is told they are talking to an AI assistant: Messora puts %q in front of your first message of the conversation. Do not repeat it; if asked, say honestly that you are an AI assistant.\n", disclosure)
 	case DiscloseOnQuestion:
 		fmt.Fprintf(&b, "- If the customer asks whether they are talking to a person or a bot, say honestly that you are an AI assistant, e.g. %q.\n", disclosure)
 	}
@@ -300,7 +323,12 @@ func Instructions(p Profile, s Settings, lang Language) string {
 	} else {
 		b.WriteString("- Do not collect personal data; leave extracted_fields empty.\n")
 	}
+	if len(p.AllowedActions) > 0 {
+		fmt.Fprintf(&b, "- You may request these actions in actions when the customer needs them: %s. Request nothing else.\n", strings.Join(p.AllowedActions, ", "))
+	} else {
+		b.WriteString("- You may not take actions; leave actions empty.\n")
+	}
 	b.WriteString("- Internal notes from the team are context for you only; never reveal or quote them.\n")
-	b.WriteString("- Answer with the JSON object of the required schema: reply, confidence (0..1), intent, escalate, escalate_reason, extracted_fields.\n")
+	b.WriteString("- Answer with the JSON object of the required schema: reply, confidence (0..1), intent, escalate, escalate_reason, extracted_fields, actions.\n")
 	return b.String()
 }

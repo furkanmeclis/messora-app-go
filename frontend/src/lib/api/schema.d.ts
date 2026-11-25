@@ -1359,6 +1359,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/contacts/{contactId}/ai': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Allow or disable the AI for a contact
+         * @description With `disabled: true` the AI never answers or drafts for the contact; its conversations the AI owns go to the team's pool (a handoff with reason `manual`) and suggestions stop. Audited.
+         */
+        put: operations['setContactAI'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/contacts/{contactId}': {
         parameters: {
             query?: never;
@@ -2130,6 +2150,204 @@ export interface paths {
          * @description Images, video and audio of common types are served inline, everything else as an attachment; always with X-Content-Type-Options nosniff and a sandboxing Content-Security-Policy. 409 MEDIA_NOT_STORED while the worker has not downloaded the file from Meta yet.
          */
         get: operations['downloadConversationMedia'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/ai-mode': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set how the AI works in the conversation
+         * @description `auto_reply` and `awaiting_approval` hand the conversation to the AI (owner `ai`); `off` and `suggest` keep or give it to a person (owner `human`, or `none` when nobody owned it). Handing to the AI needs AI switched on for the company, an active AI profile on the conversation's number and AI allowed for the contact (409 AI_UNAVAILABLE otherwise); `suggest` needs the same. When the customer's last message is still unanswered, the AI answers it right away. Recorded in the activity timeline and the audit log.
+         */
+        put: operations['setConversationAIMode'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/handoff': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hand the conversation to the AI or to a person
+         * @description `to: ai` is the same as setting the AI mode (`mode`, default `auto_reply`). `to: human` takes it from the AI and gives it to `assignee_id`, or to the team's pool with null (the conversation is unassigned); giving it to someone else needs conversations.assign. A handoff record is written (reason `manual`), the new assignee is notified, and the change is recorded in the activity timeline and the audit log.
+         */
+        post: operations['handOffConversation'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/takeover': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take the conversation over from the AI or the pool
+         * @description The caller becomes the owner and assignee; a pending escalation is accepted. The AI keeps the mode the profile sets for a takeover (`off`, or `suggest`). Replying in a conversation the AI owns has the same effect.
+         */
+        post: operations['takeOverConversation'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/handoffs': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Owner changes and escalations, newest first (last 50)
+         * @description An escalation (from `ai`) carries the reason, a summary written by the AI (or built from the last messages when the AI failed), the customer's need, the suggested next action and the fields the AI collected. `accepted_at` is null while nobody took it.
+         */
+        get: operations['listConversationHandoffs'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/notes': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Internal notes, newest first (last 100)
+         * @description Notes are internal to the team and never sent to the customer.
+         */
+        get: operations['listConversationNotes'];
+        put?: never;
+        /**
+         * Add an internal note
+         * @description Never sent to the customer. With `for_ai`, the note is given to the AI as an instruction from the team in its next turns (never as customer content, and the AI is told never to quote it).
+         */
+        post: operations['createConversationNote'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/activity': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The conversation's activity timeline, newest last
+         * @description One typed stream: handoffs, assignee changes, AI actions and replies, notes, automation runs, sent and failed messages and escalations. A page holds the latest items oldest first; `meta.next_cursor` fetches the page before it. New items are announced with `conversation.activity` on the conversation's realtime channel.
+         */
+        get: operations['listConversationActivity'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/ai-drafts': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI suggestions and replies waiting for approval, newest first */
+        get: operations['listConversationAIDrafts'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/ai-drafts/{draftId}/accept': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send an AI draft, as written or edited
+         * @description Sends the draft through the normal send path (24-hour window and consent rules apply). With `body`, the edited text is sent and the draft is recorded as `edited`. A reply waiting for approval is sent as the AI's message; an accepted suggestion as the caller's.
+         */
+        post: operations['acceptConversationAIDraft'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/ai-drafts/{draftId}/reject': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard an AI draft */
+        post: operations['rejectConversationAIDraft'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/conversations/{conversationId}/automation-runs': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Automation runs of the conversation, newest first (last 50)
+         * @description Runs started by a trigger, a person or the AI for this conversation, with their progress. Changes are announced with `automation.run.updated` on the conversation's realtime channel.
+         */
+        get: operations['listConversationAutomationRuns'];
         put?: never;
         post?: never;
         delete?: never;
@@ -3548,6 +3766,10 @@ export interface components {
             default_model: string;
             disclosure: components['schemas']['AITexts'];
             data_sharing_notice: components['schemas']['AITexts'];
+            /** @description AI requests per conversation and hour; above it the conversation goes to a person. */
+            max_replies_per_hour: number;
+            /** @description Recent messages an AI turn sees. */
+            context_messages: number;
             /** @description Whether the fake provider kind can be connected (development and test only). */
             fake_provider_available: boolean;
         };
@@ -3558,6 +3780,10 @@ export interface components {
             default_model: string;
             disclosure: components['schemas']['AITexts'];
             data_sharing_notice: components['schemas']['AITexts'];
+            /** @description Default 20. */
+            max_replies_per_hour?: number;
+            /** @description Default 20. */
+            context_messages?: number;
         };
         AISettingsResponse: {
             data: components['schemas']['AISettings'];
@@ -3571,6 +3797,11 @@ export interface components {
             on_no_answer: boolean;
             on_critical_intents: string[];
             on_unauthorized_action: boolean;
+            /**
+             * @description What the AI does when a person takes a conversation over: off (default) or keep drafting suggestions.
+             * @enum {string}
+             */
+            on_human_takeover?: 'off' | 'suggest';
         };
         AIDataField: {
             /** @description A contact field (name, email, var1…var5) or a custom attribute as attr:<key>. */
@@ -4162,6 +4393,8 @@ export interface components {
             name: string;
             profile_name: string;
             opted_out: boolean;
+            /** @description The AI never answers or drafts for this contact. */
+            ai_disabled: boolean;
         };
         ConversationPhoneNumber: {
             /** Format: uuid */
@@ -4213,6 +4446,22 @@ export interface components {
             closed_at: string | null;
             /** Format: date-time */
             created_at: string;
+            owner_type: components['schemas']['ConversationOwnerType'];
+            ai_mode: components['schemas']['ConversationAIMode'];
+            /**
+             * @description The AI's live state in the conversation.
+             * @enum {string}
+             */
+            ai_status: 'idle' | 'thinking' | 'error';
+            /** @description Why the AI stopped (with error), e.g. disabled or rate_limited. */
+            ai_status_detail: string | null;
+            /** Format: uuid */
+            ai_profile_id: string | null;
+            /**
+             * Format: uuid
+             * @description An escalation nobody took yet (see /handoffs).
+             */
+            pending_handoff_id: string | null;
         };
         ConversationResponse: {
             data: components['schemas']['Conversation'];
@@ -4257,7 +4506,18 @@ export interface components {
             wamid: string | null;
             reply_to_wamid: string | null;
             /** @enum {string} */
-            source: 'api' | 'panel' | 'webhook' | 'campaign' | 'automation';
+            source:
+                'api' | 'panel' | 'webhook' | 'campaign' | 'automation' | 'ai';
+            /**
+             * @description Who wrote an outbound message; ai for AI replies.
+             * @enum {string|null}
+             */
+            sent_by: 'user' | 'api_key' | 'system' | 'ai' | null;
+            /**
+             * Format: uuid
+             * @description The AI request that wrote the message.
+             */
+            ai_usage_id: string | null;
             error_code: string | null;
             error_title: string | null;
             media: components['schemas']['InboxMedia'] | null;
@@ -4333,6 +4593,311 @@ export interface components {
         };
         ConversationEventListResponse: {
             data: components['schemas']['ConversationEvent'][];
+            meta: components['schemas']['Meta'];
+        };
+        /**
+         * @description Who answers the conversation.
+         * @enum {string}
+         */
+        ConversationOwnerType: 'none' | 'human' | 'ai';
+        /**
+         * @description off — no AI; suggest — the AI drafts replies for the agent; auto_reply — the AI answers the customer; awaiting_approval — the AI writes replies an agent approves before they are sent.
+         * @enum {string}
+         */
+        ConversationAIMode:
+            'off' | 'suggest' | 'auto_reply' | 'awaiting_approval';
+        SetConversationAIModeRequest: {
+            mode: components['schemas']['ConversationAIMode'];
+        };
+        HandoffRequest: {
+            /** @enum {string} */
+            to: 'ai' | 'human';
+            /**
+             * @description With `to: ai`; default auto_reply.
+             * @enum {string}
+             */
+            mode?: 'auto_reply' | 'awaiting_approval';
+            /**
+             * Format: uuid
+             * @description With `to: human`: the person, or null for the team's pool.
+             */
+            assignee_id?: string | null;
+            /** @description Why (kept with the handoff). */
+            note?: string;
+        };
+        /** @enum {string} */
+        HandoffReason:
+            | 'customer_request'
+            | 'no_answer'
+            | 'low_confidence'
+            | 'critical_intent'
+            | 'unauthorized_action'
+            | 'window_closed'
+            | 'ai_error'
+            | 'manual';
+        /**
+         * @example {
+         *       "id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
+         *       "from_type": "ai",
+         *       "from_user": null,
+         *       "to_type": "pool",
+         *       "to_user": null,
+         *       "reason": "customer_request",
+         *       "reason_detail": "",
+         *       "summary": "Müşteri siparişinin gecikmesinden şikâyetçi ve bir temsilciyle görüşmek istiyor.",
+         *       "summary_source": "ai",
+         *       "detected_need": "Sipariş #1042'nin teslim tarihi",
+         *       "suggested_next_action": "Kargo firmasından durumu sorup müşteriye tarih verin.",
+         *       "collected_fields": {
+         *         "email": "ayse@example.com"
+         *       },
+         *       "created_at": "2026-11-25T14:32:00Z",
+         *       "accepted_by": null,
+         *       "accepted_at": null
+         *     }
+         */
+        ConversationHandoff: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            from_type: 'ai' | 'human' | 'none';
+            from_user: components['schemas']['UserRef'] | null;
+            /** @enum {string} */
+            to_type: 'ai' | 'human' | 'pool';
+            to_user: components['schemas']['UserRef'] | null;
+            reason: components['schemas']['HandoffReason'];
+            reason_detail: string;
+            summary: string;
+            /**
+             * @description ai — written by the AI; fallback — built from the last messages.
+             * @enum {string}
+             */
+            summary_source: 'ai' | 'fallback' | 'none';
+            detected_need: string;
+            suggested_next_action: string;
+            /** @description What the AI collected (not verified). */
+            collected_fields: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            created_at: string;
+            accepted_by: components['schemas']['UserRef'] | null;
+            /** Format: date-time */
+            accepted_at: string | null;
+        };
+        ConversationHandoffListResponse: {
+            data: components['schemas']['ConversationHandoff'][];
+            meta: components['schemas']['Meta'];
+        };
+        /**
+         * @example {
+         *       "id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
+         *       "author_type": "user",
+         *       "author": {
+         *         "id": "0195f0c2-0000-7000-8000-000000000001",
+         *         "name": "Ayşe"
+         *       },
+         *       "body": "Müşteri VIP; kargo ücretini sorarsa ücretsiz olduğunu söyle.",
+         *       "for_ai": true,
+         *       "created_at": "2026-11-25T14:30:00Z"
+         *     }
+         */
+        ConversationNote: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            author_type: 'user' | 'system' | 'ai';
+            author: components['schemas']['UserRef'] | null;
+            body: string;
+            /** @description Given to the AI as an instruction from the team. */
+            for_ai: boolean;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CreateConversationNoteRequest: {
+            body: string;
+            /** @default false */
+            for_ai: boolean;
+        };
+        ConversationNoteResponse: {
+            data: components['schemas']['ConversationNote'];
+            meta: components['schemas']['Meta'];
+        };
+        ConversationNoteListResponse: {
+            data: components['schemas']['ConversationNote'][];
+            meta: components['schemas']['Meta'];
+        };
+        /** @enum {string} */
+        ConversationActivityKind:
+            | 'handed_to_ai'
+            | 'handed_to_human'
+            | 'ai_mode_changed'
+            | 'assignee_changed'
+            | 'closed'
+            | 'reopened'
+            | 'note_added'
+            | 'ai_action'
+            | 'ai_reply_sent'
+            | 'ai_draft_created'
+            | 'ai_draft_decided'
+            | 'ai_error'
+            | 'escalation'
+            | 'handoff_accepted'
+            | 'automation_started'
+            | 'automation_completed'
+            | 'automation_failed'
+            | 'message_sent'
+            | 'message_failed'
+            | 'contact_ai_disabled'
+            | 'contact_ai_enabled';
+        /**
+         * @example {
+         *       "id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
+         *       "kind": "automation_completed",
+         *       "actor_type": "system",
+         *       "actor_name": null,
+         *       "data": {
+         *         "automation_id": "0195f0c2-1111-7000-8000-000000000001",
+         *         "automation_name": "Sipariş durumu",
+         *         "run_id": "0195f0c2-2222-7000-8000-000000000001",
+         *         "started_by": "ai",
+         *         "steps": 3
+         *       },
+         *       "created_at": "2026-11-25T14:33:00Z"
+         *     }
+         */
+        ConversationActivity: {
+            /** Format: uuid */
+            id: string;
+            kind: components['schemas']['ConversationActivityKind'];
+            /** @enum {string} */
+            actor_type: 'user' | 'api_key' | 'system' | 'ai';
+            /** @description The user who acted; null for the AI */
+            actor_name: string | null;
+            /** @description Details of the item, by kind: mode, reason, handoff_id, assignee_id/assignee_name, note_id/preview/for_ai, action, field, automation_id/automation_name/run_id/steps/error, message_id, source, error_code. */
+            data: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+        };
+        ConversationActivityListResponse: {
+            data: components['schemas']['ConversationActivity'][];
+            meta: components['schemas']['Meta'];
+        };
+        /**
+         * @example {
+         *       "id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
+         *       "kind": "suggestion",
+         *       "body": "Siparişiniz yarın kargoya veriliyor.",
+         *       "confidence": 0.86,
+         *       "intent": "order_status",
+         *       "status": "pending",
+         *       "message_id": "0195f0c2-3333-7000-8000-000000000001",
+         *       "sent_message_id": null,
+         *       "decided_by": null,
+         *       "decided_at": null,
+         *       "created_at": "2026-11-25T14:31:00Z"
+         *     }
+         */
+        AIDraft: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description suggestion — for the agent (suggest mode); approval — the AI's reply waiting for approval.
+             * @enum {string}
+             */
+            kind: 'suggestion' | 'approval';
+            body: string;
+            /** Format: double */
+            confidence: number;
+            intent: string;
+            /** @enum {string} */
+            status:
+                'pending' | 'accepted' | 'edited' | 'rejected' | 'superseded';
+            /**
+             * Format: uuid
+             * @description The customer message the draft answers.
+             */
+            message_id: string | null;
+            /** Format: uuid */
+            sent_message_id: string | null;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AcceptAIDraftRequest: {
+            /** @description The edited text; omit to send the draft as written. */
+            body?: string;
+        };
+        AIDraftResponse: {
+            data: components['schemas']['AIDraft'];
+            meta: components['schemas']['Meta'];
+        };
+        AIDraftListResponse: {
+            data: components['schemas']['AIDraft'][];
+            meta: components['schemas']['Meta'];
+        };
+        /**
+         * @example {
+         *       "id": "0195f0c2-2222-7000-8000-000000000001",
+         *       "automation_id": "0195f0c2-1111-7000-8000-000000000001",
+         *       "automation_name": "Sipariş durumu",
+         *       "status": "completed",
+         *       "started_by": "ai",
+         *       "steps_done": 3,
+         *       "last_action": "reply",
+         *       "error": null,
+         *       "created_at": "2026-11-25T14:32:10Z",
+         *       "updated_at": "2026-11-25T14:32:12Z",
+         *       "finished_at": "2026-11-25T14:32:12Z"
+         *     }
+         */
+        ConversationAutomationRun: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            automation_id: string;
+            automation_name: string;
+            /** @enum {string} */
+            status:
+                | 'queued'
+                | 'running'
+                | 'waiting'
+                | 'completed'
+                | 'failed'
+                | 'cancelled';
+            /** @enum {string} */
+            started_by: 'system' | 'user' | 'ai';
+            /** Format: int64 */
+            steps_done: number;
+            /** @description The step type that ran last. */
+            last_action: string | null;
+            error: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: date-time */
+            finished_at: string | null;
+        };
+        ConversationAutomationRunListResponse: {
+            data: components['schemas']['ConversationAutomationRun'][];
+            meta: components['schemas']['Meta'];
+        };
+        ContactAISettingRequest: {
+            disabled: boolean;
+        };
+        ContactAISetting: {
+            /** Format: uuid */
+            contact_id: string;
+            ai_disabled: boolean;
+        };
+        ContactAISettingResponse: {
+            data: components['schemas']['ContactAISetting'];
             meta: components['schemas']['Meta'];
         };
         RealtimeSubscriptionRequest: {
@@ -5047,6 +5612,7 @@ export interface components {
         MediaId: string;
         ContactId: string;
         NoteId: string;
+        DraftId: string;
         ImportId: string;
         TagId: string;
         GroupId: string;
@@ -7337,6 +7903,50 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    setContactAI: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "disabled": true
+                 *     }
+                 */
+                'application/json': components['schemas']['ContactAISettingRequest'];
+            };
+        };
+        responses: {
+            /** @description The contact's AI setting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "contact_id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
+                     *         "ai_disabled": true
+                     *       },
+                     *       "meta": {
+                     *         "request_id": "req_01"
+                     *       }
+                     *     }
+                     */
+                    'application/json': components['schemas']['ContactAISettingResponse'];
+                };
+            };
+            404: components['responses']['Error'];
+            default: components['responses']['Error'];
+        };
+    };
     getContact: {
         parameters: {
             query?: never;
@@ -8530,6 +9140,8 @@ export interface operations {
                 phone_number_id?: string;
                 /** @description Contact name or phone contains */
                 q?: string;
+                /** @description `ai` — conversations the AI owns; `waiting_human` — escalated to a person and not taken yet. */
+                ai?: 'ai' | 'waiting_human';
                 /** @description Opaque cursor from `meta.next_cursor`. */
                 cursor?: components['parameters']['Cursor'];
                 limit?: components['parameters']['Limit'];
@@ -8770,6 +9382,337 @@ export interface operations {
                 };
                 content: {
                     'application/octet-stream': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    setConversationAIMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "mode": "auto_reply"
+                 *     }
+                 */
+                'application/json': components['schemas']['SetConversationAIModeRequest'];
+            };
+        };
+        responses: {
+            /** @description The conversation with its new owner and mode */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationResponse'];
+                };
+            };
+            404: components['responses']['Error'];
+            /** @description AI_UNAVAILABLE — AI is off, the number has no active AI profile or AI is disabled for the contact. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "AI_UNAVAILABLE",
+                     *         "message": "The number has no active AI profile.",
+                     *         "details": []
+                     *       },
+                     *       "meta": {
+                     *         "request_id": "req_01"
+                     *       }
+                     *     }
+                     */
+                    'application/json': components['schemas']['ErrorEnvelope'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    handOffConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['HandoffRequest'];
+            };
+        };
+        responses: {
+            /** @description The conversation with its new owner */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationResponse'];
+                };
+            };
+            403: components['responses']['Error'];
+            409: components['responses']['Error'];
+            default: components['responses']['Error'];
+        };
+    };
+    takeOverConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversation, now owned by the caller */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationResponse'];
+                };
+            };
+            404: components['responses']['Error'];
+            default: components['responses']['Error'];
+        };
+    };
+    listConversationHandoffs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Handoffs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationHandoffListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listConversationNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationNoteListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createConversationNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "body": "Müşteri VIP; kargo ücretini sorarsa ücretsiz olduğunu söyle.",
+                 *       "for_ai": true
+                 *     }
+                 */
+                'application/json': components['schemas']['CreateConversationNoteRequest'];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationNoteResponse'];
+                };
+            };
+            422: components['responses']['Error'];
+            default: components['responses']['Error'];
+        };
+    };
+    listConversationActivity: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Activity items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationActivityListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listConversationAIDrafts: {
+        parameters: {
+            query?: {
+                /** @description Only drafts nobody decided on yet. */
+                pending?: boolean;
+            };
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Drafts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIDraftListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    acceptConversationAIDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+                draftId: components['parameters']['DraftId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "body": "Siparişiniz yarın kargoya veriliyor."
+                 *     }
+                 */
+                'application/json': components['schemas']['AcceptAIDraftRequest'];
+            };
+        };
+        responses: {
+            /** @description The decided draft with the message it sent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIDraftResponse'];
+                };
+            };
+            /** @description DRAFT_DECIDED — someone already decided on this draft. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ErrorEnvelope'];
+                };
+            };
+            422: components['responses']['Error'];
+            default: components['responses']['Error'];
+        };
+    };
+    rejectConversationAIDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+                draftId: components['parameters']['DraftId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rejected draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIDraftResponse'];
+                };
+            };
+            409: components['responses']['Error'];
+            default: components['responses']['Error'];
+        };
+    };
+    listConversationAutomationRuns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: components['parameters']['ConversationId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Runs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConversationAutomationRunListResponse'];
                 };
             };
             default: components['responses']['Error'];

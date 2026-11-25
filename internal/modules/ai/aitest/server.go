@@ -16,7 +16,7 @@ import (
 
 // DefaultReply is the structured answer every emulated provider gives
 // unless a reply is queued.
-const DefaultReply = `{"reply":"Merhaba, size nasıl yardımcı olabilirim?","confidence":0.9,"intent":"greeting","escalate":false,"escalate_reason":"","extracted_fields":{}}`
+const DefaultReply = `{"reply":"Merhaba, size nasıl yardımcı olabilirim?","confidence":0.9,"intent":"greeting","escalate":false,"escalate_reason":"","extracted_fields":{},"actions":[]}`
 
 // Request is a recorded call.
 type Request struct {

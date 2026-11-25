@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -43,6 +44,36 @@ type Settings struct {
 	Disclosure Texts `json:"disclosure"`
 	// DataSharingNotice tells customers their messages go to an AI provider.
 	DataSharingNotice Texts `json:"data_sharing_notice"`
+	// MaxRepliesPerHour caps the AI requests (replies and drafts) of one
+	// conversation per hour (rate and cost guard); above it the
+	// conversation goes to a person. 0 = DefaultMaxRepliesPerHour.
+	MaxRepliesPerHour int `json:"max_replies_per_hour,omitempty"`
+	// ContextMessages is how many recent messages an AI turn sees.
+	// 0 = DefaultContextMessages.
+	ContextMessages int `json:"context_messages,omitempty"`
+}
+
+// Defaults and bounds of the conversation AI settings.
+const (
+	DefaultMaxRepliesPerHour = 20
+	DefaultContextMessages   = 20
+	MaxContextMessages       = 100
+)
+
+// RepliesPerHour is the effective per-conversation hourly cap.
+func (s Settings) RepliesPerHour() int {
+	if s.MaxRepliesPerHour <= 0 {
+		return DefaultMaxRepliesPerHour
+	}
+	return s.MaxRepliesPerHour
+}
+
+// ContextSize is the effective number of messages given to the model.
+func (s Settings) ContextSize() int {
+	if s.ContextMessages <= 0 {
+		return DefaultContextMessages
+	}
+	return min(s.ContextMessages, MaxContextMessages)
 }
 
 // DefaultSettings returns the initial settings: AI off until an admin connects a provider and turns it on.
@@ -95,6 +126,12 @@ func (s *Service) SaveSettings(ctx context.Context, in Settings, actor *uuid.UUI
 	if in.Disclosure.TR == "" && in.Disclosure.EN == "" {
 		return Settings{}, &FieldError{"disclosure", "Write the AI disclosure in at least one language."}
 	}
+	if in.MaxRepliesPerHour < 0 || in.MaxRepliesPerHour > 1000 {
+		return Settings{}, &FieldError{"max_replies_per_hour", "Between 1 and 1000 AI replies per conversation and hour."}
+	}
+	if in.ContextMessages < 0 || in.ContextMessages > MaxContextMessages {
+		return Settings{}, &FieldError{"context_messages", fmt.Sprintf("Between 2 and %d messages.", MaxContextMessages)}
+	}
 	if len(in.DefaultModel) > 200 {
 		return Settings{}, &FieldError{"default_model", "Model id is too long."}
 	}
@@ -145,6 +182,12 @@ func settingsDiff(a, b Settings) map[string]any {
 	}
 	if a.DataSharingNotice != b.DataSharingNotice {
 		ch["data_sharing_notice"] = []any{a.DataSharingNotice, b.DataSharingNotice}
+	}
+	if a.RepliesPerHour() != b.RepliesPerHour() {
+		ch["max_replies_per_hour"] = []any{a.RepliesPerHour(), b.RepliesPerHour()}
+	}
+	if a.ContextSize() != b.ContextSize() {
+		ch["context_messages"] = []any{a.ContextSize(), b.ContextSize()}
 	}
 	return ch
 }

@@ -213,7 +213,7 @@ func TestKeyRedaction(t *testing.T) {
 
 func TestValidateJSONAndExtract(t *testing.T) {
 	schema := ReplySchema([]DataField{{Key: "email", Label: "E-mail"}})
-	good := `{"reply":"Hi","confidence":0.5,"intent":"greeting","escalate":false,"escalate_reason":"","extracted_fields":{"email":null}}`
+	good := `{"reply":"Hi","confidence":0.5,"intent":"greeting","escalate":false,"escalate_reason":"","extracted_fields":{"email":null},"actions":[]}`
 	if p := ValidateJSON([]byte(good), schema); len(p) != 0 {
 		t.Fatalf("valid reply rejected: %v", p)
 	}

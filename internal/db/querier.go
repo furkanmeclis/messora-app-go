@@ -12,6 +12,7 @@ import (
 )
 
 type Querier interface {
+	AcceptConversationHandoff(ctx context.Context, arg AcceptConversationHandoffParams) (ConversationHandoff, error)
 	AcceptInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	// scheduled → active once starts_at passed (and the offer has not ended).
 	ActivateDueOffers(ctx context.Context) ([]Offer, error)
@@ -61,6 +62,9 @@ type Querier interface {
 	// in the calendar month: the volume that selects a rate tier.
 	CountBillableInMonth(ctx context.Context, arg CountBillableInMonthParams) (int64, error)
 	CountCampaignsForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
+	// AI reply and suggestion requests of a conversation in the last hour (the
+	// per-conversation rate and cost guard), failures included.
+	CountConversationAIRequests(ctx context.Context, conversationID *uuid.UUID) (int64, error)
 	CountDeferred(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountHeld(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountInFlight(ctx context.Context, campaignID *uuid.UUID) (int64, error)
@@ -79,6 +83,7 @@ type Querier interface {
 	// ── Sessions ────────────────────────────────────────────────────────────────
 	CreateSession(ctx context.Context, arg CreateSessionParams) (UserSession, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DecideAIDraft(ctx context.Context, arg DecideAIDraftParams) (ConversationAiDraft, error)
 	// Meta withheld the message for ecosystem health (131049): it waits outside
 	// any campaign window until next_attempt_at.
 	DeferMessage(ctx context.Context, arg DeferMessageParams) error
@@ -134,6 +139,7 @@ type Querier interface {
 	GetAssignableUser(ctx context.Context, id uuid.UUID) (GetAssignableUserRow, error)
 	GetAutomation(ctx context.Context, id uuid.UUID) (Automation, error)
 	GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
+	GetAutomationRunSummary(ctx context.Context, id uuid.UUID) (GetAutomationRunSummaryRow, error)
 	GetAutomationWithStats(ctx context.Context, id uuid.UUID) (GetAutomationWithStatsRow, error)
 	GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
@@ -175,6 +181,8 @@ type Querier interface {
 	HoldIfCampaignStopped(ctx context.Context, id uuid.UUID) (string, error)
 	// Running campaigns whose dispatcher has not moved for a while.
 	IdleRunningCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
+	// ── AI drafts ──────────────────────────────────────────────────────────────
+	InsertAIDraft(ctx context.Context, arg InsertAIDraftParams) (ConversationAiDraft, error)
 	InsertAIPrice(ctx context.Context, arg InsertAIPriceParams) (InsertAIPriceRow, error)
 	InsertAIPriceIfAbsent(ctx context.Context, arg InsertAIPriceIfAbsentParams) (int64, error)
 	InsertAIProfile(ctx context.Context, arg InsertAIProfileParams) (AiProfile, error)
@@ -197,7 +205,13 @@ type Querier interface {
 	InsertContactImport(ctx context.Context, arg InsertContactImportParams) (ContactImport, error)
 	// ── Notes ───────────────────────────────────────────────────────────────────
 	InsertContactNote(ctx context.Context, arg InsertContactNoteParams) (ContactNote, error)
+	// ── Activity ───────────────────────────────────────────────────────────────
+	InsertConversationActivity(ctx context.Context, arg InsertConversationActivityParams) (ConversationActivity, error)
 	InsertConversationEvent(ctx context.Context, arg InsertConversationEventParams) (ConversationEvent, error)
+	// ── Handoffs ───────────────────────────────────────────────────────────────
+	InsertConversationHandoff(ctx context.Context, arg InsertConversationHandoffParams) (ConversationHandoff, error)
+	// ── Notes ──────────────────────────────────────────────────────────────────
+	InsertConversationNote(ctx context.Context, arg InsertConversationNoteParams) (ConversationNote, error)
 	// Duplicate deliveries of the same wamid insert nothing (no row returned).
 	InsertInboundMessage(ctx context.Context, arg InsertInboundMessageParams) (Message, error)
 	// ── Media ───────────────────────────────────────────────────────────────────
@@ -222,10 +236,16 @@ type Querier interface {
 	InsertWhatsAppAccount(ctx context.Context, arg InsertWhatsAppAccountParams) (WhatsappAccount, error)
 	InsertWhatsAppAccountEvent(ctx context.Context, arg InsertWhatsAppAccountEventParams) error
 	InvalidatePasswordResets(ctx context.Context, userID uuid.UUID) error
+	// The customer's latest message in a thread (debounce: only the newest one
+	// of a burst is answered).
+	LatestInboundMessage(ctx context.Context, arg LatestInboundMessageParams) (Message, error)
 	// The newest recorded preference of a number for a category: webhooks may
 	// arrive out of order, only the latest choice counts.
 	LatestMetaUserPreference(ctx context.Context, arg LatestMetaUserPreferenceParams) (MetaUserPreference, error)
+	ListAIDrafts(ctx context.Context, arg ListAIDraftsParams) ([]ConversationAiDraft, error)
 	ListAIModels(ctx context.Context) ([]ListAIModelsRow, error)
+	// Notes for the AI, newest first (the context builder keeps the latest).
+	ListAINotes(ctx context.Context, arg ListAINotesParams) ([]ConversationNote, error)
 	ListAIPrices(ctx context.Context) ([]ListAIPricesRow, error)
 	ListAIPricesForKind(ctx context.Context, providerKind string) ([]ListAIPricesForKindRow, error)
 	ListAIProfiles(ctx context.Context) ([]ListAIProfilesRow, error)
@@ -251,7 +271,16 @@ type Querier interface {
 	ListContactGroups(ctx context.Context) ([]ListContactGroupsRow, error)
 	ListContactImports(ctx context.Context) ([]ContactImport, error)
 	ListContactNotes(ctx context.Context, contactID uuid.UUID) ([]ListContactNotesRow, error)
+	// A page of the timeline, newest first, before the cursor item (the
+	// service returns it oldest first).
+	ListConversationActivity(ctx context.Context, arg ListConversationActivityParams) ([]ListConversationActivityRow, error)
+	// ── Automation runs of a conversation ──────────────────────────────────────
+	ListConversationAutomationRuns(ctx context.Context, arg ListConversationAutomationRunsParams) ([]ListConversationAutomationRunsRow, error)
 	ListConversationEvents(ctx context.Context, arg ListConversationEventsParams) ([]ListConversationEventsRow, error)
+	ListConversationHandoffs(ctx context.Context, arg ListConversationHandoffsParams) ([]ListConversationHandoffsRow, error)
+	ListConversationNotes(ctx context.Context, arg ListConversationNotesParams) ([]ListConversationNotesRow, error)
+	// Active users who can read conversations (escalation notices).
+	ListConversationReaders(ctx context.Context) ([]ListConversationReadersRow, error)
 	// see_all is false for users who may only read conversations assigned to
 	// them or to nobody (conversations.read without conversations.read_all).
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
@@ -285,16 +314,21 @@ type Querier interface {
 	ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, error)
 	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	ListWhatsAppAccountsToCheck(ctx context.Context) ([]WhatsappAccount, error)
+	LockAIDraft(ctx context.Context, arg LockAIDraftParams) (ConversationAiDraft, error)
 	LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
 	LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	LockContact(ctx context.Context, id uuid.UUID) (Contact, error)
+	// ── Conversation ownership, AI loop, notes, handoffs, activity (16C P6) ────
+	LockConversation(ctx context.Context, id uuid.UUID) (Conversation, error)
 	// ── Conversations (inbox) ───────────────────────────────────────────────────
 	LockConversationByThread(ctx context.Context, arg LockConversationByThreadParams) (Conversation, error)
+	LockConversationsOfContact(ctx context.Context, contactID uuid.UUID) ([]Conversation, error)
 	LockOffer(ctx context.Context, id uuid.UUID) (Offer, error)
 	// Serializes changes that could remove an owner, so two concurrent
 	// demotions cannot both pass the "at least one owner" check.
 	LockOwnerChanges(ctx context.Context) error
 	MarkAIModelsSynced(ctx context.Context, id uuid.UUID) error
+	MarkConversationAIDisclosed(ctx context.Context, id uuid.UUID) error
 	MarkConversationRead(ctx context.Context, id uuid.UUID) (Conversation, error)
 	MarkMediaFailed(ctx context.Context, arg MarkMediaFailedParams) error
 	MarkMediaStored(ctx context.Context, arg MarkMediaStoredParams) error
@@ -348,11 +382,18 @@ type Querier interface {
 	SetCampaignOffer(ctx context.Context, arg SetCampaignOfferParams) error
 	// Generic transition guarded by the allowed source states.
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
+	SetContactAIDisabled(ctx context.Context, arg SetContactAIDisabledParams) (Contact, error)
+	SetContactAttribute(ctx context.Context, arg SetContactAttributeParams) error
 	// Sets the consent status of the chosen categories and keeps the legacy
 	// opted_out_at flag equal to "both categories opted out".
 	SetContactConsent(ctx context.Context, arg SetContactConsentParams) (Contact, error)
 	SetContactUndeliverable(ctx context.Context, arg SetContactUndeliverableParams) (int64, error)
+	SetConversationAIHandled(ctx context.Context, arg SetConversationAIHandledParams) error
+	SetConversationAIStatus(ctx context.Context, arg SetConversationAIStatusParams) (Conversation, error)
 	SetConversationAssignee(ctx context.Context, arg SetConversationAssigneeParams) (Conversation, error)
+	// Applies a transition of the ownership state machine
+	// (internal/modules/conversations/ownership.go).
+	SetConversationOwnership(ctx context.Context, arg SetConversationOwnershipParams) (Conversation, error)
 	SetConversationStatus(ctx context.Context, arg SetConversationStatusParams) (Conversation, error)
 	SetDefaultPhoneNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	SetMaterializeCursor(ctx context.Context, arg SetMaterializeCursorParams) error
@@ -380,6 +421,8 @@ type Querier interface {
 	StartContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error)
 	// Claimed more than the given age ago and never settled: the worker died.
 	StuckSendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
+	// A newer draft (or a person's own reply) replaces the pending ones.
+	SupersedeAIDrafts(ctx context.Context, conversationID uuid.UUID) error
 	TagsForContacts(ctx context.Context, contactIds []uuid.UUID) ([]TagsForContactsRow, error)
 	TakeDirtyCampaigns(ctx context.Context) ([]Campaign, error)
 	// Updates at most once a minute to avoid write amplification under load.

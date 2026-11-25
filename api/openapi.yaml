@@ -1695,6 +1695,34 @@ paths:
               schema: { $ref: "#/components/schemas/ContactBulkResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /contacts/{contactId}/ai:
+    put:
+      operationId: setContactAI
+      tags: [contacts]
+      summary: Allow or disable the AI for a contact
+      description: >-
+        With `disabled: true` the AI never answers or drafts for the contact;
+        its conversations the AI owns go to the team's pool (a handoff with
+        reason `manual`) and suggestions stop. Audited.
+      security: [{ session: [contacts.update] }, { apiKey: [contacts.update] }]
+      parameters:
+        - { $ref: "#/components/parameters/ContactId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContactAISettingRequest" }
+            example: { disabled: true }
+      responses:
+        "200":
+          description: The contact's AI setting
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContactAISettingResponse" }
+              example: { data: { contact_id: "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e", ai_disabled: true }, meta: { request_id: "req_01" } }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
   /contacts/{contactId}:
     get:
       operationId: getContact
@@ -2592,6 +2620,10 @@ paths:
         - { name: unread, in: query, schema: { type: boolean }, description: Only conversations with unread customer messages. }
         - { name: phone_number_id, in: query, schema: { type: string, format: uuid } }
         - { name: q, in: query, schema: { type: string, maxLength: 100 }, description: "Contact name or phone contains" }
+        - name: ai
+          in: query
+          description: "`ai` — conversations the AI owns; `waiting_human` — escalated to a person and not taken yet."
+          schema: { type: string, enum: [ai, waiting_human] }
         - { $ref: "#/components/parameters/Cursor" }
         - { $ref: "#/components/parameters/Limit" }
       responses:
@@ -2792,6 +2824,312 @@ paths:
           content:
             application/octet-stream:
               schema: { type: string, format: binary }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ── Conversation intelligence and AI handoff (Phase 16C P6) ───────────────
+  # Ownership: owner_type none | human | ai with ai_mode off | suggest (a
+  # person or nobody owns the conversation) or auto_reply |
+  # awaiting_approval (the AI owns it). See docs/AI.md, "Sohbet devri".
+  /conversations/{conversationId}/ai-mode:
+    put:
+      operationId: setConversationAIMode
+      tags: [conversations]
+      summary: Set how the AI works in the conversation
+      description: >-
+        `auto_reply` and `awaiting_approval` hand the conversation to the AI
+        (owner `ai`); `off` and `suggest` keep or give it to a person (owner
+        `human`, or `none` when nobody owned it). Handing to the AI needs AI
+        switched on for the company, an active AI profile on the
+        conversation's number and AI allowed for the contact (409
+        AI_UNAVAILABLE otherwise); `suggest` needs the same. When the
+        customer's last message is still unanswered, the AI answers it right
+        away. Recorded in the activity timeline and the audit log.
+      security:
+        - { session: [conversations.reply] }
+        - { apiKey: [conversations.reply] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetConversationAIModeRequest" }
+            example: { mode: auto_reply }
+      responses:
+        "200":
+          description: The conversation with its new owner and mode
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: AI_UNAVAILABLE — AI is off, the number has no active AI profile or AI is disabled for the contact.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+              example: { error: { code: AI_UNAVAILABLE, message: "The number has no active AI profile.", details: [] }, meta: { request_id: "req_01" } }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/handoff:
+    post:
+      operationId: handOffConversation
+      tags: [conversations]
+      summary: Hand the conversation to the AI or to a person
+      description: >-
+        `to: ai` is the same as setting the AI mode (`mode`, default
+        `auto_reply`). `to: human` takes it from the AI and gives it to
+        `assignee_id`, or to the team's pool with null (the conversation is
+        unassigned); giving it to someone else needs conversations.assign.
+        A handoff record is written (reason `manual`), the new assignee is
+        notified, and the change is recorded in the activity timeline and
+        the audit log.
+      security:
+        - { session: [conversations.reply] }
+        - { apiKey: [conversations.reply] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HandoffRequest" }
+            examples:
+              toAI: { summary: Hand to the AI, value: { to: ai, mode: auto_reply } }
+              toPool: { summary: Hand to the team's pool, value: { to: human, assignee_id: null, note: "Müşteri fatura itirazında." } }
+      responses:
+        "200":
+          description: The conversation with its new owner
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/takeover:
+    post:
+      operationId: takeOverConversation
+      tags: [conversations]
+      summary: Take the conversation over from the AI or the pool
+      description: >-
+        The caller becomes the owner and assignee; a pending escalation is
+        accepted. The AI keeps the mode the profile sets for a takeover
+        (`off`, or `suggest`). Replying in a conversation the AI owns has
+        the same effect.
+      security:
+        - { session: [conversations.reply] }
+        - { apiKey: [conversations.reply] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: The conversation, now owned by the caller
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/handoffs:
+    get:
+      operationId: listConversationHandoffs
+      tags: [conversations]
+      summary: Owner changes and escalations, newest first (last 50)
+      description: >-
+        An escalation (from `ai`) carries the reason, a summary written by
+        the AI (or built from the last messages when the AI failed), the
+        customer's need, the suggested next action and the fields the AI
+        collected. `accepted_at` is null while nobody took it.
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: Handoffs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationHandoffListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/notes:
+    get:
+      operationId: listConversationNotes
+      tags: [conversations]
+      summary: Internal notes, newest first (last 100)
+      description: Notes are internal to the team and never sent to the customer.
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: Notes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationNoteListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createConversationNote
+      tags: [conversations]
+      summary: Add an internal note
+      description: >-
+        Never sent to the customer. With `for_ai`, the note is given to the
+        AI as an instruction from the team in its next turns (never as
+        customer content, and the AI is told never to quote it).
+      security:
+        - { session: [conversations.reply] }
+        - { apiKey: [conversations.reply] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateConversationNoteRequest" }
+            example: { body: "Müşteri VIP; kargo ücretini sorarsa ücretsiz olduğunu söyle.", for_ai: true }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationNoteResponse" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/activity:
+    get:
+      operationId: listConversationActivity
+      tags: [conversations]
+      summary: The conversation's activity timeline, newest last
+      description: >-
+        One typed stream: handoffs, assignee changes, AI actions and replies,
+        notes, automation runs, sent and failed messages and escalations.
+        A page holds the latest items oldest first; `meta.next_cursor`
+        fetches the page before it. New items are announced with
+        `conversation.activity` on the conversation's realtime channel.
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Activity items
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationActivityListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/ai-drafts:
+    get:
+      operationId: listConversationAIDrafts
+      tags: [conversations]
+      summary: AI suggestions and replies waiting for approval, newest first
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+        - { name: pending, in: query, schema: { type: boolean }, description: Only drafts nobody decided on yet. }
+      responses:
+        "200":
+          description: Drafts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIDraftListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/ai-drafts/{draftId}/accept:
+    post:
+      operationId: acceptConversationAIDraft
+      tags: [conversations]
+      summary: Send an AI draft, as written or edited
+      description: >-
+        Sends the draft through the normal send path (24-hour window and
+        consent rules apply). With `body`, the edited text is sent and the
+        draft is recorded as `edited`. A reply waiting for approval is sent
+        as the AI's message; an accepted suggestion as the caller's.
+      security:
+        - { session: [conversations.reply] }
+        - { apiKey: [conversations.reply] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+        - { $ref: "#/components/parameters/DraftId" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptAIDraftRequest" }
+            example: { body: "Siparişiniz yarın kargoya veriliyor." }
+      responses:
+        "200":
+          description: The decided draft with the message it sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIDraftResponse" }
+        "409":
+          description: DRAFT_DECIDED — someone already decided on this draft.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/ai-drafts/{draftId}/reject:
+    post:
+      operationId: rejectConversationAIDraft
+      tags: [conversations]
+      summary: Discard an AI draft
+      security:
+        - { session: [conversations.reply] }
+        - { apiKey: [conversations.reply] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+        - { $ref: "#/components/parameters/DraftId" }
+      responses:
+        "200":
+          description: The rejected draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIDraftResponse" }
+        "409": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /conversations/{conversationId}/automation-runs:
+    get:
+      operationId: listConversationAutomationRuns
+      tags: [conversations]
+      summary: Automation runs of the conversation, newest first (last 50)
+      description: >-
+        Runs started by a trigger, a person or the AI for this conversation,
+        with their progress. Changes are announced with
+        `automation.run.updated` on the conversation's realtime channel.
+      security:
+        - { session: [conversations.read] }
+        - { session: [conversations.read_all] }
+        - { apiKey: [conversations.read] }
+        - { apiKey: [conversations.read_all] }
+      parameters:
+        - { $ref: "#/components/parameters/ConversationId" }
+      responses:
+        "200":
+          description: Runs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationAutomationRunListResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   # ── Automations (Phase 8) ────────────────────────────────────────────────
@@ -3172,6 +3510,11 @@ components:
       schema: { type: string, format: uuid }
     NoteId:
       name: noteId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DraftId:
+      name: draftId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -4620,13 +4963,16 @@ components:
 
     AISettings:
       type: object
-      required: [enabled, default_provider_id, default_model, disclosure, data_sharing_notice, fake_provider_available]
+      required: [enabled, default_provider_id, default_model, disclosure, data_sharing_notice, fake_provider_available,
+                 max_replies_per_hour, context_messages]
       properties:
         enabled: { type: boolean, description: Master switch; while off no AI work runs. }
         default_provider_id: { type: [string, "null"], format: uuid }
         default_model: { type: string }
         disclosure: { $ref: "#/components/schemas/AITexts" }
         data_sharing_notice: { $ref: "#/components/schemas/AITexts" }
+        max_replies_per_hour: { type: integer, description: AI requests per conversation and hour; above it the conversation goes to a person. }
+        context_messages: { type: integer, description: Recent messages an AI turn sees. }
         fake_provider_available: { type: boolean, description: Whether the fake provider kind can be connected (development and test only). }
     UpdateAISettingsRequest:
       type: object
@@ -4638,6 +4984,8 @@ components:
         default_model: { type: string, maxLength: 200 }
         disclosure: { $ref: "#/components/schemas/AITexts" }
         data_sharing_notice: { $ref: "#/components/schemas/AITexts" }
+        max_replies_per_hour: { type: integer, minimum: 1, maximum: 1000, description: "Default 20." }
+        context_messages: { type: integer, minimum: 2, maximum: 100, description: "Default 20." }
     AISettingsResponse:
       type: object
       required: [data, meta]
@@ -4655,6 +5003,10 @@ components:
         on_no_answer: { type: boolean }
         on_critical_intents: { type: array, maxItems: 50, items: { type: string, pattern: "^[a-z0-9_]{1,40}$" } }
         on_unauthorized_action: { type: boolean }
+        on_human_takeover:
+          type: string
+          enum: ["off", suggest]
+          description: "What the AI does when a person takes a conversation over: off (default) or keep drafting suggestions."
 
     AIDataField:
       type: object
@@ -5305,13 +5657,14 @@ components:
     # ── Inbox (Phase 7) ─────────────────────────────────────────────────────
     ConversationContact:
       type: object
-      required: [id, phone, name, profile_name, opted_out]
+      required: [id, phone, name, profile_name, opted_out, ai_disabled]
       properties:
         id: { type: string, format: uuid }
         phone: { type: string }
         name: { type: string }
         profile_name: { type: string }
         opted_out: { type: boolean }
+        ai_disabled: { type: boolean, description: The AI never answers or drafts for this contact. }
     ConversationPhoneNumber:
       type: object
       required: [id, display_phone_number, verified_name, account_id]
@@ -5337,7 +5690,8 @@ components:
     Conversation:
       type: object
       required: [id, contact, phone_number, status, assignee, unread_count, last_message_at, last_inbound_at,
-                 window_open, window_expires_at, last_message, closed_at, created_at]
+                 window_open, window_expires_at, last_message, closed_at, created_at, owner_type, ai_mode, ai_status,
+                 ai_status_detail, ai_profile_id, pending_handoff_id]
       properties:
         id: { type: string, format: uuid }
         contact: { $ref: "#/components/schemas/ConversationContact" }
@@ -5358,6 +5712,12 @@ components:
             - { type: "null" }
         closed_at: { type: [string, "null"], format: date-time }
         created_at: { type: string, format: date-time }
+        owner_type: { $ref: "#/components/schemas/ConversationOwnerType" }
+        ai_mode: { $ref: "#/components/schemas/ConversationAIMode" }
+        ai_status: { type: string, enum: [idle, thinking, error], description: The AI's live state in the conversation. }
+        ai_status_detail: { type: [string, "null"], description: "Why the AI stopped (with error), e.g. disabled or rate_limited." }
+        ai_profile_id: { type: [string, "null"], format: uuid }
+        pending_handoff_id: { type: [string, "null"], format: uuid, description: An escalation nobody took yet (see /handoffs). }
     ConversationResponse:
       type: object
       required: [data, meta]
@@ -5379,7 +5739,7 @@ components:
         status: { type: string, enum: [pending, stored, failed] }
     InboxMessage:
       type: object
-      required: [id, direction, type, body, status, wamid, reply_to_wamid, source, error_code, error_title, media,
+      required: [id, direction, type, body, status, wamid, reply_to_wamid, source, sent_by, ai_usage_id, error_code, error_title, media,
                  occurred_at, sent_at, delivered_at, read_at, failed_at, created_at]
       properties:
         id: { type: string, format: uuid }
@@ -5390,7 +5750,9 @@ components:
         failure_class: { $ref: "#/components/schemas/FailureClass" }
         wamid: { type: [string, "null"] }
         reply_to_wamid: { type: [string, "null"] }
-        source: { type: string, enum: [api, panel, webhook, campaign, automation] }
+        source: { type: string, enum: [api, panel, webhook, campaign, automation, ai] }
+        sent_by: { type: [string, "null"], enum: [user, api_key, system, ai, null], description: Who wrote an outbound message; ai for AI replies. }
+        ai_usage_id: { type: [string, "null"], format: uuid, description: The AI request that wrote the message. }
         error_code: { type: [string, "null"] }
         error_title: { type: [string, "null"] }
         media:
@@ -5472,6 +5834,254 @@ components:
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/ConversationEvent" } }
         meta: { $ref: "#/components/schemas/Meta" }
+
+    # ── Conversation intelligence and AI handoff (Phase 16C P6) ────────────
+    ConversationOwnerType:
+      type: string
+      enum: [none, human, ai]
+      description: Who answers the conversation.
+    ConversationAIMode:
+      type: string
+      enum: ["off", suggest, auto_reply, awaiting_approval]
+      description: >-
+        off — no AI; suggest — the AI drafts replies for the agent;
+        auto_reply — the AI answers the customer; awaiting_approval — the AI
+        writes replies an agent approves before they are sent.
+    SetConversationAIModeRequest:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode: { $ref: "#/components/schemas/ConversationAIMode" }
+    HandoffRequest:
+      type: object
+      additionalProperties: false
+      required: [to]
+      properties:
+        to: { type: string, enum: [ai, human] }
+        mode: { type: string, enum: [auto_reply, awaiting_approval], description: "With `to: ai`; default auto_reply." }
+        assignee_id: { type: [string, "null"], format: uuid, description: "With `to: human`: the person, or null for the team's pool." }
+        note: { type: string, maxLength: 500, description: Why (kept with the handoff). }
+    HandoffReason:
+      type: string
+      enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error, manual]
+    ConversationHandoff:
+      type: object
+      required: [id, from_type, from_user, to_type, to_user, reason, reason_detail, summary, summary_source, detected_need,
+                 suggested_next_action, collected_fields, created_at, accepted_by, accepted_at]
+      properties:
+        id: { type: string, format: uuid }
+        from_type: { type: string, enum: [ai, human, none] }
+        from_user:
+          oneOf:
+            - { $ref: "#/components/schemas/UserRef" }
+            - { type: "null" }
+        to_type: { type: string, enum: [ai, human, pool] }
+        to_user:
+          oneOf:
+            - { $ref: "#/components/schemas/UserRef" }
+            - { type: "null" }
+        reason: { $ref: "#/components/schemas/HandoffReason" }
+        reason_detail: { type: string }
+        summary: { type: string }
+        summary_source: { type: string, enum: [ai, fallback, none], description: "ai — written by the AI; fallback — built from the last messages." }
+        detected_need: { type: string }
+        suggested_next_action: { type: string }
+        collected_fields:
+          type: object
+          additionalProperties: { type: string }
+          description: What the AI collected (not verified).
+        created_at: { type: string, format: date-time }
+        accepted_by:
+          oneOf:
+            - { $ref: "#/components/schemas/UserRef" }
+            - { type: "null" }
+        accepted_at: { type: [string, "null"], format: date-time }
+      example:
+        id: "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e"
+        from_type: ai
+        from_user: null
+        to_type: pool
+        to_user: null
+        reason: customer_request
+        reason_detail: ""
+        summary: "Müşteri siparişinin gecikmesinden şikâyetçi ve bir temsilciyle görüşmek istiyor."
+        summary_source: ai
+        detected_need: "Sipariş #1042'nin teslim tarihi"
+        suggested_next_action: "Kargo firmasından durumu sorup müşteriye tarih verin."
+        collected_fields: { email: "ayse@example.com" }
+        created_at: "2026-11-25T14:32:00Z"
+        accepted_by: null
+        accepted_at: null
+    ConversationHandoffListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ConversationHandoff" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ConversationNote:
+      type: object
+      required: [id, author_type, author, body, for_ai, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        author_type: { type: string, enum: [user, system, ai] }
+        author:
+          oneOf:
+            - { $ref: "#/components/schemas/UserRef" }
+            - { type: "null" }
+        body: { type: string }
+        for_ai: { type: boolean, description: Given to the AI as an instruction from the team. }
+        created_at: { type: string, format: date-time }
+      example:
+        id: "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e"
+        author_type: user
+        author: { id: "0195f0c2-0000-7000-8000-000000000001", name: "Ayşe" }
+        body: "Müşteri VIP; kargo ücretini sorarsa ücretsiz olduğunu söyle."
+        for_ai: true
+        created_at: "2026-11-25T14:30:00Z"
+    CreateConversationNoteRequest:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4000 }
+        for_ai: { type: boolean, default: false }
+    ConversationNoteResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/ConversationNote" }, meta: { $ref: "#/components/schemas/Meta" } }
+    ConversationNoteListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ConversationNote" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ConversationActivityKind:
+      type: string
+      enum: [handed_to_ai, handed_to_human, ai_mode_changed, assignee_changed, closed, reopened, note_added, ai_action, ai_reply_sent,
+             ai_draft_created, ai_draft_decided, ai_error, escalation, handoff_accepted, automation_started, automation_completed,
+             automation_failed, message_sent, message_failed, contact_ai_disabled, contact_ai_enabled]
+    ConversationActivity:
+      type: object
+      required: [id, kind, actor_type, actor_name, data, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/ConversationActivityKind" }
+        actor_type: { type: string, enum: [user, api_key, system, ai] }
+        actor_name: { type: [string, "null"], description: The user who acted; null for the AI, the system and API keys. }
+        data:
+          type: object
+          additionalProperties: true
+          description: >-
+            Details of the item, by kind: mode, reason, handoff_id,
+            assignee_id/assignee_name, note_id/preview/for_ai, action, field,
+            automation_id/automation_name/run_id/steps/error, message_id,
+            source, error_code.
+        created_at: { type: string, format: date-time }
+      example:
+        id: "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e"
+        kind: automation_completed
+        actor_type: system
+        actor_name: null
+        data: { automation_id: "0195f0c2-1111-7000-8000-000000000001", automation_name: "Sipariş durumu", run_id: "0195f0c2-2222-7000-8000-000000000001", started_by: ai, steps: 3 }
+        created_at: "2026-11-25T14:33:00Z"
+    ConversationActivityListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ConversationActivity" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    AIDraft:
+      type: object
+      required: [id, kind, body, confidence, intent, status, message_id, sent_message_id, decided_by, decided_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [suggestion, approval], description: "suggestion — for the agent (suggest mode); approval — the AI's reply waiting for approval." }
+        body: { type: string }
+        confidence: { type: number, format: double }
+        intent: { type: string }
+        status: { type: string, enum: [pending, accepted, edited, rejected, superseded] }
+        message_id: { type: [string, "null"], format: uuid, description: The customer message the draft answers. }
+        sent_message_id: { type: [string, "null"], format: uuid }
+        decided_by: { type: [string, "null"], format: uuid }
+        decided_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+      example:
+        id: "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e"
+        kind: suggestion
+        body: "Siparişiniz yarın kargoya veriliyor."
+        confidence: 0.86
+        intent: order_status
+        status: pending
+        message_id: "0195f0c2-3333-7000-8000-000000000001"
+        sent_message_id: null
+        decided_by: null
+        decided_at: null
+        created_at: "2026-11-25T14:31:00Z"
+    AcceptAIDraftRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4096, description: The edited text; omit to send the draft as written. }
+    AIDraftResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AIDraft" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AIDraftListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AIDraft" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ConversationAutomationRun:
+      type: object
+      required: [id, automation_id, automation_name, status, started_by, steps_done, last_action, error, created_at, updated_at, finished_at]
+      properties:
+        id: { type: string, format: uuid }
+        automation_id: { type: string, format: uuid }
+        automation_name: { type: string }
+        status: { type: string, enum: [queued, running, waiting, completed, failed, cancelled] }
+        started_by: { type: string, enum: [system, user, ai] }
+        steps_done: { type: integer, format: int64 }
+        last_action: { type: [string, "null"], description: The step type that ran last. }
+        error: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+      example:
+        id: "0195f0c2-2222-7000-8000-000000000001"
+        automation_id: "0195f0c2-1111-7000-8000-000000000001"
+        automation_name: "Sipariş durumu"
+        status: completed
+        started_by: ai
+        steps_done: 3
+        last_action: reply
+        error: null
+        created_at: "2026-11-25T14:32:10Z"
+        updated_at: "2026-11-25T14:32:12Z"
+        finished_at: "2026-11-25T14:32:12Z"
+    ConversationAutomationRunListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ConversationAutomationRun" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ContactAISettingRequest:
+      type: object
+      additionalProperties: false
+      required: [disabled]
+      properties:
+        disabled: { type: boolean }
+    ContactAISetting:
+      type: object
+      required: [contact_id, ai_disabled]
+      properties:
+        contact_id: { type: string, format: uuid }
+        ai_disabled: { type: boolean }
+    ContactAISettingResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/ContactAISetting" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     # ── Realtime (Phase 6) ──────────────────────────────────────────────────
     RealtimeSubscriptionRequest:

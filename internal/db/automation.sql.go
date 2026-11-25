@@ -164,7 +164,7 @@ func (q *Queries) GetAutomation(ctx context.Context, id uuid.UUID) (Automation, 
 }
 
 const getAutomationRun = `-- name: GetAutomationRun :one
-SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited FROM automation_runs WHERE id = $1
+SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by FROM automation_runs WHERE id = $1
 `
 
 func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error) {
@@ -186,6 +186,8 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (Automatio
 		&i.UpdatedAt,
 		&i.FinishedAt,
 		&i.Visited,
+		&i.ConversationID,
+		&i.StartedBy,
 	)
 	return i, err
 }
@@ -303,8 +305,8 @@ func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationPara
 }
 
 const insertAutomationRun = `-- name: InsertAutomationRun :one
-INSERT INTO automation_runs (automation_id, automation_version, event_key, event, contact_id)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO automation_runs (automation_id, automation_version, event_key, event, contact_id, conversation_id, started_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (automation_id, event_key) DO NOTHING
 RETURNING id
 `
@@ -315,6 +317,8 @@ type InsertAutomationRunParams struct {
 	EventKey          string
 	Event             []byte
 	ContactID         *uuid.UUID
+	ConversationID    *uuid.UUID
+	StartedBy         string
 }
 
 // No row when this automation already ran for this event.
@@ -325,6 +329,8 @@ func (q *Queries) InsertAutomationRun(ctx context.Context, arg InsertAutomationR
 		arg.EventKey,
 		arg.Event,
 		arg.ContactID,
+		arg.ConversationID,
+		arg.StartedBy,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -387,7 +393,7 @@ func (q *Queries) ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) (
 }
 
 const listAutomationRuns = `-- name: ListAutomationRuns :many
-SELECT r.id, r.automation_id, r.automation_version, r.event_key, r.event, r.contact_id, r.status, r.pc, r.steps_executed, r.resume_at, r.error, r.created_at, r.updated_at, r.finished_at, r.visited, coalesce(c.phone_e164, '')::text AS phone
+SELECT r.id, r.automation_id, r.automation_version, r.event_key, r.event, r.contact_id, r.status, r.pc, r.steps_executed, r.resume_at, r.error, r.created_at, r.updated_at, r.finished_at, r.visited, r.conversation_id, r.started_by, coalesce(c.phone_e164, '')::text AS phone
 FROM automation_runs r LEFT JOIN contacts c ON c.id = r.contact_id
 WHERE r.automation_id = $1
   AND ($2::uuid IS NULL OR r.id < $2::uuid)
@@ -416,6 +422,8 @@ type ListAutomationRunsRow struct {
 	UpdatedAt         time.Time
 	FinishedAt        *time.Time
 	Visited           []byte
+	ConversationID    *uuid.UUID
+	StartedBy         string
 	Phone             string
 }
 
@@ -444,6 +452,8 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 			&i.UpdatedAt,
 			&i.FinishedAt,
 			&i.Visited,
+			&i.ConversationID,
+			&i.StartedBy,
 			&i.Phone,
 		); err != nil {
 			return nil, err
@@ -524,7 +534,7 @@ func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, er
 }
 
 const lockAutomationRun = `-- name: LockAutomationRun :one
-SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited FROM automation_runs WHERE id = $1 FOR UPDATE
+SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by FROM automation_runs WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error) {
@@ -546,6 +556,8 @@ func (q *Queries) LockAutomationRun(ctx context.Context, id uuid.UUID) (Automati
 		&i.UpdatedAt,
 		&i.FinishedAt,
 		&i.Visited,
+		&i.ConversationID,
+		&i.StartedBy,
 	)
 	return i, err
 }
