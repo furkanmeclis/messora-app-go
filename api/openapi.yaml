@@ -43,6 +43,7 @@ tags:
   - name: campaigns
   - name: automations
   - name: webhooks
+  - name: ai
 
 paths:
   /setup/status:
@@ -541,6 +542,355 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MetaRateImportResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/settings:
+    get:
+      operationId: getAISettings
+      tags: [ai]
+      summary: Company AI settings
+      description: >-
+        The master switch (while `enabled` is false every AI request fails
+        with AI_DISABLED), the default provider and model, and the texts the
+        AI uses to disclose itself and to explain data sharing.
+      security: [{ session: [ai.read] }]
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AISettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updateAISettings
+      tags: [ai]
+      summary: Change the company AI settings
+      security: [{ session: [ai.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAISettingsRequest" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AISettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/providers:
+    get:
+      operationId: listAIProviders
+      tags: [ai]
+      summary: Connected AI providers
+      description: API keys are never returned; `key_last4` identifies the key.
+      security: [{ session: [ai.read] }]
+      responses:
+        "200":
+          description: Providers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIProviderListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAIProvider
+      tags: [ai]
+      summary: Connect an AI provider
+      description: >-
+        Stores the key encrypted and checks it right away (free calls: the
+        model list, or DeepSeek's balance); the outcome is the `status`.
+        `base_url` is only accepted for DeepSeek and OpenAI-compatible
+        endpoints and must be https.
+      security: [{ session: [ai.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAIProviderRequest" }
+      responses:
+        "201":
+          description: Connected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/providers/{providerId}:
+    parameters: [{ $ref: "#/components/parameters/ProviderId" }]
+    patch:
+      operationId: updateAIProvider
+      tags: [ai]
+      summary: Rename, rotate the key, change the endpoint or disable a provider
+      description: A new key or endpoint is checked immediately. An empty `base_url` removes the override.
+      security: [{ session: [ai.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAIProviderRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteAIProvider
+      tags: [ai]
+      summary: Remove a provider and its models
+      description: Profiles using it fall back to the company default; a deleted default is cleared.
+      security: [{ session: [ai.manage] }]
+      responses:
+        "204": { description: Removed }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/providers/{providerId}/check:
+    parameters: [{ $ref: "#/components/parameters/ProviderId" }]
+    post:
+      operationId: checkAIProvider
+      tags: [ai]
+      summary: Check the stored key again
+      security: [{ session: [ai.manage] }]
+      responses:
+        "200":
+          description: Checked; see status and status_detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/providers/{providerId}/sync:
+    parameters: [{ $ref: "#/components/parameters/ProviderId" }]
+    post:
+      operationId: syncAIModels
+      tags: [ai]
+      summary: Refresh the provider's model list now
+      description: The list is also refreshed daily. Models the provider no longer lists are removed.
+      security: [{ session: [ai.manage] }]
+      responses:
+        "200":
+          description: Synced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIModelSyncResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/models:
+    get:
+      operationId: listAIModels
+      tags: [ai]
+      summary: Model catalogue with today's prices
+      description: >-
+        Limits and capabilities as each provider's list endpoint reports
+        them; `null` means the provider does not say (unknown). `price` is
+        the price row valid today, or null when none matches.
+      security: [{ session: [ai.read] }]
+      responses:
+        "200":
+          description: Models
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIModelListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/prices:
+    get:
+      operationId: listAIPrices
+      tags: [ai]
+      summary: AI price table (per 1M tokens)
+      description: >-
+        No provider publishes prices through an API. Rows come from the
+        shipped seed (unconfirmed), a LiteLLM import (unconfirmed) or an
+        admin; `confirmed` rows were checked by an admin.
+      security: [{ session: [ai.read] }]
+      responses:
+        "200":
+          description: Prices
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPriceListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAIPrice
+      tags: [ai]
+      summary: Add a price row (counts as confirmed by the admin)
+      security: [{ session: [ai.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAIPriceRequest" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPriceResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/prices/{priceId}:
+    parameters: [{ $ref: "#/components/parameters/PriceId" }]
+    patch:
+      operationId: updateAIPrice
+      tags: [ai]
+      summary: Edit or confirm a price row
+      description: >-
+        `confirm: true` records the admin as having checked the row against
+        its source. Changing any figure without confirming clears an earlier
+        confirmation. Costs already recorded never change.
+      security: [{ session: [ai.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAIPriceRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPriceResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteAIPrice
+      tags: [ai]
+      summary: Remove a price row
+      security: [{ session: [ai.manage] }]
+      responses:
+        "204": { description: Removed }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/prices/import:
+    post:
+      operationId: importAIPrices
+      tags: [ai]
+      summary: Import prices from LiteLLM's price list
+      description: >-
+        Multipart upload with a `file` field holding LiteLLM's
+        model_prices_and_context_window.json (MIT licensed, per-token
+        prices; at most 16 MB) and an optional `effective_from` date
+        (default today). OpenAI, Anthropic, Gemini and DeepSeek chat models
+        are converted to per-1M prices, including long-context thresholds
+        and cache prices. Imported rows replace rows of the same model and
+        date and are unconfirmed. Messora never downloads the file itself.
+      security: [{ session: [ai.manage] }]
+      x-messora-raw-body: 16777216
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                effective_from: { type: string, format: date }
+      responses:
+        "200":
+          description: Imported
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPriceImportResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/profiles:
+    get:
+      operationId: listAIProfiles
+      tags: [ai]
+      summary: AI profiles
+      security: [{ session: [ai.read] }]
+      responses:
+        "200":
+          description: Profiles
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIProfileListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAIProfile
+      tags: [ai]
+      summary: Create an AI profile
+      description: A phone number has at most one profile. `handoff.on_request` is always true.
+      security: [{ session: [ai.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AIProfileInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIProfileResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/profiles/{profileId}:
+    parameters: [{ $ref: "#/components/parameters/ProfileId" }]
+    get:
+      operationId: getAIProfile
+      tags: [ai]
+      summary: One AI profile
+      security: [{ session: [ai.read] }]
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIProfileResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updateAIProfile
+      tags: [ai]
+      summary: Replace an AI profile's configuration
+      description: Fields left out take their defaults.
+      security: [{ session: [ai.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AIProfileInput" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIProfileResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteAIProfile
+      tags: [ai]
+      summary: Delete an AI profile
+      security: [{ session: [ai.manage] }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/profiles/{profileId}/test:
+    parameters: [{ $ref: "#/components/parameters/ProfileId" }]
+    post:
+      operationId: testAIProfile
+      tags: [ai]
+      summary: Run a sample conversation through the profile
+      description: >-
+        Sends the conversation with the profile's instructions and reply
+        schema to its model and returns the structured reply. Nothing is
+        sent to a customer; the request is recorded in AI usage with
+        purpose `test`. Fails with AI_DISABLED while AI is off.
+      security: [{ session: [ai.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TestAIProfileRequest" }
+      responses:
+        "200":
+          description: The model's answer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AITestResultResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /appearance:
@@ -2594,6 +2944,21 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    ProviderId:
+      name: providerId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PriceId:
+      name: priceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     PhoneNumberId:
       name: phoneNumberId
       in: path
@@ -3753,6 +4118,413 @@ components:
             Cost as a decimal string, priced from the imported rate card ("0" for free
             messages); null when Meta has not reported the pricing yet or no rate matches.
         cost_currency: { type: [string, "null"], readOnly: true }
+
+    AIProviderKind:
+      type: string
+      enum: [openai, anthropic, gemini, deepseek, fake]
+      description: "`fake` is a scriptable provider available only with AI_FAKE_PROVIDER (development and test)."
+
+    AIProvider:
+      type: object
+      required: [id, kind, name, key_last4, base_url, status, status_detail, checked_at, models_synced_at, enabled, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/AIProviderKind" }
+        name: { type: string }
+        key_last4: { type: string, description: Last four characters of the key (the key itself is never returned). }
+        base_url: { type: [string, "null"], description: Endpoint override (DeepSeek / OpenAI-compatible). }
+        status: { type: string, enum: [unknown, ok, invalid, no_balance, error], description: Outcome of the last key check. }
+        status_detail: { type: string }
+        checked_at: { type: [string, "null"], format: date-time }
+        models_synced_at: { type: [string, "null"], format: date-time }
+        enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreateAIProviderRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, name, api_key]
+      properties:
+        kind: { $ref: "#/components/schemas/AIProviderKind" }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        api_key: { type: string, minLength: 8, maxLength: 500, writeOnly: true }
+        base_url: { type: string, maxLength: 500 }
+        enabled: { type: boolean }
+
+    UpdateAIProviderRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        api_key: { type: string, minLength: 8, maxLength: 500, writeOnly: true, description: A new key replaces (rotates) the stored one. }
+        base_url: { type: string, maxLength: 500, description: Empty removes the override. }
+        enabled: { type: boolean }
+
+    AIProviderResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AIProvider" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AIProviderListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AIProvider" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    AIModelSync:
+      type: object
+      required: [models]
+      properties:
+        models: { type: integer, description: Models now in the catalogue for this provider. }
+    AIModelSyncResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AIModelSync" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    AICapabilities:
+      type: object
+      required: [tools, structured_output, vision, thinking]
+      description: null = the provider does not report it (unknown).
+      properties:
+        tools: { type: [boolean, "null"] }
+        structured_output: { type: [boolean, "null"] }
+        vision: { type: [boolean, "null"] }
+        thinking: { type: [boolean, "null"] }
+
+    AIModel:
+      type: object
+      required: [provider_id, provider_name, provider_kind, model_id, display_name, context_window, max_output, capabilities, lifecycle, synced_at, price]
+      properties:
+        provider_id: { type: string, format: uuid }
+        provider_name: { type: string }
+        provider_kind: { $ref: "#/components/schemas/AIProviderKind" }
+        model_id: { type: string }
+        display_name: { type: string }
+        context_window: { type: [integer, "null"], format: int64 }
+        max_output: { type: [integer, "null"], format: int64 }
+        capabilities: { $ref: "#/components/schemas/AICapabilities" }
+        lifecycle: { type: [string, "null"] }
+        synced_at: { type: string, format: date-time }
+        price:
+          oneOf:
+            - { $ref: "#/components/schemas/AIPrice" }
+            - { type: "null" }
+    AIModelListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AIModel" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    AIRates:
+      type: object
+      description: Per-1M prices as decimal strings; a missing rate keeps the row's.
+      properties:
+        input: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cached_input: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cache_write_5m: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cache_write_1h: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        output: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+
+    AIPriceThreshold:
+      allOf:
+        - $ref: "#/components/schemas/AIRates"
+        - type: object
+          required: [input_tokens_over]
+          properties:
+            input_tokens_over: { type: integer, format: int64, minimum: 1, description: Applies when total input tokens exceed this. }
+
+    AIPriceWindow:
+      allOf:
+        - $ref: "#/components/schemas/AIRates"
+        - type: object
+          required: [start, end]
+          properties:
+            label: { type: string }
+            weekdays: { type: array, items: { type: integer, minimum: 1, maximum: 7 }, description: ISO weekdays (1 = Monday); empty = every day. }
+            start: { type: string, pattern: "^[0-2][0-9]:[0-5][0-9]$" }
+            end: { type: string, pattern: "^[0-2][0-9]:[0-5][0-9]$", description: Exclusive; may wrap past midnight. }
+            time_zone: { type: string, description: "IANA zone, default UTC." }
+            multiplier: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+
+    AIPriceRules:
+      type: object
+      properties:
+        thresholds: { type: array, items: { $ref: "#/components/schemas/AIPriceThreshold" } }
+        windows: { type: array, items: { $ref: "#/components/schemas/AIPriceWindow" } }
+
+    AIPrice:
+      type: object
+      required: [id, provider_kind, model_pattern, currency, input, cached_input, cache_write_5m, cache_write_1h, output, rules,
+        effective_from, effective_to, source, source_url, notes, confirmed, confirmed_at, confirmed_by, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        provider_kind: { $ref: "#/components/schemas/AIProviderKind" }
+        model_pattern: { type: string, description: "A model id, or a prefix ending in '*'." }
+        currency: { type: string }
+        input: { type: string, description: Per 1M input tokens. }
+        cached_input: { type: [string, "null"], description: Per 1M cached (cache read) input tokens. }
+        cache_write_5m: { type: [string, "null"], description: Per 1M tokens written to the cache (5-minute cache). }
+        cache_write_1h: { type: [string, "null"], description: Per 1M tokens written to the 1-hour cache (Anthropic). }
+        output: { type: string, description: Per 1M output tokens (reasoning included). }
+        rules: { $ref: "#/components/schemas/AIPriceRules" }
+        effective_from: { type: string, format: date }
+        effective_to: { type: [string, "null"], format: date, description: Exclusive. }
+        source: { type: string, enum: [seed, litellm, manual] }
+        source_url: { type: string }
+        notes: { type: string }
+        confirmed: { type: boolean }
+        confirmed_at: { type: [string, "null"], format: date-time }
+        confirmed_by: { type: [string, "null"], format: uuid }
+        updated_at: { type: string, format: date-time }
+
+    CreateAIPriceRequest:
+      type: object
+      additionalProperties: false
+      required: [provider_kind, model_pattern, input, output, effective_from]
+      properties:
+        provider_kind: { $ref: "#/components/schemas/AIProviderKind" }
+        model_pattern: { type: string, minLength: 1, maxLength: 200 }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        input: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cached_input: { type: [string, "null"], pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cache_write_5m: { type: [string, "null"], pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cache_write_1h: { type: [string, "null"], pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        output: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        rules: { $ref: "#/components/schemas/AIPriceRules" }
+        effective_from: { type: string, format: date }
+        effective_to: { type: [string, "null"], format: date }
+        source_url: { type: string, maxLength: 500 }
+        notes: { type: string, maxLength: 2000 }
+
+    UpdateAIPriceRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        model_pattern: { type: string, minLength: 1, maxLength: 200 }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        input: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cached_input: { type: [string, "null"], pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cache_write_5m: { type: [string, "null"], pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        cache_write_1h: { type: [string, "null"], pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        output: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        rules: { $ref: "#/components/schemas/AIPriceRules" }
+        effective_from: { type: string, format: date }
+        effective_to: { type: [string, "null"], format: date }
+        source_url: { type: string, maxLength: 500 }
+        notes: { type: string, maxLength: 2000 }
+        confirm: { type: boolean, description: Record that the row was checked against its source. }
+
+    AIPriceResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AIPrice" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AIPriceListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AIPrice" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    AIPriceImport:
+      type: object
+      required: [prices, skipped]
+      properties:
+        prices: { type: integer, description: Price rows imported. }
+        skipped: { type: integer, description: "Entries of other providers, non-chat models or without per-token prices." }
+    AIPriceImportResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AIPriceImport" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    AITexts:
+      type: object
+      additionalProperties: false
+      required: [tr, en]
+      properties:
+        tr: { type: string, maxLength: 1000 }
+        en: { type: string, maxLength: 1000 }
+
+    AISettings:
+      type: object
+      required: [enabled, default_provider_id, default_model, disclosure, data_sharing_notice, fake_provider_available]
+      properties:
+        enabled: { type: boolean, description: Master switch; while off no AI work runs. }
+        default_provider_id: { type: [string, "null"], format: uuid }
+        default_model: { type: string }
+        disclosure: { $ref: "#/components/schemas/AITexts" }
+        data_sharing_notice: { $ref: "#/components/schemas/AITexts" }
+        fake_provider_available: { type: boolean, description: Whether the fake provider kind can be connected (development and test only). }
+    UpdateAISettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, default_provider_id, default_model, disclosure, data_sharing_notice]
+      properties:
+        enabled: { type: boolean }
+        default_provider_id: { type: [string, "null"], format: uuid }
+        default_model: { type: string, maxLength: 200 }
+        disclosure: { $ref: "#/components/schemas/AITexts" }
+        data_sharing_notice: { $ref: "#/components/schemas/AITexts" }
+    AISettingsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AISettings" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    AIHandoff:
+      type: object
+      additionalProperties: false
+      required: [on_request, on_low_confidence, on_no_answer, on_critical_intents, on_unauthorized_action]
+      properties:
+        on_request:
+          type: boolean
+          description: Always true and not editable — Meta requires a quick path to a person when the customer asks.
+        on_low_confidence: { type: [number, "null"], minimum: 0, maximum: 1, description: Hand over below this confidence; null = off. }
+        on_no_answer: { type: boolean }
+        on_critical_intents: { type: array, maxItems: 50, items: { type: string, pattern: "^[a-z0-9_]{1,40}$" } }
+        on_unauthorized_action: { type: boolean }
+
+    AIDataField:
+      type: object
+      additionalProperties: false
+      required: [key, label, required]
+      properties:
+        key: { type: string, description: "A contact field (name, email, var1…var5) or a custom attribute as attr:<key>." }
+        label: { type: string, maxLength: 120 }
+        required: { type: boolean }
+
+    AIDataCollection:
+      type: object
+      additionalProperties: false
+      required: [enabled, fields, may_create_contact, may_update_fields]
+      properties:
+        enabled: { type: boolean }
+        fields: { type: array, maxItems: 50, items: { $ref: "#/components/schemas/AIDataField" } }
+        may_create_contact: { type: boolean }
+        may_update_fields: { type: boolean }
+
+    AIDisclosureMode:
+      type: string
+      enum: [always_first_message, on_question, off]
+
+    AIProfile:
+      type: object
+      required: [id, name, phone_number_id, phone_display, system_prompt, provider_id, model, auto_reply, handoff, data_collection,
+        allowed_actions, disclosure_mode, status, warnings, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        phone_number_id: { type: [string, "null"], format: uuid }
+        phone_display: { type: string }
+        system_prompt: { type: string }
+        provider_id: { type: [string, "null"], format: uuid, description: null = the company default. }
+        model: { type: [string, "null"], description: null = the company default. }
+        auto_reply: { type: boolean }
+        handoff: { $ref: "#/components/schemas/AIHandoff" }
+        data_collection: { $ref: "#/components/schemas/AIDataCollection" }
+        allowed_actions:
+          type: array
+          items: { type: string }
+          description: "Action kinds (create_contact, update_contact_fields, add_tag, assign_conversation, add_internal_note) and automations as automation:<id>."
+        disclosure_mode: { $ref: "#/components/schemas/AIDisclosureMode" }
+        status: { type: string, enum: [active, paused] }
+        warnings:
+          type: array
+          items: { type: string, enum: [disclosure_off, no_number] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AIProfileInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        phone_number_id: { type: [string, "null"], format: uuid }
+        system_prompt: { type: string, maxLength: 100000 }
+        provider_id: { type: [string, "null"], format: uuid }
+        model: { type: [string, "null"], maxLength: 200 }
+        auto_reply: { type: boolean }
+        handoff: { $ref: "#/components/schemas/AIHandoff" }
+        data_collection: { $ref: "#/components/schemas/AIDataCollection" }
+        allowed_actions: { type: array, maxItems: 100, items: { type: string, maxLength: 60 } }
+        disclosure_mode: { $ref: "#/components/schemas/AIDisclosureMode" }
+        status: { type: string, enum: [active, paused] }
+
+    AIProfileResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AIProfile" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AIProfileListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AIProfile" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    AITestMessage:
+      type: object
+      additionalProperties: false
+      required: [role, text]
+      properties:
+        role: { type: string, enum: [user, assistant, operator_note], description: "operator_note: an internal note, given to the model as an instruction, never as customer text." }
+        text: { type: string, minLength: 1, maxLength: 4000 }
+
+    TestAIProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [messages]
+      properties:
+        messages: { type: array, minItems: 1, maxItems: 50, items: { $ref: "#/components/schemas/AITestMessage" } }
+        language: { type: string, enum: [tr, en] }
+
+    AIUsageTokens:
+      type: object
+      required: [input_tokens, cached_input_tokens, cache_write_tokens, cache_write_1h_tokens, output_tokens, reasoning_tokens]
+      properties:
+        input_tokens: { type: integer, format: int64 }
+        cached_input_tokens: { type: integer, format: int64 }
+        cache_write_tokens: { type: integer, format: int64 }
+        cache_write_1h_tokens: { type: integer, format: int64 }
+        output_tokens: { type: integer, format: int64 }
+        reasoning_tokens: { type: integer, format: int64 }
+
+    AIReply:
+      type: object
+      required: [reply, confidence, intent, escalate, escalate_reason, extracted_fields]
+      properties:
+        reply: { type: string }
+        confidence: { type: number }
+        intent: { type: string }
+        escalate: { type: boolean }
+        escalate_reason: { type: string }
+        extracted_fields:
+          type: object
+          additionalProperties: { type: [string, "null"] }
+
+    AITestResult:
+      type: object
+      required: [reply, text, model, provider_id, provider_name, usage, cost, currency, estimated, latency_ms, instructions]
+      properties:
+        reply:
+          oneOf:
+            - { $ref: "#/components/schemas/AIReply" }
+            - { type: "null" }
+        text: { type: string, description: The raw model output. }
+        model: { type: string }
+        provider_id: { type: [string, "null"], format: uuid }
+        provider_name: { type: string }
+        usage: { $ref: "#/components/schemas/AIUsageTokens" }
+        cost: { type: [string, "null"], description: "Cost at today's price; null when no price matches the model." }
+        currency: { type: [string, "null"] }
+        estimated: { type: boolean, description: A rate was missing and the input price was used instead. }
+        latency_ms: { type: integer, format: int64 }
+        instructions: { type: string, description: The full instructions sent to the model (company prompt plus platform rules). }
+    AITestResultResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AITestResult" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     MetaRate:
       type: object

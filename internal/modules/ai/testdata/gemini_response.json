@@ -1,0 +1,21 @@
+{
+  "candidates": [
+    {
+      "content": {"role": "model", "parts": [
+        {"text": "thinking summary", "thought": true},
+        {"text": "{\"reply\":\"Merhaba\"}"}
+      ]},
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 2000,
+    "cachedContentTokenCount": 1200,
+    "candidatesTokenCount": 60,
+    "thoughtsTokenCount": 140,
+    "totalTokenCount": 2200
+  },
+  "modelVersion": "gemini-4-hydrogen",
+  "responseId": "abc"
+}

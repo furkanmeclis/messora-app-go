@@ -120,6 +120,11 @@ func New(o Options) *Client {
 	return c
 }
 
+// HTTPClient returns the guarded client for libraries that need an
+// *http.Client (e.g. provider SDKs). Every connection is checked when it is
+// dialled; the response size limit of Do does not apply.
+func (c *Client) HTTPClient() *http.Client { return c.http }
+
 // BlockedError reports a destination the client refused to contact.
 type BlockedError struct {
 	Host   string

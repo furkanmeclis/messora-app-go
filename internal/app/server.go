@@ -15,6 +15,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
@@ -55,6 +56,7 @@ type (
 	webhooksHandler   = webhooks.Handler
 	automationHandler = automation.Handler
 	licensingHandler  = licensing.Handler
+	aiHandler         = ai.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -73,6 +75,7 @@ type apiServer struct {
 	*webhooksHandler
 	*automationHandler
 	*licensingHandler
+	*aiHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -95,6 +98,7 @@ type services struct {
 	webhooks   *webhooks.Service
 	automation *automation.Service
 	licensing  *licensing.Service
+	ai         *ai.Service
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -164,7 +168,10 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 		GateURL: cfg.LicenseGateURL, Version: Version, Logger: log})
 	// Restricted mode stops sending everywhere (see internal/shared/licensegate).
 	licensegate.Install(lic.Allowed)
-	return &services{cfg: cfg, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
+	// AI provider calls go through an SSRF-safe client (https, public
+	// addresses only); the fake provider only with AI_FAKE_PROVIDER.
+	aiSvc := ai.New(pool, sealer, ai.Options{AllowFake: cfg.AIFakeProvider}, log)
+	return &services{cfg: cfg, ai: aiSvc, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, inbox: inbox, webhooks: hooks,
 		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
 }
@@ -209,6 +216,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		inboxHandler:      conversations.NewHandler(svc.inbox, log),
 		webhooksHandler:   webhooks.NewHandler(svc.webhooks, log),
 		automationHandler: automation.NewHandler(svc.automation, log),
+		aiHandler:         ai.NewHandler(svc.ai, log),
 	}
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))

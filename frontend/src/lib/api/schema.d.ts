@@ -475,6 +475,269 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/ai/settings': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Company AI settings
+         * @description The master switch (while `enabled` is false every AI request fails with AI_DISABLED), the default provider and model, and the texts the AI uses to disclose itself and to explain data sharing.
+         */
+        get: operations['getAISettings'];
+        /** Change the company AI settings */
+        put: operations['updateAISettings'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/providers': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Connected AI providers
+         * @description API keys are never returned; `key_last4` identifies the key.
+         */
+        get: operations['listAIProviders'];
+        put?: never;
+        /**
+         * Connect an AI provider
+         * @description Stores the key encrypted and checks it right away (free calls: the model list, or DeepSeek's balance); the outcome is the `status`. `base_url` is only accepted for DeepSeek and OpenAI-compatible endpoints and must be https.
+         */
+        post: operations['createAIProvider'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/providers/{providerId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a provider and its models
+         * @description Profiles using it fall back to the company default; a deleted default is cleared.
+         */
+        delete: operations['deleteAIProvider'];
+        options?: never;
+        head?: never;
+        /**
+         * Rename, rotate the key, change the endpoint or disable a provider
+         * @description A new key or endpoint is checked immediately. An empty `base_url` removes the override.
+         */
+        patch: operations['updateAIProvider'];
+        trace?: never;
+    };
+    '/ai/providers/{providerId}/check': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check the stored key again */
+        post: operations['checkAIProvider'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/providers/{providerId}/sync': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh the provider's model list now
+         * @description The list is also refreshed daily. Models the provider no longer lists are removed.
+         */
+        post: operations['syncAIModels'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/models': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Model catalogue with today's prices
+         * @description Limits and capabilities as each provider's list endpoint reports them; `null` means the provider does not say (unknown). `price` is the price row valid today, or null when none matches.
+         */
+        get: operations['listAIModels'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/prices': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI price table (per 1M tokens)
+         * @description No provider publishes prices through an API. Rows come from the shipped seed (unconfirmed), a LiteLLM import (unconfirmed) or an admin; `confirmed` rows were checked by an admin.
+         */
+        get: operations['listAIPrices'];
+        put?: never;
+        /** Add a price row (counts as confirmed by the admin) */
+        post: operations['createAIPrice'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/prices/{priceId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                priceId: components['parameters']['PriceId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a price row */
+        delete: operations['deleteAIPrice'];
+        options?: never;
+        head?: never;
+        /**
+         * Edit or confirm a price row
+         * @description `confirm: true` records the admin as having checked the row against its source. Changing any figure without confirming clears an earlier confirmation. Costs already recorded never change.
+         */
+        patch: operations['updateAIPrice'];
+        trace?: never;
+    };
+    '/ai/prices/import': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import prices from LiteLLM's price list
+         * @description Multipart upload with a `file` field holding LiteLLM's model_prices_and_context_window.json (MIT licensed, per-token prices; at most 16 MB) and an optional `effective_from` date (default today). OpenAI, Anthropic, Gemini and DeepSeek chat models are converted to per-1M prices, including long-context thresholds and cache prices. Imported rows replace rows of the same model and date and are unconfirmed. Messora never downloads the file itself.
+         */
+        post: operations['importAIPrices'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/profiles': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI profiles */
+        get: operations['listAIProfiles'];
+        put?: never;
+        /**
+         * Create an AI profile
+         * @description A phone number has at most one profile. `handoff.on_request` is always true.
+         */
+        post: operations['createAIProfile'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/profiles/{profileId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: components['parameters']['ProfileId'];
+            };
+            cookie?: never;
+        };
+        /** One AI profile */
+        get: operations['getAIProfile'];
+        /**
+         * Replace an AI profile's configuration
+         * @description Fields left out take their defaults.
+         */
+        put: operations['updateAIProfile'];
+        post?: never;
+        /** Delete an AI profile */
+        delete: operations['deleteAIProfile'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/ai/profiles/{profileId}/test': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: components['parameters']['ProfileId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a sample conversation through the profile
+         * @description Sends the conversation with the profile's instructions and reply schema to its model and returns the structured reply. Nothing is sent to a customer; the request is recorded in AI usage with purpose `test`. Fails with AI_DISABLED while AI is off.
+         */
+        post: operations['testAIProfile'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/appearance': {
         parameters: {
             query?: never;
@@ -2861,6 +3124,378 @@ export interface components {
             readonly cost_amount?: string | null;
             readonly cost_currency?: string | null;
         };
+        /**
+         * @description `fake` is a scriptable provider available only with AI_FAKE_PROVIDER (development and test).
+         * @enum {string}
+         */
+        AIProviderKind: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'fake';
+        AIProvider: {
+            /** Format: uuid */
+            id: string;
+            kind: components['schemas']['AIProviderKind'];
+            name: string;
+            /** @description Last four characters of the key (the key itself is never returned). */
+            key_last4: string;
+            /** @description Endpoint override (DeepSeek / OpenAI-compatible). */
+            base_url: string | null;
+            /**
+             * @description Outcome of the last key check.
+             * @enum {string}
+             */
+            status: 'unknown' | 'ok' | 'invalid' | 'no_balance' | 'error';
+            status_detail: string;
+            /** Format: date-time */
+            checked_at: string | null;
+            /** Format: date-time */
+            models_synced_at: string | null;
+            enabled: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateAIProviderRequest: {
+            kind: components['schemas']['AIProviderKind'];
+            name: string;
+            api_key: string;
+            base_url?: string;
+            enabled?: boolean;
+        };
+        UpdateAIProviderRequest: {
+            name?: string;
+            /** @description A new key replaces (rotates) the stored one. */
+            api_key?: string;
+            /** @description Empty removes the override. */
+            base_url?: string;
+            enabled?: boolean;
+        };
+        AIProviderResponse: {
+            data: components['schemas']['AIProvider'];
+            meta: components['schemas']['Meta'];
+        };
+        AIProviderListResponse: {
+            data: components['schemas']['AIProvider'][];
+            meta: components['schemas']['Meta'];
+        };
+        AIModelSync: {
+            /** @description Models now in the catalogue for this provider. */
+            models: number;
+        };
+        AIModelSyncResponse: {
+            data: components['schemas']['AIModelSync'];
+            meta: components['schemas']['Meta'];
+        };
+        /** @description null = the provider does not report it (unknown). */
+        AICapabilities: {
+            tools: boolean | null;
+            structured_output: boolean | null;
+            vision: boolean | null;
+            thinking: boolean | null;
+        };
+        AIModel: {
+            /** Format: uuid */
+            provider_id: string;
+            provider_name: string;
+            provider_kind: components['schemas']['AIProviderKind'];
+            model_id: string;
+            display_name: string;
+            /** Format: int64 */
+            context_window: number | null;
+            /** Format: int64 */
+            max_output: number | null;
+            capabilities: components['schemas']['AICapabilities'];
+            lifecycle: string | null;
+            /** Format: date-time */
+            synced_at: string;
+            price: components['schemas']['AIPrice'] | null;
+        };
+        AIModelListResponse: {
+            data: components['schemas']['AIModel'][];
+            meta: components['schemas']['Meta'];
+        };
+        /** @description Per-1M prices as decimal strings; a missing rate keeps the row's. */
+        AIRates: {
+            input?: string;
+            cached_input?: string;
+            cache_write_5m?: string;
+            cache_write_1h?: string;
+            output?: string;
+        };
+        AIPriceThreshold: components['schemas']['AIRates'] & {
+            /**
+             * Format: int64
+             * @description Applies when total input tokens exceed this.
+             */
+            input_tokens_over: number;
+        };
+        AIPriceWindow: components['schemas']['AIRates'] & {
+            label?: string;
+            /** @description ISO weekdays (1 = Monday); empty = every day. */
+            weekdays?: number[];
+            start: string;
+            /** @description Exclusive; may wrap past midnight. */
+            end: string;
+            /** @description IANA zone, default UTC. */
+            time_zone?: string;
+            multiplier?: string;
+        };
+        AIPriceRules: {
+            thresholds?: components['schemas']['AIPriceThreshold'][];
+            windows?: components['schemas']['AIPriceWindow'][];
+        };
+        AIPrice: {
+            /** Format: uuid */
+            id: string;
+            provider_kind: components['schemas']['AIProviderKind'];
+            /** @description A model id, or a prefix ending in '*'. */
+            model_pattern: string;
+            currency: string;
+            /** @description Per 1M input tokens. */
+            input: string;
+            /** @description Per 1M cached (cache read) input tokens. */
+            cached_input: string | null;
+            /** @description Per 1M tokens written to the cache (5-minute cache). */
+            cache_write_5m: string | null;
+            /** @description Per 1M tokens written to the 1-hour cache (Anthropic). */
+            cache_write_1h: string | null;
+            /** @description Per 1M output tokens (reasoning included). */
+            output: string;
+            rules: components['schemas']['AIPriceRules'];
+            /** Format: date */
+            effective_from: string;
+            /**
+             * Format: date
+             * @description Exclusive.
+             */
+            effective_to: string | null;
+            /** @enum {string} */
+            source: 'seed' | 'litellm' | 'manual';
+            source_url: string;
+            notes: string;
+            confirmed: boolean;
+            /** Format: date-time */
+            confirmed_at: string | null;
+            /** Format: uuid */
+            confirmed_by: string | null;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateAIPriceRequest: {
+            provider_kind: components['schemas']['AIProviderKind'];
+            model_pattern: string;
+            currency?: string;
+            input: string;
+            cached_input?: string | null;
+            cache_write_5m?: string | null;
+            cache_write_1h?: string | null;
+            output: string;
+            rules?: components['schemas']['AIPriceRules'];
+            /** Format: date */
+            effective_from: string;
+            /** Format: date */
+            effective_to?: string | null;
+            source_url?: string;
+            notes?: string;
+        };
+        UpdateAIPriceRequest: {
+            model_pattern?: string;
+            currency?: string;
+            input?: string;
+            cached_input?: string | null;
+            cache_write_5m?: string | null;
+            cache_write_1h?: string | null;
+            output?: string;
+            rules?: components['schemas']['AIPriceRules'];
+            /** Format: date */
+            effective_from?: string;
+            /** Format: date */
+            effective_to?: string | null;
+            source_url?: string;
+            notes?: string;
+            /** @description Record that the row was checked against its source. */
+            confirm?: boolean;
+        };
+        AIPriceResponse: {
+            data: components['schemas']['AIPrice'];
+            meta: components['schemas']['Meta'];
+        };
+        AIPriceListResponse: {
+            data: components['schemas']['AIPrice'][];
+            meta: components['schemas']['Meta'];
+        };
+        AIPriceImport: {
+            /** @description Price rows imported. */
+            prices: number;
+            /** @description Entries of other providers, non-chat models or without per-token prices. */
+            skipped: number;
+        };
+        AIPriceImportResponse: {
+            data: components['schemas']['AIPriceImport'];
+            meta: components['schemas']['Meta'];
+        };
+        AITexts: {
+            tr: string;
+            en: string;
+        };
+        AISettings: {
+            /** @description Master switch; while off no AI work runs. */
+            enabled: boolean;
+            /** Format: uuid */
+            default_provider_id: string | null;
+            default_model: string;
+            disclosure: components['schemas']['AITexts'];
+            data_sharing_notice: components['schemas']['AITexts'];
+            /** @description Whether the fake provider kind can be connected (development and test only). */
+            fake_provider_available: boolean;
+        };
+        UpdateAISettingsRequest: {
+            enabled: boolean;
+            /** Format: uuid */
+            default_provider_id: string | null;
+            default_model: string;
+            disclosure: components['schemas']['AITexts'];
+            data_sharing_notice: components['schemas']['AITexts'];
+        };
+        AISettingsResponse: {
+            data: components['schemas']['AISettings'];
+            meta: components['schemas']['Meta'];
+        };
+        AIHandoff: {
+            /** @description Always true and not editable — Meta requires a quick path to a person when the customer asks. */
+            on_request: boolean;
+            /** @description Hand over below this confidence; null = off. */
+            on_low_confidence: number | null;
+            on_no_answer: boolean;
+            on_critical_intents: string[];
+            on_unauthorized_action: boolean;
+        };
+        AIDataField: {
+            /** @description A contact field (name, email, var1…var5) or a custom attribute as attr:<key>. */
+            key: string;
+            label: string;
+            required: boolean;
+        };
+        AIDataCollection: {
+            enabled: boolean;
+            fields: components['schemas']['AIDataField'][];
+            may_create_contact: boolean;
+            may_update_fields: boolean;
+        };
+        /** @enum {string} */
+        AIDisclosureMode: 'always_first_message' | 'on_question' | 'off';
+        AIProfile: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: uuid */
+            phone_number_id: string | null;
+            phone_display: string;
+            system_prompt: string;
+            /**
+             * Format: uuid
+             * @description null = the company default.
+             */
+            provider_id: string | null;
+            /** @description null = the company default. */
+            model: string | null;
+            auto_reply: boolean;
+            handoff: components['schemas']['AIHandoff'];
+            data_collection: components['schemas']['AIDataCollection'];
+            /** @description Action kinds (create_contact, update_contact_fields, add_tag, assign_conversation, add_internal_note) and automations as automation:<id>. */
+            allowed_actions: string[];
+            disclosure_mode: components['schemas']['AIDisclosureMode'];
+            /** @enum {string} */
+            status: 'active' | 'paused';
+            warnings: ('disclosure_off' | 'no_number')[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AIProfileInput: {
+            name: string;
+            /** Format: uuid */
+            phone_number_id?: string | null;
+            system_prompt?: string;
+            /** Format: uuid */
+            provider_id?: string | null;
+            model?: string | null;
+            auto_reply?: boolean;
+            handoff?: components['schemas']['AIHandoff'];
+            data_collection?: components['schemas']['AIDataCollection'];
+            allowed_actions?: string[];
+            disclosure_mode?: components['schemas']['AIDisclosureMode'];
+            /** @enum {string} */
+            status?: 'active' | 'paused';
+        };
+        AIProfileResponse: {
+            data: components['schemas']['AIProfile'];
+            meta: components['schemas']['Meta'];
+        };
+        AIProfileListResponse: {
+            data: components['schemas']['AIProfile'][];
+            meta: components['schemas']['Meta'];
+        };
+        AITestMessage: {
+            /**
+             * @description operator_note: an internal note, given to the model as an instruction, never as customer text.
+             * @enum {string}
+             */
+            role: 'user' | 'assistant' | 'operator_note';
+            text: string;
+        };
+        TestAIProfileRequest: {
+            messages: components['schemas']['AITestMessage'][];
+            /** @enum {string} */
+            language?: 'tr' | 'en';
+        };
+        AIUsageTokens: {
+            /** Format: int64 */
+            input_tokens: number;
+            /** Format: int64 */
+            cached_input_tokens: number;
+            /** Format: int64 */
+            cache_write_tokens: number;
+            /** Format: int64 */
+            cache_write_1h_tokens: number;
+            /** Format: int64 */
+            output_tokens: number;
+            /** Format: int64 */
+            reasoning_tokens: number;
+        };
+        AIReply: {
+            reply: string;
+            confidence: number;
+            intent: string;
+            escalate: boolean;
+            escalate_reason: string;
+            extracted_fields: {
+                [key: string]: string | null;
+            };
+        };
+        AITestResult: {
+            reply: components['schemas']['AIReply'] | null;
+            /** @description The raw model output. */
+            text: string;
+            model: string;
+            /** Format: uuid */
+            provider_id: string | null;
+            provider_name: string;
+            usage: components['schemas']['AIUsageTokens'];
+            /** @description Cost at today's price; null when no price matches the model. */
+            cost: string | null;
+            currency: string | null;
+            /** @description A rate was missing and the input price was used instead. */
+            estimated: boolean;
+            /** Format: int64 */
+            latency_ms: number;
+            /** @description The full instructions sent to the model (company prompt plus platform rules). */
+            instructions: string;
+        };
+        AITestResultResponse: {
+            data: components['schemas']['AITestResult'];
+            meta: components['schemas']['Meta'];
+        };
         MetaRate: {
             /** Format: uuid */
             id: string;
@@ -3946,6 +4581,9 @@ export interface components {
         InvitationId: string;
         ApiKeyId: string;
         AccountId: string;
+        ProviderId: string;
+        PriceId: string;
+        ProfileId: string;
         PhoneNumberId: string;
         TemplateId: string;
         MessageId: string;
@@ -4678,6 +5316,481 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['MetaRateImportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getAISettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AISettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateAISettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateAISettingsRequest'];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AISettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAIProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Providers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIProviderListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createAIProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateAIProviderRequest'];
+            };
+        };
+        responses: {
+            /** @description Connected */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteAIProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateAIProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateAIProviderRequest'];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    checkAIProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Checked; see status and status_detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    syncAIModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Synced */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIModelSyncResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAIModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIModelListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAIPrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Prices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPriceListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createAIPrice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateAIPriceRequest'];
+            };
+        };
+        responses: {
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPriceResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteAIPrice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                priceId: components['parameters']['PriceId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateAIPrice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                priceId: components['parameters']['PriceId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateAIPriceRequest'];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPriceResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    importAIPrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'multipart/form-data': {
+                    /** Format: binary */
+                    file: string;
+                    /** Format: date */
+                    effective_from?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPriceImportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAIProfiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profiles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIProfileListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createAIProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['AIProfileInput'];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIProfileResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getAIProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: components['parameters']['ProfileId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIProfileResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateAIProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: components['parameters']['ProfileId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['AIProfileInput'];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIProfileResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteAIProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: components['parameters']['ProfileId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    testAIProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: components['parameters']['ProfileId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['TestAIProfileRequest'];
+            };
+        };
+        responses: {
+            /** @description The model's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AITestResultResponse'];
                 };
             };
             default: components['responses']['Error'];

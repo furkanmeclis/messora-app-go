@@ -76,6 +76,7 @@ var policies = map[string]Policy{
 	"webhook:cleanup":         {Default, periodicMaxRetry},
 	"channels:token_check":    {Default, periodicMaxRetry},
 	"license:check_in":        {Default, periodicMaxRetry},
+	"ai:model_sync":           {AI, periodicMaxRetry},
 }
 
 // campaignAware task types move to the Campaigns queue when their payload

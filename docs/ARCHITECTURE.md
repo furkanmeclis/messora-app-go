@@ -287,6 +287,7 @@ worker webhook:process (idempotent):
 | `webhook:fanout`, `webhook:deliver` | `default` | 10 | Teslim denemeleri ve backoff `webhook_deliveries` tablosundadır; bu bütçe yalnızca kayıt yazılamadığında harcanır. |
 | `contacts:import` | `bulk` | 3 | |
 | Zamanlanmış işler (`maintenance:*`, `campaign:start_due`, `campaign:reaper`, `automation:reaper`, `webhook:cleanup`, `channels:token_check`, `license:check_in`) | `default` | 2 | Bir sonraki dilimde zaten yeniden çalışır. |
+| `ai:model_sync` (günlük AI model kataloğu senkronu) | `ai` | 2 | Sağlayıcı başına hata loglanır; ertesi gün tekrar çalışır. |
 
 - **Ölü mektup (dead letter):** Bütçesi biten veya `SkipRetry` dönen task asynq "archived" kümesine geçer (asynq kuyruk başına en fazla 10.000 kaydı 90 gün tutar). Panelde **Sistem → Başarısız işler** (`GET /system/failed-jobs`, `settings.read`) bu kayıtları en yeniden eskiye listeler: tip, kuyruk, son hata (kimlik bilgileri maskelenir), başarısızlık zamanı, deneme sayısı ve payload'dan yalnızca `_id` ile biten alanlar. Payload'ın kendisi asla döndürülmez. `POST /system/failed-jobs/{queue}/{id}/retry` task'i tekrar kuyruğa alır (bütçesi bittiği için yeniden başarısız olursa hemen arşive döner), `DELETE …/{queue}/{id}` siler. İkisi `settings.update` ister ve audit log'a yazılır (`failed_job.retry`, `failed_job.delete`). Toplam sayı `/system/status` yanıtındaki `failed_jobs` alanında ve genel bakış sayfasında uyarı olarak görünür. Mesajlar için asıl kayıt yine DB'deki `failed` durumudur.
 - **Asynq notu:** v0.26 (1.0 öncesi). Sürüm `go.mod`'da sabit, asynq'e özgü kod `internal/platform/queue` arkasında. Böylece gerekirse değiştirilebilir. Asynq Redis'te `noeviction` gerektirir.
@@ -307,6 +308,7 @@ worker webhook:process (idempotent):
 | Giden webhook olay/teslim kayıtlarının temizliği | `webhook:cleanup` | 6 sa |
 | WhatsApp erişim token'ı kontrolü | `channels:token_check` | 6 sa |
 | Lisans check-in | `license:check_in` | 6 sa |
+| AI model kataloğu senkronu (etkin her sağlayıcının model listesi, bkz. docs/AI.md) | `ai:model_sync` | 24 sa |
 | Numara bilgisi senkronu (`throughput`, `quality_rating`, portföy mesajlaşma limiti) | — | *Planlandı: Phase 16C P0* |
 
 - Meta webhook olayları alındıkları transaction'da outbox'a yazıldığı için ayrı bir webhook event reaper'ı yoktur. Outbox relay'i yayınlanamayan kaydı kendisi tekrar dener.

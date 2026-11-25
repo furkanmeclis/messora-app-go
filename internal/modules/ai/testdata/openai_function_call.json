@@ -1,0 +1,10 @@
+{
+  "id": "resp_2",
+  "object": "response",
+  "status": "completed",
+  "model": "gpt-6-luna",
+  "output": [
+    {"type": "function_call", "id": "fc_1", "call_id": "call_abc", "name": "order_status", "arguments": "{\"order_id\":\"A-17\"}", "status": "completed"}
+  ],
+  "usage": {"input_tokens": 90, "input_tokens_details": {"cached_tokens": 0}, "output_tokens": 15, "output_tokens_details": {"reasoning_tokens": 0}, "total_tokens": 105}
+}
