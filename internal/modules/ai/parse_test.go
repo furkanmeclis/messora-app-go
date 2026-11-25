@@ -217,14 +217,25 @@ func TestValidateJSONAndExtract(t *testing.T) {
 	if p := ValidateJSON([]byte(good), schema); len(p) != 0 {
 		t.Fatalf("valid reply rejected: %v", p)
 	}
-	bad := `{"reply":3,"confidence":1.5,"intent":"x","escalate":"no","extracted_fields":{"phone":"1"}}`
+	bad := `{"reply":3,"confidence":"high","intent":"x","escalate":"no","extracted_fields":{"phone":"1"}}`
 	p := ValidateJSON([]byte(bad), schema)
 	joined := strings.Join(p, "\n")
-	for _, want := range []string{"$.reply: expected string", "$.confidence: above the maximum", "$.escalate: expected boolean",
+	for _, want := range []string{"$.reply: expected string", "$.confidence: expected number", "$.escalate: expected boolean",
 		`missing "escalate_reason"`, `$.extracted_fields: unexpected property "phone"`, `$.extracted_fields: missing "email"`} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("missing problem %q in %v", want, p)
 		}
+	}
+	bounded := map[string]any{"type": "object", "properties": map[string]any{"n": map[string]any{"type": "integer", "minimum": 0, "maximum": 1},
+		"s": map[string]any{"type": "string", "minLength": 2, "maxLength": 3, "enum": []any{"ab", "abc"}}}}
+	if p := ValidateJSON([]byte(`{"n":2,"s":"a"}`), bounded); len(p) != 3 {
+		t.Fatalf("bounds: %v", p)
+	}
+	if p := ValidateJSON([]byte(`{"n":0.5,"s":"ab"}`), bounded); len(p) != 1 || !strings.Contains(p[0], "integer") {
+		t.Fatalf("integer: %v", p)
+	}
+	if r, err := DecodeReply([]byte(`{"reply":"x","confidence":1.7}`)); err != nil || r.Confidence != 1 || r.ExtractedFields == nil {
+		t.Fatalf("clamp: %+v %v", r, err)
 	}
 	if p := ValidateJSON([]byte(`{"a":1} x`), schema); len(p) != 1 {
 		t.Fatalf("trailing data: %v", p)

@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"slices"
@@ -212,8 +213,10 @@ func ReplySchema(fields []DataField) map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"reply":            map[string]any{"type": "string", "description": "The message to send to the customer (empty when handing over without a message)."},
-			"confidence":       map[string]any{"type": "number", "minimum": 0, "maximum": 1, "description": "How sure you are that the reply is correct and complete (0..1)."},
+			"reply": map[string]any{"type": "string", "description": "The message to send to the customer (empty when handing over without a message)."},
+			// No minimum/maximum: not every provider's structured output
+			// accepts numeric bounds; DecodeReply clamps instead.
+			"confidence":       map[string]any{"type": "number", "description": "How sure you are that the reply is correct and complete, from 0 to 1."},
 			"intent":           map[string]any{"type": "string", "description": "The customer's intent in snake_case, e.g. order_status, complaint, human_request."},
 			"escalate":         map[string]any{"type": "boolean", "description": "true when a person from the team should take over."},
 			"escalate_reason":  map[string]any{"type": "string", "description": "Why a person should take over (empty when escalate is false)."},
@@ -232,6 +235,19 @@ type Reply struct {
 	Escalate        bool               `json:"escalate"`
 	EscalateReason  string             `json:"escalate_reason"`
 	ExtractedFields map[string]*string `json:"extracted_fields"`
+}
+
+// DecodeReply parses a structured reply and clamps the confidence to 0..1.
+func DecodeReply(raw []byte) (Reply, error) {
+	var r Reply
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return r, err
+	}
+	r.Confidence = min(1, max(0, r.Confidence))
+	if r.ExtractedFields == nil {
+		r.ExtractedFields = map[string]*string{}
+	}
+	return r, nil
 }
 
 // Language picks the disclosure and notice language.

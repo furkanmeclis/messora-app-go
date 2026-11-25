@@ -261,9 +261,10 @@ func (s *Service) TestProfile(ctx context.Context, id uuid.UUID, msgs []Message,
 	if err != nil {
 		return out, err
 	}
-	var r Reply
-	if len(res.Structured) > 0 && json.Unmarshal(res.Structured, &r) == nil {
-		out.Reply = &r
+	if len(res.Structured) > 0 {
+		if r, err := DecodeReply(res.Structured); err == nil {
+			out.Reply = &r
+		}
 	}
 	return out, nil
 }
