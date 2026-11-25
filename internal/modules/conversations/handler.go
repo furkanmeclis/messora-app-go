@@ -69,7 +69,7 @@ func messageToAPI(m db.Message, f *db.MediaFile) api.InboxMessage {
 	out := api.InboxMessage{Id: m.ID, Direction: api.InboxMessageDirection(m.Direction), Type: m.Type, Body: m.Body,
 		Status: api.InboxMessageStatus(m.Status), Wamid: m.Wamid, ReplyToWamid: m.ReplyToWamid, Source: api.InboxMessageSource(m.Source),
 		ErrorCode: m.ErrorCode, ErrorTitle: m.ErrorTitle, OccurredAt: m.OccurredAt, SentAt: m.SentAt, DeliveredAt: m.DeliveredAt,
-		ReadAt: m.ReadAt, FailedAt: m.FailedAt, CreatedAt: m.CreatedAt}
+		ReadAt: m.ReadAt, FailedAt: m.FailedAt, CreatedAt: m.CreatedAt, FailureClass: (*api.FailureClass)(m.FailureClass)}
 	if f != nil {
 		out.Media = &api.InboxMedia{Id: f.ID, MimeType: f.MimeType, Filename: f.Filename, SizeBytes: f.SizeBytes,
 			Status: api.InboxMediaStatus(f.Status)}

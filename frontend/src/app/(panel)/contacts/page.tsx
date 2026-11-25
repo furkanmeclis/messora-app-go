@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
+import { isConsentStatus } from '@/lib/consent';
 import type { Contact, ContactGroup, Segment, Tag } from '@/lib/types';
 import { PageHeading } from '../panel-header';
 import { ContactsTable } from './contacts-table';
@@ -38,6 +39,17 @@ export default async function ContactsPage({
         opted_out:
             sp.opted_out === 'true' || sp.opted_out === 'false'
                 ? sp.opted_out
+                : '',
+        marketing_consent: isConsentStatus(sp.marketing_consent)
+            ? sp.marketing_consent
+            : '',
+        service_consent: isConsentStatus(sp.service_consent)
+            ? sp.service_consent
+            : '',
+        reachability:
+            sp.reachability === 'meta_marketing_stopped' ||
+            sp.reachability === 'undeliverable'
+                ? sp.reachability
                 : '',
     };
     const query = new URLSearchParams();

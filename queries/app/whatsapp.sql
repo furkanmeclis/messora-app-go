@@ -135,9 +135,9 @@ SELECT * FROM contacts WHERE id = @id;
 
 -- name: InsertOutboundMessage :one
 INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, payload, status, status_rank,
-                      reply_to_wamid, source, created_by)
+                      reply_to_wamid, source, created_by, consent_category)
 VALUES (@id, @phone_number_id, @contact_id, 'outbound', @type, @body, @payload, 'pending', 0,
-        sqlc.narg(reply_to_wamid), @source, sqlc.narg(created_by))
+        sqlc.narg(reply_to_wamid), @source, sqlc.narg(created_by), sqlc.narg(consent_category))
 RETURNING *;
 
 -- name: InsertInboundMessage :one
@@ -156,11 +156,26 @@ SELECT * FROM messages WHERE id = @id;
 SELECT * FROM messages WHERE wamid = @wamid;
 
 -- name: ClaimMessageForSend :one
--- Only a pending message can be sent. A message left in "sending" means a
--- previous attempt died mid-request; it must not be sent again.
-UPDATE messages SET status = 'sending', status_rank = 1, attempts = attempts + 1, updated_at = now()
-WHERE id = @id AND status = 'pending'
+-- Only a pending message, or a deferred one whose time has come, can be
+-- sent. A message left in "sending" means a previous attempt died
+-- mid-request; it must not be sent again.
+UPDATE messages SET status = 'sending', status_rank = 1, attempts = attempts + 1, next_attempt_at = NULL, updated_at = now()
+WHERE id = @id AND (status = 'pending' OR (status = 'deferred' AND next_attempt_at <= now()))
 RETURNING *;
+
+-- name: DeferMessage :exec
+-- Meta withheld the message for ecosystem health (131049): it waits outside
+-- any campaign window until next_attempt_at.
+UPDATE messages SET status = 'deferred', status_rank = 0, error_code = sqlc.narg(error_code),
+    error_title = sqlc.narg(error_title),
+    next_attempt_at = now() + make_interval(secs => @after_seconds::double precision), updated_at = now()
+WHERE id = @id AND status = 'sending';
+
+-- name: MarkMessageSkipped :exec
+-- Consent blocked the message right before it was sent.
+UPDATE messages SET status = 'skipped', status_rank = 6, failure_class = 'blocked_by_consent',
+    error_code = @error_code, error_title = sqlc.narg(error_title), next_attempt_at = NULL, updated_at = now()
+WHERE id = @id AND status IN ('pending', 'sending', 'deferred');
 
 -- name: MarkMessageAccepted :exec
 UPDATE messages SET wamid = coalesce(wamid, @wamid),
@@ -180,7 +195,8 @@ WHERE id = @id AND status IN ('pending', 'sending');
 
 -- name: MarkMessageFailed :exec
 UPDATE messages SET status = 'failed', status_rank = 6, error_code = sqlc.narg(error_code),
-    error_title = sqlc.narg(error_title), failed_at = coalesce(failed_at, now()), updated_at = now()
+    error_title = sqlc.narg(error_title), failure_class = sqlc.narg(failure_class),
+    failed_at = coalesce(failed_at, now()), updated_at = now()
 WHERE id = @id AND status IN ('pending', 'sending', 'unknown');
 
 -- name: ApplyMessageStatus :one
@@ -197,6 +213,7 @@ UPDATE messages SET
     failed_at    = CASE WHEN @status::text = 'failed' AND status_rank < 4 THEN coalesce(failed_at, @at) ELSE failed_at END,
     error_code   = CASE WHEN @status::text = 'failed' AND status_rank < 4 THEN sqlc.narg(error_code) ELSE error_code END,
     error_title  = CASE WHEN @status::text = 'failed' AND status_rank < 4 THEN sqlc.narg(error_title) ELSE error_title END,
+    failure_class = CASE WHEN @status::text = 'failed' AND status_rank < 4 THEN sqlc.narg(failure_class) ELSE failure_class END,
     updated_at   = now()
 WHERE id = @id AND direction = 'outbound'
 RETURNING *;

@@ -33,13 +33,15 @@ type Querier interface {
 	// ── Idempotency ─────────────────────────────────────────────────────────────
 	// Returns inserted=true for a new key; otherwise the stored row.
 	ClaimIdempotencyKey(ctx context.Context, arg ClaimIdempotencyKeyParams) (ClaimIdempotencyKeyRow, error)
-	// Only a pending message can be sent. A message left in "sending" means a
-	// previous attempt died mid-request; it must not be sent again.
+	// Only a pending message, or a deferred one whose time has come, can be
+	// sent. A message left in "sending" means a previous attempt died
+	// mid-request; it must not be sent again.
 	ClaimMessageForSend(ctx context.Context, id uuid.UUID) (Message, error)
 	ClaimPendingRecipients(ctx context.Context, arg ClaimPendingRecipientsParams) ([]ClaimPendingRecipientsRow, error)
 	// Takes a due delivery, or one whose previous worker vanished mid-request.
 	ClaimWebhookDelivery(ctx context.Context, arg ClaimWebhookDeliveryParams) (WebhookDelivery, error)
 	ClearContactTags(ctx context.Context, contactID uuid.UUID) error
+	ClearContactUndeliverable(ctx context.Context, id uuid.UUID) (int64, error)
 	ClearDefaultPhoneNumber(ctx context.Context) error
 	// A rate is valid until the next effective date of the same currency,
 	// market and category.
@@ -55,6 +57,7 @@ type Querier interface {
 	// in the calendar month: the volume that selects a rate tier.
 	CountBillableInMonth(ctx context.Context, arg CountBillableInMonthParams) (int64, error)
 	CountCampaignsForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
+	CountDeferred(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountHeld(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountInFlight(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountMessagesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
@@ -72,6 +75,9 @@ type Querier interface {
 	// ── Sessions ────────────────────────────────────────────────────────────────
 	CreateSession(ctx context.Context, arg CreateSessionParams) (UserSession, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Meta withheld the message for ecosystem health (131049): it waits outside
+	// any campaign window until next_attempt_at.
+	DeferMessage(ctx context.Context, arg DeferMessageParams) error
 	DeleteAutomation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteCampaign(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteContact(ctx context.Context, id uuid.UUID) (int64, error)
@@ -92,6 +98,9 @@ type Querier interface {
 	DeleteWebhookEndpoint(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWhatsAppAccount(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableWebhookEndpoint(ctx context.Context, arg DisableWebhookEndpointParams) error
+	// Deferred messages whose retry time passed a while ago: their send task
+	// may have been lost.
+	DueDeferredMessages(ctx context.Context, olderThanSeconds float64) ([]DueDeferredMessagesRow, error)
 	DueScheduledCampaigns(ctx context.Context) ([]uuid.UUID, error)
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
@@ -189,6 +198,9 @@ type Querier interface {
 	InsertWhatsAppAccount(ctx context.Context, arg InsertWhatsAppAccountParams) (WhatsappAccount, error)
 	InsertWhatsAppAccountEvent(ctx context.Context, arg InsertWhatsAppAccountEventParams) error
 	InvalidatePasswordResets(ctx context.Context, userID uuid.UUID) error
+	// The newest recorded preference of a number for a category: webhooks may
+	// arrive out of order, only the latest choice counts.
+	LatestMetaUserPreference(ctx context.Context, arg LatestMetaUserPreferenceParams) (MetaUserPreference, error)
 	ListActiveWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	ListApiKeys(ctx context.Context) ([]ListApiKeysRow, error)
 	ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, error)
@@ -203,7 +215,7 @@ type Querier interface {
 	// Realtime re-sync after missed events: campaigns changed at or after since,
 	// and every active one (their counters change without touching the row).
 	ListCampaignsChangedSince(ctx context.Context, arg ListCampaignsChangedSinceParams) ([]Campaign, error)
-	ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([]ConsentEvent, error)
+	ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([]ListConsentEventsRow, error)
 	ListContactAttributeKeys(ctx context.Context) ([]string, error)
 	// ── Groups ──────────────────────────────────────────────────────────────────
 	ListContactGroups(ctx context.Context) ([]ListContactGroupsRow, error)
@@ -244,6 +256,7 @@ type Querier interface {
 	ListWhatsAppAccountsToCheck(ctx context.Context) ([]WhatsappAccount, error)
 	LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
 	LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
+	LockContact(ctx context.Context, id uuid.UUID) (Contact, error)
 	// ── Conversations (inbox) ───────────────────────────────────────────────────
 	LockConversationByThread(ctx context.Context, arg LockConversationByThreadParams) (Conversation, error)
 	// Serializes changes that could remove an owner, so two concurrent
@@ -254,6 +267,8 @@ type Querier interface {
 	MarkMediaStored(ctx context.Context, arg MarkMediaStoredParams) error
 	MarkMessageAccepted(ctx context.Context, arg MarkMessageAcceptedParams) error
 	MarkMessageFailed(ctx context.Context, arg MarkMessageFailedParams) error
+	// Consent blocked the message right before it was sent.
+	MarkMessageSkipped(ctx context.Context, arg MarkMessageSkippedParams) error
 	MarkMessageUnknown(ctx context.Context, arg MarkMessageUnknownParams) error
 	MarkRecipientQueued(ctx context.Context, arg MarkRecipientQueuedParams) error
 	MarkRecipientSkipped(ctx context.Context, arg MarkRecipientSkippedParams) error
@@ -297,7 +312,10 @@ type Querier interface {
 	SetAccountMessagingLimit(ctx context.Context, arg SetAccountMessagingLimitParams) error
 	// Generic transition guarded by the allowed source states.
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
-	SetContactOptOut(ctx context.Context, arg SetContactOptOutParams) error
+	// Sets the consent status of the chosen categories and keeps the legacy
+	// opted_out_at flag equal to "both categories opted out".
+	SetContactConsent(ctx context.Context, arg SetContactConsentParams) (Contact, error)
+	SetContactUndeliverable(ctx context.Context, arg SetContactUndeliverableParams) (int64, error)
 	SetConversationAssignee(ctx context.Context, arg SetConversationAssigneeParams) (Conversation, error)
 	SetConversationStatus(ctx context.Context, arg SetConversationStatusParams) (Conversation, error)
 	SetDefaultPhoneNumber(ctx context.Context, id uuid.UUID) (int64, error)
@@ -307,6 +325,8 @@ type Querier interface {
 	// Pricing arrives on "sent" or "delivered" (never both); a later webhook
 	// without it never clears what was stored.
 	SetMessagePricing(ctx context.Context, arg SetMessagePricingParams) error
+	// Only an actual change touches the row (and returns 1).
+	SetMetaMarketingStopped(ctx context.Context, arg SetMetaMarketingStoppedParams) (int64, error)
 	// Values from a webhook; NULL keeps what is stored.
 	SetPhoneNumberSignals(ctx context.Context, arg SetPhoneNumberSignalsParams) error
 	SetTemplateQualityByMetaID(ctx context.Context, arg SetTemplateQualityByMetaIDParams) (int64, error)

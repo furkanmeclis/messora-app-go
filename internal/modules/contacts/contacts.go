@@ -21,6 +21,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
@@ -298,39 +299,57 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (db.Contact, []db.Tag, 
 	return c, tags, groups, err
 }
 
-// SetConsent records an opt-in or opt-out decision.
-func (s *Service) SetConsent(ctx context.Context, id uuid.UUID, optIn bool, source, note string, actor *uuid.UUID) error {
-	if len(note) > 500 {
+// ConsentInput is a consent change made in the panel or through the API.
+type ConsentInput struct {
+	// Categories to change (consent.CatMarketing, consent.CatService);
+	// empty = both.
+	Categories []string
+	Status     consent.Status
+	Source     string // consent.SourceManual or consent.SourceAPI
+	Reason     string
+	Actor      *uuid.UUID
+}
+
+// SetConsent records a consent decision in the contact's history and the
+// audit log.
+func (s *Service) SetConsent(ctx context.Context, id uuid.UUID, in ConsentInput) error {
+	if len(in.Reason) > 500 {
 		return apperr.Validation("note", "Note is limited to 500 characters.")
 	}
 	return s.txx(ctx, func(tx pgx.Tx, q *db.Queries) error {
-		cur, err := q.GetContact(ctx, id)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return apperr.NotFound("Contact not found.")
-		} else if err != nil {
+		res, err := consent.Apply(ctx, tx, q, consent.Change{ContactID: id, Categories: in.Categories, Status: in.Status,
+			Source: in.Source, Reason: in.Reason, ActorID: in.Actor})
+		if err != nil {
 			return err
 		}
-		kind := "opt_out"
-		if optIn {
-			kind = "opt_in"
+		action := "contact.consent"
+		switch {
+		case in.Status == consent.OptedOut && len(in.Categories) == 0:
+			action = "contact.opt_out"
+		case in.Status == consent.OptedIn && len(in.Categories) == 0:
+			action = "contact.opt_in"
 		}
-		if _, err := q.InsertConsentEvent(ctx, db.InsertConsentEventParams{ContactID: id, Kind: kind, Source: source, Note: note, ActorID: actor}); err != nil {
-			return err
+		cats := in.Categories
+		if len(cats) == 0 {
+			cats = []string{consent.CatMarketing, consent.CatService}
 		}
-		if err := q.SetContactOptOut(ctx, db.SetContactOptOutParams{ID: id, OptedOut: !optIn, Reason: nullIfEmpty(&note)}); err != nil {
-			return err
+		changed := res.Changed
+		if changed == nil {
+			changed = []string{}
 		}
-		if (cur.OptedOutAt != nil) == optIn { // an actual change
-			typ := webhooks.TypeContactOptedOut
-			if optIn {
-				typ = webhooks.TypeContactOptedIn
-			}
-			if err := webhooks.ContactChanged(ctx, tx, typ, id); err != nil {
-				return err
-			}
-		}
-		return audit.Record(ctx, q, audit.Entry{Action: "contact." + kind, EntityType: "contact", EntityID: &id})
+		return audit.Record(ctx, q, audit.Entry{Action: action, EntityType: "contact", EntityID: &id, Changes: map[string]any{
+			"status": string(in.Status), "categories": cats, "changed": changed, "reason": in.Reason}})
 	})
+}
+
+// ConsentEvents returns the contact's consent history, newest first.
+func (s *Service) ConsentEvents(ctx context.Context, id uuid.UUID) ([]db.ListConsentEventsRow, error) {
+	if _, err := s.q.GetContact(ctx, id); errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperr.NotFound("Contact not found.")
+	} else if err != nil {
+		return nil, err
+	}
+	return s.q.ListConsentEvents(ctx, id)
 }
 
 func (s *Service) tx(ctx context.Context, fn func(*db.Queries) error) error {

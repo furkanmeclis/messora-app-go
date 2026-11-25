@@ -33,6 +33,7 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
     'tag_added',
     'message_status',
     'conversation_closed',
+    'subscription_request',
 ];
 
 export function triggerLabel(type: string, t: Translate): string {
@@ -45,6 +46,9 @@ export const MATCH_MODES = ['any', 'contains', 'exact', 'starts_with'] as const;
 
 export const MESSAGE_STATUSES = ['delivered', 'read', 'failed'] as const;
 
+/** Kinds of subscription_request ('' = any of them). */
+export const SUBSCRIPTION_KINDS = ['stop', 'request', 'resume'] as const;
+
 /** Trigger options kept by the editor (all types at once). */
 export type TriggerForm = {
     match: string;
@@ -53,6 +57,8 @@ export type TriggerForm = {
     tag: string;
     status: string;
     campaign_id: string;
+    /** subscription_request: '' (any), stop, request or resume. */
+    subscription: string;
     cooldown_seconds: number;
 };
 
@@ -64,6 +70,7 @@ export function triggerFromApi(t: AutomationTrigger | undefined): TriggerForm {
         tag: t?.tag ?? '',
         status: t?.status ?? 'delivered',
         campaign_id: t?.campaign_id ?? '',
+        subscription: t?.subscription ?? '',
         cooldown_seconds: t?.cooldown_seconds ?? 0,
     };
 }
@@ -89,6 +96,11 @@ export function triggerToApi(
         case 'message_status':
             t.status = f.status as AutomationTrigger['status'];
             if (f.campaign_id) t.campaign_id = f.campaign_id;
+            break;
+        case 'subscription_request':
+            if (f.subscription)
+                t.subscription =
+                    f.subscription as AutomationTrigger['subscription'];
             break;
     }
     if (f.cooldown_seconds > 0) t.cooldown_seconds = f.cooldown_seconds;
@@ -162,6 +174,13 @@ export function describeTrigger(
         }
         case 'conversation_closed':
             s = t('automations.summary.conversationClosed');
+            break;
+        case 'subscription_request':
+            s = t(
+                mk(
+                    `automations.summary.subscription.${opts.subscription ?? 'any'}`,
+                ),
+            );
             break;
         default:
             s = t('automations.summary.unknown', { type: String(type) });

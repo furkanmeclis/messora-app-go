@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Hand, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { TextField } from '@/components/forms';
 import { notify } from '@/components/notify';
 import {
@@ -16,7 +16,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -28,6 +28,14 @@ import {
 } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import {
     Field,
     FieldDescription,
     FieldGroup,
@@ -37,11 +45,24 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
-import type { Contact, Note } from '@/lib/types';
+import {
+    CONSENT_CATEGORIES,
+    CONSENT_STATUSES,
+    type ConsentCategory,
+    type ConsentStatus,
+} from '@/lib/consent';
+import type { Contact, Note, Schemas } from '@/lib/types';
 import {
     addContactNoteAction,
     consentAction,
@@ -49,7 +70,10 @@ import {
     deleteContactNoteAction,
     updateContactAction,
 } from '../actions';
+import { ConsentBadge, ReachabilityBadges } from '../consent-badges';
 import { TagsInput } from '../tags-input';
+
+type ConsentEvent = Schemas['ConsentEvent'];
 
 type TagOption = { id: string; name: string; color: string };
 type Option = { id: string; name: string };
@@ -441,6 +465,8 @@ export function ContactFacts({ contact }: { contact: Contact }) {
 
 // ── Consent ────────────────────────────────────────────────────────────────
 
+type ConsentTarget = ConsentCategory | 'all';
+
 export function ConsentCard({
     contact,
     canUpdate,
@@ -451,84 +477,338 @@ export function ConsentCard({
     const t = useT();
     const formatDateTime = useFormatDateTime();
     const router = useRouter();
-    const [note, setNote] = useState('');
     const [pending, startTransition] = useTransition();
-    const kind = contact.opted_out ? 'opt_in' : 'opt_out';
+    const c = contact.consent;
+    const requested = CONSENT_CATEGORIES.filter(
+        (k) => c[k].status === 'opt_out_requested',
+    );
+    const target: ConsentTarget =
+        requested.length === 2 ? 'all' : (requested[0] ?? 'all');
+
+    const quick = (status: ConsentStatus) =>
+        startTransition(async () => {
+            if (notify(await consentAction(contact.id, status, target, '')))
+                router.refresh();
+        });
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{t('contacts.consent.label')}</CardTitle>
+                <CardTitle>{t('consent.card.title')}</CardTitle>
                 <CardDescription>
-                    {t('contacts.detail.consentHint')}
+                    {t('consent.card.description')}
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-                <p data-testid="consent-state">
-                    {contact.opted_out ? (
-                        <Badge variant="destructive">
-                            {t('contacts.consent.optedOut')}
-                        </Badge>
-                    ) : (
-                        <Badge variant="secondary">
-                            {t('contacts.consent.subscribed')}
-                        </Badge>
+            <CardContent className="space-y-4 text-sm">
+                <ul className="space-y-3" data-testid="consent-state">
+                    {CONSENT_CATEGORIES.map((k) => {
+                        const st = c[k];
+                        return (
+                            <li key={k} className="space-y-1">
+                                <ConsentBadge category={k} status={st.status} />
+                                {(st.updated_at || st.reason) && (
+                                    <p className="text-xs text-muted-foreground">
+                                        {st.updated_at &&
+                                            t('consent.card.updated', {
+                                                time: formatDateTime(
+                                                    st.updated_at,
+                                                ),
+                                            })}
+                                        {st.source &&
+                                            isSource(st.source) &&
+                                            ` · ${t(`consent.sources.${st.source}`)}`}
+                                        {st.reason && (
+                                            <span className="block break-words">
+                                                {t('consent.card.reason', {
+                                                    reason: st.reason,
+                                                })}
+                                            </span>
+                                        )}
+                                    </p>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
+                {(c.meta_marketing_stopped_at || c.undeliverable_at) && (
+                    <div className="flex flex-wrap gap-1.5">
+                        <ReachabilityBadges consent={c} withHelp />
+                    </div>
+                )}
+                {requested.length > 0 && (
+                    <Alert data-testid="consent-request">
+                        <Hand />
+                        <AlertDescription className="space-y-2">
+                            <p>{t('consent.card.requestPending')}</p>
+                            {canUpdate && (
+                                <div className="flex flex-wrap gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        disabled={pending}
+                                        onClick={() => quick('opted_out')}
+                                    >
+                                        {t('consent.card.confirmOptOut')}
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={pending}
+                                        onClick={() => quick('opted_in')}
+                                    >
+                                        {t('consent.card.clearRequest')}
+                                    </Button>
+                                </div>
+                            )}
+                        </AlertDescription>
+                    </Alert>
+                )}
+                {canUpdate && <ConsentDialog contact={contact} />}
+            </CardContent>
+        </Card>
+    );
+}
+
+const SOURCES = [
+    'manual',
+    'bulk',
+    'api',
+    'import',
+    'keyword',
+    'meta_user_preferences',
+    'meta_error',
+    'automation',
+    'inbound',
+] as const;
+
+function isSource(s: string): s is (typeof SOURCES)[number] {
+    return (SOURCES as readonly string[]).includes(s);
+}
+
+function ConsentDialog({ contact }: { contact: Contact }) {
+    const t = useT();
+    const router = useRouter();
+    const [open, setOpen] = useState(false);
+    const [category, setCategory] = useState<ConsentTarget>('marketing');
+    const current =
+        category === 'all' ? undefined : contact.consent[category].status;
+    const [status, setStatus] = useState<ConsentStatus>('opted_out');
+    const [note, setNote] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [pending, startTransition] = useTransition();
+
+    const submit = (e: React.FormEvent) => {
+        e.preventDefault();
+        startTransition(async () => {
+            const r = await consentAction(contact.id, status, category, note);
+            if (!r.ok) {
+                setError(
+                    r.fieldErrors?.note ?? r.fieldErrors?.status ?? r.message,
+                );
+                return;
+            }
+            notify(r);
+            setOpen(false);
+            setNote('');
+            setError(null);
+            router.refresh();
+        });
+    };
+
+    return (
+        <Dialog
+            open={open}
+            onOpenChange={(o) => {
+                setOpen(o);
+                if (o) setError(null);
+            }}
+        >
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                    <SlidersHorizontal /> {t('consent.card.change')}
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{t('consent.dialog.title')}</DialogTitle>
+                    <DialogDescription>
+                        {t('consent.dialog.description')}
+                    </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={submit} className="space-y-4">
+                    {error && (
+                        <p role="alert" className="text-sm text-destructive">
+                            {error}
+                        </p>
                     )}
-                    {contact.opted_out && contact.opted_out_at && (
-                        <span className="ml-2 text-muted-foreground">
-                            {t('contacts.detail.since', {
-                                time: formatDateTime(contact.opted_out_at),
-                            })}
-                        </span>
-                    )}
-                </p>
-                {canUpdate && (
-                    <form
-                        className="space-y-2"
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            startTransition(async () => {
-                                const r = await consentAction(
-                                    contact.id,
-                                    kind,
-                                    note,
-                                );
-                                if (notify(r)) {
-                                    setNote('');
-                                    router.refresh();
+                    <FieldGroup>
+                        <Field>
+                            <FieldLabel htmlFor="consent-category">
+                                {t('consent.dialog.category')}
+                            </FieldLabel>
+                            <Select
+                                value={category}
+                                onValueChange={(v) =>
+                                    setCategory(v as ConsentTarget)
                                 }
-                            });
-                        }}
+                            >
+                                <SelectTrigger
+                                    id="consent-category"
+                                    className="w-full"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {(
+                                        ['marketing', 'service', 'all'] as const
+                                    ).map((k) => (
+                                        <SelectItem key={k} value={k}>
+                                            {t(`consent.categories.${k}`)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FieldDescription>
+                                {t(`consent.categoryHints.${category}`)}
+                            </FieldDescription>
+                        </Field>
+                        <Field>
+                            <FieldLabel htmlFor="consent-status">
+                                {t('consent.dialog.status')}
+                            </FieldLabel>
+                            <Select
+                                value={status}
+                                onValueChange={(v) =>
+                                    setStatus(v as ConsentStatus)
+                                }
+                            >
+                                <SelectTrigger
+                                    id="consent-status"
+                                    className="w-full"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {CONSENT_STATUSES.map((s) => (
+                                        <SelectItem
+                                            key={s}
+                                            value={s}
+                                            disabled={s === current}
+                                        >
+                                            {t(`consent.statuses.${s}`)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+                        <Field>
+                            <FieldLabel htmlFor="consent-note">
+                                {t('consent.dialog.reason')}{' '}
+                                <span className="font-normal text-muted-foreground">
+                                    {t('contacts.detail.optional')}
+                                </span>
+                            </FieldLabel>
+                            <Textarea
+                                id="consent-note"
+                                rows={2}
+                                maxLength={500}
+                                value={note}
+                                placeholder={t(
+                                    'consent.dialog.reasonPlaceholder',
+                                )}
+                                onChange={(e) => setNote(e.target.value)}
+                            />
+                        </Field>
+                    </FieldGroup>
+                    {(status === 'opted_in' || status === 'resubscribed') &&
+                        (contact.consent.meta_marketing_stopped_at ||
+                            contact.consent.undeliverable_at) && (
+                            <p className="text-xs text-muted-foreground">
+                                {t('consent.dialog.hardNote')}
+                            </p>
+                        )}
+                    <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={pending || status === current}
                     >
-                        <Label htmlFor="consent-note">
-                            {t('contacts.detail.note')}{' '}
-                            <span className="font-normal text-muted-foreground">
-                                {t('contacts.detail.optional')}
-                            </span>
-                        </Label>
-                        <Textarea
-                            id="consent-note"
-                            rows={2}
-                            maxLength={500}
-                            value={note}
-                            placeholder={
-                                contact.opted_out
-                                    ? t('contacts.detail.optInPlaceholder')
-                                    : t('contacts.detail.optOutPlaceholder')
-                            }
-                            onChange={(e) => setNote(e.target.value)}
-                        />
-                        <Button
-                            type="submit"
-                            size="sm"
-                            variant={contact.opted_out ? 'default' : 'outline'}
-                            disabled={pending}
-                        >
-                            {pending && <Spinner />}
-                            {contact.opted_out
-                                ? t('contacts.detail.recordOptIn')
-                                : t('contacts.detail.recordOptOut')}
-                        </Button>
-                    </form>
+                        {pending && <Spinner />}
+                        {t('consent.dialog.save')}
+                    </Button>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/** The append-only consent history (GET /contacts/{id}/consent-events). */
+export function ConsentHistoryCard({
+    events,
+}: {
+    events: ConsentEvent[] | null;
+}) {
+    const t = useT();
+    const formatDateTime = useFormatDateTime();
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>{t('consent.history.title')}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
+                {events === null ? (
+                    <p className="text-muted-foreground">
+                        {t('consent.history.loadFailed')}
+                    </p>
+                ) : events.length === 0 ? (
+                    <p className="text-muted-foreground">
+                        {t('consent.history.empty')}
+                    </p>
+                ) : (
+                    <ol
+                        className="space-y-3 border-l pl-3"
+                        data-testid="consent-history"
+                    >
+                        {events.map((e) => (
+                            <li
+                                key={e.id}
+                                data-testid="consent-event"
+                                data-kind={e.kind}
+                            >
+                                <p className="font-medium">
+                                    {t(`consent.events.${e.kind}`)}
+                                    <span className="font-normal text-muted-foreground">
+                                        {' · '}
+                                        {e.category === 'marketing' ||
+                                        e.category === 'service'
+                                            ? t(
+                                                  `consent.categories.${e.category}`,
+                                              )
+                                            : t('consent.history.both')}
+                                    </span>
+                                </p>
+                                {e.note && (
+                                    <p className="break-words whitespace-pre-wrap">
+                                        {e.note}
+                                    </p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                    {e.actor_name
+                                        ? t('consent.history.by', {
+                                              name: e.actor_name,
+                                          })
+                                        : t('consent.history.automatic')}
+                                    {' · '}
+                                    {t('consent.history.via', {
+                                        source: t(
+                                            `consent.sources.${e.source}`,
+                                        ),
+                                    })}
+                                    {' · '}
+                                    {formatDateTime(e.created_at)}
+                                </p>
+                            </li>
+                        ))}
+                    </ol>
                 )}
             </CardContent>
         </Card>

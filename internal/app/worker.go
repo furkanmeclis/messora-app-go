@@ -88,7 +88,7 @@ func RunWorker(ctx context.Context) error {
 	// Each number's ceiling is the throughput Meta reports for it (80 when unknown).
 	svc.messaging.SetThrottle(messaging.NewThrottle(rdb, messaging.DefaultThroughput).WithCeilings(svc.messaging.ThroughputCeiling))
 	registerMessaging(mux, svc.messaging)
-	registerSignals(mux, svc.channels, log)
+	registerSignals(mux, svc.channels, svc.messaging, log)
 	registerCampaigns(mux, svc.campaigns, svc.messaging, log)
 	registerAutomations(mux, svc.automation, log)
 	mux.HandleFunc(channels.TypeTokenCheck, func(ctx context.Context, _ *asynq.Task) error {
@@ -199,7 +199,7 @@ func registerMessaging(mux *asynq.ServeMux, m *messaging.Service) {
 
 // registerSignals wires Meta's account signals, cost reconciliation and the
 // user-preference event.
-func registerSignals(mux *asynq.ServeMux, ch *channels.Service, log *slog.Logger) {
+func registerSignals(mux *asynq.ServeMux, ch *channels.Service, m *messaging.Service, log *slog.Logger) {
 	mux.HandleFunc(channels.TypeSignalSync, func(ctx context.Context, t *asynq.Task) error {
 		var p struct {
 			AccountID *uuid.UUID `json:"account_id"`
@@ -219,13 +219,13 @@ func registerSignals(mux *asynq.ServeMux, ch *channels.Service, log *slog.Logger
 		return nil
 	})
 	mux.HandleFunc(messaging.TypeUserPreference, func(ctx context.Context, t *asynq.Task) error {
-		// Recorded in meta_user_preferences; consent handling subscribes here.
+		// Recorded in meta_user_preferences; here it becomes the contact's
+		// "stopped marketing in WhatsApp" flag.
 		var e messaging.UserPreferenceEvent
 		if err := json.Unmarshal(t.Payload(), &e); err != nil {
 			return fmt.Errorf("%w: %w", asynq.SkipRetry, err)
 		}
-		log.InfoContext(ctx, "whatsapp user preference", "category", e.Category, "value", e.Value, "preference_id", e.ID)
-		return nil
+		return m.ApplyUserPreference(ctx, e)
 	})
 }
 

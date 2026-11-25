@@ -499,6 +499,10 @@ func (s *Service) Materialize(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return s.fail(ctx, id, "The audience could not be resolved: "+err.Error())
 	}
+	rules, err := rulesFor(ctx, s.q, c.PhoneNumberID, c.TemplateName, c.TemplateLanguage)
+	if err != nil {
+		return err
+	}
 	cursor := c.MaterializeCursor
 	for {
 		var page []db.Contact
@@ -520,8 +524,9 @@ func (s *Service) Materialize(ctx context.Context, id uuid.UUID) error {
 			var added int64
 			for _, ct := range page {
 				state, reason := "pending", (*string)(nil)
-				if ct.OptedOutAt != nil {
-					state, reason = "skipped", ptr("opted_out")
+				// Consent blocks are visible and counted as skipped.
+				if d := rules.decide(ct); !d.Allowed() {
+					state, reason = "skipped", ptr(d.Reason)
 				}
 				n, err := q.InsertRecipient(ctx, db.InsertRecipientParams{CampaignID: id, ContactID: &ct.ID, PhoneE164: ct.PhoneE164, State: state, SkipReason: reason})
 				if err != nil {
@@ -614,14 +619,24 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 				}
 			}
 		}
+		next := s.TickInterval
 		if queued == 0 && inflight == 0 {
 			pending, err := q.CountPendingRecipients(ctx, id)
 			if err != nil {
 				return err
 			}
 			if pending == 0 {
-				_, err := s.transition(ctx, q, tx, id, "completed", []string{"running"}, "completed", nil, nil, nil)
-				return err
+				// Messages Meta deferred (131049) take no window slot, but the
+				// campaign is not done until they are sent or given up.
+				deferred, err := q.CountDeferred(ctx, &id)
+				if err != nil {
+					return err
+				}
+				if deferred == 0 {
+					_, err := s.transition(ctx, q, tx, id, "completed", []string{"running"}, "completed", nil, nil, nil)
+					return err
+				}
+				next = max(next, deferredTick)
 			}
 		}
 		if err := q.TouchCampaign(ctx, id); err != nil {
@@ -632,15 +647,23 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 				return err
 			}
 		}
-		_, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeDispatch), dispatchPayload(c), s.TickInterval)
+		_, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeDispatch), dispatchPayload(c), next)
 		return err
 	})
 }
+
+// deferredTick is the dispatcher period while only deferred messages are
+// left: nothing to top up, only completion to notice.
+const deferredTick = time.Minute
 
 // queue renders and stores messages for claimed recipients.
 func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Campaign, rows []db.ClaimPendingRecipientsRow) (int, error) {
 	var params Params
 	_ = json.Unmarshal(c.TemplateParams, &params)
+	rules, err := rulesFor(ctx, q, c.PhoneNumberID, c.TemplateName, c.TemplateLanguage)
+	if err != nil {
+		return 0, err
+	}
 	n := 0
 	for _, r := range rows {
 		var ct db.Contact
@@ -657,8 +680,9 @@ func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Camp
 		if err != nil {
 			return n, err
 		}
-		if ct.OptedOutAt != nil {
-			if err := q.MarkRecipientSkipped(ctx, db.MarkRecipientSkippedParams{ID: r.ID, SkipReason: ptr("opted_out")}); err != nil {
+		// Consent may have changed since materialisation.
+		if d := rules.decide(ct); !d.Allowed() {
+			if err := q.MarkRecipientSkipped(ctx, db.MarkRecipientSkippedParams{ID: r.ID, SkipReason: ptr(d.Reason)}); err != nil {
 				return n, err
 			}
 			continue
@@ -674,7 +698,7 @@ func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Camp
 		payload, _ := json.Marshal(wm)
 		mid := uuid.Must(uuid.NewV7())
 		msg, err := q.InsertCampaignMessage(ctx, db.InsertCampaignMessageParams{ID: mid, PhoneNumberID: c.PhoneNumberID,
-			ContactID: ct.ID, Body: "[template] " + c.TemplateName, Payload: payload, CampaignID: &c.ID})
+			ContactID: ct.ID, Body: "[template] " + c.TemplateName, Payload: payload, CampaignID: &c.ID, ConsentCategory: &rules.category})
 		if err != nil {
 			return n, err
 		}
@@ -755,6 +779,17 @@ func (s *Service) Reap(ctx context.Context, send func(context.Context, uuid.UUID
 			if err := q.TouchMessage(ctx, m.ID); err != nil {
 				return err
 			}
+			if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), messaging.SendPayload(m.ID, m.CampaignID), 0); err != nil {
+				return err
+			}
+			fixed++
+		}
+		// Deferred messages whose retry task was lost.
+		due, err := q.DueDeferredMessages(ctx, 600)
+		if err != nil {
+			return err
+		}
+		for _, m := range due {
 			if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), messaging.SendPayload(m.ID, m.CampaignID), 0); err != nil {
 				return err
 			}

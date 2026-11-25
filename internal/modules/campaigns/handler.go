@@ -259,7 +259,39 @@ func (h *Handler) ListCampaignRecipients(w http.ResponseWriter, r *http.Request,
 	out := make([]api.CampaignRecipient, len(rows))
 	for i, x := range rows {
 		out[i] = api.CampaignRecipient{Id: x.ID, ContactId: x.ContactID, Phone: x.PhoneE164, State: api.CampaignRecipientState(x.State),
-			SkipReason: x.SkipReason, MessageId: x.MessageID, MessageStatus: x.MessageStatus, ErrorCode: x.ErrorCode, ErrorTitle: x.ErrorTitle}
+			SkipReason: x.SkipReason, MessageId: x.MessageID, MessageStatus: x.MessageStatus, ErrorCode: x.ErrorCode, ErrorTitle: x.ErrorTitle,
+			FailureClass: (*api.FailureClass)(x.FailureClass)}
 	}
 	httpx.JSONPage(w, r, http.StatusOK, out, next)
+}
+
+// PreflightCampaign implements api.ServerInterface.
+func (h *Handler) PreflightCampaign(w http.ResponseWriter, r *http.Request) {
+	var req api.CampaignPreflightRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	raw, _ := json.Marshal(req.Audience)
+	var a Audience
+	if err := json.Unmarshal(raw, &a); err != nil {
+		h.fail(w, r, apperr.Validation("audience", "Invalid audience."))
+		return
+	}
+	p, err := h.svc.Preflight(r.Context(), a, req.PhoneNumberId, req.TemplateName, req.TemplateLanguage)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	reasons := func(in []PreflightReason) []api.PreflightReason {
+		out := make([]api.PreflightReason, len(in))
+		for i, x := range in {
+			out[i] = api.PreflightReason{Reason: api.PreflightReasonReason(x.Reason), Count: x.Count, Hard: x.Hard}
+		}
+		return out
+	}
+	httpx.JSON(w, r, http.StatusOK, api.CampaignPreflight{Category: api.CampaignPreflightCategory(p.Category),
+		UnknownMarketing: api.CampaignPreflightUnknownMarketing(p.UnknownMarketing), Total: p.Total, Eligible: p.Eligible,
+		Warned: p.Warned, Blocked: p.Blocked, HardBlocked: p.HardBlocked,
+		BlockedReasons: reasons(p.BlockedReasons), WarnedReasons: reasons(p.WarnedReasons)})
 }

@@ -29,6 +29,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -233,6 +234,9 @@ func (s *Service) QueueTx(ctx context.Context, tx pgx.Tx, in SendInput) (db.Mess
 	if err != nil {
 		return db.Message{}, err
 	}
+	// The consent category: a template's own, otherwise a reply inside the
+	// customer's window.
+	category := consent.Service
 	if in.Type == "template" {
 		t, err := s.q.FindApprovedTemplate(ctx, db.FindApprovedTemplateParams{AccountID: pn.AccountID, Name: in.Template.Name, Language: in.Template.Language.Code})
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -244,6 +248,7 @@ func (s *Service) QueueTx(ctx context.Context, tx pgx.Tx, in SendInput) (db.Mess
 		if t.Status != "APPROVED" {
 			return db.Message{}, apperr.Validation("template.name", fmt.Sprintf("Template is %s; only approved templates can be sent.", t.Status))
 		}
+		category = consent.MessageCategory(t.Category)
 	}
 	if in.Source == "" {
 		in.Source = "api"
@@ -259,27 +264,24 @@ func (s *Service) QueueTx(ctx context.Context, tx pgx.Tx, in SendInput) (db.Mess
 		if err != nil {
 			return err
 		}
-		// Business-initiated messages respect opt-outs; replies to a customer
-		// who writes in are still allowed inside the service window.
-		if in.Type == "template" && c.OptedOutAt != nil {
-			return &apperr.Error{Status: 422, Code: "CONTACT_OPTED_OUT",
-				Message: "This contact opted out of messages; only replies inside the 24-hour window are allowed."}
+		// The window belongs to the thread between this customer and the
+		// sending number (the conversation).
+		lastInbound, err := threadLastInbound(ctx, q, c.ID, pn.ID)
+		if err != nil {
+			return err
 		}
-		if in.Type != "template" {
-			// The window belongs to the thread between this customer and
-			// the sending number (the conversation).
-			open, err := threadWindowOpen(ctx, q, c.ID, pn.ID)
-			if err != nil {
-				return err
-			}
-			if !open {
-				return &apperr.Error{Status: 422, Code: "OUTSIDE_SERVICE_WINDOW",
-					Message: "The customer has not written to this number in the last 24 hours; only approved templates can be sent."}
-			}
+		if in.Type != "template" && !WindowOpen(lastInbound, time.Now()) {
+			return &apperr.Error{Status: 422, Code: "OUTSIDE_SERVICE_WINDOW",
+				Message: "The customer has not written to this number in the last 24 hours; only approved templates can be sent."}
+		}
+		// Consent applies to every source alike (inbox, API, automations);
+		// hard blocks cannot be bypassed.
+		if err := s.checkConsent(ctx, q, c, category, lastInbound); err != nil {
+			return err
 		}
 		out, err = q.InsertOutboundMessage(ctx, db.InsertOutboundMessageParams{ID: uuid.Must(uuid.NewV7()), PhoneNumberID: pn.ID,
 			ContactID: c.ID, Type: in.Type, Body: body, Payload: payload, ReplyToWamid: nonEmpty(in.ReplyTo),
-			Source: in.Source, CreatedBy: in.CreatedBy})
+			Source: in.Source, CreatedBy: in.CreatedBy, ConsentCategory: &category})
 		if err != nil {
 			return err
 		}
@@ -349,7 +351,7 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 		if err != nil {
 			return err
 		}
-		if cur.Status == "pending" {
+		if cur.Status == "pending" || (cur.Status == "deferred" && due(cur)) {
 			if wait := s.throttle.Wait(ctx, cur.PhoneNumberID); wait > 0 {
 				// Not a failed attempt: the queue retries without counting it.
 				return &ErrRetry{After: wait, Reason: "per-number rate limit"}
@@ -373,17 +375,32 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 				return q.MarkMessageUnknown(ctx, db.MarkMessageUnknownParams{ID: id, ErrorTitle: ptr("Interrupted while sending; awaiting status from Meta.")})
 			})
 		}
+		if cur.Status == "deferred" && cur.NextAttemptAt != nil {
+			// Woken early (a duplicate task): wait for the retry time.
+			return &ErrRetry{After: max(time.Until(*cur.NextAttemptAt), time.Second), Reason: "deferred by Meta (131049)"}
+		}
 		return nil // already handled
 	}
 	if err != nil {
 		return err
+	}
+	// Consent is checked again right before Meta is called: it may have
+	// changed since the message was queued. A blocked message is skipped,
+	// with the reason.
+	if d, err := s.recheckConsent(ctx, m); err != nil {
+		_ = s.q.ReleaseMessageForRetry(ctx, db.ReleaseMessageForRetryParams{ID: id})
+		return err
+	} else if d.Verdict == consent.Block {
+		return s.settle(ctx, id, func(q *db.Queries) error {
+			return q.MarkMessageSkipped(ctx, db.MarkMessageSkippedParams{ID: id, ErrorCode: &d.Reason, ErrorTitle: ptr(consent.Explain(d.Reason))})
+		})
 	}
 
 	sender, err := s.ch.SenderFor(ctx, m.PhoneNumberID)
 	if err != nil {
 		var ae *apperr.Error
 		if errors.As(err, &ae) {
-			return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &ae.Code, ErrorTitle: &ae.Message})
+			return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &ae.Code, ErrorTitle: &ae.Message, FailureClass: ptr(whatsapp.FailurePermanent)})
 		}
 		// Database trouble: nothing was sent yet, put it back.
 		_ = s.q.ReleaseMessageForRetry(ctx, db.ReleaseMessageForRetryParams{ID: id})
@@ -391,12 +408,12 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 	}
 	if sender.Account.Status == "error" {
 		code, title := "ACCOUNT_ERROR", "The WhatsApp account needs attention: "+deref(sender.Account.LastError)
-		return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title})
+		return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title, FailureClass: ptr(whatsapp.FailurePermanent)})
 	}
 	var wm whatsapp.Message
 	if err := json.Unmarshal(m.Payload, &wm); err != nil {
 		code, title := "INVALID_PAYLOAD", "Stored message could not be decoded."
-		return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title})
+		return s.markFailed(ctx, db.MarkMessageFailedParams{ID: id, ErrorCode: &code, ErrorTitle: &title, FailureClass: ptr(whatsapp.FailurePermanent)})
 	}
 	wm.BizOpaqueCallbackData = m.ID.String()
 
@@ -427,9 +444,27 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 	code, title := se.Code(), truncate(se.Error(), 500)
 	switch se.Outcome {
 	case whatsapp.Retryable:
+		if se.Deferred {
+			// 131049: Meta limits marketing to this user for ecosystem
+			// health. Retry no earlier than a day later, outside the
+			// campaign's in-flight window; give up after a few days.
+			if m.Attempts >= maxEcosystemAttempts {
+				title = "Meta kept withholding the message for ecosystem health: " + title
+				return s.markFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title,
+					FailureClass: ptr(whatsapp.FailureEcosystemLimit)})
+			}
+			if err := s.settle(bg, id, func(q *db.Queries) error {
+				return q.DeferMessage(bg, db.DeferMessageParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title,
+					AfterSeconds: se.RetryAfter.Seconds()})
+			}); err != nil {
+				return err
+			}
+			return &ErrRetry{After: se.RetryAfter, Reason: title}
+		}
 		if m.Attempts >= maxSendAttempts {
 			title = "Gave up after repeated temporary errors: " + title
-			return s.markFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title})
+			return s.markFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title,
+				FailureClass: ptr(whatsapp.FailureTemporary)})
 		}
 		if err := s.q.ReleaseMessageForRetry(bg, db.ReleaseMessageForRetryParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title}); err != nil {
 			return err
@@ -448,9 +483,21 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 				s.ch.FlagAccountProblem(bg, sender.Account.ID, title)
 			}
 		}
-		return s.markFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title})
+		return s.settle(bg, id, func(q *db.Queries) error {
+			if err := q.MarkMessageFailed(bg, db.MarkMessageFailedParams{ID: id, ErrorCode: nonEmpty(code), ErrorTitle: &title,
+				FailureClass: ptr(se.FailureClass())}); err != nil {
+				return err
+			}
+			return applyMetaRefusal(bg, q, m, code)
+		})
 	}
 }
+
+// maxEcosystemAttempts bounds 131049 deferrals (one a day).
+const maxEcosystemAttempts = 3
+
+// due reports whether a deferred message may be retried now.
+func due(m db.Message) bool { return m.NextAttemptAt == nil || !m.NextAttemptAt.After(time.Now()) }
 
 // settle records the outcome of a send attempt and, in the same
 // transaction, announces the message's resulting state to the inbox.

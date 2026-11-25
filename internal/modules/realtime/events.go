@@ -102,6 +102,21 @@ func PublishAll(ctx context.Context, tx outbox.DBTX, channels []string, event Ev
 	return nil
 }
 
+// NotificationEvent is a notice for a user (on their personal channel).
+// Kind says what happened (e.g. consent.opt_out_requested); the ids say
+// where to look.
+type NotificationEvent struct {
+	Envelope
+	Kind           string     `json:"kind"`
+	ContactID      *uuid.UUID `json:"contact_id,omitempty"`
+	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
+}
+
+// NewNotificationEvent starts a notification of kind.
+func NewNotificationEvent(kind string) NotificationEvent {
+	return NotificationEvent{Envelope: NewEnvelope(TypeNotificationCreated), Kind: kind}
+}
+
 // MessageEvent announces a message or a change of its state. It names the
 // message and its contact; clients fetch the content through the API.
 type MessageEvent struct {

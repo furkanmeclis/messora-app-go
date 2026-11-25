@@ -39,17 +39,17 @@ func WindowExpiresAt(lastInbound *time.Time) *time.Time {
 	return &t
 }
 
-// threadWindowOpen checks the 24-hour window of the thread between contact
-// and the sending number.
-func threadWindowOpen(ctx context.Context, q *db.Queries, contactID, phoneNumberID uuid.UUID) (bool, error) {
+// threadLastInbound returns the customer's last window-opening message in
+// the thread between contact and the sending number (nil: never wrote).
+func threadLastInbound(ctx context.Context, q *db.Queries, contactID, phoneNumberID uuid.UUID) (*time.Time, error) {
 	c, err := q.GetConversationByThread(ctx, db.GetConversationByThreadParams{ContactID: contactID, PhoneNumberID: phoneNumberID})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
+		return nil, nil
 	}
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return WindowOpen(c.LastInboundAt, time.Now()), nil
+	return c.LastInboundAt, nil
 }
 
 // recordNew updates the thread of a newly stored message and announces the

@@ -33,6 +33,7 @@ const campaigns = {
         failed: 'Failed',
         unknown: 'Unknown',
         held: 'Held',
+        deferred: 'Deferred by Meta',
         cancelled: 'Cancelled',
     },
     progressValue: '{percent}% processed ({done} of {total})',
@@ -103,11 +104,13 @@ const campaigns = {
         unknownHelp:
             'Sent to Meta, but the reply was lost (timeout or dropped connection), so it is not known whether Meta accepted it. Messora never re-sends these automatically; Meta’s status webhook reconciles them to sent, delivered or read.',
         heldHelp: 'Claimed while the campaign was paused; sent after resume.',
+        deferredHelp:
+            'Meta held these back to protect the customer experience (error 131049). They are tried again after about a day and do not take up the sending window meanwhile.',
         window: 'Window: {size} messages in flight · created {date}',
         automatic: 'automatic',
         recipients: 'Recipients',
         recipientsHint:
-            'Each contact once; opted-out and duplicate numbers are skipped.',
+            'Each contact once; contacts consent does not allow and duplicate numbers are skipped.',
         eventLog: 'Event log',
         whatDoesMean: 'What does “{label}” mean?',
         keepAsIs: 'Keep as is',
@@ -165,6 +168,8 @@ const campaigns = {
             unknown: 'unknown',
             held: 'held',
             cancelled: 'cancelled',
+            deferred: 'deferred by Meta',
+            skipped: 'not sent',
         },
         skipped: 'Skipped',
         skippedReason: 'Skipped: {reason}',

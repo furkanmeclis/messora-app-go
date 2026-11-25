@@ -136,28 +136,41 @@ type ConsentEvent struct {
 	Note      string
 	ActorID   *uuid.UUID
 	CreatedAt time.Time
+	Category  *string
+	Status    *string
 }
 
 type Contact struct {
-	ID                    uuid.UUID
-	PhoneE164             string
-	WaID                  *string
-	Name                  string
-	ProfileName           string
-	LastInboundAt         *time.Time
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	Email                 *string
-	Var1                  *string
-	Var2                  *string
-	Var3                  *string
-	Var4                  *string
-	Var5                  *string
-	Attributes            []byte
-	OptedOutAt            *time.Time
-	OptOutReason          *string
-	Source                string
-	AutomationsMutedUntil *time.Time
+	ID                     uuid.UUID
+	PhoneE164              string
+	WaID                   *string
+	Name                   string
+	ProfileName            string
+	LastInboundAt          *time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	Email                  *string
+	Var1                   *string
+	Var2                   *string
+	Var3                   *string
+	Var4                   *string
+	Var5                   *string
+	Attributes             []byte
+	OptedOutAt             *time.Time
+	OptOutReason           *string
+	Source                 string
+	AutomationsMutedUntil  *time.Time
+	MarketingConsent       string
+	MarketingConsentAt     *time.Time
+	MarketingConsentSource *string
+	MarketingConsentReason *string
+	ServiceConsent         string
+	ServiceConsentAt       *time.Time
+	ServiceConsentSource   *string
+	ServiceConsentReason   *string
+	MetaMarketingStoppedAt *time.Time
+	UndeliverableAt        *time.Time
+	UndeliverableCode      *string
 }
 
 type ContactGroup struct {
@@ -301,6 +314,9 @@ type Message struct {
 	CostAmount       pgtype.Numeric
 	CostCurrency     *string
 	CostSource       *string
+	FailureClass     *string
+	ConsentCategory  *string
+	NextAttemptAt    *time.Time
 }
 
 type MessageTemplate struct {

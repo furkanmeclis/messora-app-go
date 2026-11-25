@@ -141,6 +141,11 @@ const automations: Messages['automations'] = {
             label: 'Görüşme kapatıldı',
             description: 'Bir kişi ya da entegrasyon bir görüşmeyi kapatır.',
         },
+        subscription_request: {
+            label: 'Abonelik talebi',
+            description:
+                'Müşteri bir durdurma kelimesi, çıkış talebi ya da yeniden abonelik kelimesi yazar (Ayarlar › Abonelik ve izin). Bu çalıştığında izin zaten güncellenmiştir; otomasyon abonelikten çıkan birine pazarlama mesajı gönderemez.',
+        },
     },
     trigger: {
         when: 'Ne zaman',
@@ -156,6 +161,9 @@ const automations: Messages['automations'] = {
         anyCampaign: 'Herhangi bir mesaj',
         oneCampaign: 'Bir kampanya',
         campaignHint: 'Yalnızca tek bir kampanyanın mesajlarıyla sınırla.',
+        subscription: 'Talep',
+        subscriptionHint:
+            'Anahtar kelime listeleri Ayarlar › Abonelik ve izin sayfasında düzenlenir.',
         cooldown: 'Kişi başına bekleme süresi',
         cooldownHint:
             'Bu süre içinde kişi başına en fazla bir çalışma; 0 sınır yok demektir.',
@@ -170,6 +178,12 @@ const automations: Messages['automations'] = {
         delivered: 'Teslim edildi',
         read: 'Okundu',
         failed: 'Başarısız',
+    },
+    subscription: {
+        any: 'Herhangi bir talep',
+        stop: 'Durdurma kelimesi (abonelikten çıktı)',
+        request: 'Çıkış talebi (onay bekliyor)',
+        resume: 'Yeniden abonelik kelimesi',
     },
     summary: {
         anyMessage: 'Herhangi bir mesaj geldiğinde',
@@ -192,6 +206,12 @@ const automations: Messages['automations'] = {
         inCampaign: " ('{campaign}' kampanyasında)",
         inOneCampaign: ' (bir kampanyada)',
         conversationClosed: 'Bir görüşme kapatıldığında',
+        subscription: {
+            any: 'Bir müşteri mesajları durdurmak ya da yeniden başlatmak istediğinde',
+            stop: 'Bir müşteri durdurma kelimesi yazdığında',
+            request: 'Bir müşteri mesajları durdurmak istediğinde',
+            resume: 'Bir müşteri yeniden abonelik kelimesi yazdığında',
+        },
         unknown: '{type} olduğunda',
         cooldown: ' (kişi başına en fazla {duration} içinde bir kez)',
     },

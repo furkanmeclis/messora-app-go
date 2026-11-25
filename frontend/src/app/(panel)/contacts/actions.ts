@@ -16,6 +16,8 @@ import type {
     Tag,
 } from '@/lib/types';
 
+import { isConsentStatus, type ConsentStatus } from '@/lib/consent';
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function check(...ids: string[]) {
@@ -34,6 +36,13 @@ function contactQuery(raw: string, cursor?: string): string {
     }
     const opted = src.get('opted_out');
     if (opted === 'true' || opted === 'false') q.set('opted_out', opted);
+    for (const k of ['marketing_consent', 'service_consent']) {
+        const v = src.get(k);
+        if (isConsentStatus(v)) q.set(k, v);
+    }
+    const reach = src.get('reachability');
+    if (reach === 'meta_marketing_stopped' || reach === 'undeliverable')
+        q.set('reachability', reach);
     if (cursor && UUID.test(cursor)) q.set('cursor', cursor);
     return q.toString();
 }
@@ -122,25 +131,30 @@ export async function deleteContactAction(id: string): Promise<ActionResult> {
     return res;
 }
 
+/** Sets a contact's consent for one category or both ('all'). */
 export async function consentAction(
     id: string,
-    kind: 'opt_in' | 'opt_out',
+    status: ConsentStatus,
+    category: 'marketing' | 'service' | 'all',
     note: string,
 ): Promise<ActionResult<Contact>> {
     check(id);
+    if (!isConsentStatus(status)) throw new Error('invalid status');
+    if (!['marketing', 'service', 'all'].includes(category))
+        throw new Error('invalid category');
     const res = await runAction(
         async () =>
             (
                 await api<Contact>(`/contacts/${id}/consent`, {
                     method: 'POST',
-                    body: { kind, note: note.trim() || undefined },
+                    body: {
+                        status,
+                        category,
+                        note: note.trim() || undefined,
+                    },
                 })
             ).data,
-        (await getT())(
-            kind === 'opt_in'
-                ? 'contacts.toast.optIn'
-                : 'contacts.toast.optOut',
-        ),
+        (await getT())('consent.dialog.saved'),
     );
     if (res.ok) revalidatePath(`/contacts/${id}`);
     return res;

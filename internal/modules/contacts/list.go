@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts/segment"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
@@ -20,6 +22,17 @@ type Filter struct {
 	GroupID  *uuid.UUID
 	Segment  *segment.Node
 	OptedOut *bool
+	// Consent status per category (the legacy opted_out_at counts as
+	// opted_out for both).
+	MarketingConsent *string
+	ServiceConsent   *string
+	// Reachability: "meta_marketing_stopped" or "undeliverable".
+	Reachability *string
+}
+
+// consentExpr is a category's effective consent status in SQL.
+func consentExpr(column string) string {
+	return "(CASE WHEN c.opted_out_at IS NOT NULL THEN 'opted_out' ELSE c." + column + " END)"
 }
 
 // where builds the WHERE clause and arguments.
@@ -48,6 +61,22 @@ func (f Filter) where() (string, []any, error) {
 			conds = append(conds, "c.opted_out_at IS NOT NULL")
 		} else {
 			conds = append(conds, "c.opted_out_at IS NULL")
+		}
+	}
+	if f.MarketingConsent != nil {
+		conds = append(conds, consentExpr("marketing_consent")+" = "+bind(*f.MarketingConsent))
+	}
+	if f.ServiceConsent != nil {
+		conds = append(conds, consentExpr("service_consent")+" = "+bind(*f.ServiceConsent))
+	}
+	if f.Reachability != nil {
+		switch *f.Reachability {
+		case "meta_marketing_stopped":
+			conds = append(conds, "c.meta_marketing_stopped_at IS NOT NULL")
+		case "undeliverable":
+			conds = append(conds, "c.undeliverable_at IS NOT NULL")
+		default:
+			return "", nil, apperr.Validation("reachability", "Unknown reachability filter.")
 		}
 	}
 	if f.Segment != nil {
@@ -164,4 +193,46 @@ func (s *Service) TagsFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][
 		out[r.ContactID] = append(out[r.ContactID], db.Tag{ID: r.ID, Name: r.Name, Color: r.Color})
 	}
 	return out, nil
+}
+
+// ConsentGroup counts the matching contacts that share one consent state.
+type ConsentGroup struct {
+	State consent.State
+	N     int64
+}
+
+// ConsentGroups breaks the matching contacts down by consent state (campaign
+// preflight): one row per distinct combination, so it stays one aggregate
+// query however large the audience.
+func (s *Service) ConsentGroups(ctx context.Context, f Filter) ([]ConsentGroup, error) {
+	where, args, err := f.where()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT c.marketing_consent, c.service_consent, c.opted_out_at IS NOT NULL,
+			c.meta_marketing_stopped_at IS NOT NULL, c.undeliverable_at IS NOT NULL, count(*)
+		FROM contacts c WHERE `+where+` GROUP BY 1, 2, 3, 4, 5`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ConsentGroup
+	set := time.Unix(0, 0).UTC()
+	flag := func(on bool) *time.Time {
+		if on {
+			return &set
+		}
+		return nil
+	}
+	for rows.Next() {
+		var m, sv string
+		var out1, stopped, undeliverable bool
+		var n int64
+		if err := rows.Scan(&m, &sv, &out1, &stopped, &undeliverable, &n); err != nil {
+			return nil, err
+		}
+		out = append(out, ConsentGroup{N: n, State: consent.StateOf(db.Contact{MarketingConsent: m, ServiceConsent: sv,
+			OptedOutAt: flag(out1), MetaMarketingStoppedAt: flag(stopped), UndeliverableAt: flag(undeliverable)})})
+	}
+	return out, rows.Err()
 }

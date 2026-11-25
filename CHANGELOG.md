@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 16C P1: subscription, consent and send blocking
+
+- Consent per category for every contact: marketing and service (utility,
+  authentication, replies), each `opted_in`, `unknown`, `opt_out_requested`,
+  `opted_out` or `resubscribed` with when, where from and why, plus the
+  Meta-sourced flags "stopped marketing in WhatsApp" and "undeliverable".
+  Existing opt-outs became opt-outs of both categories; `opted_out` and the
+  `opt_in` / `opt_out` API keep working. The full history is kept and
+  shown on the contact; panel and API changes are audited.
+- One set of rules for campaigns, the API, the inbox and automations, checked
+  when a message is queued and again right before it is sent. Opt-outs,
+  WhatsApp's Stop and undeliverable numbers are hard blocks no setting can
+  override; marketing to contacts with unknown consent is allowed with a
+  warning or blocked, as the company chooses.
+- Campaign preflight (`POST /campaigns/preflight`) and a review step in the
+  campaign wizard showing how many recipients are eligible, warned and
+  blocked, and why.
+- Keyword opt-out on inbound messages (Turkish-aware matching): stop words
+  opt out at once with an optional confirmation, opt-out phrases become a
+  request for an agent and notify them, resubscribe words opt back in. Lists
+  and texts are editable under Settings → Subscription & consent. New
+  automation trigger `subscription_request`.
+- WhatsApp's Stop/Resume (`user_preferences`) and errors `131050` / `131026`
+  update the contact; `131049` is retried no earlier than 24 hours later and
+  no longer occupies a campaign's send window. Messages record why they
+  failed (`failure_class`).
+
+### Changed
+
+- A full opt-out (both categories) now also blocks replies in a conversation
+  the customer had open when opting out; a customer who writes again may be
+  answered.
+
 ## [0.11.0] - 2026-11-25
 
 ### Added — Phase 16b: Meta connection and messaging screens

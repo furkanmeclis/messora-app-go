@@ -137,6 +137,11 @@ const automations = {
             label: 'Conversation closed',
             description: 'A person or integration closes a conversation.',
         },
+        subscription_request: {
+            label: 'Subscription request',
+            description:
+                'A customer writes a stop word, an opt-out request or a resubscribe word (see Settings › Subscription & consent). Consent is already updated when this runs; an automation cannot send marketing to someone who opted out.',
+        },
     },
     trigger: {
         when: 'When',
@@ -152,6 +157,9 @@ const automations = {
         anyCampaign: 'Any message',
         oneCampaign: 'One campaign',
         campaignHint: 'Limit to messages of one campaign.',
+        subscription: 'Request',
+        subscriptionHint:
+            'The keyword lists are set in Settings › Subscription & consent.',
         cooldown: 'Cooldown per contact',
         cooldownHint:
             'At most one run per contact within this time; 0 means no limit.',
@@ -163,6 +171,12 @@ const automations = {
         starts_with: 'Starts with a keyword',
     },
     messageStatus: { delivered: 'Delivered', read: 'Read', failed: 'Failed' },
+    subscription: {
+        any: 'Any request',
+        stop: 'Stop word (opted out)',
+        request: 'Opt-out request (to confirm)',
+        resume: 'Resubscribe word',
+    },
     summary: {
         anyMessage: 'When any message arrives',
         message: {
@@ -184,6 +198,12 @@ const automations = {
         inCampaign: " in campaign '{campaign}'",
         inOneCampaign: ' in one campaign',
         conversationClosed: 'When a conversation is closed',
+        subscription: {
+            any: 'When a customer asks to stop or restart messages',
+            stop: 'When a customer writes a stop word',
+            request: 'When a customer asks to stop messages',
+            resume: 'When a customer writes a resubscribe word',
+        },
         unknown: 'When {type} happens',
         cooldown: ' (at most once per contact every {duration})',
     },

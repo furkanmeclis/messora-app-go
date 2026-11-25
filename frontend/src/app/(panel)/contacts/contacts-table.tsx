@@ -51,12 +51,21 @@ import {
 import { useT } from '@/i18n/client';
 import type { Contact } from '@/lib/types';
 import { bulkContactsAction, type BulkBody } from './actions';
+import { CONSENT_CATEGORIES, isConsentStatus } from '@/lib/consent';
+import { ConsentBadge, ReachabilityBadges } from './consent-badges';
 import { contactName } from './shared';
 import { TagChip } from './tag-chip';
 
 type Option = { id: string; name: string };
 type Filters = Record<
-    'q' | 'tag_id' | 'group_id' | 'segment_id' | 'opted_out',
+    | 'q'
+    | 'tag_id'
+    | 'group_id'
+    | 'segment_id'
+    | 'opted_out'
+    | 'marketing_consent'
+    | 'service_consent'
+    | 'reachability',
     string
 >;
 
@@ -72,6 +81,15 @@ function target(
     if (filters.group_id) filter.group_id = filters.group_id;
     if (filters.segment_id) filter.segment_id = filters.segment_id;
     if (filters.opted_out) filter.opted_out = filters.opted_out === 'true';
+    if (isConsentStatus(filters.marketing_consent))
+        filter.marketing_consent = filters.marketing_consent;
+    if (isConsentStatus(filters.service_consent))
+        filter.service_consent = filters.service_consent;
+    if (
+        filters.reachability === 'meta_marketing_stopped' ||
+        filters.reachability === 'undeliverable'
+    )
+        filter.reachability = filters.reachability;
     return {
         filter,
         ...(sel.exclude.length ? { exclude_ids: sel.exclude } : {}),
@@ -165,18 +183,22 @@ export function ContactsTable({
         {
             id: 'consent',
             header: t('contacts.consent.label'),
-            cell: (c) =>
-                c.opted_out ? (
-                    <Badge variant="destructive" className="gap-1">
-                        <BellOff className="size-3" />
-                        {t('contacts.consent.optedOut')}
-                    </Badge>
-                ) : (
-                    <Badge variant="secondary" className="gap-1">
-                        <BellRing className="size-3" />
-                        {t('contacts.consent.subscribed')}
-                    </Badge>
-                ),
+            cell: (c) => (
+                <div
+                    className="flex max-w-xs flex-wrap gap-1"
+                    data-testid="contact-consent"
+                >
+                    {CONSENT_CATEGORIES.map((k) => (
+                        <ConsentBadge
+                            key={k}
+                            category={k}
+                            status={c.consent[k].status}
+                            compact
+                        />
+                    ))}
+                    <ReachabilityBadges consent={c.consent} />
+                </div>
+            ),
         },
         {
             id: 'last_message',

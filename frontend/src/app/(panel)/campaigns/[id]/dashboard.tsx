@@ -72,6 +72,8 @@ import {
     CampaignProgress,
     CampaignStatusBadge,
     summarize,
+    skipReasonLabel,
+    failureClassLabel,
 } from '../campaign-ui';
 import { NUMBER_LOCALE } from '@/lib/format';
 import { ClientDataTable } from '@/components/client-data-table';
@@ -251,6 +253,12 @@ export function CampaignDashboard({
                             value={s.held}
                             help={t('campaigns.dashboard.heldHelp')}
                         />
+                        <Stat
+                            id="deferred"
+                            value={s.deferred}
+                            tone="warn"
+                            help={t('campaigns.dashboard.deferredHelp')}
+                        />
                         <Stat id="cancelled" value={s.cancelled} />
                     </dl>
                     <p className="text-xs text-muted-foreground">
@@ -314,6 +322,7 @@ function Stat({
         | 'failed'
         | 'unknown'
         | 'held'
+        | 'deferred'
         | 'cancelled';
     value: number;
     tone?: 'bad' | 'warn';
@@ -624,16 +633,18 @@ const MESSAGE_STATUSES = [
     'unknown',
     'held',
     'cancelled',
+    'deferred',
+    'skipped',
 ] as const;
 
 function MessageStatus({ r }: { r: CampaignRecipient }) {
     const t = useT();
     if (r.state === 'skipped') {
         return (
-            <Badge variant="outline">
+            <Badge variant="outline" data-testid="recipient-skip-reason">
                 {r.skip_reason
                     ? t('campaigns.dashboard.skippedReason', {
-                          reason: r.skip_reason.replaceAll('_', ' '),
+                          reason: skipReasonLabel(t, r.skip_reason),
                       })
                     : t('campaigns.dashboard.skipped')}
             </Badge>
@@ -650,6 +661,18 @@ function MessageStatus({ r }: { r: CampaignRecipient }) {
             <Badge variant="outline">{t('campaigns.dashboard.waiting')}</Badge>
         );
     const st: string = r.message_status ?? 'pending';
+    if (st === 'skipped') {
+        // Consent stopped it right before sending; error_code holds why.
+        return (
+            <Badge variant="outline" data-testid="recipient-skip-reason">
+                {r.error_code
+                    ? t('campaigns.dashboard.skippedReason', {
+                          reason: skipReasonLabel(t, r.error_code),
+                      })
+                    : t('campaigns.dashboard.skipped')}
+            </Badge>
+        );
+    }
     const known = MESSAGE_STATUSES.find((x) => x === st);
     const stLabel = known
         ? t(`campaigns.dashboard.messageStatuses.${known}`)
@@ -800,6 +823,11 @@ function RecipientTable({
                         sortValue: (r) => r.error_code ?? null,
                         cell: (r) => (
                             <div className="max-w-xs text-xs break-words">
+                                {r.failure_class && (
+                                    <span className="mr-1 font-medium">
+                                        {failureClassLabel(t, r.failure_class)}
+                                    </span>
+                                )}
                                 {r.error_code ? (
                                     <>
                                         <code>{r.error_code}</code>

@@ -551,6 +551,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/settings/consent': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Subscription and consent settings */
+        get: operations['getConsentSettings'];
+        /** Change the subscription and consent settings */
+        put: operations['updateConsentSettings'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/settings/smtp/test': {
         parameters: {
             query?: never;
@@ -1064,10 +1082,27 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Record an opt-in or opt-out
-         * @description Opted-out contacts receive no campaign or automation messages.
+         * Change a contact's consent
+         * @description Either the legacy kind (opt_in / opt_out, which set both categories) or a status for one or both categories. Every change is kept in the consent history and the audit log. Opted-out contacts receive no business-initiated messages of that category from campaigns, the API or automations; docs/CONSENT.md has the rules.
          */
         post: operations['recordConsent'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contacts/{contactId}/consent-events': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The contact's consent history, newest first (at most 100) */
+        get: operations['listConsentEvents'];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1490,6 +1525,26 @@ export interface paths {
         put?: never;
         /** Create a draft campaign */
         post: operations['createCampaign'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/preflight': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * How many recipients of an audience may receive a template
+         * @description Counts the audience by what the consent rules decide for the template's category: eligible (including those with a warning), blocked by a hard rule that nothing overrides (opted out, stopped in WhatsApp, undeliverable), and blocked or warned by the company's policy. Nothing is stored.
+         */
+        post: operations['preflightCampaign'];
         delete?: never;
         options?: never;
         head?: never;
@@ -2434,6 +2489,9 @@ export interface components {
             /** Format: uuid */
             segment_id?: string;
             opted_out?: boolean;
+            marketing_consent?: components['schemas']['ConsentStatus'];
+            service_consent?: components['schemas']['ConsentStatus'];
+            reachability?: components['schemas']['Reachability'];
         };
         ContactBulkRequest: {
             /** @enum {string} */
@@ -2831,7 +2889,10 @@ export interface components {
             wamid?: string | null;
             type: string;
             body: string;
-            /** @enum {string} */
+            /**
+             * @description deferred: Meta withheld it for ecosystem health (131049), retried at next_attempt_at; skipped: consent blocked it right before sending (error_code holds the reason).
+             * @enum {string}
+             */
             status:
                 | 'pending'
                 | 'sending'
@@ -2840,9 +2901,16 @@ export interface components {
                 | 'delivered'
                 | 'read'
                 | 'failed'
-                | 'received';
+                | 'received'
+                | 'held'
+                | 'cancelled'
+                | 'deferred'
+                | 'skipped';
             error_code?: string | null;
             error_title?: string | null;
+            failure_class?: components['schemas']['FailureClass'];
+            /** Format: date-time */
+            next_attempt_at?: string | null;
             /** Format: date-time */
             sent_at?: string | null;
             /** Format: date-time */
@@ -2968,9 +3036,11 @@ export interface components {
             };
             tags: components['schemas']['TagRef'][];
             group_ids: string[];
+            /** @description Opted out of everything: both consent categories are opted_out. */
             opted_out: boolean;
             /** Format: date-time */
             opted_out_at?: string | null;
+            consent: components['schemas']['ContactConsent'];
             /** Format: date-time */
             last_inbound_at?: string | null;
             /** @enum {string} */
@@ -2999,11 +3069,134 @@ export interface components {
         };
         UpdateContactRequest: components['schemas']['ContactFields'] &
             Record<string, never>;
+        /** @description Give kind (legacy, both categories) or status. */
         ConsentRequest: {
-            /** @enum {string} */
-            kind: 'opt_in' | 'opt_out';
+            /**
+             * @description Legacy: opt_in / opt_out sets both categories to opted_in / opted_out.
+             * @enum {string}
+             */
+            kind?: 'opt_in' | 'opt_out';
+            status?: components['schemas']['ConsentStatus'];
+            /**
+             * @default all
+             * @enum {string}
+             */
+            category: 'marketing' | 'service' | 'all';
+            /** @description The reason; kept in the history. */
             note?: string;
         };
+        /** @enum {string} */
+        ConsentStatus:
+            | 'opted_in'
+            | 'unknown'
+            | 'opt_out_requested'
+            | 'opted_out'
+            | 'resubscribed';
+        /** @enum {string} */
+        Reachability: 'meta_marketing_stopped' | 'undeliverable';
+        ConsentCategoryState: {
+            status: components['schemas']['ConsentStatus'];
+            /** Format: date-time */
+            updated_at: string | null;
+            /** @description Where the last change came from (manual, bulk, api, import, keyword, meta_user_preferences, meta_error, automation). */
+            source: string | null;
+            reason: string | null;
+        };
+        ContactConsent: {
+            marketing: components['schemas']['ConsentCategoryState'];
+            /** @description Utility and authentication templates and replies. */
+            service: components['schemas']['ConsentCategoryState'];
+            /**
+             * Format: date-time
+             * @description The customer chose Stop for this business's marketing in WhatsApp (marketing is blocked).
+             */
+            meta_marketing_stopped_at: string | null;
+            /**
+             * Format: date-time
+             * @description Meta could not deliver to the number (131026); nothing is sent until the customer writes again.
+             */
+            undeliverable_at: string | null;
+            undeliverable_code: string | null;
+        };
+        ConsentEvent: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind:
+                | 'opt_in'
+                | 'opt_out'
+                | 'opt_out_requested'
+                | 'resubscribed'
+                | 'unknown'
+                | 'meta_marketing_stopped'
+                | 'meta_marketing_resumed'
+                | 'undeliverable'
+                | 'deliverable';
+            /** @description marketing or service; null = both (older records). */
+            category: string | null;
+            status: string | null;
+            /** @enum {string} */
+            source:
+                | 'manual'
+                | 'bulk'
+                | 'api'
+                | 'import'
+                | 'keyword'
+                | 'meta_user_preferences'
+                | 'meta_error'
+                | 'automation'
+                | 'inbound';
+            note: string;
+            actor_name: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ConsentEventListResponse: {
+            data: components['schemas']['ConsentEvent'][];
+            meta: components['schemas']['Meta'];
+        };
+        ConsentSettings: {
+            /**
+             * @description Marketing to contacts whose consent is unknown is sent with a warning (allow) or refused (block).
+             * @enum {string}
+             */
+            unknown_marketing: 'allow' | 'block';
+            keywords: components['schemas']['ConsentKeywords'];
+            /** @description Reply with a confirmation after a stop or resume word. */
+            confirm: boolean;
+            stop_message: components['schemas']['LocalizedText'];
+            resume_message: components['schemas']['LocalizedText'];
+        };
+        ConsentKeywords: {
+            /** @description A message that is exactly one of these opts the contact out of marketing at once. */
+            stop: string[];
+            /** @description A message containing one of these marks an opt-out request for an agent to confirm. */
+            request: string[];
+            /** @description A message that is exactly one of these subscribes the contact again. */
+            resume: string[];
+        };
+        LocalizedText: {
+            tr: string;
+            en: string;
+        };
+        ConsentSettingsResponse: {
+            data: components['schemas']['ConsentSettings'];
+            meta: components['schemas']['Meta'];
+        };
+        /**
+         * @description Why a message ended failed, skipped or cancelled.
+         * @enum {string|null}
+         */
+        FailureClass:
+            | 'rejected_by_meta'
+            | 'temporary'
+            | 'permanent'
+            | 'user_stopped_marketing'
+            | 'undeliverable'
+            | 'ecosystem_limit'
+            | 'blocked_by_consent'
+            | 'cancelled'
+            | null;
         Note: {
             /** Format: uuid */
             id: string;
@@ -3285,7 +3478,12 @@ export interface components {
                 | 'delivered'
                 | 'read'
                 | 'failed'
-                | 'received';
+                | 'received'
+                | 'held'
+                | 'cancelled'
+                | 'deferred'
+                | 'skipped';
+            failure_class?: components['schemas']['FailureClass'];
             wamid: string | null;
             reply_to_wamid: string | null;
             /** @enum {string} */
@@ -3347,7 +3545,14 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: 'assigned' | 'unassigned' | 'closed' | 'reopened';
+            kind:
+                | 'assigned'
+                | 'unassigned'
+                | 'closed'
+                | 'reopened'
+                | 'opt_out_requested'
+                | 'opted_out'
+                | 'resubscribed';
             /** @enum {string} */
             actor_type: 'user' | 'api_key' | 'system';
             /** @description The user who acted; null for API keys and automatic reopening. */
@@ -3522,6 +3727,62 @@ export interface components {
             message_status?: string | null;
             error_code?: string | null;
             error_title?: string | null;
+            failure_class?: components['schemas']['FailureClass'];
+        };
+        CampaignPreflightRequest: {
+            audience: components['schemas']['CampaignAudience'];
+            /**
+             * Format: uuid
+             * @description The sending number; the default one when omitted.
+             */
+            phone_number_id?: string;
+            template_name: string;
+            template_language: string;
+        };
+        PreflightReason: {
+            /** @enum {string} */
+            reason:
+                | 'opted_out'
+                | 'meta_marketing_stopped'
+                | 'undeliverable'
+                | 'opt_out_requested'
+                | 'consent_unknown'
+                | 'replied_after_opt_out';
+            /** Format: int64 */
+            count: number;
+            /** @description A hard block cannot be overridden by any setting. */
+            hard: boolean;
+        };
+        CampaignPreflight: {
+            /**
+             * @description From the template.
+             * @enum {string}
+             */
+            category: 'marketing' | 'utility' | 'authentication';
+            /**
+             * @description The company's current policy for unknown consent.
+             * @enum {string}
+             */
+            unknown_marketing: 'allow' | 'block';
+            /** Format: int64 */
+            total: number;
+            /**
+             * Format: int64
+             * @description Will be sent (including warned).
+             */
+            eligible: number;
+            /** Format: int64 */
+            warned: number;
+            /** Format: int64 */
+            blocked: number;
+            /** Format: int64 */
+            hard_blocked: number;
+            blocked_reasons: components['schemas']['PreflightReason'][];
+            warned_reasons: components['schemas']['PreflightReason'][];
+        };
+        CampaignPreflightResponse: {
+            data: components['schemas']['CampaignPreflight'];
+            meta: components['schemas']['Meta'];
         };
         CampaignResponse: {
             data: components['schemas']['Campaign'];
@@ -3545,7 +3806,8 @@ export interface components {
             | 'new_contact'
             | 'tag_added'
             | 'message_status'
-            | 'conversation_closed';
+            | 'conversation_closed'
+            | 'subscription_request';
         /** @description Options for the trigger type; see docs/AUTOMATIONS.md. */
         AutomationTrigger: {
             /** @enum {string} */
@@ -3558,6 +3820,11 @@ export interface components {
             status?: 'delivered' | 'read' | 'failed';
             /** Format: uuid */
             campaign_id?: string;
+            /**
+             * @description subscription_request: only this kind (stop word, opt-out request phrase, resubscribe word); omitted = any.
+             * @enum {string}
+             */
+            subscription?: 'stop' | 'request' | 'resume';
             cooldown_seconds?: number;
         };
         /** @description One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field, condition (with if/then/else), http_request, send_email, delay, assign, close_conversation, mute. Text values accept placeholders such as {{name}}, {{first_name}}, {{var1}} and {{message}}. See docs/AUTOMATIONS.md. */
@@ -4817,6 +5084,52 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    getConsentSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Consent settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConsentSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateConsentSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['ConsentSettings'];
+            };
+        };
+        responses: {
+            /** @description Consent settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConsentSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     testSmtpSettings: {
         parameters: {
             query?: never;
@@ -5492,7 +5805,12 @@ export interface operations {
                 tag_id?: string;
                 group_id?: string;
                 segment_id?: string;
+                /** @description Opted out of everything (both consent categories). */
                 opted_out?: boolean;
+                marketing_consent?: components['schemas']['ConsentStatus'];
+                service_consent?: components['schemas']['ConsentStatus'];
+                /** @description meta_marketing_stopped: stopped marketing in WhatsApp; undeliverable: Meta could not deliver to the number. */
+                reachability?: components['schemas']['Reachability'];
                 sort?: components['schemas']['ContactSort'];
                 /** @description 1-based page number. With it the list is paged by offset (cursor is ignored) and meta.total is set. */
                 page?: number;
@@ -5693,6 +6011,29 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    listConsentEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Consent events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ConsentEventListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     listContactNotes: {
         parameters: {
             query?: never;
@@ -5772,6 +6113,9 @@ export interface operations {
             query?: {
                 format?: 'csv' | 'xlsx';
                 opted_out?: boolean;
+                marketing_consent?: components['schemas']['ConsentStatus'];
+                service_consent?: components['schemas']['ConsentStatus'];
+                reachability?: components['schemas']['Reachability'];
                 q?: string;
                 tag_id?: string;
                 group_id?: string;
@@ -6497,6 +6841,31 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    preflightCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CampaignPreflightRequest'];
+            };
+        };
+        responses: {
+            /** @description Counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignPreflightResponse'];
                 };
             };
             default: components['responses']['Error'];

@@ -471,3 +471,72 @@ test('the wizard saves a draft with mapped variables, which can be deleted', asy
     );
     noErrors();
 });
+
+test('the review step shows who consent keeps from the campaign', async ({
+    page,
+}) => {
+    const noErrors = watchErrors(page);
+    // The three contacts seeded with the channel, under a tag of their own
+    // so the audience is exactly them: one opted out of marketing, the
+    // others opted in (so the result does not depend on the company's
+    // policy for unknown consent).
+    const tag = `e2e-consent-${TAG}`;
+    sql(`
+        WITH t AS (INSERT INTO tags (name) VALUES ('${tag}') RETURNING id)
+        INSERT INTO contact_tags (contact_id, tag_id)
+        SELECT c.id, t.id FROM t, contacts c WHERE c.phone_e164 LIKE '+90555${TAG}_';
+        UPDATE contacts SET marketing_consent = 'opted_in', marketing_consent_at = now(),
+                            marketing_consent_source = 'manual'
+        WHERE phone_e164 LIKE '+90555${TAG}_';
+        UPDATE contacts SET marketing_consent = 'opted_out', marketing_consent_at = now(),
+                            marketing_consent_source = 'manual', marketing_consent_reason = 'E2E'
+        WHERE phone_e164 = '+90555${TAG}2';`);
+
+    await signIn(page);
+    await page.goto('/campaigns/new');
+    await page.getByLabel('Name', { exact: true }).fill(`E2E consent ${TAG}`);
+    await page.getByRole('combobox', { name: 'Sender' }).click();
+    await page.getByRole('option', { name: new RegExp(`555 ${TAG}`) }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('combobox', { name: 'Template' }).click();
+    await page.getByRole('option', { name: /e2e_promo/ }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('combobox', { name: 'Body {{1}}' }).click();
+    await page.getByRole('option', { name: 'First name' }).click();
+    await page.getByLabel('If empty: First name').fill('there');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await expect(
+        page.getByRole('heading', { name: '4. Audience' }),
+    ).toBeVisible();
+    await page.getByRole('radio', { name: 'A tag' }).check();
+    await page.getByRole('combobox', { name: 'Tag', exact: true }).click();
+    await page.getByRole('option', { name: new RegExp(tag) }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await expect(
+        page.getByRole('heading', { name: '5. Review' }),
+    ).toBeVisible();
+    const preflight = page.getByTestId('campaign-preflight');
+    await expect(preflight).toHaveAttribute('data-state', 'ready');
+    await expect(page.getByTestId('preflight-summary')).toContainText(
+        /Your audience has 3 people; 1 said they don.t want messages\./,
+    );
+    await expect(page.getByTestId('preflight-blocked')).toHaveAttribute(
+        'data-count',
+        '1',
+    );
+    const optedOut = page.getByTestId('preflight-reason-opted_out');
+    await expect(optedOut).toHaveAttribute('data-count', '1');
+    await expect(optedOut).toContainText('Always blocked');
+    await expect(page.getByTestId('preflight-eligible')).toHaveAttribute(
+        'data-count',
+        '2',
+    );
+    await expect(page.getByTestId('preflight-eligible')).toContainText(
+        '2 will receive it',
+    );
+    // A hard block cannot be overridden from here.
+    await expect(preflight.getByRole('button')).toHaveCount(0);
+    noErrors();
+});
