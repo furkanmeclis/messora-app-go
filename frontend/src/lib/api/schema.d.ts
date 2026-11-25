@@ -1130,6 +1130,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/tags/{tagId}/insights': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How the tag performs and every campaign that reached its contacts
+         * @description Counts, the last 90 days of messages, the daily activity of the last 30 days and each campaign that reached at least one of its contacts (targeted at it or not), measured on those contacts only.
+         */
+        get: operations['getTagInsights'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/tags/{tagId}': {
         parameters: {
             query?: never;
@@ -1160,6 +1180,26 @@ export interface paths {
         put?: never;
         /** Create a group */
         post: operations['createGroup'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/groups/{groupId}/insights': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How the group performs and every campaign that reached its contacts
+         * @description Counts, the last 90 days of messages, the daily activity of the last 30 days and each campaign that reached at least one of its contacts (targeted at it or not), measured on those contacts only.
+         */
+        get: operations['getGroupInsights'];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1230,6 +1270,26 @@ export interface paths {
         put?: never;
         /** Count matching contacts and show a sample, without saving */
         post: operations['previewSegment'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/segments/{segmentId}/insights': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How the segment performs and every campaign that reached its contacts
+         * @description Counts, the last 90 days of messages, the daily activity of the last 30 days and each campaign that reached at least one of its contacts (targeted at it or not), measured on those contacts only.
+         */
+        get: operations['getSegmentInsights'];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3506,6 +3566,121 @@ export interface components {
             data: components['schemas']['TemplateSample'];
             meta: components['schemas']['Meta'];
         };
+        AudienceInsights: {
+            summary: {
+                /** Format: int64 */
+                contacts: number;
+                /**
+                 * Format: int64
+                 * @description Not opted out.
+                 */
+                reachable: number;
+                /** Format: int64 */
+                opted_out: number;
+                /**
+                 * Format: int64
+                 * @description Wrote in the last 7 days.
+                 */
+                active_7d: number;
+                /** Format: int64 */
+                active_30d: number;
+                /**
+                 * Format: int64
+                 * @description Joined in the last 30 days.
+                 */
+                new_30d: number;
+                /** Format: int64 */
+                with_email: number;
+            };
+            /** @description The last 90 days. */
+            messaging: {
+                /** Format: int64 */
+                outbound: number;
+                /** Format: int64 */
+                sent: number;
+                /** Format: int64 */
+                delivered: number;
+                /** Format: int64 */
+                read: number;
+                /** Format: int64 */
+                failed: number;
+                /** Format: int64 */
+                inbound: number;
+                /** Format: int64 */
+                contacts_messaged: number;
+                /**
+                 * Format: int64
+                 * @description Wrote within 72 hours of a message.
+                 */
+                contacts_replied: number;
+                /** Format: int64 */
+                from_campaigns: number;
+            };
+            campaigns: components['schemas']['AudienceCampaign'][];
+            daily: {
+                /** Format: date */
+                day: string;
+                /** Format: int64 */
+                sent: number;
+                /** Format: int64 */
+                delivered: number;
+                /** Format: int64 */
+                read: number;
+                /** Format: int64 */
+                inbound: number;
+            }[];
+            engaged: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                phone: string;
+                /** Format: int64 */
+                inbound_30d: number;
+                /** Format: date-time */
+                last_inbound_at: string | null;
+            }[];
+        };
+        AudienceCampaign: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components['schemas']['CampaignStatus'];
+            template_name: string;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            finished_at: string | null;
+            /** @description The campaign was sent to this audience (not only to some of its contacts). */
+            targeted: boolean;
+            /** Format: int64 */
+            total_recipients: number;
+            /**
+             * Format: int64
+             * @description Recipients who belong to this audience.
+             */
+            reached: number;
+            /** Format: int64 */
+            skipped: number;
+            /** Format: int64 */
+            sent: number;
+            /** Format: int64 */
+            delivered: number;
+            /** Format: int64 */
+            read: number;
+            /** Format: int64 */
+            failed: number;
+            /**
+             * Format: int64
+             * @description Contacts who wrote within 72 hours.
+             */
+            replied: number;
+            /** Format: int64 */
+            opted_out_after: number;
+        };
+        AudienceInsightsResponse: {
+            data: components['schemas']['AudienceInsights'];
+            meta: components['schemas']['Meta'];
+        };
         UploadedMediaResponse: {
             data: components['schemas']['UploadedMedia'];
             meta: components['schemas']['Meta'];
@@ -5448,6 +5623,32 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    getTagInsights: {
+        parameters: {
+            query?: {
+                /** @description IANA time zone of the daily series (default UTC). */
+                tz?: string;
+            };
+            header?: never;
+            path: {
+                tagId: components['parameters']['TagId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Insights */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AudienceInsightsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     deleteTag: {
         parameters: {
             query?: never;
@@ -5537,6 +5738,32 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['GroupResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getGroupInsights: {
+        parameters: {
+            query?: {
+                /** @description IANA time zone of the daily series (default UTC). */
+                tz?: string;
+            };
+            header?: never;
+            path: {
+                groupId: components['parameters']['GroupId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Insights */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AudienceInsightsResponse'];
                 };
             };
             default: components['responses']['Error'];
@@ -5685,6 +5912,32 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['SegmentPreviewResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getSegmentInsights: {
+        parameters: {
+            query?: {
+                /** @description IANA time zone of the daily series (default UTC). */
+                tz?: string;
+            };
+            header?: never;
+            path: {
+                segmentId: components['parameters']['SegmentId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Insights */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AudienceInsightsResponse'];
                 };
             };
             default: components['responses']['Error'];

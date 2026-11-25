@@ -1395,6 +1395,27 @@ paths:
               schema: { $ref: "#/components/schemas/TagResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /tags/{tagId}/insights:
+    get:
+      operationId: getTagInsights
+      tags: [contacts]
+      summary: How the tag performs and every campaign that reached its contacts
+      description: >-
+        Counts, the last 90 days of messages, the daily activity of the last
+        30 days and each campaign that reached at least one of its contacts
+        (targeted at it or not), measured on those contacts only.
+      security: [{ session: [contacts.read, campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/TagId" }
+        - { name: tz, in: query, schema: { type: string, maxLength: 64 }, description: IANA time zone of the daily series (default UTC). }
+      responses:
+        "200":
+          description: Insights
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AudienceInsightsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /tags/{tagId}:
     patch:
       operationId: updateTag
@@ -1455,6 +1476,27 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/GroupResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /groups/{groupId}/insights:
+    get:
+      operationId: getGroupInsights
+      tags: [contacts]
+      summary: How the group performs and every campaign that reached its contacts
+      description: >-
+        Counts, the last 90 days of messages, the daily activity of the last
+        30 days and each campaign that reached at least one of its contacts
+        (targeted at it or not), measured on those contacts only.
+      security: [{ session: [contacts.read, campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/GroupId" }
+        - { name: tz, in: query, schema: { type: string, maxLength: 64 }, description: IANA time zone of the daily series (default UTC). }
+      responses:
+        "200":
+          description: Insights
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AudienceInsightsResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /groups/{groupId}:
@@ -1562,6 +1604,27 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SegmentPreviewResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /segments/{segmentId}/insights:
+    get:
+      operationId: getSegmentInsights
+      tags: [contacts]
+      summary: How the segment performs and every campaign that reached its contacts
+      description: >-
+        Counts, the last 90 days of messages, the daily activity of the last
+        30 days and each campaign that reached at least one of its contacts
+        (targeted at it or not), measured on those contacts only.
+      security: [{ session: [segments.read, campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/SegmentId" }
+        - { name: tz, in: query, schema: { type: string, maxLength: 64 }, description: IANA time zone of the daily series (default UTC). }
+      responses:
+        "200":
+          description: Insights
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AudienceInsightsResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /segments/{segmentId}:
@@ -4488,6 +4551,84 @@ components:
       type: object
       required: [data, meta]
       properties: { data: { $ref: "#/components/schemas/TemplateSample" }, meta: { $ref: "#/components/schemas/Meta" } }
+    AudienceInsights:
+      type: object
+      required: [summary, messaging, campaigns, daily, engaged]
+      properties:
+        summary:
+          type: object
+          required: [contacts, reachable, opted_out, active_7d, active_30d, new_30d, with_email]
+          properties:
+            contacts: { type: integer, format: int64 }
+            reachable: { type: integer, format: int64, description: Not opted out. }
+            opted_out: { type: integer, format: int64 }
+            active_7d: { type: integer, format: int64, description: Wrote in the last 7 days. }
+            active_30d: { type: integer, format: int64 }
+            new_30d: { type: integer, format: int64, description: Joined in the last 30 days. }
+            with_email: { type: integer, format: int64 }
+        messaging:
+          type: object
+          description: The last 90 days.
+          required: [outbound, sent, delivered, read, failed, inbound, contacts_messaged, contacts_replied, from_campaigns]
+          properties:
+            outbound: { type: integer, format: int64 }
+            sent: { type: integer, format: int64 }
+            delivered: { type: integer, format: int64 }
+            read: { type: integer, format: int64 }
+            failed: { type: integer, format: int64 }
+            inbound: { type: integer, format: int64 }
+            contacts_messaged: { type: integer, format: int64 }
+            contacts_replied: { type: integer, format: int64, description: Wrote within 72 hours of a message. }
+            from_campaigns: { type: integer, format: int64 }
+        campaigns:
+          type: array
+          items: { $ref: "#/components/schemas/AudienceCampaign" }
+        daily:
+          type: array
+          items:
+            type: object
+            required: [day, sent, delivered, read, inbound]
+            properties:
+              day: { type: string, format: date }
+              sent: { type: integer, format: int64 }
+              delivered: { type: integer, format: int64 }
+              read: { type: integer, format: int64 }
+              inbound: { type: integer, format: int64 }
+        engaged:
+          type: array
+          items:
+            type: object
+            required: [id, name, phone, inbound_30d, last_inbound_at]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              phone: { type: string }
+              inbound_30d: { type: integer, format: int64 }
+              last_inbound_at: { type: [string, "null"], format: date-time }
+    AudienceCampaign:
+      type: object
+      required: [id, name, status, template_name, started_at, finished_at, targeted, total_recipients, reached, skipped, sent, delivered, read, failed, replied, opted_out_after]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/CampaignStatus" }
+        template_name: { type: string }
+        started_at: { type: [string, "null"], format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        targeted: { type: boolean, description: The campaign was sent to this audience (not only to some of its contacts). }
+        total_recipients: { type: integer, format: int64 }
+        reached: { type: integer, format: int64, description: Recipients who belong to this audience. }
+        skipped: { type: integer, format: int64 }
+        sent: { type: integer, format: int64 }
+        delivered: { type: integer, format: int64 }
+        read: { type: integer, format: int64 }
+        failed: { type: integer, format: int64 }
+        replied: { type: integer, format: int64, description: Contacts who wrote within 72 hours. }
+        opted_out_after: { type: integer, format: int64 }
+    AudienceInsightsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AudienceInsights" }, meta: { $ref: "#/components/schemas/Meta" } }
     UploadedMediaResponse:
       type: object
       required: [data, meta]

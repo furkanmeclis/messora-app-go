@@ -193,7 +193,12 @@ export function TagTable({
                 {tags.map((tag) => (
                     <TableRow key={tag.id}>
                         <TableCell>
-                            <TagChip name={tag.name} color={tag.color} />
+                            <Link
+                                href={`/contacts/tags/${tag.id}`}
+                                className="inline-flex rounded-full outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                                <TagChip name={tag.name} color={tag.color} />
+                            </Link>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                             <Link

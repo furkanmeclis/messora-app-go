@@ -187,7 +187,12 @@ export function GroupTable({
                 {groups.map((g) => (
                     <TableRow key={g.id}>
                         <TableCell>
-                            <div className="font-medium">{g.name}</div>
+                            <Link
+                                href={`/contacts/groups/${g.id}`}
+                                className="font-medium hover:underline"
+                            >
+                                {g.name}
+                            </Link>
                             {g.description && (
                                 <div className="max-w-md truncate text-xs text-muted-foreground">
                                     {g.description}

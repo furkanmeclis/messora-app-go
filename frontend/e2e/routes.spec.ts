@@ -57,6 +57,12 @@ test.beforeAll(async ({ browser }) => {
         VALUES ('+9055${digits}9', 'Route Contact', 'manual') RETURNING id;`);
     ids.segment = sql(`INSERT INTO segments (name, definition)
         VALUES ('Routes ${RUN}', '{"field":"name","operator":"contains","value":"Route"}') RETURNING id;`);
+    ids.group = sql(
+        `INSERT INTO contact_groups (name) VALUES ('Routes ${RUN}') RETURNING id;`,
+    );
+    ids.tag = sql(
+        `INSERT INTO tags (name) VALUES ('routes-${RUN}') RETURNING id;`,
+    );
     ids.automation =
         sql(`INSERT INTO automations (name, trigger_type, trigger, steps, program)
         VALUES ('Routes ${RUN}', 'new_contact', '{}',
@@ -124,7 +130,9 @@ const routes: [string, () => string][] = [
     ['/contacts', () => '/contacts'],
     ['/contacts/[id]', () => `/contacts/${ids.contact}`],
     ['/contacts/groups', () => '/contacts/groups'],
+    ['/contacts/groups/[id]', () => `/contacts/groups/${ids.group}`],
     ['/contacts/tags', () => '/contacts/tags'],
+    ['/contacts/tags/[id]', () => `/contacts/tags/${ids.tag}`],
     ['/contacts/segments', () => '/contacts/segments'],
     ['/contacts/segments/new', () => '/contacts/segments/new'],
     ['/contacts/segments/[id]', () => `/contacts/segments/${ids.segment}`],

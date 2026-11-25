@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Filter } from 'lucide-react';
+import { ChartColumn, Filter } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AudienceInsightsSection } from '../../audience';
 import { Button } from '@/components/ui/button';
 import {
     Empty,
@@ -86,14 +88,39 @@ export default async function SegmentPage({
                           })
                 }
             />
-            <SegmentBuilder
-                key={segment.updated_at}
-                segment={segment}
-                tags={tags.map((tag) => tag.name)}
-                groups={groups.map((g) => ({ id: g.id, name: g.name }))}
-                canManage={can(me, 'segments.manage')}
-                canViewContacts={canContacts}
-            />
+            <Tabs defaultValue={count == null ? 'definition' : 'insights'}>
+                <TabsList>
+                    <TabsTrigger value="insights" disabled={count == null}>
+                        <ChartColumn /> {t('insights.tabs.insights')}
+                    </TabsTrigger>
+                    <TabsTrigger value="definition">
+                        <Filter /> {t('insights.tabs.definition')}
+                    </TabsTrigger>
+                </TabsList>
+                <TabsContent value="insights" className="pt-4">
+                    {count != null && (
+                        <AudienceInsightsSection
+                            me={me}
+                            path={`/segments/${segment.id}`}
+                            contactsHref={
+                                canContacts
+                                    ? `/contacts?segment_id=${segment.id}`
+                                    : undefined
+                            }
+                        />
+                    )}
+                </TabsContent>
+                <TabsContent value="definition" className="pt-4">
+                    <SegmentBuilder
+                        key={segment.updated_at}
+                        segment={segment}
+                        tags={tags.map((tag) => tag.name)}
+                        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+                        canManage={can(me, 'segments.manage')}
+                        canViewContacts={canContacts}
+                    />
+                </TabsContent>
+            </Tabs>
         </>
     );
 }

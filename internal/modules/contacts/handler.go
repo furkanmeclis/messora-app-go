@@ -807,3 +807,58 @@ func (h *Handler) BulkContacts(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, r, http.StatusOK, api.ContactBulkResult{Matched: res.Matched, Affected: res.Affected})
 }
+
+func (h *Handler) insights(w http.ResponseWriter, r *http.Request, kind AudienceKind, id uuid.UUID, f Filter, tz *string) {
+	zone := ""
+	if tz != nil {
+		zone = *tz
+	}
+	out, err := h.svc.Insights(r.Context(), kind, id, f, zone)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// GetGroupInsights implements api.ServerInterface.
+func (h *Handler) GetGroupInsights(w http.ResponseWriter, r *http.Request, id api.GroupId, p api.GetGroupInsightsParams) {
+	if _, err := h.svc.q.GetContactGroup(r.Context(), id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = apperr.NotFound("Group not found.")
+		}
+		h.fail(w, r, err)
+		return
+	}
+	h.insights(w, r, AudienceGroup, id, Filter{GroupID: &id}, p.Tz)
+}
+
+// GetTagInsights implements api.ServerInterface.
+func (h *Handler) GetTagInsights(w http.ResponseWriter, r *http.Request, id api.TagId, p api.GetTagInsightsParams) {
+	if _, err := h.svc.q.GetTag(r.Context(), id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = apperr.NotFound("Tag not found.")
+		}
+		h.fail(w, r, err)
+		return
+	}
+	h.insights(w, r, AudienceTag, id, Filter{TagID: &id}, p.Tz)
+}
+
+// GetSegmentInsights implements api.ServerInterface.
+func (h *Handler) GetSegmentInsights(w http.ResponseWriter, r *http.Request, id api.SegmentId, p api.GetSegmentInsightsParams) {
+	s, err := h.svc.q.GetSegment(r.Context(), id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = apperr.NotFound("Segment not found.")
+	}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	n, err := segment.Parse(s.Definition)
+	if err != nil {
+		h.fail(w, r, apperr.Validation("definition", err.Error()))
+		return
+	}
+	h.insights(w, r, AudienceSegment, id, Filter{Segment: n}, p.Tz)
+}
