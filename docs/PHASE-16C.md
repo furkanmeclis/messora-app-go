@@ -184,7 +184,7 @@ Aşağıdaki önerilerin hepsi kabul edildi: (1) yetki izolasyonu 16C'de, firmal
 | Paket | Durum |
 |---|---|
 | P0 Altyapı | ✅ tamamlandı (2026-11-25) — açık doğrulamalar: Meta `throughput` seviye adları ve `pricing_analytics` numara alanı gerçek hesapta teyit edilecek |
-| P1 Abonelik ve izin | bekliyor |
+| P1 Abonelik ve izin | ✅ tamamlandı (2026-11-25) — kurallar ve kararlar: docs/CONSENT.md; açık: durum webhook'u ile gelen 131049 otomatik tekrar gönderilmez (P2 "ulaşılamayanlar" kitlesi) |
 | P2 Gönderim motoru | bekliyor |
 | P3 Analitik ve rapor | bekliyor |
 | P4 Şablon ve teklif | bekliyor |
