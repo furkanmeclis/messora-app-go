@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
@@ -24,11 +23,7 @@ export default async function GroupsPage() {
                 description={t('contacts.groups.description')}
                 actions={canManage && <GroupDialog />}
             />
-            <Card>
-                <CardContent className="p-0">
-                    <GroupTable groups={groups} canManage={canManage} />
-                </CardContent>
-            </Card>
+            <GroupTable groups={groups} canManage={canManage} />
         </>
     );
 }
