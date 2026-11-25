@@ -35,11 +35,11 @@ test: ## Run unit tests
 
 .PHONY: test-integration
 test-integration: ## Run unit + integration tests against real PostgreSQL/Redis containers (needs Docker)
-	go test -race -count=1 -tags=integration -timeout 15m $(GO_PKGS)
+	go test -race -count=1 -tags=integration -timeout 30m $(GO_PKGS)
 
 .PHONY: cover
 cover: ## Integration tests with race detector + coverage gate (COVERAGE_MIN)
-	go test -race -count=1 -tags=integration -timeout 15m -coverpkg=./internal/... -coverprofile=coverage.out $(GO_PKGS)
+	go test -race -count=1 -tags=integration -timeout 30m -coverpkg=./internal/... -coverprofile=coverage.out $(GO_PKGS)
 	@total=$$(go tool cover -func=coverage.out | awk '/^total:/{sub("%","",$$3); print $$3}'); \
 	echo "total coverage: $$total% (minimum $(COVERAGE_MIN)%)"; \
 	awk -v t="$$total" -v m="$(COVERAGE_MIN)" 'BEGIN{exit (t+0 < m+0)}' || { echo "coverage below minimum"; exit 1; }

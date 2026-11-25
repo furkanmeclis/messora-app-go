@@ -18,11 +18,16 @@ ALTER TABLE whatsapp_accounts
 
 -- +goose Down
 -- squawk-ignore ban-drop-column
-ALTER TABLE whatsapp_accounts
-    DROP COLUMN IF EXISTS token_notified_at,
-    DROP COLUMN IF EXISTS token_warning,
-    DROP COLUMN IF EXISTS token_checked_at,
-    DROP COLUMN IF EXISTS token_scopes,
-    DROP COLUMN IF EXISTS token_data_access_expires_at,
-    DROP COLUMN IF EXISTS token_expires_at,
-    DROP COLUMN IF EXISTS token_type;
+ALTER TABLE whatsapp_accounts DROP COLUMN IF EXISTS token_notified_at;
+-- squawk-ignore ban-drop-column
+ALTER TABLE whatsapp_accounts DROP COLUMN IF EXISTS token_warning;
+-- squawk-ignore ban-drop-column
+ALTER TABLE whatsapp_accounts DROP COLUMN IF EXISTS token_checked_at;
+-- squawk-ignore ban-drop-column
+ALTER TABLE whatsapp_accounts DROP COLUMN IF EXISTS token_scopes;
+-- squawk-ignore ban-drop-column
+ALTER TABLE whatsapp_accounts DROP COLUMN IF EXISTS token_data_access_expires_at;
+-- squawk-ignore ban-drop-column
+ALTER TABLE whatsapp_accounts DROP COLUMN IF EXISTS token_expires_at;
+-- squawk-ignore ban-drop-column
+ALTER TABLE whatsapp_accounts DROP COLUMN IF EXISTS token_type;
