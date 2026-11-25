@@ -51,8 +51,37 @@ const params = {
     issues: {
         title: 'Before sending',
         media: 'Add the header {kind}.',
-        location: 'Templates with a location header cannot be sent yet.',
+        location: 'Give the latitude and longitude of the header location.',
         value: '{slot} needs a value.',
+        cardMedia: 'Card {n} needs its image or video.',
+    },
+    coupon: 'Copy code',
+    expiration: 'Offer ends',
+    expirationHint:
+        'WhatsApp counts down to this time (limited-time offer). Your browser time zone.',
+    otp: 'One-time code',
+    card: 'Card {n}',
+    cardButton: 'Button {n}: end of the address',
+    cardPayload: 'Button {n}: quick reply payload (optional)',
+    offerField: 'Offer: {field}',
+    offer: {
+        image: "The linked offer's image is used for the header.",
+        coupon: "The linked offer's coupon fills the copy code button.",
+        ends: "The linked offer's end time drives WhatsApp's countdown.",
+    },
+    location: {
+        title: 'Header location',
+        latitude: 'Latitude',
+        longitude: 'Longitude',
+        name: 'Place name',
+        address: 'Address',
+        hint: 'Decimal degrees, e.g. 41.0082 and 28.9784. Name and address may use placeholders.',
+    },
+    flow: {
+        title: 'Flow',
+        token: 'Flow token (optional)',
+        data: 'First screen data (JSON, optional)',
+        invalid: 'Flow data must be a JSON object.',
     },
     preview: {
         title: 'Preview',

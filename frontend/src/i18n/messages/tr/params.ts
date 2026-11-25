@@ -53,8 +53,37 @@ const params: Messages['params'] = {
     issues: {
         title: 'Göndermeden önce',
         media: 'Başlık {kind} ekleyin.',
-        location: 'Konum başlıklı şablonlar henüz gönderilemiyor.',
+        location: 'Başlık konumunun enlem ve boylamını girin.',
         value: '{slot} için bir değer gerekli.',
+        cardMedia: 'Kart {n} için görsel veya video gerekli.',
+    },
+    coupon: 'Kopyalanacak kod',
+    expiration: 'Teklif bitişi',
+    expirationHint:
+        'WhatsApp bu zamana kadar geri sayar (süreli teklif). Tarayıcınızın saat dilimi.',
+    otp: 'Tek kullanımlık kod',
+    card: 'Kart {n}',
+    cardButton: 'Buton {n}: adresin sonu',
+    cardPayload: 'Buton {n}: hızlı yanıt verisi (isteğe bağlı)',
+    offerField: 'Teklif: {field}',
+    offer: {
+        image: 'Başlıkta bağlı teklifin görseli kullanılır.',
+        coupon: 'Kopyalama butonuna bağlı teklifin kuponu yazılır.',
+        ends: 'WhatsApp geri sayımı bağlı teklifin bitiş zamanını kullanır.',
+    },
+    location: {
+        title: 'Başlık konumu',
+        latitude: 'Enlem',
+        longitude: 'Boylam',
+        name: 'Yer adı',
+        address: 'Adres',
+        hint: 'Ondalık derece, ör. 41.0082 ve 28.9784. Ad ve adreste yer tutucular kullanılabilir.',
+    },
+    flow: {
+        title: 'Flow',
+        token: 'Flow token (isteğe bağlı)',
+        data: 'İlk ekran verisi (JSON, isteğe bağlı)',
+        invalid: 'Flow verisi bir JSON nesnesi olmalı.',
     },
     preview: {
         title: 'Önizleme',

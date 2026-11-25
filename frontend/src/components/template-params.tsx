@@ -4,31 +4,43 @@ import { useEffect, useMemo, useState } from 'react';
 import {
     AlertTriangle,
     CheckCircle2,
+    Clock,
     FileText,
+    GalleryHorizontal,
     Image as ImageIcon,
     Link2,
+    MapPin,
     Play,
+    Ticket,
     Type,
     Upload,
     UserRound,
+    Workflow,
     X,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import { DateTimePicker } from '@/components/ui/date-picker';
 import { FileDrop } from '@/components/ui/file-drop';
 import { Input } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
 import { Spinner } from '@/components/ui/spinner';
+import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n/client';
+import type { Translate } from '@/i18n/translate';
 import {
     CONTACT_FIELDS,
     fieldOf,
     fieldToken,
+    flowData,
     isMediaHeader,
     issuesOf,
     placeholdersIn,
+    type CardValues,
+    type HeaderMediaValue,
     type MediaHeaderKind,
+    type OfferFills,
     type ParamValues,
     type TemplateShape,
 } from '@/lib/templates';
@@ -43,47 +55,144 @@ const ACCEPT: Record<MediaHeaderKind, string> = {
 
 const MEDIA_ICON = { image: ImageIcon, video: Play, document: FileText };
 
+/** A value the editor fills: where it lives in ParamValues and its label. */
 type Slot = {
     key: string;
-    section: 'header' | 'body' | 'button';
-    name: string;
+    label: string;
+    get: (v: ParamValues) => string;
+    set: (v: ParamValues, x: string) => ParamValues;
+    /** Contact fields make no sense for some values (a code typed once). */
+    fieldMapping?: boolean;
+    maxLength?: number;
 };
 
-function slotsOf(shape: TemplateShape): Slot[] {
-    return [
+function card(v: ParamValues, k: number): CardValues {
+    return v.cards[k] ?? { body: {}, buttons: {} };
+}
+
+function withCard(v: ParamValues, k: number, c: CardValues): ParamValues {
+    const cards = [...v.cards];
+    while (cards.length <= k) cards.push({ body: {}, buttons: {} });
+    cards[k] = c;
+    return { ...v, cards };
+}
+
+/** The label of an issue slot ("body:1", "card:0:button:1", "coupon" …). */
+export function slotLabel(t: Translate, slot: string): string {
+    const parts = slot.split(':');
+    switch (parts[0]) {
+        case 'header':
+            return t('params.header', { name: parts[1]! });
+        case 'body':
+            return t('params.body', { name: parts[1]! });
+        case 'button':
+            return t('params.button', { n: Number(parts[1]) + 1 });
+        case 'coupon':
+            return t('params.coupon');
+        case 'expiration':
+            return t('params.expiration');
+        case 'otp':
+            return t('params.otp');
+        case 'card': {
+            const n = Number(parts[1]) + 1;
+            const inner =
+                parts[2] === 'body'
+                    ? t('params.body', { name: parts[3]! })
+                    : t('params.cardButton', { n: Number(parts[3]) + 1 });
+            return `${t('params.card', { n })} · ${inner}`;
+        }
+    }
+    return slot;
+}
+
+function slotsOf(t: Translate, shape: TemplateShape): Slot[] {
+    if (shape.otp.length > 0) {
+        return [
+            {
+                key: 'otp',
+                label: t('params.otp'),
+                get: (v) => v.otp,
+                set: (v, x) => ({ ...v, otp: x }),
+                maxLength: 1024,
+            },
+        ];
+    }
+    const out: Slot[] = [
         ...shape.headerVars.map((name) => ({
             key: `header:${name}`,
-            section: 'header' as const,
-            name,
+            label: t('params.header', { name }),
+            get: (v: ParamValues) => v.header[name] ?? '',
+            set: (v: ParamValues, x: string) => ({
+                ...v,
+                header: { ...v.header, [name]: x },
+            }),
         })),
         ...shape.bodyVars.map((name) => ({
             key: `body:${name}`,
-            section: 'body' as const,
-            name,
+            label: t('params.body', { name }),
+            get: (v: ParamValues) => v.body[name] ?? '',
+            set: (v: ParamValues, x: string) => ({
+                ...v,
+                body: { ...v.body, [name]: x },
+            }),
         })),
         ...shape.urlButtons.map((i) => ({
             key: `button:${i}`,
-            section: 'button' as const,
-            name: String(i),
+            label: t('params.button', { n: i + 1 }),
+            get: (v: ParamValues) => v.buttons[i] ?? '',
+            set: (v: ParamValues, x: string) => ({
+                ...v,
+                buttons: { ...v.buttons, [i]: x },
+            }),
         })),
+    ];
+    if (shape.copyCode.length > 0) {
+        out.push({
+            key: 'coupon',
+            label: t('params.coupon'),
+            get: (v) => v.coupon,
+            set: (v, x) => ({ ...v, coupon: x }),
+            maxLength: shape.lto ? 15 : 20,
+        });
+    }
+    return out;
+}
+
+function cardSlots(t: Translate, shape: TemplateShape, k: number): Slot[] {
+    const cs = shape.cards[k]!;
+    return [
+        ...cs.bodyVars.map((name) => ({
+            key: `card:${k}:body:${name}`,
+            label: t('params.body', { name }),
+            get: (v: ParamValues) => card(v, k).body[name] ?? '',
+            set: (v: ParamValues, x: string) =>
+                withCard(v, k, {
+                    ...card(v, k),
+                    body: { ...card(v, k).body, [name]: x },
+                }),
+        })),
+        ...[...cs.urlButtons, ...cs.quickReplies]
+            .sort((a, b) => a - b)
+            .map((i) => ({
+                key: `card:${k}:button:${i}`,
+                label: cs.quickReplies.includes(i)
+                    ? t('params.cardPayload', { n: i + 1 })
+                    : t('params.cardButton', { n: i + 1 }),
+                get: (v: ParamValues) => card(v, k).buttons[i] ?? '',
+                set: (v: ParamValues, x: string) =>
+                    withCard(v, k, {
+                        ...card(v, k),
+                        buttons: { ...card(v, k).buttons, [i]: x },
+                    }),
+            })),
     ];
 }
 
-function get(v: ParamValues, s: Slot): string {
-    if (s.section === 'button') return v.buttons[Number(s.name)] ?? '';
-    return v[s.section][s.name] ?? '';
-}
-
-function set(v: ParamValues, s: Slot, value: string): ParamValues {
-    if (s.section === 'button')
-        return { ...v, buttons: { ...v.buttons, [Number(s.name)]: value } };
-    return { ...v, [s.section]: { ...v[s.section], [s.name]: value } };
-}
-
 /**
- * Fills a template's variables, header media and URL buttons: each
- * variable is a contact field (with a value for contacts that lack it) or
- * fixed text. Used by campaigns, the inbox and automations.
+ * Fills a template's variables, header media and the special components
+ * (location, copy code, offer end, carousel cards, one-time code, Flow):
+ * each variable is a contact field (with a value for contacts that lack
+ * it) or fixed text. Used by campaigns, the inbox and automations.
  */
 export function TemplateParamsEditor({
     shape,
@@ -93,6 +202,7 @@ export function TemplateParamsEditor({
     phoneNumberId,
     fieldMapping = true,
     disabled,
+    fills = {},
 }: {
     shape: TemplateShape;
     value: ParamValues;
@@ -103,13 +213,18 @@ export function TemplateParamsEditor({
     /** Inbox replies to one person may prefer fixed text only. */
     fieldMapping?: boolean;
     disabled?: boolean;
+    /** What a linked offer fills in (campaigns). */
+    fills?: OfferFills;
 }) {
     const t = useT();
-    const slots = slotsOf(shape);
+    const slots = slotsOf(t, shape);
+    const cardSlotList = shape.cards.flatMap((_, k) => cardSlots(t, shape, k));
     const fieldLabel = (f: string) =>
         f.startsWith('attr:')
             ? t('params.attribute', { key: f.slice(5) })
-            : t(`params.fields.${f as 'name'}`);
+            : f.startsWith('offer_')
+              ? t('params.offerField', { field: f.slice(6) })
+              : t(`params.fields.${f as 'name'}`);
     const options: ComboboxOption[] = useMemo(
         () => [
             ...CONTACT_FIELDS.map((f) => ({
@@ -128,42 +243,137 @@ export function TemplateParamsEditor({
     );
 
     const used = [
-        ...new Set(slots.flatMap((s) => placeholdersIn(get(value, s)))),
+        ...new Set(
+            [...slots, ...cardSlotList]
+                .flatMap((s) => placeholdersIn(s.get(value)))
+                .filter((f) => !f.startsWith('offer_')),
+        ),
     ];
+    const hasSpecial =
+        shape.header === 'location' ||
+        shape.lto ||
+        shape.cards.length > 0 ||
+        shape.flow.length > 0;
+    const offerImage = fills.media && shape.header === 'image';
 
     return (
         <div className="space-y-5">
-            {isMediaHeader(shape.header) && (
-                <MediaPicker
-                    kind={shape.header}
+            {isMediaHeader(shape.header) &&
+                (offerImage && !value.media ? (
+                    <FillNote
+                        icon={<ImageIcon />}
+                        text={t('params.offer.image')}
+                    />
+                ) : (
+                    <MediaPicker
+                        kind={shape.header}
+                        media={value.media}
+                        onMedia={(media, preview) =>
+                            onChange({
+                                ...value,
+                                media,
+                                mediaPreview: preview,
+                            })
+                        }
+                        phoneNumberId={phoneNumberId}
+                        disabled={disabled}
+                        testId="param-media"
+                    />
+                ))}
+            {shape.header === 'location' && (
+                <LocationEditor
                     value={value}
                     onChange={onChange}
-                    phoneNumberId={phoneNumberId}
                     disabled={disabled}
                 />
             )}
-            {slots.length === 0 && !isMediaHeader(shape.header) && (
-                <p className="text-sm text-muted-foreground">
-                    {t('params.noVariables')}
-                </p>
+            {slots.length === 0 &&
+                !isMediaHeader(shape.header) &&
+                !hasSpecial && (
+                    <p className="text-sm text-muted-foreground">
+                        {t('params.noVariables')}
+                    </p>
+                )}
+            {slots.map((s) =>
+                s.key === 'coupon' && fills.coupon && !value.coupon ? (
+                    <FillNote
+                        key={s.key}
+                        icon={<Ticket />}
+                        text={t('params.offer.coupon')}
+                    />
+                ) : (
+                    <SlotRow
+                        key={s.key}
+                        label={s.label}
+                        example={shape.examples[s.key]}
+                        value={s.get(value)}
+                        onChange={(x) => onChange(s.set(value, x))}
+                        options={options}
+                        fieldMapping={fieldMapping && s.fieldMapping !== false}
+                        disabled={disabled}
+                        maxLength={s.maxLength}
+                        testId={`param-${s.key}`}
+                    />
+                ),
             )}
-            {slots.map((s) => (
-                <SlotRow
-                    key={s.key}
-                    label={
-                        s.section === 'button'
-                            ? t('params.button', { n: Number(s.name) + 1 })
-                            : t(`params.${s.section}`, { name: s.name })
-                    }
-                    example={shape.examples[s.key]}
-                    value={get(value, s)}
-                    onChange={(x) => onChange(set(value, s, x))}
-                    options={options}
-                    fieldMapping={fieldMapping}
-                    disabled={disabled}
-                    testId={`param-${s.key}`}
-                />
+            {shape.lto &&
+                (fills.expiration ? (
+                    <FillNote icon={<Clock />} text={t('params.offer.ends')} />
+                ) : (
+                    <ExpirationEditor
+                        value={value}
+                        onChange={onChange}
+                        disabled={disabled}
+                    />
+                ))}
+            {shape.cards.map((cs, k) => (
+                <fieldset
+                    key={k}
+                    className="space-y-3 rounded-lg border p-3"
+                    data-testid={`param-card-${k}`}
+                >
+                    <legend className="flex items-center gap-2 px-1 text-sm font-medium">
+                        <GalleryHorizontal className="size-4 text-muted-foreground" />
+                        {t('params.card', { n: k + 1 })}
+                    </legend>
+                    <MediaPicker
+                        kind={cs.header}
+                        media={card(value, k).media}
+                        onMedia={(media, preview) =>
+                            onChange(
+                                withCard(value, k, {
+                                    ...card(value, k),
+                                    media,
+                                    mediaPreview: preview,
+                                }),
+                            )
+                        }
+                        phoneNumberId={phoneNumberId}
+                        disabled={disabled}
+                        testId={`param-card-${k}-media`}
+                    />
+                    {cardSlots(t, shape, k).map((s) => (
+                        <SlotRow
+                            key={s.key}
+                            label={s.label}
+                            example={shape.examples[s.key]}
+                            value={s.get(value)}
+                            onChange={(x) => onChange(s.set(value, x))}
+                            options={options}
+                            fieldMapping={fieldMapping}
+                            disabled={disabled}
+                            testId={`param-${s.key}`}
+                        />
+                    ))}
+                </fieldset>
             ))}
+            {shape.flow.length > 0 && (
+                <FlowEditor
+                    value={value}
+                    onChange={onChange}
+                    disabled={disabled}
+                />
+            )}
             {used.length > 0 && (
                 <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
                     {used.map((f) => (
@@ -203,6 +413,15 @@ export function TemplateParamsEditor({
     );
 }
 
+function FillNote({ icon, text }: { icon: React.ReactNode; text: string }) {
+    return (
+        <p className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground [&>svg]:size-4 [&>svg]:shrink-0">
+            {icon}
+            {text}
+        </p>
+    );
+}
+
 function SlotRow({
     label,
     example,
@@ -211,6 +430,7 @@ function SlotRow({
     options,
     fieldMapping,
     disabled,
+    maxLength = 1024,
     testId,
 }: {
     label: string;
@@ -220,6 +440,7 @@ function SlotRow({
     options: ComboboxOption[];
     fieldMapping: boolean;
     disabled?: boolean;
+    maxLength?: number;
     testId: string;
 }) {
     const t = useT();
@@ -267,7 +488,7 @@ function SlotRow({
                     />
                 )}
             </div>
-            {mode === 'field' ? (
+            {mode === 'field' && fieldMapping ? (
                 <Combobox
                     aria-label={label}
                     options={options}
@@ -284,7 +505,7 @@ function SlotRow({
                     value={value}
                     placeholder={t('params.textPlaceholder')}
                     disabled={disabled}
-                    maxLength={1024}
+                    maxLength={maxLength}
                     onChange={(e) => onChange(e.target.value)}
                 />
             )}
@@ -292,37 +513,198 @@ function SlotRow({
     );
 }
 
-function MediaPicker({
-    kind,
+function LocationEditor({
     value,
     onChange,
-    phoneNumberId,
     disabled,
 }: {
-    kind: MediaHeaderKind;
     value: ParamValues;
     onChange: (v: ParamValues) => void;
-    phoneNumberId?: string;
     disabled?: boolean;
 }) {
     const t = useT();
-    const media = value.media?.type === kind ? value.media : undefined;
+    const l = value.location ?? {
+        latitude: '',
+        longitude: '',
+        name: '',
+        address: '',
+    };
+    const set = (k: keyof typeof l, x: string) =>
+        onChange({ ...value, location: { ...l, [k]: x } });
+    const field = (k: keyof typeof l, mode?: 'decimal') => (
+        <label className="space-y-1 text-sm">
+            <span className="text-muted-foreground">
+                {t(`params.location.${k}`)}
+            </span>
+            <Input
+                value={l[k]}
+                inputMode={mode}
+                disabled={disabled}
+                maxLength={k === 'latitude' || k === 'longitude' ? 32 : 1024}
+                onChange={(e) => set(k, e.target.value)}
+            />
+        </label>
+    );
+    return (
+        <fieldset
+            className="space-y-3 rounded-lg border p-3"
+            data-testid="param-location"
+        >
+            <legend className="flex items-center gap-2 px-1 text-sm font-medium">
+                <MapPin className="size-4 text-muted-foreground" />
+                {t('params.location.title')}
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+                {field('latitude', 'decimal')}
+                {field('longitude', 'decimal')}
+                {field('name')}
+                {field('address')}
+            </div>
+            <p className="text-xs text-muted-foreground">
+                {t('params.location.hint')}
+            </p>
+        </fieldset>
+    );
+}
+
+/** datetime-local value of a Unix ms time, in the browser's zone. */
+function localInput(ms: number | undefined): string {
+    if (!ms) return '';
+    const d = new Date(ms);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function ExpirationEditor({
+    value,
+    onChange,
+    disabled,
+}: {
+    value: ParamValues;
+    onChange: (v: ParamValues) => void;
+    disabled?: boolean;
+}) {
+    const t = useT();
+    return (
+        <label
+            className="block space-y-1 rounded-lg border p-3 text-sm"
+            data-testid="param-expiration"
+        >
+            <span className="flex items-center gap-2 font-medium">
+                <Clock className="size-4 text-muted-foreground" />
+                {t('params.expiration')}
+            </span>
+            <DateTimePicker
+                value={localInput(value.expirationMs)}
+                disabled={disabled}
+                onValueChange={(v) => {
+                    const ms = v ? new Date(v).getTime() : undefined;
+                    onChange({
+                        ...value,
+                        expirationMs:
+                            ms && Number.isFinite(ms) ? ms : undefined,
+                    });
+                }}
+            />
+            <span className="block text-xs text-muted-foreground">
+                {t('params.expirationHint')}
+            </span>
+        </label>
+    );
+}
+
+function FlowEditor({
+    value,
+    onChange,
+    disabled,
+}: {
+    value: ParamValues;
+    onChange: (v: ParamValues) => void;
+    disabled?: boolean;
+}) {
+    const t = useT();
+    const bad = value.flowData.trim() !== '' && !flowData(value.flowData);
+    return (
+        <fieldset
+            className="space-y-3 rounded-lg border p-3"
+            data-testid="param-flow"
+        >
+            <legend className="flex items-center gap-2 px-1 text-sm font-medium">
+                <Workflow className="size-4 text-muted-foreground" />
+                {t('params.flow.title')}
+            </legend>
+            <label className="block space-y-1 text-sm">
+                <span className="text-muted-foreground">
+                    {t('params.flow.token')}
+                </span>
+                <Input
+                    value={value.flowToken}
+                    placeholder="unused"
+                    maxLength={1024}
+                    disabled={disabled}
+                    onChange={(e) =>
+                        onChange({ ...value, flowToken: e.target.value })
+                    }
+                />
+            </label>
+            <label className="block space-y-1 text-sm">
+                <span className="text-muted-foreground">
+                    {t('params.flow.data')}
+                </span>
+                <Textarea
+                    value={value.flowData}
+                    rows={3}
+                    className="font-mono text-xs"
+                    placeholder='{"product_id": "42"}'
+                    aria-invalid={bad || undefined}
+                    disabled={disabled}
+                    onChange={(e) =>
+                        onChange({ ...value, flowData: e.target.value })
+                    }
+                />
+                {bad && (
+                    <span className="block text-xs text-destructive">
+                        {t('params.flow.invalid')}
+                    </span>
+                )}
+            </label>
+        </fieldset>
+    );
+}
+
+function MediaPicker({
+    kind,
+    media: current,
+    onMedia,
+    phoneNumberId,
+    disabled,
+    testId,
+}: {
+    kind: MediaHeaderKind;
+    media?: HeaderMediaValue;
+    onMedia: (media?: HeaderMediaValue, preview?: string) => void;
+    phoneNumberId?: string;
+    disabled?: boolean;
+    testId: string;
+}) {
+    const t = useT();
+    const media = current?.type === kind ? current : undefined;
     const [mode, setMode] = useState<'upload' | 'link'>(
         media?.link ? 'link' : 'upload',
     );
     const [link, setLink] = useState(media?.link ?? '');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [preview, setPreview] = useState<string | undefined>();
     const Icon = MEDIA_ICON[kind];
     const kindLabel = t(`params.media.${kind}`);
 
     // Free the object URL of a replaced upload.
     useEffect(() => {
-        const src = value.mediaPreview;
         return () => {
-            if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
+            if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
         };
-    }, [value.mediaPreview]);
+    }, [preview]);
 
     const upload = async (file: File | null) => {
         if (!file) return;
@@ -354,17 +736,18 @@ function MediaPicker({
                 );
                 return;
             }
-            onChange({
-                ...value,
-                media: {
+            const src =
+                kind === 'document' ? undefined : URL.createObjectURL(file);
+            setPreview(src);
+            onMedia(
+                {
                     type: kind,
                     id: body.data.id,
                     filename:
                         kind === 'document' ? body.data.filename : undefined,
                 },
-                mediaPreview:
-                    kind === 'document' ? undefined : URL.createObjectURL(file),
-            });
+                src,
+            );
         } finally {
             setBusy(false);
         }
@@ -374,24 +757,20 @@ function MediaPicker({
         setLink(v);
         const ok = /^https:\/\/\S+$/i.test(v.trim());
         setError(v && !ok ? t('params.media.httpsOnly') : null);
-        onChange({
-            ...value,
-            media: ok
+        onMedia(
+            ok
                 ? {
                       type: kind,
                       link: v.trim(),
                       filename: kind === 'document' ? fileName(v) : undefined,
                   }
                 : undefined,
-            mediaPreview: ok && kind !== 'document' ? v.trim() : undefined,
-        });
+            ok && kind !== 'document' ? v.trim() : undefined,
+        );
     };
 
     return (
-        <div
-            className="space-y-3 rounded-lg border p-3"
-            data-testid="param-media"
-        >
+        <div className="space-y-3 rounded-lg border p-3" data-testid={testId}>
             <div className="flex flex-col items-start gap-2 @md:flex-row @md:items-center @md:justify-between">
                 <p className="flex items-center gap-2 text-sm font-medium">
                     <Icon className="size-4 text-muted-foreground" />
@@ -430,11 +809,7 @@ function MediaPicker({
                         disabled={disabled}
                         onClick={() => {
                             setLink('');
-                            onChange({
-                                ...value,
-                                media: undefined,
-                                mediaPreview: undefined,
-                            });
+                            onMedia(undefined, undefined);
                         }}
                     >
                         <X /> {t('params.media.remove')}
@@ -498,24 +873,17 @@ function fileName(url: string): string | undefined {
 export function ParamIssues({
     shape,
     value,
+    fills,
     className,
 }: {
     shape: TemplateShape;
     value: ParamValues;
+    fills?: OfferFills;
     className?: string;
 }) {
     const t = useT();
-    const issues = issuesOf(value, shape);
+    const issues = issuesOf(value, shape, fills);
     if (issues.length === 0) return null;
-    const slotLabel = (slot: string) => {
-        const [section, name] = slot.split(':') as [
-            'header' | 'body' | 'button',
-            string,
-        ];
-        return section === 'button'
-            ? t('params.button', { n: Number(name) + 1 })
-            : t(`params.${section}`, { name });
-    };
     return (
         <Alert className={cn(className)}>
             <AlertTriangle />
@@ -532,9 +900,15 @@ export function ParamIssues({
                                   })
                                 : i.kind === 'location'
                                   ? t('params.issues.location')
-                                  : t('params.issues.value', {
-                                        slot: slotLabel(i.slot),
-                                    })}
+                                  : i.kind === 'cardMedia'
+                                    ? t('params.issues.cardMedia', {
+                                          n: i.card + 1,
+                                      })
+                                    : i.kind === 'flowData'
+                                      ? t('params.flow.invalid')
+                                      : t('params.issues.value', {
+                                            slot: slotLabel(t, i.slot),
+                                        })}
                         </li>
                     ))}
                 </ul>

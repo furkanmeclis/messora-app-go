@@ -41,7 +41,9 @@ type Sent struct {
 	PhoneNumberID string
 	Token         string
 	Message       whatsapp.Message
-	WAMID         string // empty when the scripted behavior failed
+	// Raw is the request body exactly as received.
+	Raw   json.RawMessage
+	WAMID string // empty when the scripted behavior failed
 }
 
 // Server is the mock.
@@ -59,7 +61,8 @@ type Server struct {
 	exchanged map[string]string // short-lived token → long-lived token
 	currency  map[string]string // waba → currency
 	pricing   map[string][]whatsapp.PricingDataPoint
-	pricingQ  []string // pricing_analytics field expansions requested
+	pricingQ  []string          // pricing_analytics field expansions requested
+	created   []json.RawMessage // template creation bodies, as received
 }
 
 // SetCurrency scripts GET /{waba}?fields=currency.
@@ -372,13 +375,13 @@ func (s *Server) send(w http.ResponseWriter, r *http.Request, pnid, token string
 		select {
 		case <-time.After(b.Delay):
 		case <-r.Context().Done():
-			s.record(pnid, token, m, "") // Meta may still process it
+			s.record(pnid, token, m, body, "") // Meta may still process it
 			return
 		}
 	}
 	switch {
 	case b.DropConnection:
-		s.record(pnid, token, m, newID("wamid.")) // processed, but the answer is lost
+		s.record(pnid, token, m, body, newID("wamid.")) // processed, but the answer is lost
 		if hj, ok := w.(http.Hijacker); ok {
 			if c, _, err := hj.Hijack(); err == nil {
 				_ = c.(*net.TCPConn).SetLinger(0)
@@ -396,12 +399,12 @@ func (s *Server) send(w http.ResponseWriter, r *http.Request, pnid, token string
 		if status == 0 {
 			status = http.StatusBadRequest
 		}
-		s.record(pnid, token, m, "")
+		s.record(pnid, token, m, body, "")
 		graphError(w, status, b.ErrorCode, "scripted error")
 		return
 	}
 	wamid := newID("wamid.")
-	s.record(pnid, token, m, wamid)
+	s.record(pnid, token, m, body, wamid)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"messaging_product": "whatsapp",
 		"contacts":          []any{map[string]string{"input": m.To, "wa_id": strings.TrimPrefix(m.To, "+")}},
@@ -409,10 +412,30 @@ func (s *Server) send(w http.ResponseWriter, r *http.Request, pnid, token string
 	})
 }
 
-func (s *Server) record(pnid, token string, m whatsapp.Message, wamid string) {
+func (s *Server) record(pnid, token string, m whatsapp.Message, body []byte, wamid string) {
 	s.mu.Lock()
-	s.sent = append(s.sent, Sent{PhoneNumberID: pnid, Token: token, Message: m, WAMID: wamid})
+	s.sent = append(s.sent, Sent{PhoneNumberID: pnid, Token: token, Message: m, Raw: append(json.RawMessage(nil), body...), WAMID: wamid})
 	s.mu.Unlock()
+}
+
+// CreatedTemplates returns the bodies of template creation requests, as
+// Meta received them.
+func (s *Server) CreatedTemplates() []json.RawMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]json.RawMessage(nil), s.created...)
+}
+
+// ApproveTemplate marks a created template APPROVED (as Meta's review
+// would), so a sync brings it in as sendable.
+func (s *Server) ApproveTemplate(waba, name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, t := range s.templates[waba] {
+		if t.Name == name {
+			s.templates[waba][i].Status = "APPROVED"
+		}
+	}
 }
 
 func (s *Server) templatesHandler(w http.ResponseWriter, r *http.Request, waba string) {
@@ -422,11 +445,13 @@ func (s *Server) templatesHandler(w http.ResponseWriter, r *http.Request, waba s
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, map[string]any{"data": s.templates[waba], "paging": map[string]any{}})
 	case http.MethodPost:
+		body, _ := io.ReadAll(r.Body)
 		var t whatsapp.TemplateInfo
-		if err := json.NewDecoder(r.Body).Decode(&t); err != nil || t.Name == "" {
+		if err := json.Unmarshal(body, &t); err != nil || t.Name == "" {
 			graphError(w, http.StatusBadRequest, 100, "Invalid template")
 			return
 		}
+		s.created = append(s.created, body)
 		t.ID, t.Status = newID("tpl"), "PENDING"
 		s.templates[waba] = append(s.templates[waba], t)
 		writeJSON(w, http.StatusOK, map[string]any{"id": t.ID, "status": t.Status, "category": t.Category})

@@ -231,10 +231,11 @@ func (s *Service) Reply(ctx context.Context, p *principal.Principal, id uuid.UUI
 		if err != nil {
 			return db.Message{}, err
 		}
-		if err := campaigns.CheckParams(campaigns.ShapeOf(t.Components, t.ParameterFormat), *params); err != nil {
+		sh := campaigns.ShapeOf(t.Components, t.ParameterFormat, t.Category)
+		if err := campaigns.CheckParams(sh, *params); err != nil {
 			return db.Message{}, err
 		}
-		tpl, missing := campaigns.Render(*params, ct, t.Name, t.Language)
+		tpl, missing := campaigns.Render(sh, *params, ct, t.Name, t.Language)
 		if missing != "" {
 			return db.Message{}, apperr.Validation("template.params", fmt.Sprintf("{{%s}} is empty for this contact; type a value or add a fallback.", missing))
 		}

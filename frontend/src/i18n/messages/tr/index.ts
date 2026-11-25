@@ -29,6 +29,7 @@ import templates from './templates';
 import users from './users';
 import webhooks from './webhooks';
 import consent from './consent';
+import offers from './offers';
 
 export const tr: Messages = {
     common,
@@ -56,6 +57,7 @@ export const tr: Messages = {
     users,
     webhooks,
     consent,
+    offers,
     auth,
     overview,
     inbox,

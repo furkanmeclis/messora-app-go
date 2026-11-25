@@ -3,6 +3,7 @@ package campaigns
 import (
 	"encoding/json"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -115,48 +116,149 @@ func parameters(raw json.RawMessage, c db.Contact, fallback map[string]string) (
 	return ps, ""
 }
 
-// Render builds the template payload for one contact. A non-empty second
-// result names a placeholder that had no value.
-func Render(p Params, c db.Contact, name, language string) (whatsapp.Template, string) {
-	t := whatsapp.Template{Name: name, Language: whatsapp.TemplateLanguage{Code: language}}
-	if hm := p.HeaderMedia; hm != nil {
-		m := &whatsapp.Media{ID: hm.ID, Link: hm.Link}
-		param := whatsapp.TemplateParameter{Type: hm.Type}
-		switch hm.Type {
-		case "image":
-			param.Image = m
-		case "video":
-			param.Video = m
-		case "document":
-			m.Filename = hm.Filename
-			param.Document = m
-		}
-		t.Components = append(t.Components, whatsapp.TemplateComponent{Type: "header", Parameters: []whatsapp.TemplateParameter{param}})
+// mediaParameter is the header parameter of an image, video or document.
+func mediaParameter(hm *HeaderMedia) whatsapp.TemplateParameter {
+	m := &whatsapp.Media{ID: hm.ID, Link: hm.Link}
+	param := whatsapp.TemplateParameter{Type: hm.Type}
+	switch hm.Type {
+	case "image":
+		param.Image = m
+	case "video":
+		param.Video = m
+	case "document":
+		m.Filename = hm.Filename
+		param.Document = m
 	}
-	if ps, miss := parameters(p.Header, c, p.Fallback); miss != "" {
-		return t, miss
-	} else if len(ps) > 0 {
-		t.Components = append(t.Components, whatsapp.TemplateComponent{Type: "header", Parameters: ps})
+	return param
+}
+
+type renderer struct {
+	c        db.Contact
+	fallback map[string]string
+	missing  string
+}
+
+// text fills placeholders, remembering the first one without a value.
+func (r *renderer) text(s string) string {
+	v, miss := fill(s, r.c, r.fallback)
+	if miss != "" && r.missing == "" {
+		r.missing = miss
 	}
-	if ps, miss := parameters(p.Body, c, p.Fallback); miss != "" {
-		return t, miss
-	} else if len(ps) > 0 {
-		t.Components = append(t.Components, whatsapp.TemplateComponent{Type: "body", Parameters: ps})
+	return v
+}
+
+func (r *renderer) params(raw json.RawMessage) []whatsapp.TemplateParameter {
+	ps, miss := parameters(raw, r.c, r.fallback)
+	if miss != "" && r.missing == "" {
+		r.missing = miss
 	}
-	for i, b := range p.Buttons {
-		// Buttons[i] belongs to the template's button i; an empty entry is a
-		// button without a dynamic part (quick reply, static URL, phone).
+	return ps
+}
+
+// urlButtons fills the dynamic suffixes: buttons[i] belongs to the
+// template's button i; an empty entry is a button without a dynamic part
+// (quick reply, static URL, phone).
+func (r *renderer) urlButtons(buttons []string) []whatsapp.TemplateComponent {
+	var out []whatsapp.TemplateComponent
+	for i, b := range buttons {
 		if strings.TrimSpace(b) == "" {
 			continue
 		}
-		v, miss := fill(b, c, p.Fallback)
-		if miss != "" {
-			return t, miss
-		}
-		t.Components = append(t.Components, whatsapp.TemplateComponent{Type: "button", SubType: "url", Index: strconv.Itoa(i),
-			Parameters: []whatsapp.TemplateParameter{{Type: "text", Text: v}}})
+		out = append(out, button("url", i, whatsapp.TemplateParameter{Type: "text", Text: r.text(b)}))
 	}
-	return t, ""
+	return out
+}
+
+func button(subType string, index int, p whatsapp.TemplateParameter) whatsapp.TemplateComponent {
+	return whatsapp.TemplateComponent{Type: "button", SubType: subType, Index: strconv.Itoa(index), Parameters: []whatsapp.TemplateParameter{p}}
+}
+
+// Render builds the template payload for one contact; sh is the template's
+// shape (it places copy code, Flow and one-time password buttons, the
+// limited-time offer and the carousel). A non-empty second result names a
+// placeholder that had no value.
+//
+// Components follow the order of Meta's examples: header, body,
+// limited_time_offer, buttons by index, carousel.
+func Render(sh Shape, p Params, c db.Contact, name, language string) (whatsapp.Template, string) {
+	t := whatsapp.Template{Name: name, Language: whatsapp.TemplateLanguage{Code: language}}
+	r := &renderer{c: c, fallback: p.Fallback}
+	add := func(cs ...whatsapp.TemplateComponent) { t.Components = append(t.Components, cs...) }
+	if hm := p.HeaderMedia; hm != nil {
+		add(whatsapp.TemplateComponent{Type: "header", Parameters: []whatsapp.TemplateParameter{mediaParameter(hm)}})
+	}
+	if l := p.Location; l != nil {
+		loc := &whatsapp.TemplateLocation{Latitude: strings.TrimSpace(l.Latitude), Longitude: strings.TrimSpace(l.Longitude),
+			Name: FillText(l.Name, c, p.Fallback), Address: FillText(l.Address, c, p.Fallback)}
+		add(whatsapp.TemplateComponent{Type: "header", Parameters: []whatsapp.TemplateParameter{{Type: "location", Location: loc}}})
+	}
+	if len(sh.OTP) > 0 {
+		// Authentication: the code goes into the body and the button.
+		code := r.text(p.OTPCode)
+		add(whatsapp.TemplateComponent{Type: "body", Parameters: []whatsapp.TemplateParameter{{Type: "text", Text: code}}},
+			button("url", sh.OTP[0], whatsapp.TemplateParameter{Type: "text", Text: code}))
+		return t, r.missing
+	}
+	if ps := r.params(p.Header); len(ps) > 0 {
+		add(whatsapp.TemplateComponent{Type: "header", Parameters: ps})
+	}
+	if ps := r.params(p.Body); len(ps) > 0 {
+		add(whatsapp.TemplateComponent{Type: "body", Parameters: ps})
+	}
+	if sh.LTO && p.ExpirationTimeMS != nil {
+		add(whatsapp.TemplateComponent{Type: "limited_time_offer", Parameters: []whatsapp.TemplateParameter{{Type: "limited_time_offer",
+			LimitedTimeOffer: &whatsapp.LimitedTimeOffer{ExpirationTimeMS: *p.ExpirationTimeMS}}}})
+	}
+	buttons := r.urlButtons(p.Buttons)
+	if len(sh.CopyCode) > 0 && strings.TrimSpace(p.CouponCode) != "" {
+		buttons = append(buttons, button("copy_code", sh.CopyCode[0], whatsapp.TemplateParameter{Type: "coupon_code", CouponCode: r.text(p.CouponCode)}))
+	}
+	if len(sh.Flow) > 0 {
+		action := &whatsapp.FlowAction{FlowToken: "unused"}
+		if p.Flow != nil {
+			if tok := strings.TrimSpace(p.Flow.Token); tok != "" {
+				action.FlowToken = r.text(tok)
+			}
+			action.FlowActionData = p.Flow.ActionData
+		}
+		buttons = append(buttons, button("flow", sh.Flow[0], whatsapp.TemplateParameter{Type: "action", Action: action}))
+	}
+	slices.SortStableFunc(buttons, func(a, b whatsapp.TemplateComponent) int {
+		x, _ := strconv.Atoi(a.Index)
+		y, _ := strconv.Atoi(b.Index)
+		return x - y
+	})
+	add(buttons...)
+	if len(p.Cards) > 0 {
+		cards := make([]whatsapp.TemplateCard, len(p.Cards))
+		for k, card := range p.Cards {
+			cc := whatsapp.TemplateCard{CardIndex: k}
+			if card.HeaderMedia != nil {
+				cc.Components = append(cc.Components, whatsapp.TemplateComponent{Type: "header",
+					Parameters: []whatsapp.TemplateParameter{mediaParameter(card.HeaderMedia)}})
+			}
+			if ps := r.params(card.Body); len(ps) > 0 {
+				cc.Components = append(cc.Components, whatsapp.TemplateComponent{Type: "body", Parameters: ps})
+			}
+			var qr []int
+			if k < len(sh.Cards) {
+				qr = sh.Cards[k].QuickReplies
+			}
+			for i, b := range card.Buttons {
+				switch {
+				case strings.TrimSpace(b) == "":
+				case slices.Contains(qr, i):
+					// A quick reply's value is the payload its tap reports.
+					cc.Components = append(cc.Components, button("quick_reply", i, whatsapp.TemplateParameter{Type: "payload", Payload: r.text(b)}))
+				default:
+					cc.Components = append(cc.Components, button("url", i, whatsapp.TemplateParameter{Type: "text", Text: r.text(b)}))
+				}
+			}
+			cards[k] = cc
+		}
+		add(whatsapp.TemplateComponent{Type: "carousel", Cards: cards})
+	}
+	return t, r.missing
 }
 
 // FillText substitutes contact placeholders in free text; unknown or empty

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
     AlertCircle,
@@ -8,6 +8,7 @@ import {
     FileText,
     Image as ImageIcon,
     Info,
+    Layers,
     Megaphone,
     Plus,
     RefreshCw,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { newIdempotencyKey, notify } from '@/components/notify';
+import { notify } from '@/components/notify';
 import { useReauth } from '@/components/reauth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -35,28 +36,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
-import {
     Empty,
     EmptyDescription,
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
 } from '@/components/ui/empty';
-import {
-    Field,
-    FieldDescription,
-    FieldGroup,
-    FieldLabel,
-    FieldLegend,
-    FieldSet,
-} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -66,7 +51,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { Textarea } from '@/components/ui/textarea';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useLocale, useT } from '@/i18n/client';
 import type { Translate } from '@/i18n/translate';
@@ -76,7 +60,6 @@ import {
     parseComponents,
     shapeOf,
     templateKey,
-    variablesOf,
 } from '@/lib/templates';
 import {
     Sheet,
@@ -87,15 +70,11 @@ import {
 } from '@/components/ui/sheet';
 import { syncAccountAction } from '../channels/actions';
 import { STATUS_TONE, TEMPLATE_STATUS_ICON } from '@/lib/status-icons';
-import { Layers } from 'lucide-react';
-import type { ActionResult, Schemas, Template } from '@/lib/types';
-import { createTemplateAction, deleteTemplateAction } from './actions';
+import type { Template } from '@/lib/types';
+import { deleteTemplateAction } from './actions';
 import { WhatsAppPreview } from '@/components/whatsapp-preview';
-import { FileDrop } from '@/components/ui/file-drop';
-import { Segmented } from '@/components/ui/segmented';
 
 type Option = { id: string; name: string };
-type Failure = Extract<ActionResult<unknown>, { ok: false }>;
 
 const ALL = 'all';
 
@@ -388,6 +367,39 @@ export function TemplateList({
                                                             )}
                                                         </Badge>
                                                     )}
+                                                    {sh.lto && (
+                                                        <Badge variant="secondary">
+                                                            {t(
+                                                                'templates.builder.kinds.lto',
+                                                            )}
+                                                        </Badge>
+                                                    )}
+                                                    {sh.cards.length > 0 && (
+                                                        <Badge variant="secondary">
+                                                            {t(
+                                                                'templates.builder.kinds.carousel',
+                                                            )}
+                                                        </Badge>
+                                                    )}
+                                                    {tpl.quality_score &&
+                                                        tpl.quality_score.toUpperCase() !==
+                                                            'UNKNOWN' && (
+                                                            <Badge
+                                                                variant="outline"
+                                                                data-quality={tpl.quality_score.toUpperCase()}
+                                                            >
+                                                                {t(
+                                                                    'templates.list.qualityLabel',
+                                                                )}
+                                                                :{' '}
+                                                                {tpl.quality_score.toUpperCase() in
+                                                                QUALITIES
+                                                                    ? t(
+                                                                          `templates.list.qualities.${tpl.quality_score.toUpperCase() as keyof typeof QUALITIES}`,
+                                                                      )
+                                                                    : tpl.quality_score.toLowerCase()}
+                                                            </Badge>
+                                                        )}
                                                     {vars > 0 && (
                                                         <Badge variant="secondary">
                                                             <Braces />{' '}
@@ -420,6 +432,7 @@ export function TemplateList({
                                             )}
                                         <WhatsAppPreview
                                             components={tpl.components}
+                                            category={tpl.category}
                                             mediaSrc={sh.exampleMedia}
                                             className="flex-1"
                                         />
@@ -501,6 +514,7 @@ function TemplateDetails({
                         <div className="space-y-5 px-4 pb-6">
                             <WhatsAppPreview
                                 components={tpl.components}
+                                category={tpl.category}
                                 mediaSrc={sh.exampleMedia}
                             />
                             <dl className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-1.5 text-sm">
@@ -515,7 +529,7 @@ function TemplateDetails({
                                 </dt>
                                 <dd>
                                     {t(
-                                        `templates.create.headerKinds.${(sh.header === 'location' ? 'NONE' : sh.header.toUpperCase()) as 'NONE'}`,
+                                        `templates.builder.headerKinds.${sh.header.toUpperCase() as 'NONE'}`,
                                     )}
                                 </dd>
                                 <dt className="text-muted-foreground">
@@ -692,40 +706,6 @@ function DeleteTemplate({ template }: { template: Template }) {
 
 // ── Create ────────────────────────────────────────────────────────────────
 
-type ButtonDraft = {
-    key: number;
-    type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
-    text: string;
-    value: string;
-    example: string;
-};
-
-type Draft = {
-    account_id: string;
-    name: string;
-    language: string;
-    category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
-    format: 'POSITIONAL' | 'NAMED';
-    headerKind: HeaderDraftKind;
-    header: string;
-    /** Meta's handle of the uploaded example (media headers). */
-    headerHandle: string;
-    headerFile: string;
-    headerPreview?: string;
-    body: string;
-    footer: string;
-    examples: Record<string, string>;
-    buttons: ButtonDraft[];
-};
-
-type HeaderDraftKind = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
-
-const SAMPLE_ACCEPT: Record<'IMAGE' | 'VIDEO' | 'DOCUMENT', string> = {
-    IMAGE: 'image/jpeg,image/png',
-    VIDEO: 'video/mp4',
-    DOCUMENT: 'application/pdf',
-};
-
 const CATEGORIES = { MARKETING: 1, UTILITY: 1, AUTHENTICATION: 1 } as const;
 type Category = keyof typeof CATEGORIES;
 
@@ -738,943 +718,17 @@ const QUALITIES = {
     RED: 1,
 } as const;
 
-const BUTTON_TYPES: ButtonDraft['type'][] = [
-    'QUICK_REPLY',
-    'URL',
-    'PHONE_NUMBER',
-];
-
-const LANGUAGES = [
-    'en_US',
-    'en_GB',
-    'tr',
-    'de',
-    'fr',
-    'es',
-    'it',
-    'pt_BR',
-    'nl',
-    'ar',
-    'ru',
-];
-
-function checkVariables(
-    t: Translate,
-    vars: string[],
-    format: Draft['format'],
-): string | null {
-    if (format === 'POSITIONAL') {
-        const bad = vars.find((v) => !/^[1-9][0-9]*$/.test(v));
-        if (bad)
-            return t('templates.validation.positionalNumbers', {
-                variable: `{{${bad}}}`,
-            });
-        const nums = vars.map(Number).sort((a, b) => a - b);
-        if (nums.some((n, i) => n !== i + 1))
-            return t('templates.validation.positionalOrder');
-        return null;
-    }
-    const bad = vars.find((v) => !/^[a-z_][a-z0-9_]*$/.test(v));
-    return bad
-        ? t('templates.validation.namedChars', { variable: `{{${bad}}}` })
-        : null;
-}
-
-/** Meta's components JSON for the draft. */
-function buildComponents(d: Draft): Record<string, unknown>[] {
-    const named = d.format === 'NAMED';
-    const ex = (v: string) => d.examples[v] ?? '';
-    const out: Record<string, unknown>[] = [];
-    const header = d.headerKind === 'TEXT' ? d.header.trim() : '';
-    if (d.headerKind !== 'NONE' && d.headerKind !== 'TEXT') {
-        out.push({
-            type: 'HEADER',
-            format: d.headerKind,
-            ...(d.headerHandle
-                ? { example: { header_handle: [d.headerHandle] } }
-                : {}),
-        });
-    }
-    if (header) {
-        const vars = variablesOf(header);
-        const c: Record<string, unknown> = {
-            type: 'HEADER',
-            format: 'TEXT',
-            text: header,
-        };
-        if (vars.length > 0) {
-            c.example = named
-                ? {
-                      header_text_named_params: vars.map((v) => ({
-                          param_name: v,
-                          example: ex(`h:${v}`),
-                      })),
-                  }
-                : { header_text: vars.map((v) => ex(`h:${v}`)) };
-        }
-        out.push(c);
-    }
-    const body = d.body.trim();
-    const bodyVars = variablesOf(body);
-    const bc: Record<string, unknown> = { type: 'BODY', text: body };
-    if (bodyVars.length > 0) {
-        const sorted = named
-            ? bodyVars
-            : [...bodyVars].sort((a, b) => Number(a) - Number(b));
-        bc.example = named
-            ? {
-                  body_text_named_params: sorted.map((v) => ({
-                      param_name: v,
-                      example: ex(`b:${v}`),
-                  })),
-              }
-            : { body_text: [sorted.map((v) => ex(`b:${v}`))] };
-    }
-    out.push(bc);
-    if (d.footer.trim()) out.push({ type: 'FOOTER', text: d.footer.trim() });
-    if (d.buttons.length > 0) {
-        out.push({
-            type: 'BUTTONS',
-            buttons: d.buttons.map((b) => {
-                if (b.type === 'URL') {
-                    const dyn = variablesOf(b.value).length > 0;
-                    return {
-                        type: 'URL',
-                        text: b.text.trim(),
-                        url: b.value.trim(),
-                        ...(dyn ? { example: [b.example.trim()] } : {}),
-                    };
-                }
-                if (b.type === 'PHONE_NUMBER') {
-                    return {
-                        type: 'PHONE_NUMBER',
-                        text: b.text.trim(),
-                        phone_number: b.value.trim(),
-                    };
-                }
-                return { type: 'QUICK_REPLY', text: b.text.trim() };
-            }),
-        });
-    }
-    return out;
-}
-
-/** Problems Meta would reject anyway, keyed by form field. */
-function validate(t: Translate, d: Draft): Record<string, string> {
-    const e: Record<string, string> = {};
-    if (!d.account_id) e.account_id = t('templates.validation.chooseAccount');
-    if (!/^[a-z0-9_]{1,512}$/.test(d.name))
-        e.name = t('templates.validation.name');
-    if (d.language.trim().length < 2)
-        e.language = t('templates.validation.language');
-    if (!d.body.trim()) e.body = t('templates.validation.bodyRequired');
-    else if (d.body.length > 1024) e.body = t('templates.validation.max1024');
-    const bodyProblem = checkVariables(t, variablesOf(d.body), d.format);
-    if (bodyProblem) e.body = bodyProblem;
-    const hv = d.headerKind === 'TEXT' ? variablesOf(d.header) : [];
-    if (d.headerKind === 'TEXT' && !d.header.trim())
-        e.header = t('templates.validation.headerText');
-    if (d.headerKind !== 'NONE' && d.headerKind !== 'TEXT' && !d.headerHandle)
-        e.header = t('templates.validation.headerSample');
-    if (d.headerKind === 'TEXT' && d.header.length > 60)
-        e.header = t('templates.validation.max60');
-    else if (hv.length > 1)
-        e.header = t('templates.validation.headerOneVariable');
-    else if (hv.length === 1) {
-        const p = checkVariables(t, hv, d.format);
-        if (p) e.header = p;
-    }
-    if (d.footer.length > 60) e.footer = t('templates.validation.max60');
-    if (variablesOf(d.footer).length > 0)
-        e.footer = t('templates.validation.footerNoVariables');
-    for (const v of hv)
-        if (!d.examples[`h:${v}`]?.trim())
-            e[`example-h:${v}`] = t('templates.validation.exampleRequired');
-    for (const v of variablesOf(d.body))
-        if (!d.examples[`b:${v}`]?.trim())
-            e[`example-b:${v}`] = t('templates.validation.exampleRequired');
-    d.buttons.forEach((b, i) => {
-        if (!b.text.trim())
-            e[`button-${i}-text`] = t(
-                'templates.validation.buttonTextRequired',
-            );
-        if (b.type === 'URL') {
-            if (!/^https:\/\/\S+$/.test(b.value.trim()))
-                e[`button-${i}-value`] = t('templates.validation.https');
-            else if (variablesOf(b.value).length > 0) {
-                if (!/\{\{1\}\}$/.test(b.value.trim()))
-                    e[`button-${i}-value`] = t(
-                        'templates.validation.urlVariable',
-                    );
-                else if (!b.example.trim())
-                    e[`button-${i}-example`] = t(
-                        'templates.validation.urlExample',
-                    );
-            }
-        }
-        if (b.type === 'PHONE_NUMBER' && !/^\+?[0-9 ]{7,20}$/.test(b.value))
-            e[`button-${i}-value`] = t('templates.validation.phone');
-    });
-    return e;
-}
-
-const EMPTY: Omit<Draft, 'account_id'> = {
-    name: '',
-    language: 'en_US',
-    category: 'MARKETING',
-    format: 'POSITIONAL',
-    headerKind: 'NONE',
-    header: '',
-    headerHandle: '',
-    headerFile: '',
-    body: '',
-    footer: '',
-    examples: {},
-    buttons: [],
-};
-
-export function CreateTemplateDialog({ accounts }: { accounts: Option[] }) {
+/** Opens the template builder (/templates/new). */
+export function NewTemplateButton() {
     const t = useT();
-    const { guard } = useReauth();
-    const [open, setOpen] = useState(false);
-    const [idem, setIdem] = useState(newIdempotencyKey);
-    const [pending, startTransition] = useTransition();
-    const [d, setD] = useState<Draft>({
-        ...EMPTY,
-        account_id: accounts.length === 1 ? accounts[0]!.id : '',
-    });
-    const [errors, setErrors] = useState<Record<string, string>>({});
-    const [failure, setFailure] = useState<Failure | null>(null);
-    const [nextKey, setNextKey] = useState(1);
-    const set = <K extends keyof Draft>(k: K, v: Draft[K]) =>
-        setD((p) => ({ ...p, [k]: v }));
-
-    const headerVars = useMemo(
-        () => (d.headerKind === 'TEXT' ? variablesOf(d.header) : []),
-        [d.header, d.headerKind],
-    );
-    const [uploading, setUploading] = useState(false);
-    const uploadSample = async (file: File | null) => {
-        if (!file || d.headerKind === 'NONE' || d.headerKind === 'TEXT') return;
-        if (!d.account_id) {
-            setErrors((e) => ({
-                ...e,
-                header: t('templates.validation.chooseAccount'),
-            }));
-            return;
-        }
-        setUploading(true);
-        try {
-            const q = new URLSearchParams({
-                account_id: d.account_id,
-                filename: file.name,
-            });
-            const res = await fetch(`/bff/template-sample?${q}`, {
-                method: 'POST',
-                body: file,
-                headers: {
-                    'Content-Type': file.type || 'application/octet-stream',
-                },
-            });
-            const out = (await res.json().catch(() => null)) as {
-                data?: { handle: string };
-                error?: { message?: string };
-            } | null;
-            if (!res.ok || !out?.data?.handle) {
-                setErrors((e) => ({
-                    ...e,
-                    header:
-                        out?.error?.message ?? t('common.somethingWentWrong'),
-                }));
-                return;
-            }
-            setErrors((e) => {
-                const next = { ...e };
-                delete next.header;
-                return next;
-            });
-            setD((p) => ({
-                ...p,
-                headerHandle: out.data!.handle,
-                headerFile: file.name,
-                headerPreview:
-                    p.headerKind === 'DOCUMENT'
-                        ? undefined
-                        : URL.createObjectURL(file),
-            }));
-        } finally {
-            setUploading(false);
-        }
-    };
-    const bodyVars = useMemo(() => variablesOf(d.body), [d.body]);
-    const components = useMemo(() => buildComponents(d), [d]);
-    const previewValues = useMemo(() => {
-        const h: Record<string, string> = {};
-        const b: Record<string, string> = {};
-        for (const v of headerVars) h[v] = d.examples[`h:${v}`] ?? '';
-        for (const v of bodyVars) b[v] = d.examples[`b:${v}`] ?? '';
-        return { header: h, body: b };
-    }, [headerVars, bodyVars, d.examples]);
-
-    const submit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const found = validate(t, d);
-        setErrors(found);
-        setFailure(null);
-        if (Object.keys(found).length > 0) {
-            const first = Object.keys(found)[0]!;
-            document.getElementById(`tpl-${first}`)?.focus();
-            return;
-        }
-        const input: Schemas['CreateTemplateRequest'] = {
-            account_id: d.account_id,
-            name: d.name,
-            language: d.language.trim(),
-            category: d.category,
-            parameter_format: d.format,
-            components,
-        };
-        startTransition(async () => {
-            const r = await guard(() => createTemplateAction(input, idem));
-            if (r.ok) {
-                notify(r);
-                setOpen(false);
-                setD({ ...EMPTY, account_id: d.account_id });
-                setIdem(newIdempotencyKey());
-            } else {
-                setErrors(r.fieldErrors ?? {});
-                setFailure(r);
-                setIdem(newIdempotencyKey());
-                if (r.code !== 'VALIDATION_ERROR') toast.error(r.message);
-            }
-        });
-    };
-
-    const err = (k: string) =>
-        errors[k] ? (
-            <p
-                id={`tpl-${k}-error`}
-                role="alert"
-                className="text-sm text-destructive"
-            >
-                {errors[k]}
-            </p>
-        ) : null;
-    const aria = (k: string) => ({
-        id: `tpl-${k}`,
-        'aria-invalid': errors[k] ? true : undefined,
-        'aria-describedby': errors[k] ? `tpl-${k}-error` : undefined,
-    });
-    const knownFields = new Set([
-        'account_id',
-        'name',
-        'language',
-        'category',
-        'header',
-        'body',
-        'footer',
-    ]);
-    const otherErrors = Object.entries(errors).filter(
-        ([k]) =>
-            !knownFields.has(k) &&
-            !k.startsWith('example-') &&
-            !k.startsWith('button-'),
-    );
-
+    const router = useRouter();
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button shortcut="n">
-                    <Plus /> {t('templates.create.open')}
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>{t('templates.create.title')}</DialogTitle>
-                    <DialogDescription>
-                        {t('templates.create.description')}
-                    </DialogDescription>
-                </DialogHeader>
-                <form
-                    onSubmit={submit}
-                    noValidate
-                    className="grid gap-6 md:grid-cols-[1fr_16rem]"
-                >
-                    <div className="space-y-5">
-                        {failure &&
-                            (failure.code !== 'VALIDATION_ERROR' ||
-                                otherErrors.length > 0) && (
-                                <Alert variant="destructive">
-                                    <AlertCircle />
-                                    <AlertDescription>
-                                        <p>{failure.message}</p>
-                                        {otherErrors.map(([k, v]) => (
-                                            <p key={k}>
-                                                <code>{k}</code> {v}
-                                            </p>
-                                        ))}
-                                    </AlertDescription>
-                                </Alert>
-                            )}
-                        <FieldGroup>
-                            <Field data-invalid={!!errors.account_id}>
-                                <FieldLabel htmlFor="tpl-account_id">
-                                    {t('templates.create.account')}
-                                </FieldLabel>
-                                <Select
-                                    value={d.account_id}
-                                    onValueChange={(v) => set('account_id', v)}
-                                >
-                                    <SelectTrigger
-                                        {...aria('account_id')}
-                                        className="w-full"
-                                    >
-                                        <SelectValue
-                                            placeholder={t(
-                                                'templates.create.chooseAccount',
-                                            )}
-                                        />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {accounts.map((a) => (
-                                            <SelectItem key={a.id} value={a.id}>
-                                                {a.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                {err('account_id')}
-                            </Field>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <Field data-invalid={!!errors.name}>
-                                    <FieldLabel htmlFor="tpl-name">
-                                        {t('templates.create.name')}
-                                    </FieldLabel>
-                                    <Input
-                                        {...aria('name')}
-                                        value={d.name}
-                                        maxLength={512}
-                                        placeholder={t(
-                                            'templates.create.namePlaceholder',
-                                        )}
-                                        autoComplete="off"
-                                        onChange={(e) =>
-                                            set(
-                                                'name',
-                                                e.target.value
-                                                    .toLowerCase()
-                                                    .replace(/[\s-]+/g, '_'),
-                                            )
-                                        }
-                                    />
-                                    {err('name') ?? (
-                                        <FieldDescription>
-                                            {t('templates.create.nameHint')}
-                                        </FieldDescription>
-                                    )}
-                                </Field>
-                                <Field data-invalid={!!errors.language}>
-                                    <FieldLabel htmlFor="tpl-language">
-                                        {t('templates.create.language')}
-                                    </FieldLabel>
-                                    <Input
-                                        {...aria('language')}
-                                        value={d.language}
-                                        list="tpl-languages"
-                                        maxLength={15}
-                                        onChange={(e) =>
-                                            set('language', e.target.value)
-                                        }
-                                    />
-                                    <datalist id="tpl-languages">
-                                        {LANGUAGES.map((l) => (
-                                            <option key={l} value={l} />
-                                        ))}
-                                    </datalist>
-                                    {err('language')}
-                                </Field>
-                                <Field>
-                                    <FieldLabel htmlFor="tpl-category">
-                                        {t('templates.create.category')}
-                                    </FieldLabel>
-                                    <Select
-                                        value={d.category}
-                                        onValueChange={(v) =>
-                                            set(
-                                                'category',
-                                                v as Draft['category'],
-                                            )
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            id="tpl-category"
-                                            className="w-full"
-                                        >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {(
-                                                Object.keys(
-                                                    CATEGORIES,
-                                                ) as Category[]
-                                            ).map((c) => (
-                                                <SelectItem key={c} value={c}>
-                                                    {t(
-                                                        `templates.categories.${c}`,
-                                                    )}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </Field>
-                                <Field>
-                                    <FieldLabel htmlFor="tpl-format">
-                                        {t('templates.create.variables')}
-                                    </FieldLabel>
-                                    <Select
-                                        value={d.format}
-                                        onValueChange={(v) =>
-                                            set('format', v as Draft['format'])
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            id="tpl-format"
-                                            className="w-full"
-                                        >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="POSITIONAL">
-                                                {t(
-                                                    'templates.create.numbered',
-                                                    {
-                                                        example: '{{1}}, {{2}}',
-                                                    },
-                                                )}
-                                            </SelectItem>
-                                            <SelectItem value="NAMED">
-                                                {t(
-                                                    'templates.create.namedFormat',
-                                                    {
-                                                        example:
-                                                            '{{first_name}}',
-                                                    },
-                                                )}
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </Field>
-                            </div>
-                            <Field data-invalid={!!errors.header}>
-                                <FieldLabel htmlFor="tpl-header">
-                                    {t('templates.create.header')}
-                                </FieldLabel>
-                                <Segmented
-                                    aria-label={t('templates.create.header')}
-                                    value={d.headerKind}
-                                    onValueChange={(k) =>
-                                        setD((p) => ({
-                                            ...p,
-                                            headerKind: k,
-                                            headerHandle: '',
-                                            headerFile: '',
-                                            headerPreview: undefined,
-                                        }))
-                                    }
-                                    options={(
-                                        [
-                                            'NONE',
-                                            'TEXT',
-                                            'IMAGE',
-                                            'VIDEO',
-                                            'DOCUMENT',
-                                        ] as const
-                                    ).map((k) => ({
-                                        value: k,
-                                        label: t(
-                                            `templates.create.headerKinds.${k}`,
-                                        ),
-                                    }))}
-                                />
-                                {d.headerKind === 'TEXT' && (
-                                    <Input
-                                        {...aria('header')}
-                                        value={d.header}
-                                        maxLength={60}
-                                        onChange={(e) =>
-                                            set('header', e.target.value)
-                                        }
-                                    />
-                                )}
-                                {(d.headerKind === 'IMAGE' ||
-                                    d.headerKind === 'VIDEO' ||
-                                    d.headerKind === 'DOCUMENT') && (
-                                    <div className="space-y-1">
-                                        <FileDrop
-                                            compact
-                                            accept={SAMPLE_ACCEPT[d.headerKind]}
-                                            disabled={uploading}
-                                            onFile={uploadSample}
-                                            hint={
-                                                uploading ? (
-                                                    <>
-                                                        <Spinner />{' '}
-                                                        {t(
-                                                            'params.media.uploading',
-                                                        )}
-                                                    </>
-                                                ) : d.headerFile ? (
-                                                    t(
-                                                        'templates.create.sampleUploaded',
-                                                        { name: d.headerFile },
-                                                    )
-                                                ) : (
-                                                    t(
-                                                        'templates.create.sampleHint',
-                                                    )
-                                                )
-                                            }
-                                        />
-                                    </div>
-                                )}
-                                {err('header')}
-                            </Field>
-                            <Field data-invalid={!!errors.body}>
-                                <FieldLabel htmlFor="tpl-body">
-                                    {t('templates.create.body')}
-                                </FieldLabel>
-                                <Textarea
-                                    {...aria('body')}
-                                    value={d.body}
-                                    rows={5}
-                                    maxLength={1024}
-                                    placeholder={
-                                        d.format === 'NAMED'
-                                            ? t(
-                                                  'templates.create.bodyPlaceholderNamed',
-                                              )
-                                            : t(
-                                                  'templates.create.bodyPlaceholderPositional',
-                                              )
-                                    }
-                                    onChange={(e) =>
-                                        set('body', e.target.value)
-                                    }
-                                />
-                                {err('body') ?? (
-                                    <FieldDescription>
-                                        {d.format === 'NAMED'
-                                            ? t(
-                                                  'templates.create.bodyHintNamed',
-                                              )
-                                            : t(
-                                                  'templates.create.bodyHintPositional',
-                                              )}
-                                    </FieldDescription>
-                                )}
-                            </Field>
-                            {(headerVars.length > 0 || bodyVars.length > 0) && (
-                                <FieldSet>
-                                    <FieldLegend variant="label">
-                                        {t('templates.create.examples')}
-                                    </FieldLegend>
-                                    <FieldDescription>
-                                        {t('templates.create.examplesHint')}
-                                    </FieldDescription>
-                                    <div className="grid gap-3 sm:grid-cols-2">
-                                        {[
-                                            ...headerVars.map((v) => ({
-                                                k: `h:${v}`,
-                                                label: t(
-                                                    'templates.create.exampleHeader',
-                                                    {
-                                                        variable: `{{${v}}}`,
-                                                    },
-                                                ),
-                                            })),
-                                            ...bodyVars.map((v) => ({
-                                                k: `b:${v}`,
-                                                label: t(
-                                                    'templates.create.exampleBody',
-                                                    {
-                                                        variable: `{{${v}}}`,
-                                                    },
-                                                ),
-                                            })),
-                                        ].map(({ k, label }) => (
-                                            <Field
-                                                key={k}
-                                                data-invalid={
-                                                    !!errors[`example-${k}`]
-                                                }
-                                            >
-                                                <FieldLabel
-                                                    htmlFor={`tpl-example-${k}`}
-                                                >
-                                                    {label}
-                                                </FieldLabel>
-                                                <Input
-                                                    {...aria(`example-${k}`)}
-                                                    value={d.examples[k] ?? ''}
-                                                    onChange={(e) =>
-                                                        set('examples', {
-                                                            ...d.examples,
-                                                            [k]: e.target.value,
-                                                        })
-                                                    }
-                                                />
-                                                {err(`example-${k}`)}
-                                            </Field>
-                                        ))}
-                                    </div>
-                                </FieldSet>
-                            )}
-                            <Field data-invalid={!!errors.footer}>
-                                <FieldLabel htmlFor="tpl-footer">
-                                    {t('templates.create.footer')}
-                                </FieldLabel>
-                                <Input
-                                    {...aria('footer')}
-                                    value={d.footer}
-                                    maxLength={60}
-                                    placeholder={t(
-                                        'templates.create.footerPlaceholder',
-                                    )}
-                                    onChange={(e) =>
-                                        set('footer', e.target.value)
-                                    }
-                                />
-                                {err('footer')}
-                            </Field>
-                            <FieldSet>
-                                <FieldLegend variant="label">
-                                    {t('templates.create.buttons')}
-                                </FieldLegend>
-                                {d.buttons.map((b, i) => (
-                                    <div
-                                        key={b.key}
-                                        className="space-y-2 rounded-lg border p-3"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <Select
-                                                value={b.type}
-                                                onValueChange={(v) =>
-                                                    set(
-                                                        'buttons',
-                                                        d.buttons.map((x) =>
-                                                            x.key === b.key
-                                                                ? {
-                                                                      ...x,
-                                                                      type: v as ButtonDraft['type'],
-                                                                  }
-                                                                : x,
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                <SelectTrigger
-                                                    className="w-40"
-                                                    aria-label={t(
-                                                        'templates.create.buttonType',
-                                                        { n: i + 1 },
-                                                    )}
-                                                >
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {BUTTON_TYPES.map((bt) => (
-                                                        <SelectItem
-                                                            key={bt}
-                                                            value={bt}
-                                                        >
-                                                            {t(
-                                                                `templates.create.buttonTypes.${bt}`,
-                                                            )}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <Input
-                                                {...aria(`button-${i}-text`)}
-                                                aria-label={t(
-                                                    'templates.create.buttonText',
-                                                    { n: i + 1 },
-                                                )}
-                                                placeholder={t(
-                                                    'templates.create.buttonTextPlaceholder',
-                                                )}
-                                                maxLength={25}
-                                                value={b.text}
-                                                onChange={(e) =>
-                                                    set(
-                                                        'buttons',
-                                                        d.buttons.map((x) =>
-                                                            x.key === b.key
-                                                                ? {
-                                                                      ...x,
-                                                                      text: e
-                                                                          .target
-                                                                          .value,
-                                                                  }
-                                                                : x,
-                                                        ),
-                                                    )
-                                                }
-                                            />
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                aria-label={t(
-                                                    'templates.create.removeButton',
-                                                    { n: i + 1 },
-                                                )}
-                                                onClick={() =>
-                                                    set(
-                                                        'buttons',
-                                                        d.buttons.filter(
-                                                            (x) =>
-                                                                x.key !== b.key,
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                <X />
-                                            </Button>
-                                        </div>
-                                        {err(`button-${i}-text`)}
-                                        {b.type !== 'QUICK_REPLY' && (
-                                            <>
-                                                <Input
-                                                    {...aria(
-                                                        `button-${i}-value`,
-                                                    )}
-                                                    aria-label={
-                                                        b.type === 'URL'
-                                                            ? t(
-                                                                  'templates.create.buttonAddress',
-                                                                  { n: i + 1 },
-                                                              )
-                                                            : t(
-                                                                  'templates.create.buttonPhone',
-                                                                  { n: i + 1 },
-                                                              )
-                                                    }
-                                                    placeholder={
-                                                        b.type === 'URL'
-                                                            ? 'https://example.com/track/{{1}}'
-                                                            : '+15551234567'
-                                                    }
-                                                    value={b.value}
-                                                    onChange={(e) =>
-                                                        set(
-                                                            'buttons',
-                                                            d.buttons.map(
-                                                                (x) =>
-                                                                    x.key ===
-                                                                    b.key
-                                                                        ? {
-                                                                              ...x,
-                                                                              value: e
-                                                                                  .target
-                                                                                  .value,
-                                                                          }
-                                                                        : x,
-                                                            ),
-                                                        )
-                                                    }
-                                                />
-                                                {err(`button-${i}-value`)}
-                                            </>
-                                        )}
-                                        {b.type === 'URL' &&
-                                            variablesOf(b.value).length > 0 && (
-                                                <>
-                                                    <Input
-                                                        {...aria(
-                                                            `button-${i}-example`,
-                                                        )}
-                                                        aria-label={t(
-                                                            'templates.create.buttonExample',
-                                                            { n: i + 1 },
-                                                        )}
-                                                        placeholder="https://example.com/track/ABC123"
-                                                        value={b.example}
-                                                        onChange={(e) =>
-                                                            set(
-                                                                'buttons',
-                                                                d.buttons.map(
-                                                                    (x) =>
-                                                                        x.key ===
-                                                                        b.key
-                                                                            ? {
-                                                                                  ...x,
-                                                                                  example:
-                                                                                      e
-                                                                                          .target
-                                                                                          .value,
-                                                                              }
-                                                                            : x,
-                                                                ),
-                                                            )
-                                                        }
-                                                    />
-                                                    {err(`button-${i}-example`)}
-                                                </>
-                                            )}
-                                    </div>
-                                ))}
-                                {d.buttons.length < 10 && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-fit"
-                                        onClick={() => {
-                                            set('buttons', [
-                                                ...d.buttons,
-                                                {
-                                                    key: nextKey,
-                                                    type: 'QUICK_REPLY',
-                                                    text: '',
-                                                    value: '',
-                                                    example: '',
-                                                },
-                                            ]);
-                                            setNextKey((k) => k + 1);
-                                        }}
-                                    >
-                                        <Plus />{' '}
-                                        {t('templates.create.addButton')}
-                                    </Button>
-                                )}
-                            </FieldSet>
-                        </FieldGroup>
-                        <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={pending}
-                        >
-                            {pending && <Spinner />}{' '}
-                            {t('templates.create.submit')}
-                        </Button>
-                    </div>
-                    <aside
-                        aria-label={t('templates.preview.title')}
-                        className="space-y-2"
-                    >
-                        <p className="text-sm font-medium">
-                            {t('templates.preview.title')}
-                        </p>
-                        <WhatsAppPreview
-                            components={components}
-                            literal={previewValues}
-                            mediaSrc={d.headerPreview}
-                            mediaName={d.headerFile}
-                        />
-                    </aside>
-                </form>
-            </DialogContent>
-        </Dialog>
+        <Button
+            shortcut="n"
+            onClick={() => router.push('/templates/new')}
+            data-testid="new-template"
+        >
+            <Plus /> {t('templates.create.open')}
+        </Button>
     );
 }

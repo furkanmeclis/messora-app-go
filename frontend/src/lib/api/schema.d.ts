@@ -921,6 +921,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/offers': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Time-limited offers */
+        get: operations['listOffers'];
+        put?: never;
+        /**
+         * Create an offer
+         * @description status draft keeps the offer unpublished; scheduled publishes it (it becomes active at starts_at, or at once when that has passed). The scheduler moves offers to active and expired every minute and publishes offer.updated on campaign:all.
+         */
+        post: operations['createOffer'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/offers/{offerId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One offer */
+        get: operations['getOffer'];
+        put?: never;
+        post?: never;
+        /** Delete an offer (campaigns using it keep their own values) */
+        delete: operations['deleteOffer'];
+        options?: never;
+        head?: never;
+        /**
+         * Edit, publish or end an offer
+         * @description Fields left out keep their value. status scheduled publishes a draft, draft unpublishes it, expired ends the offer now (campaigns using it pause with reason offer_expired). An expired offer cannot be edited.
+         */
+        patch: operations['updateOffer'];
+        trace?: never;
+    };
     '/messages': {
         parameters: {
             query?: never;
@@ -2814,9 +2857,101 @@ export interface components {
             category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
             /** @enum {string} */
             parameter_format?: 'POSITIONAL' | 'NAMED';
+            /** @description Meta's component objects (HEADER, BODY, FOOTER, BUTTONS, LIMITED_TIME_OFFER, CAROUSEL). They are checked against Meta's documented limits before submission (docs/WHATSAPP.md, "Template components"); a violation is a VALIDATION_ERROR naming the field, e.g. components.2.buttons.1.text. Catalog buttons (MPM, SPM, CATALOG) are refused. */
             components: {
                 [key: string]: unknown;
             }[];
+        };
+        /** @enum {string} */
+        OfferStatus: 'draft' | 'scheduled' | 'active' | 'expired';
+        Offer: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            description: string;
+            /** @description Short discount label such as 25% off. */
+            discount_text: string;
+            /** @description The product or service on offer. */
+            product: string;
+            /** Format: date-time */
+            starts_at: string;
+            /**
+             * Format: date-time
+             * @description Limited-time offer templates count down to this (expiration_time_ms).
+             */
+            ends_at: string;
+            /** @description Public https image; fills an image header that has no media. */
+            image_url?: string | null;
+            /** @description WhatsApp media ID of the image (preferred over image_url when set). */
+            image_media_id?: string | null;
+            cta_url?: string | null;
+            /** @description Fills the copy code button (15 characters at most for limited-time offers). */
+            coupon_code?: string | null;
+            /**
+             * Format: uuid
+             * @description The template the offer is meant for (a limited-time offer or an image template).
+             */
+            template_id?: string | null;
+            status: components['schemas']['OfferStatus'];
+            /** Format: uuid */
+            created_by?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        OfferInput: {
+            title: string;
+            description?: string;
+            discount_text?: string;
+            product?: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            image_url?: string;
+            image_media_id?: string;
+            cta_url?: string;
+            coupon_code?: string;
+            /** Format: uuid */
+            template_id?: string;
+            /**
+             * @description draft (default) or scheduled to publish.
+             * @enum {string}
+             */
+            status?: 'draft' | 'scheduled';
+        };
+        OfferUpdate: {
+            title?: string;
+            description?: string;
+            discount_text?: string;
+            product?: string;
+            /** Format: date-time */
+            starts_at?: string;
+            /** Format: date-time */
+            ends_at?: string;
+            /** @description Empty string clears. */
+            image_url?: string;
+            /** @description Empty string clears. */
+            image_media_id?: string;
+            /** @description Empty string clears. */
+            cta_url?: string;
+            /** @description Empty string clears. */
+            coupon_code?: string;
+            /** Format: uuid */
+            template_id?: string;
+            /** @description Unlinks the template. */
+            clear_template?: boolean;
+            /** @enum {string} */
+            status?: 'draft' | 'scheduled' | 'expired';
+        };
+        OfferResponse: {
+            data: components['schemas']['Offer'];
+            meta: components['schemas']['Meta'];
+        };
+        OfferListResponse: {
+            data: components['schemas']['Offer'][];
+            meta: components['schemas']['Meta'];
         };
         MediaRef: {
             id?: string;
@@ -3640,15 +3775,51 @@ export interface components {
             fallback?: {
                 [key: string]: string;
             };
-            /** @description Media for an image, video or document header (exactly one of id or https link). */
-            header_media?: {
-                /** @enum {string} */
-                type: 'image' | 'video' | 'document';
-                id?: string;
-                /** Format: uri */
-                link?: string;
-                filename?: string;
+            header_media?: components['schemas']['TemplateHeaderMedia'];
+            /** @description The place of a location header, in decimal degrees; name and address may contain placeholders. */
+            location?: {
+                latitude: string;
+                longitude: string;
+                name?: string;
+                address?: string;
             };
+            /** @description Code of the copy code button (placeholders allowed). A campaign linked to an offer takes the offer's coupon when empty. */
+            coupon_code?: string;
+            /**
+             * Format: int64
+             * @description When a limited-time offer ends (Unix milliseconds). A campaign linked to an offer always takes the offer's end.
+             */
+            expiration_time_ms?: number;
+            /** @description Carousel cards in order (as many as the template defines). */
+            cards?: {
+                header_media?: components['schemas']['TemplateHeaderMedia'];
+                body?:
+                    | string[]
+                    | {
+                          [key: string]: string;
+                      };
+                buttons?: string[];
+            }[];
+            /** @description The one-time password of an authentication template (the body and the button take it). */
+            otp_code?: string;
+            /** @description Values for a Flow button. */
+            flow?: {
+                /** @description Identifies the session to your Flow endpoint; Meta's default is unused. */
+                flow_token?: string;
+                /** @description Data for the Flow's first screen. */
+                flow_action_data?: {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        /** @description Media for an image, video or document header (exactly one of id or https link). */
+        TemplateHeaderMedia: {
+            /** @enum {string} */
+            type: 'image' | 'video' | 'document';
+            id?: string;
+            /** Format: uri */
+            link?: string;
+            filename?: string;
         };
         Campaign: {
             /** Format: uuid */
@@ -3676,6 +3847,11 @@ export interface components {
             /** Format: date-time */
             finished_at?: string | null;
             last_error?: string | null;
+            /**
+             * Format: uuid
+             * @description The offer the campaign promotes (see Offer).
+             */
+            offer_id?: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -3690,6 +3866,11 @@ export interface components {
             template_params?: components['schemas']['CampaignParams'];
             audience: components['schemas']['CampaignAudience'];
             window_size?: number;
+            /**
+             * Format: uuid
+             * @description Link an offer. A limited-time offer template takes its end as expiration_time_ms and its coupon; other templates can use the placeholders offer_title, offer_discount, offer_coupon, offer_ends, offer_url, offer_product and offer_description (e.g. {{offer_title}}). Starting or resuming is refused once the offer ended; a running campaign pauses with reason offer_expired.
+             */
+            offer_id?: string;
         };
         UpdateCampaignRequest: {
             name?: string;
@@ -3700,6 +3881,13 @@ export interface components {
             template_params?: components['schemas']['CampaignParams'];
             audience?: components['schemas']['CampaignAudience'];
             window_size?: number;
+            /**
+             * Format: uuid
+             * @description Link an offer (see CreateCampaignRequest).
+             */
+            offer_id?: string;
+            /** @description Unlink the offer. */
+            clear_offer?: boolean;
         };
         CampaignEventItem: {
             /** Format: uuid */
@@ -4215,6 +4403,7 @@ export interface components {
         AccountId: string;
         PhoneNumberId: string;
         TemplateId: string;
+        OfferId: string;
         MessageId: string;
         ConversationId: string;
         MediaId: string;
@@ -5685,6 +5874,128 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listOffers: {
+        parameters: {
+            query?: {
+                status?: components['schemas']['OfferStatus'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Offers, latest end first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['OfferListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createOffer: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
+                'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['OfferInput'];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['OfferResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                offerId: components['parameters']['OfferId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['OfferResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                offerId: components['parameters']['OfferId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                offerId: components['parameters']['OfferId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['OfferUpdate'];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['OfferResponse'];
+                };
             };
             default: components['responses']['Error'];
         };

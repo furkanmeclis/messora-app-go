@@ -103,6 +103,51 @@ type Params struct {
 	Fallback map[string]string `json:"fallback,omitempty"`
 	// HeaderMedia fills an image, video or document header.
 	HeaderMedia *HeaderMedia `json:"header_media,omitempty"`
+	Extras
+}
+
+// Extras fill the components beyond variables and header media: location
+// headers, copy code, limited-time offer, carousel, one-time password and
+// Flow buttons. Automations embed them too.
+type Extras struct {
+	// Location fills a location header; name and address may contain
+	// placeholders.
+	Location *Location `json:"location,omitempty"`
+	// CouponCode fills the copy code button (placeholders allowed).
+	CouponCode string `json:"coupon_code,omitempty"`
+	// ExpirationTimeMS is when a limited-time offer ends (Unix ms). A
+	// campaign linked to an offer takes it from the offer.
+	ExpirationTimeMS *int64 `json:"expiration_time_ms,omitempty"`
+	// Cards fill a carousel's cards, in order.
+	Cards []CardParams `json:"cards,omitempty"`
+	// OTPCode is the one-time password of an authentication template.
+	OTPCode string `json:"otp_code,omitempty"`
+	// Flow fills a Flow button.
+	Flow *FlowParams `json:"flow,omitempty"`
+}
+
+// Location is the place of a location header, in decimal degrees.
+type Location struct {
+	Latitude  string `json:"latitude"`
+	Longitude string `json:"longitude"`
+	Name      string `json:"name,omitempty"`
+	Address   string `json:"address,omitempty"`
+}
+
+// CardParams fills one carousel card: its image or video, body variables
+// and the dynamic suffixes of its URL buttons (by button position).
+type CardParams struct {
+	HeaderMedia *HeaderMedia    `json:"header_media,omitempty"`
+	Body        json.RawMessage `json:"body,omitempty"`
+	Buttons     []string        `json:"buttons,omitempty"`
+}
+
+// FlowParams opens a Flow button's Flow: the token identifies the session
+// to the business's Flow endpoint (Meta's default "unused" when empty), the
+// data pre-fills its first screen.
+type FlowParams struct {
+	Token      string         `json:"flow_token,omitempty"`
+	ActionData map[string]any `json:"flow_action_data,omitempty"`
 }
 
 // HeaderMedia is the media of a template header: an uploaded media ID or a
@@ -123,6 +168,9 @@ type Input struct {
 	Params           *Params
 	Audience         *Audience
 	WindowSize       *int32
+	// OfferID links the campaign to an offer; ClearOffer (edits) unlinks it.
+	OfferID    *uuid.UUID
+	ClearOffer bool
 }
 
 // Create stores a draft.
@@ -164,7 +212,7 @@ func (s *Service) Create(ctx context.Context, in Input, actor *uuid.UUID) (db.Ca
 		var err error
 		c, err = q.InsertCampaign(ctx, db.InsertCampaignParams{Name: strings.TrimSpace(*in.Name), PhoneNumberID: *in.PhoneNumberID,
 			TemplateName: *in.TemplateName, TemplateLanguage: *in.TemplateLanguage, TemplateParams: pj, Audience: aj,
-			WindowSize: window, CreatedBy: actor})
+			WindowSize: window, CreatedBy: actor, OfferID: in.OfferID})
 		if err != nil {
 			return err
 		}
@@ -213,22 +261,50 @@ func (s *Service) validate(ctx context.Context, in Input) error {
 		}
 	}
 	if in.Params != nil && in.Params.HeaderMedia != nil {
-		hm := in.Params.HeaderMedia
-		if hm.Type != "image" && hm.Type != "video" && hm.Type != "document" {
-			return apperr.Validation("template_params.header_media.type", "Header media is an image, video or document.")
-		}
-		if (hm.ID == "") == (hm.Link == "") {
-			return apperr.Validation("template_params.header_media", "Give exactly one of id or link.")
-		}
-		if hm.Link != "" && !strings.HasPrefix(hm.Link, "https://") {
-			return apperr.Validation("template_params.header_media.link", "Media links must use https.")
+		if err := checkHeaderMedia("template_params.header_media", in.Params.HeaderMedia); err != nil {
+			return err
 		}
 		if len(in.Params.Header) > 0 {
 			return apperr.Validation("template_params.header", "A header is either text variables or media, not both.")
 		}
 	}
+	if in.Params != nil {
+		for k, card := range in.Params.Cards {
+			if card.HeaderMedia == nil {
+				continue
+			}
+			if err := checkHeaderMedia(fmt.Sprintf("template_params.cards.%d.header_media", k), card.HeaderMedia); err != nil {
+				return err
+			}
+		}
+	}
+	if in.OfferID != nil {
+		o, err := s.q.GetOffer(ctx, *in.OfferID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.Validation("offer_id", "Unknown offer.")
+		}
+		if err != nil {
+			return err
+		}
+		if offerEnded(o, time.Now()) {
+			return apperr.Validation("offer_id", fmt.Sprintf("The offer %q has ended; choose a running or upcoming offer.", o.Title))
+		}
+	}
 	if in.WindowSize != nil && (*in.WindowSize < 0 || *in.WindowSize > 10000) {
 		return apperr.Validation("window_size", "Window must be between 1 and 10000 (0 = automatic).")
+	}
+	return nil
+}
+
+func checkHeaderMedia(field string, hm *HeaderMedia) error {
+	if hm.Type != "image" && hm.Type != "video" && hm.Type != "document" {
+		return apperr.Validation(field+".type", "Header media is an image, video or document.")
+	}
+	if (hm.ID == "") == (hm.Link == "") {
+		return apperr.Validation(field, "Give exactly one of id or link.")
+	}
+	if hm.Link != "" && !strings.HasPrefix(hm.Link, "https://") {
+		return apperr.Validation(field+".link", "Media links must use https.")
 	}
 	return nil
 }
@@ -246,13 +322,25 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (db.Campai
 	if in.Audience != nil {
 		p.Audience, _ = json.Marshal(in.Audience)
 	}
-	c, err := s.q.UpdateCampaignDraft(ctx, p)
-	if errors.Is(err, pgx.ErrNoRows) {
-		if _, gerr := s.q.GetCampaign(ctx, id); errors.Is(gerr, pgx.ErrNoRows) {
-			return c, apperr.NotFound("Campaign not found.")
+	var c db.Campaign
+	err := s.tx(ctx, func(_ pgx.Tx, q *db.Queries) error {
+		var err error
+		c, err = q.UpdateCampaignDraft(ctx, p)
+		if errors.Is(err, pgx.ErrNoRows) {
+			if _, gerr := q.GetCampaign(ctx, id); errors.Is(gerr, pgx.ErrNoRows) {
+				return apperr.NotFound("Campaign not found.")
+			}
+			return apperr.Conflict("CAMPAIGN_STARTED", "Only draft or scheduled campaigns can be edited.")
 		}
-		return c, apperr.Conflict("CAMPAIGN_STARTED", "Only draft or scheduled campaigns can be edited.")
-	}
+		if err != nil || (in.OfferID == nil && !in.ClearOffer) {
+			return err
+		}
+		if err := q.SetCampaignOffer(ctx, db.SetCampaignOfferParams{ID: id, OfferID: in.OfferID}); err != nil {
+			return err
+		}
+		c, err = q.GetCampaign(ctx, id)
+		return err
+	})
 	return c, err
 }
 
@@ -347,7 +435,7 @@ func (s *Service) Start(ctx context.Context, id uuid.UUID, at *time.Time, actor 
 		if err != nil {
 			return err
 		}
-		if err := s.checkTemplate(ctx, q, cur); err != nil {
+		if _, err := s.checkTemplate(ctx, q, cur); err != nil {
 			return err
 		}
 		if at != nil && at.After(time.Now().Add(30*time.Second)) {
@@ -365,28 +453,64 @@ func (s *Service) Start(ctx context.Context, id uuid.UUID, at *time.Time, actor 
 	return c, err
 }
 
-func (s *Service) checkTemplate(ctx context.Context, q *db.Queries, c db.Campaign) error {
+// checkTemplate verifies that the campaign can be sent: its offer has not
+// ended, its template is approved and the parameters (with the offer's
+// values) fill it. It returns the template's shape.
+func (s *Service) checkTemplate(ctx context.Context, q *db.Queries, c db.Campaign) (Shape, error) {
+	offer, err := campaignOffer(ctx, q, c)
+	if err != nil {
+		return Shape{}, err
+	}
+	if offer != nil && offerEnded(*offer, time.Now()) {
+		return Shape{}, apperr.Conflict("OFFER_EXPIRED", fmt.Sprintf("The offer %q ended on %s; link a running offer or remove it before sending.",
+			offer.Title, offer.EndsAt.UTC().Format("2006-01-02 15:04 MST")))
+	}
 	pn, err := q.GetPhoneNumber(ctx, c.PhoneNumberID)
 	if err != nil {
-		return apperr.Validation("phone_number_id", "The campaign's phone number no longer exists.")
+		return Shape{}, apperr.Validation("phone_number_id", "The campaign's phone number no longer exists.")
 	}
 	t, err := q.FindApprovedTemplate(ctx, db.FindApprovedTemplateParams{AccountID: pn.AccountID, Name: c.TemplateName, Language: c.TemplateLanguage})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperr.Validation("template_name", "The template does not exist on the sender's account; sync templates first.")
+		return Shape{}, apperr.Validation("template_name", "The template does not exist on the sender's account; sync templates first.")
 	}
 	if err != nil {
-		return err
+		return Shape{}, err
 	}
 	if t.Status != "APPROVED" {
-		return apperr.Validation("template_name", fmt.Sprintf("The template is %s; only approved templates can be sent.", t.Status))
+		return Shape{}, apperr.Validation("template_name", fmt.Sprintf("The template is %s; only approved templates can be sent.", t.Status))
 	}
 	var params Params
 	if len(c.TemplateParams) > 0 {
 		if err := json.Unmarshal(c.TemplateParams, &params); err != nil {
-			return apperr.Validation("template_params", "The template parameters are malformed.")
+			return Shape{}, apperr.Validation("template_params", "The template parameters are malformed.")
 		}
 	}
-	return CheckParams(ShapeOf(t.Components, t.ParameterFormat), params)
+	sh := ShapeOf(t.Components, t.ParameterFormat, t.Category)
+	if offer != nil {
+		params = ApplyOffer(params, sh, *offer)
+	}
+	return sh, CheckParams(sh, params)
+}
+
+// templateShape is the shape of the campaign's template, or the zero shape
+// when the template is gone (the legacy positional rendering then applies
+// and Meta reports what is missing).
+func templateShape(ctx context.Context, q *db.Queries, c db.Campaign) (Shape, error) {
+	pn, err := q.GetPhoneNumber(ctx, c.PhoneNumberID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Shape{}, nil
+	}
+	if err != nil {
+		return Shape{}, err
+	}
+	t, err := q.FindApprovedTemplate(ctx, db.FindApprovedTemplateParams{AccountID: pn.AccountID, Name: c.TemplateName, Language: c.TemplateLanguage})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Shape{}, nil
+	}
+	if err != nil {
+		return Shape{}, err
+	}
+	return ShapeOf(t.Components, t.ParameterFormat, t.Category), nil
 }
 
 // Pause stops dispatching; queued messages that are not yet sending are
@@ -419,6 +543,14 @@ func (s *Service) Resume(ctx context.Context, id uuid.UUID, actor *uuid.UUID) (d
 		}
 		if err != nil {
 			return err
+		}
+		if cur.Status == "paused" {
+			if _, err := s.checkTemplate(ctx, q, cur); err != nil {
+				var ae *apperr.Error
+				if errors.As(err, &ae) && ae.Code == "OFFER_EXPIRED" {
+					return err
+				}
+			}
 		}
 		next, topic := "running", TypeDispatch
 		if cur.Status == "paused" && cur.MaterializeCursor == nil && cur.TotalRecipients == 0 {
@@ -491,6 +623,9 @@ func (s *Service) Materialize(ctx context.Context, id uuid.UUID) error {
 		return nil
 	}
 	if err != nil {
+		return err
+	}
+	if stop, err := s.pauseIfOfferEnded(ctx, c); stop || err != nil {
 		return err
 	}
 	var a Audience
@@ -599,6 +734,18 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 		if c.Status != "running" || c.DispatchGen != gen {
 			return nil // paused, cancelled or superseded by a newer chain
 		}
+		offer, err := campaignOffer(ctx, q, c)
+		if err != nil {
+			return err
+		}
+		if offer != nil && offerEnded(*offer, time.Now()) {
+			// The offer ended mid-campaign: stop with the reason. The
+			// remaining recipients wait; resuming is refused while the
+			// ended offer is linked, so the campaign is cancelled or
+			// recreated with a running offer.
+			_, err := s.transition(ctx, q, tx, id, "paused", []string{"running"}, "paused", offerExpiredDetail(*offer), nil, nil)
+			return err
+		}
 		inflight, err := q.CountInFlight(ctx, &id)
 		if err != nil {
 			return err
@@ -614,7 +761,7 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 				return err
 			}
 			if len(rows) > 0 {
-				if queued, err = s.queue(ctx, tx, q, c, rows); err != nil {
+				if queued, err = s.queue(ctx, tx, q, c, offer, rows); err != nil {
 					return err
 				}
 			}
@@ -657,12 +804,19 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 const deferredTick = time.Minute
 
 // queue renders and stores messages for claimed recipients.
-func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Campaign, rows []db.ClaimPendingRecipientsRow) (int, error) {
+func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Campaign, offer *db.Offer, rows []db.ClaimPendingRecipientsRow) (int, error) {
 	var params Params
 	_ = json.Unmarshal(c.TemplateParams, &params)
 	rules, err := rulesFor(ctx, q, c.PhoneNumberID, c.TemplateName, c.TemplateLanguage)
 	if err != nil {
 		return 0, err
+	}
+	sh, err := templateShape(ctx, q, c)
+	if err != nil {
+		return 0, err
+	}
+	if offer != nil {
+		params = ApplyOffer(params, sh, *offer)
 	}
 	n := 0
 	for _, r := range rows {
@@ -687,7 +841,7 @@ func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Camp
 			}
 			continue
 		}
-		tpl, missing := Render(params, ct, c.TemplateName, c.TemplateLanguage)
+		tpl, missing := Render(sh, params, ct, c.TemplateName, c.TemplateLanguage)
 		if missing != "" {
 			if err := q.MarkRecipientSkipped(ctx, db.MarkRecipientSkippedParams{ID: r.ID, SkipReason: ptr("missing_" + missing)}); err != nil {
 				return n, err
