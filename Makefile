@@ -108,6 +108,14 @@ api-check: ## Fail if generated API code is out of date with the spec
 	@go tool oapi-codegen -config /tmp/messora-oapi.yaml api/openapi.yaml
 	@cmp -s /tmp/messora-api.gen.go internal/api/api.gen.go || { echo "internal/api is stale: run make api"; exit 1; }
 
+.PHONY: api-docs
+api-docs: ## Regenerate docs/API.md (public endpoint inventory) and bin/openapi.public.json
+	go run ./cmd/apidocs -md docs/API.md -json bin/openapi.public.json -version $(VERSION)
+
+.PHONY: api-docs-check
+api-docs-check: ## Fail if a public operation is undocumented or docs/API.md is stale
+	go run ./cmd/apidocs -md docs/API.md -check
+
 .PHONY: fmt
 fmt: ## Format Go and frontend code
 	gofmt -w cmd internal migrations
@@ -128,7 +136,7 @@ secrets-scan: ## Scan the working tree for committed secrets
 	docker run --rm -v "$(CURDIR)":/repo -w /repo $(GITLEAKS_IMAGE) dir . --no-banner --redact -c /repo/.gitleaks.toml
 
 .PHONY: check
-check: tidy-check api-check lint test web-lint vuln licenses migrations-lint docker-lint actions-lint secrets-scan sqlc-check ## Fast local gate (no containers started)
+check: tidy-check api-check api-docs-check lint test web-lint vuln licenses migrations-lint docker-lint actions-lint secrets-scan sqlc-check ## Fast local gate (no containers started)
 
 ## ── Stack ────────────────────────────────────────────────────────────────────
 .PHONY: up down logs ps

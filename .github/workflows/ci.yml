@@ -69,6 +69,8 @@ jobs:
         run: make sqlc-check
       - name: Generated API code matches the OpenAPI spec
         run: make api-check
+      - name: Public API documentation is complete and docs/API.md is current
+        run: make api-docs-check
       - run: make vuln
       - name: Go dependency licenses
         run: go run github.com/google/go-licenses/v2@v2.0.1 check ./cmd/... ./internal/... --disallowed_types=forbidden,restricted --ignore github.com/furkanmeclis/messora-app-go
