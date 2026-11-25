@@ -215,7 +215,14 @@ type CampaignEvent struct {
 	CampaignID uuid.UUID        `json:"campaign_id"`
 	Status     string           `json:"status"`
 	Counts     map[string]int64 `json:"counts,omitempty"`
-	At         time.Time        `json:"at"`
+	// Rate is the measured send rate (messages per second) and ETASeconds
+	// the estimated time left at that rate; both absent when unknown.
+	Rate       *float64 `json:"rate,omitempty"`
+	ETASeconds *int64   `json:"eta_seconds,omitempty"`
+	// PausedReason and ResumeAt describe a pause.
+	PausedReason *string    `json:"paused_reason,omitempty"`
+	ResumeAt     *time.Time `json:"resume_at,omitempty"`
+	At           time.Time  `json:"at"`
 }
 
 // OfferEvent announces a change of a time-limited offer. Deleted is set
@@ -237,7 +244,8 @@ func PublishOffer(ctx context.Context, tx outbox.DBTX, o db.Offer, deleted bool)
 
 // NewCampaignEvent describes campaign c with its counters.
 func NewCampaignEvent(c db.Campaign, counts map[string]int64) CampaignEvent {
-	return CampaignEvent{Envelope: NewEnvelope(TypeCampaignUpdated), CampaignID: c.ID, Status: c.Status, Counts: counts, At: time.Now().UTC()}
+	return CampaignEvent{Envelope: NewEnvelope(TypeCampaignUpdated), CampaignID: c.ID, Status: c.Status, Counts: counts,
+		PausedReason: c.PausedReason, ResumeAt: c.ResumeAt, At: time.Now().UTC()}
 }
 
 // PublishCampaign announces ev on CampaignsChannel and its own channel.

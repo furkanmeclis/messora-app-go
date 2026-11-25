@@ -66,6 +66,9 @@ type Preflight struct {
 	HardBlocked      int64
 	BlockedReasons   []PreflightReason
 	WarnedReasons    []PreflightReason
+	// ByFailureClass: for a previous-campaign audience, the source
+	// campaign's customers by why they were not reached.
+	ByFailureClass map[string]int64
 }
 
 // Preflight counts an audience by consent class for a template, before a
@@ -129,6 +132,11 @@ func (s *Service) Preflight(ctx context.Context, a Audience, phoneNumberID *uuid
 		}
 	}
 	out.BlockedReasons, out.WarnedReasons = sorted(blocked), sorted(warned)
+	if a.PreviousCampaign != nil {
+		if out.ByFailureClass, err = classCounts(ctx, s.q, a.PreviousCampaign.CampaignID); err != nil {
+			return out, err
+		}
+	}
 	return out, nil
 }
 

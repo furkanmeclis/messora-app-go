@@ -70,10 +70,18 @@ type CampaignProgress func(ctx context.Context, tx pgx.Tx, q *db.Queries, campai
 // SetCampaignProgress registers the campaign progress hook.
 func (s *Service) SetCampaignProgress(f CampaignProgress) { s.campaignProgress = f }
 
+// CampaignWithheld is told, inside the webhook transaction, that Meta
+// withheld an accepted campaign message for ecosystem health (131049).
+type CampaignWithheld func(ctx context.Context, q *db.Queries, m db.Message) error
+
+// SetCampaignWithheld registers the hook that schedules a resend.
+func (s *Service) SetCampaignWithheld(f CampaignWithheld) { s.campaignWithheld = f }
+
 // Service implements messaging.
 type Service struct {
 	throttle         *Throttle
 	campaignProgress CampaignProgress
+	campaignWithheld CampaignWithheld
 	pool             *pgxpool.Pool
 	q                *db.Queries
 	ch               *channels.Service

@@ -239,6 +239,9 @@ func NewServer(rdb goredis.UniversalClient, o ServerOptions) *asynq.Server {
 		Concurrency:     o.Concurrency,
 		Queues:          o.Queues,
 		RetryDelayFunc:  RetryDelay,
+		// Paced sends come back after sub-second delays (send scheduler);
+		// asynq's default 5 s forwarding would leave capacity unused.
+		DelayedTaskCheckInterval: time.Second,
 		IsFailure:       IsFailure,
 		ShutdownTimeout: o.ShutdownTimeout,
 		Logger:          slogAdapter{log},

@@ -87,7 +87,7 @@ func RunWorker(ctx context.Context) error {
 	})
 
 	// Each number's ceiling is the throughput Meta reports for it (80 when unknown).
-	svc.messaging.SetThrottle(messaging.NewThrottle(rdb, messaging.DefaultThroughput).WithCeilings(svc.messaging.ThroughputCeiling))
+	svc.messaging.SetThrottle(svc.throttle)
 	registerMessaging(mux, svc.messaging)
 	registerSignals(mux, svc.channels, svc.messaging, log)
 	registerCampaigns(mux, svc.campaigns, svc.messaging, log)

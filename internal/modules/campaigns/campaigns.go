@@ -48,9 +48,12 @@ const (
 const (
 	materializePage = 1000
 	tickInterval    = time.Second
-	// DefaultWindow is messages in flight per campaign when not configured:
-	// ten seconds of Meta's default 80 mps.
-	DefaultWindow = 800
+	// inflightSeconds is how many seconds of its share a campaign keeps in
+	// flight (queued or being sent): enough to absorb send latency and
+	// retries, small enough that the queue never holds the audience.
+	inflightSeconds = 10
+	// minInflight is the in-flight floor of a campaign with a tiny share.
+	minInflight = 20
 )
 
 // Service is the campaign engine.
@@ -59,6 +62,9 @@ type Service struct {
 	q        *db.Queries
 	contacts *contacts.Service
 	log      *slog.Logger
+	// sched is the per-number send scheduler (nil: Meta's default
+	// throughput, no shares stored).
+	sched *messaging.Throttle
 	// TickInterval is the dispatcher period (tests shorten it).
 	TickInterval time.Duration
 }
@@ -68,23 +74,33 @@ func New(pool *pgxpool.Pool, c *contacts.Service, log *slog.Logger) *Service {
 	return &Service{pool: pool, q: db.New(pool), contacts: c, log: log, TickInterval: tickInterval}
 }
 
+// SetScheduler makes the dispatcher size campaigns by the number's
+// capacity and publish their fair shares to the send path.
+func (s *Service) SetScheduler(t *messaging.Throttle) { s.sched = t }
+
 // Audience selects recipients.
 type Audience struct {
 	SegmentID *uuid.UUID `json:"segment_id,omitempty"`
 	GroupID   *uuid.UUID `json:"group_id,omitempty"`
 	TagID     *uuid.UUID `json:"tag_id,omitempty"`
 	All       bool       `json:"all,omitempty"`
+	// PreviousCampaign targets the customers an earlier campaign did not
+	// reach, by why (audience.go).
+	PreviousCampaign *PreviousCampaign `json:"previous_campaign,omitempty"`
 }
 
 func (a Audience) validate() error {
 	n := 0
-	for _, set := range []bool{a.SegmentID != nil, a.GroupID != nil, a.TagID != nil, a.All} {
+	for _, set := range []bool{a.SegmentID != nil, a.GroupID != nil, a.TagID != nil, a.All, a.PreviousCampaign != nil} {
 		if set {
 			n++
 		}
 	}
 	if n != 1 {
-		return apperr.Validation("audience", "Choose exactly one audience: a segment, a group, a tag or all contacts.")
+		return apperr.Validation("audience", "Choose exactly one audience: a segment, a group, a tag, all contacts or a previous campaign's unreached customers.")
+	}
+	if a.PreviousCampaign != nil {
+		return a.PreviousCampaign.validate()
 	}
 	return nil
 }
@@ -171,6 +187,12 @@ type Input struct {
 	// OfferID links the campaign to an offer; ClearOffer (edits) unlinks it.
 	OfferID    *uuid.UUID
 	ClearOffer bool
+	// Priority is high, normal or low (the campaign's weight in the
+	// number's send scheduler); MaxMPS caps its rate (ClearMaxMPS removes
+	// the cap).
+	Priority    *string
+	MaxMPS      *float64
+	ClearMaxMPS bool
 }
 
 // Create stores a draft.
@@ -207,12 +229,16 @@ func (s *Service) Create(ctx context.Context, in Input, actor *uuid.UUID) (db.Ca
 	if in.WindowSize != nil {
 		window = *in.WindowSize
 	}
+	priority := "normal"
+	if in.Priority != nil {
+		priority = *in.Priority
+	}
 	var c db.Campaign
 	err := s.tx(ctx, func(_ pgx.Tx, q *db.Queries) error {
 		var err error
 		c, err = q.InsertCampaign(ctx, db.InsertCampaignParams{Name: strings.TrimSpace(*in.Name), PhoneNumberID: *in.PhoneNumberID,
 			TemplateName: *in.TemplateName, TemplateLanguage: *in.TemplateLanguage, TemplateParams: pj, Audience: aj,
-			WindowSize: window, CreatedBy: actor, OfferID: in.OfferID})
+			WindowSize: window, CreatedBy: actor, OfferID: in.OfferID, Priority: priority, MaxMps: in.MaxMPS})
 		if err != nil {
 			return err
 		}
@@ -242,6 +268,14 @@ func (s *Service) validate(ctx context.Context, in Input) error {
 				return apperr.Validation("audience.tag_id", "Unknown tag.")
 			}
 		}
+	}
+	if in.Audience != nil && in.Audience.PreviousCampaign != nil {
+		if err := s.validatePrevious(ctx, *in.Audience.PreviousCampaign); err != nil {
+			return err
+		}
+	}
+	if err := validateSettings(in.Priority, in.MaxMPS); err != nil {
+		return err
 	}
 	if in.PhoneNumberID != nil {
 		if _, err := s.q.GetPhoneNumber(ctx, *in.PhoneNumberID); errors.Is(err, pgx.ErrNoRows) {
@@ -315,7 +349,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (db.Campai
 		return db.Campaign{}, err
 	}
 	p := db.UpdateCampaignDraftParams{ID: id, Name: in.Name, PhoneNumberID: in.PhoneNumberID, TemplateName: in.TemplateName,
-		TemplateLanguage: in.TemplateLanguage, WindowSize: in.WindowSize}
+		TemplateLanguage: in.TemplateLanguage, WindowSize: in.WindowSize, Priority: in.Priority, MaxMps: in.MaxMPS, ClearMaxMps: in.ClearMaxMPS}
 	if in.Params != nil {
 		p.TemplateParams, _ = json.Marshal(in.Params)
 	}
@@ -364,6 +398,9 @@ func (s *Service) transition(ctx context.Context, q *db.Queries, tx pgx.Tx, id u
 	kind string, detail map[string]any, actor *uuid.UUID, scheduledAt *time.Time) (db.Campaign, error) {
 	c, err := q.SetCampaignStatus(ctx, db.SetCampaignStatusParams{ID: id, Status: to, FromStates: from, ScheduledAt: scheduledAt,
 		LastError: lastError(detail)})
+	if err == nil {
+		c, err = s.recordPauseChange(ctx, q, c, kind, detail, actor)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		cur, gerr := q.GetCampaign(ctx, id)
 		if errors.Is(gerr, pgx.ErrNoRows) {
@@ -380,6 +417,11 @@ func (s *Service) transition(ctx context.Context, q *db.Queries, tx pgx.Tx, id u
 	dj, _ := json.Marshal(detail)
 	if err := q.InsertCampaignEvent(ctx, db.InsertCampaignEventParams{CampaignID: id, Kind: kind, Detail: dj, ActorID: actor}); err != nil {
 		return c, err
+	}
+	if audited[kind] {
+		if err := audit.Record(ctx, q, audit.Entry{Action: "campaign." + kind, EntityType: "campaign", EntityID: &id, Changes: detail}); err != nil {
+			return c, err
+		}
 	}
 	if err := webhooks.CampaignFinished(ctx, tx, c); err != nil {
 		return c, err
@@ -414,11 +456,21 @@ func (s *Service) ChangedSince(ctx context.Context, id *uuid.UUID, since time.Ti
 }
 
 func (s *Service) publish(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Campaign) error {
+	return s.publishAs(ctx, tx, q, c, realtime.TypeCampaignUpdated)
+}
+
+// publishAs announces c with its counts, measured rate and estimated time
+// left: campaign.updated for state changes, campaign.progress for the
+// throttled live counters.
+func (s *Service) publishAs(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Campaign, typ string) error {
 	counts, err := stats(ctx, q, c.ID)
 	if err != nil {
 		return err
 	}
-	return realtime.PublishCampaign(ctx, tx, realtime.NewCampaignEvent(c, counts))
+	ev := realtime.NewCampaignEvent(c, counts)
+	ev.Type = typ
+	ev.Rate, ev.ETASeconds = c.SendRate, eta(c, counts)
+	return realtime.PublishCampaign(ctx, tx, ev)
 }
 
 // Start begins sending now, or schedules the campaign for later.
@@ -523,28 +575,72 @@ func (s *Service) Pause(ctx context.Context, id uuid.UUID, actor *uuid.UUID, rea
 			detail = map[string]any{"reason": reason}
 		}
 		var err error
-		c, err = s.transition(ctx, q, tx, id, "paused", []string{"running", "preparing"}, "paused", detail, actor, nil)
+		c, err = s.transition(ctx, q, tx, id, "paused", []string{"running", "preparing", "paused_limit"}, "paused", detail, actor, nil)
 		return err
 	})
 	return c, err
 }
 
-// Resume continues a paused campaign: held messages are queued again and a
-// new dispatcher chain starts (the old one stops at its next tick).
+// ResumeOptions are what an operator may change when resuming.
+type ResumeOptions struct {
+	Settings
+	// At schedules the resume for later (the campaign stays paused until
+	// then); nil or a past time resumes now.
+	At *time.Time
+}
+
+// Resume continues a paused campaign (any pause kind): held messages are
+// queued again and a new dispatcher chain starts (the old one stops at its
+// next tick). Recipients already sent to are never sent again: they are no
+// longer pending, and held messages keep their identity.
 func (s *Service) Resume(ctx context.Context, id uuid.UUID, actor *uuid.UUID) (db.Campaign, error) {
+	return s.ResumeWith(ctx, id, actor, ResumeOptions{})
+}
+
+// ResumeWith is Resume with changes and an optional later start.
+func (s *Service) ResumeWith(ctx context.Context, id uuid.UUID, actor *uuid.UUID, o ResumeOptions) (db.Campaign, error) {
 	if err := licensegate.Check(ctx); err != nil {
+		return db.Campaign{}, err
+	}
+	if err := o.Settings.validate(); err != nil {
 		return db.Campaign{}, err
 	}
 	var c db.Campaign
 	err := s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
-		cur, err := q.GetCampaign(ctx, id)
+		cur, err := q.LockCampaign(ctx, id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apperr.NotFound("Campaign not found.")
 		}
 		if err != nil {
 			return err
 		}
-		if cur.Status == "paused" {
+		if !IsPaused(cur.Status) {
+			return apperr.Conflict("INVALID_TRANSITION", fmt.Sprintf("A %s campaign cannot be resumed.", cur.Status))
+		}
+		changes, err := s.applySettings(ctx, q, cur, o.Settings)
+		if err != nil {
+			return err
+		}
+		if o.At != nil && o.At.After(time.Now().Add(5*time.Second)) {
+			c, err = q.SetCampaignResumeAt(ctx, db.SetCampaignResumeAtParams{ID: id, ResumeAt: o.At})
+			if err != nil {
+				return err
+			}
+			detail := map[string]any{"at": o.At.UTC(), "changes": changes}
+			dj, _ := json.Marshal(detail)
+			if err := q.InsertCampaignEvent(ctx, db.InsertCampaignEventParams{CampaignID: id, Kind: "resume_scheduled", Detail: dj, ActorID: actor}); err != nil {
+				return err
+			}
+			if err := audit.Record(ctx, q, audit.Entry{Action: "campaign.resume_scheduled", EntityType: "campaign", EntityID: &id, Changes: detail}); err != nil {
+				return err
+			}
+			return s.publish(ctx, tx, q, c)
+		}
+		cur, err = q.GetCampaign(ctx, id)
+		if err != nil {
+			return err
+		}
+		if IsPaused(cur.Status) {
 			if _, err := s.checkTemplate(ctx, q, cur); err != nil {
 				var ae *apperr.Error
 				if errors.As(err, &ae) && ae.Code == "OFFER_EXPIRED" {
@@ -557,7 +653,11 @@ func (s *Service) Resume(ctx context.Context, id uuid.UUID, actor *uuid.UUID) (d
 			// Paused while preparing: finish materialising first.
 			next, topic = "preparing", TypeMaterialize
 		}
-		c, err = s.transition(ctx, q, tx, id, next, []string{"paused"}, "resumed", nil, actor, nil)
+		var detail map[string]any
+		if len(changes) > 0 {
+			detail = map[string]any{"changes": changes}
+		}
+		c, err = s.transition(ctx, q, tx, id, next, PausedStatuses, "resumed", detail, actor, nil)
 		if err != nil {
 			return err
 		}
@@ -581,7 +681,7 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID, actor *uuid.UUID) (d
 	var c db.Campaign
 	err := s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 		var err error
-		c, err = s.transition(ctx, q, tx, id, "cancelled", []string{"draft", "scheduled", "preparing", "running", "paused"}, "cancelled", nil, actor, nil)
+		c, err = s.transition(ctx, q, tx, id, "cancelled", append([]string{"draft", "scheduled", "preparing", "running"}, PausedStatuses...), "cancelled", nil, actor, nil)
 		if err != nil {
 			return err
 		}
@@ -601,6 +701,9 @@ func dispatchPayload(c db.Campaign) map[string]any {
 // filter turns an audience into a contact filter.
 func (s *Service) filter(ctx context.Context, a Audience) (contacts.Filter, error) {
 	f := contacts.Filter{TagID: a.TagID, GroupID: a.GroupID}
+	if pc := a.PreviousCampaign; pc != nil {
+		f.FromCampaign, f.FromClasses = &pc.CampaignID, pc.Classes
+	}
 	if a.SegmentID != nil {
 		sg, err := s.q.GetSegment(ctx, *a.SegmentID)
 		if err != nil {
@@ -746,25 +849,49 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 			_, err := s.transition(ctx, q, tx, id, "paused", []string{"running"}, "paused", offerExpiredDetail(*offer), nil, nil)
 			return err
 		}
+		// The scheduler sizes this tick: the campaign's fair share of the
+		// number's campaign capacity bounds what it keeps in flight, and the
+		// portfolio's messaging limit bounds how many new customers it may
+		// reach (engine.go).
+		pl, err := s.plan(ctx, q, c)
+		if err != nil {
+			return err
+		}
 		inflight, err := q.CountInFlight(ctx, &id)
 		if err != nil {
 			return err
 		}
-		window := int64(c.WindowSize)
-		if window == 0 {
-			window = DefaultWindow
-		}
-		queued := 0
-		if free := window - inflight; free > 0 {
-			rows, err := q.ClaimPendingRecipients(ctx, db.ClaimPendingRecipientsParams{CampaignID: id, Lim: int32(min(free, 1000))}) //nolint:gosec // bounded
+		queued, limitHit := 0, false
+		if free := pl.Inflight - inflight; free > 0 {
+			lim := int32(min(free, 1000)) //nolint:gosec // bounded
+			// Resends of withheld messages first: they waited a day already.
+			retries, err := q.ClaimDueRetries(ctx, db.ClaimDueRetriesParams{CampaignID: id, Lim: lim})
 			if err != nil {
 				return err
 			}
+			rows := make([]db.ClaimPendingRecipientsRow, 0, lim)
+			for _, r := range retries {
+				rows = append(rows, db.ClaimPendingRecipientsRow(r))
+			}
+			if left := lim - int32(len(rows)); left > 0 { //nolint:gosec // bounded
+				pending, err := q.ClaimPendingRecipients(ctx, db.ClaimPendingRecipientsParams{CampaignID: id, Lim: left})
+				if err != nil {
+					return err
+				}
+				rows = append(rows, pending...)
+			}
 			if len(rows) > 0 {
-				if queued, err = s.queue(ctx, tx, q, c, offer, rows); err != nil {
+				if queued, limitHit, err = s.queue(ctx, tx, q, c, offer, rows, pl.Budget); err != nil {
 					return err
 				}
 			}
+		}
+		if limitHit {
+			// The next customer would exceed the portfolio's messaging
+			// limit: wait (paused_limit) until the oldest counted customer
+			// ages out; the scheduler job resumes the campaign then.
+			_, err := s.transition(ctx, q, tx, id, "paused_limit", []string{"running"}, "paused_limit", pl.limitDetail(), nil, nil)
+			return err
 		}
 		next := s.TickInterval
 		if queued == 0 && inflight == 0 {
@@ -772,25 +899,32 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 			if err != nil {
 				return err
 			}
-			if pending == 0 {
-				// Messages Meta deferred (131049) take no window slot, but the
-				// campaign is not done until they are sent or given up.
+			retries, err := q.CountRetries(ctx, id)
+			if err != nil {
+				return err
+			}
+			if pending == 0 && retries.Due == 0 {
+				// Messages Meta deferred (131049) and recipients waiting for a
+				// resend take no in-flight slot, but the campaign is not done
+				// until they are sent or given up.
 				deferred, err := q.CountDeferred(ctx, &id)
 				if err != nil {
 					return err
 				}
-				if deferred == 0 {
+				if deferred == 0 && retries.Total == 0 {
 					_, err := s.transition(ctx, q, tx, id, "completed", []string{"running"}, "completed", nil, nil, nil)
 					return err
 				}
 				next = max(next, deferredTick)
 			}
 		}
-		if err := q.TouchCampaign(ctx, id); err != nil {
+		rd, err := q.RecordDispatch(ctx, db.RecordDispatchParams{ID: id, Queued: int64(queued)})
+		if err != nil {
 			return err
 		}
-		if queued > 0 {
-			if err := s.publish(ctx, tx, q, c); err != nil {
+		if queued > 0 || (rd.Rolled != nil && *rd.Rolled) {
+			// At most every two seconds per campaign (ClaimCampaignProgress).
+			if err := s.PublishProgress(ctx, tx, q, id); err != nil {
 				return err
 			}
 		}
@@ -803,22 +937,25 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 // left: nothing to top up, only completion to notice.
 const deferredTick = time.Minute
 
-// queue renders and stores messages for claimed recipients.
-func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Campaign, offer *db.Offer, rows []db.ClaimPendingRecipientsRow) (int, error) {
+// queue renders and stores messages for claimed recipients. budget (nil =
+// no limit) is how many more customers the portfolio may reach outside
+// their service window; when the next recipient would exceed it, queue
+// stops (the rest stay pending) and reports limitHit.
+func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Campaign, offer *db.Offer, rows []db.ClaimPendingRecipientsRow,
+	budget *limitBudget) (n int, limitHit bool, err error) {
 	var params Params
 	_ = json.Unmarshal(c.TemplateParams, &params)
 	rules, err := rulesFor(ctx, q, c.PhoneNumberID, c.TemplateName, c.TemplateLanguage)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	sh, err := templateShape(ctx, q, c)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if offer != nil {
 		params = ApplyOffer(params, sh, *offer)
 	}
-	n := 0
 	for _, r := range rows {
 		var ct db.Contact
 		var err error
@@ -827,47 +964,63 @@ func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Camp
 		}
 		if r.ContactID == nil || errors.Is(err, pgx.ErrNoRows) {
 			if err := q.MarkRecipientSkipped(ctx, db.MarkRecipientSkippedParams{ID: r.ID, SkipReason: ptr("contact_deleted")}); err != nil {
-				return n, err
+				return n, false, err
 			}
 			continue
 		}
 		if err != nil {
-			return n, err
+			return n, false, err
 		}
 		// Consent may have changed since materialisation.
 		if d := rules.decide(ct); !d.Allowed() {
 			if err := q.MarkRecipientSkipped(ctx, db.MarkRecipientSkippedParams{ID: r.ID, SkipReason: ptr(d.Reason)}); err != nil {
-				return n, err
+				return n, false, err
 			}
 			continue
 		}
 		tpl, missing := Render(sh, params, ct, c.TemplateName, c.TemplateLanguage)
 		if missing != "" {
 			if err := q.MarkRecipientSkipped(ctx, db.MarkRecipientSkippedParams{ID: r.ID, SkipReason: ptr("missing_" + missing)}); err != nil {
-				return n, err
+				return n, false, err
 			}
 			continue
+		}
+		if budget != nil {
+			counts, err := budget.counts(ctx, q, c.PhoneNumberID, ct.ID)
+			if err != nil {
+				return n, false, err
+			}
+			if counts && budget.left <= 0 {
+				return n, true, nil
+			}
+			if counts {
+				budget.left--
+			}
+		}
+		var retryOf *uuid.UUID
+		if r.State == "retry" {
+			retryOf = r.MessageID
 		}
 		wm := whatsapp.Message{Type: "template", To: strings.TrimPrefix(ct.PhoneE164, "+"), Template: &tpl}
 		payload, _ := json.Marshal(wm)
 		mid := uuid.Must(uuid.NewV7())
 		msg, err := q.InsertCampaignMessage(ctx, db.InsertCampaignMessageParams{ID: mid, PhoneNumberID: c.PhoneNumberID,
-			ContactID: ct.ID, Body: "[template] " + c.TemplateName, Payload: payload, CampaignID: &c.ID, ConsentCategory: &rules.category})
+			ContactID: ct.ID, Body: "[template] " + c.TemplateName, Payload: payload, CampaignID: &c.ID, ConsentCategory: &rules.category, RetryOf: retryOf})
 		if err != nil {
-			return n, err
+			return n, false, err
 		}
 		if err := messaging.RecordCampaignMessage(ctx, q, msg); err != nil {
-			return n, err
+			return n, false, err
 		}
 		if err := q.MarkRecipientQueued(ctx, db.MarkRecipientQueuedParams{ID: r.ID, MessageID: &mid}); err != nil {
-			return n, err
+			return n, false, err
 		}
 		if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), messaging.SendPayload(mid, &c.ID), 0); err != nil {
-			return n, err
+			return n, false, err
 		}
 		n++
 	}
-	return n, nil
+	return n, false, nil
 }
 
 // PublishProgress publishes a campaign's counts after a delivery status
@@ -881,7 +1034,11 @@ func (s *Service) PublishProgress(ctx context.Context, tx pgx.Tx, q *db.Queries,
 	if err != nil {
 		return err
 	}
-	return s.publish(ctx, tx, q, db.Campaign{ID: c.ID, Status: c.Status})
+	full, err := q.GetCampaign(ctx, c.ID)
+	if err != nil {
+		return err
+	}
+	return s.publishAs(ctx, tx, q, full, realtime.TypeCampaignProgress)
 }
 
 // StartDue starts scheduled campaigns whose time has come.
@@ -903,7 +1060,29 @@ func (s *Service) StartDue(ctx context.Context) (int, error) {
 		n = len(ids)
 		return nil
 	})
-	return n, err
+	if err != nil {
+		return n, err
+	}
+	// Paused campaigns whose resume time has come: paused_limit once the
+	// portfolio limit frees up, any pause with a resume scheduled by an
+	// operator. A campaign still over the limit pauses again at once.
+	due, err := s.q.DueResumes(ctx)
+	if err != nil {
+		return n, err
+	}
+	for _, id := range due {
+		_, err := s.ResumeWith(ctx, id, nil, ResumeOptions{})
+		if e, ok := apperr.As(err); ok {
+			s.log.WarnContext(ctx, "scheduled resume refused", "campaign_id", id, "code", e.Code)
+			_, _ = s.q.SetCampaignResumeAt(ctx, db.SetCampaignResumeAtParams{ID: id})
+			continue
+		}
+		if err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
 }
 
 // Reap repairs work a crashed worker left behind:

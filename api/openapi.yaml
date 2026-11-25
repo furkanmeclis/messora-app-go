@@ -2041,6 +2041,27 @@ paths:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /campaigns/queue:
+    get:
+      operationId: getCampaignQueue
+      tags: [campaigns]
+      summary: The send queue per phone number
+      description: >-
+        Per sending number: its throughput (Meta's ceiling and the current
+        adaptive rate), the share reserved for inbox, API and automation
+        messages, the portfolio messaging limit and its use, and the campaigns
+        sharing the rest with their priority, fair share, measured rate and
+        estimated time left. Running campaigns share by weighted fair queuing
+        (high 4, normal 2, low 1).
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      responses:
+        "200":
+          description: Queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignQueueResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /campaigns/preflight:
     post:
       operationId: preflightCampaign
@@ -2156,10 +2177,19 @@ paths:
     post:
       operationId: resumeCampaign
       tags: [campaigns]
-      summary: Resume a paused campaign
+      summary: Resume a paused campaign, optionally with changes or later
+      description: >-
+        Resumes any pause (manual, messaging limit, expired offer …). Recipients
+        already sent to are never sent again. Name, priority and rate cap may be
+        changed; with resume_at the campaign stays paused until then.
       security: [{ session: [campaigns.start] }, { apiKey: [campaigns.start] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignResumeRequest" }
       responses:
         "200":
           description: Campaign
@@ -2182,6 +2212,70 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/settings:
+    patch:
+      operationId: updateCampaignSettings
+      tags: [campaigns]
+      summary: Change name, priority or rate cap while the campaign is in progress
+      description: The scheduler uses a new priority or cap from its next tick. Priority changes are audited.
+      security: [{ session: [campaigns.start] }, { apiKey: [campaigns.start] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignSettingsRequest" }
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/pauses:
+    get:
+      operationId: listCampaignPauses
+      tags: [campaigns]
+      summary: Pause history with the counts at each pause
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Pauses
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignPauseListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/resume-preview:
+    post:
+      operationId: previewCampaignResume
+      tags: [campaigns]
+      summary: What resuming would send, with consent checked again and the estimated time
+      description: >-
+        Counts the recipients a resume would still send to (pending, waiting
+        for a resend, held), what the consent rules decide for them now, the
+        rate the campaign would get with the given settings, the estimated
+        time, and the portfolio messaging limit left. Nothing is changed.
+      security: [{ session: [campaigns.start] }, { apiKey: [campaigns.start] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignSettingsRequest" }
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResumePreviewResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/events:
@@ -2208,7 +2302,8 @@ paths:
       security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
-        - { name: state, in: query, schema: { type: string, enum: [pending, queued, skipped, cancelled] } }
+        - { name: state, in: query, schema: { type: string, enum: [pending, queued, skipped, cancelled, retry] } }
+        - { name: class, in: query, description: Only recipients not reached for this reason., schema: { $ref: "#/components/schemas/UnreachedClass" } }
         - { $ref: "#/components/parameters/Cursor" }
         - { $ref: "#/components/parameters/Limit" }
       responses:
@@ -4745,7 +4840,8 @@ components:
     # ── Campaigns (Phase 5) ────────────────────────────────────────────────
     CampaignStatus:
       type: string
-      enum: [draft, scheduled, preparing, running, paused, completed, cancelled, failed]
+      enum: [draft, scheduled, preparing, running, paused, paused_limit, completed, cancelled, failed]
+      description: paused_limit waits for the portfolio messaging limit and resumes by itself; other pauses are paused.
 
     CampaignAudience:
       type: object
@@ -4758,6 +4854,22 @@ components:
         group_id: { type: string, format: uuid }
         tag_id: { type: string, format: uuid }
         all: { type: boolean, enum: [true] }
+        previous_campaign:
+          type: object
+          additionalProperties: false
+          description: >-
+            Customers a finished campaign did not reach, for the chosen
+            reasons; computed when the new campaign starts, one recipient per
+            contact, consent checked again. user_stopped_marketing and
+            blocked_by_consent cannot be chosen (hard blocks).
+          required: [campaign_id, classes]
+          properties:
+            campaign_id: { type: string, format: uuid }
+            classes:
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items: { type: string, enum: [temporary, rejected_by_meta, ecosystem_limit, undeliverable, permanent, never_sent] }
 
     CampaignParams:
       type: object
@@ -4846,7 +4958,7 @@ components:
     Campaign:
       type: object
       required: [id, name, status, phone_number_id, template_name, template_language, template_params, audience,
-                 window_size, total_recipients, counts, created_at, updated_at]
+                 window_size, total_recipients, counts, priority, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -4867,6 +4979,14 @@ components:
         finished_at: { type: [string, "null"], format: date-time }
         last_error: { type: [string, "null"] }
         offer_id: { type: [string, "null"], format: uuid, description: The offer the campaign promotes (see Offer). }
+        priority: { $ref: "#/components/schemas/CampaignPriority" }
+        max_mps: { type: [number, "null"], format: double, description: Rate cap in messages per second; null = its fair share. }
+        paused_reason: { type: [string, "null"], description: "Why it is paused: manual, messaging_limit, offer_expired, license_restricted …" }
+        paused_at: { type: [string, "null"], format: date-time }
+        paused_by: { type: [string, "null"], format: uuid }
+        resume_at: { type: [string, "null"], format: date-time, description: When it resumes by itself (limit frees up, or a scheduled resume). }
+        send_rate: { type: [number, "null"], format: double, description: Measured rate in messages per second. }
+        eta_seconds: { type: [integer, "null"], format: int64, description: Estimated time left at the measured rate. }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -4892,6 +5012,8 @@ components:
             offer_ends, offer_url, offer_product and offer_description
             (e.g. {{offer_title}}). Starting or resuming is refused once the
             offer ended; a running campaign pauses with reason offer_expired.
+        priority: { $ref: "#/components/schemas/CampaignPriority" }
+        max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000, description: Rate cap in messages per second. }
 
     UpdateCampaignRequest:
       type: object
@@ -4907,6 +5029,9 @@ components:
         window_size: { type: integer, minimum: 0, maximum: 10000 }
         offer_id: { type: string, format: uuid, description: Link an offer (see CreateCampaignRequest). }
         clear_offer: { type: boolean, description: Unlink the offer. }
+        priority: { $ref: "#/components/schemas/CampaignPriority" }
+        max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000 }
+        clear_max_mps: { type: boolean }
 
     CampaignEventItem:
       type: object
@@ -4932,6 +5057,16 @@ components:
         error_code: { type: [string, "null"] }
         error_title: { type: [string, "null"] }
         failure_class: { $ref: "#/components/schemas/FailureClass" }
+        outcome:
+          type: string
+          enum: [pending, retry_scheduled, in_flight, deferred, sent, delivered, read, unknown, failed, skipped, cancelled]
+          description: Recipient state and message status combined.
+        unreached_class:
+          type: [string, "null"]
+          enum: [temporary, rejected_by_meta, ecosystem_limit, undeliverable, permanent, never_sent, user_stopped_marketing, blocked_by_consent, null]
+          description: Why the recipient was not reached (see UnreachedClass); null = reached or still in progress.
+        resends: { type: integer, description: New messages sent after Meta withheld an accepted one (131049). }
+        next_attempt_at: { type: [string, "null"], format: date-time, description: When a withheld recipient gets its new message. }
 
     CampaignPreflightRequest:
       type: object
@@ -4966,11 +5101,151 @@ components:
         hard_blocked: { type: integer, format: int64 }
         blocked_reasons: { type: array, items: { $ref: "#/components/schemas/PreflightReason" } }
         warned_reasons: { type: array, items: { $ref: "#/components/schemas/PreflightReason" } }
+        by_failure_class:
+          type: object
+          description: >-
+            For a previous_campaign audience: the source campaign's customers by
+            why they were not reached (all classes, including those that cannot
+            be selected, and "reached").
+          additionalProperties: { type: integer, format: int64 }
 
     CampaignPreflightResponse:
       type: object
       required: [data, meta]
       properties: { data: { $ref: "#/components/schemas/CampaignPreflight" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    UnreachedClass:
+      type: string
+      enum: [temporary, rejected_by_meta, ecosystem_limit, undeliverable, permanent, never_sent, user_stopped_marketing, blocked_by_consent]
+      description: >-
+        Why a campaign recipient was not reached: temporary (gave up after
+        temporary errors), rejected_by_meta, ecosystem_limit (131049),
+        undeliverable (131026), permanent (account, payload or missing
+        variables), never_sent (cancelled or never queued),
+        user_stopped_marketing (131050, hard block) and blocked_by_consent
+        (hard block).
+
+    CampaignPriority:
+      type: string
+      enum: [high, normal, low]
+      description: Weight in the number's send scheduler (high 4, normal 2, low 1).
+
+    CampaignSettingsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        priority: { $ref: "#/components/schemas/CampaignPriority" }
+        max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000, description: Messages per second this campaign may use at most. }
+        clear_max_mps: { type: boolean, description: Remove the rate cap. }
+
+    CampaignResumeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        priority: { $ref: "#/components/schemas/CampaignPriority" }
+        max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000 }
+        clear_max_mps: { type: boolean }
+        resume_at: { type: string, format: date-time, description: Resume later instead of now; the campaign stays paused until then. }
+
+    CampaignPause:
+      type: object
+      required: [id, status, reason, detail, paused_at, snapshot]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/CampaignStatus" }
+        reason:
+          type: string
+          description: manual, system, messaging_limit, license_restricted, offer_expired, or a later automatic reason.
+        detail: { type: object, additionalProperties: true }
+        paused_at: { type: string, format: date-time }
+        paused_by: { type: [string, "null"], format: uuid }
+        resume_at: { type: [string, "null"], format: date-time }
+        snapshot:
+          type: object
+          description: Counts at the pause — recipients by state (recipients_*), messages by status, recipients by unreached class (class_*).
+          additionalProperties: { type: integer, format: int64 }
+        resumed_at: { type: [string, "null"], format: date-time }
+        resumed_by: { type: [string, "null"], format: uuid }
+        changes: { type: [object, "null"], additionalProperties: true, description: What was changed when resuming. }
+
+    CampaignPauseListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CampaignPause" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    PortfolioLimit:
+      type: object
+      required: [tier, limit, used, in_flight]
+      properties:
+        tier: { type: string, description: Meta's messaging limit tier; empty when unknown. }
+        limit: { type: integer, format: int64, description: Unique customers per 24 hours outside their service window; 0 = no cap. }
+        used: { type: integer, format: int64 }
+        in_flight: { type: integer, format: int64, description: Campaign messages queued or sending that will count. }
+        frees_at: { type: [string, "null"], format: date-time, description: When the oldest counted customer stops counting. }
+
+    CampaignResumePreview:
+      type: object
+      required: [campaign_id, remaining, eligible, blocked, warned, blocked_reasons, warned_reasons, share_mps, capacity_mps, rate_mps, reserved_share, limit]
+      properties:
+        campaign_id: { type: string, format: uuid }
+        remaining: { type: integer, format: int64 }
+        eligible: { type: integer, format: int64 }
+        blocked: { type: integer, format: int64 }
+        warned: { type: integer, format: int64 }
+        blocked_reasons: { type: array, items: { $ref: "#/components/schemas/PreflightReason" } }
+        warned_reasons: { type: array, items: { $ref: "#/components/schemas/PreflightReason" } }
+        share_mps: { type: number, format: double, description: Rate the campaign would get now. }
+        estimated_seconds: { type: [integer, "null"], format: int64 }
+        capacity_mps: { type: integer, description: The number's throughput ceiling. }
+        rate_mps: { type: integer, description: The number's current adaptive rate. }
+        reserved_share: { type: number, format: double }
+        limit: { $ref: "#/components/schemas/PortfolioLimit" }
+
+    CampaignResumePreviewResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/CampaignResumePreview" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    CampaignQueueEntry:
+      type: object
+      required: [id, name, status, priority, weight, share_mps, remaining, total_recipients]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/CampaignStatus" }
+        priority: { $ref: "#/components/schemas/CampaignPriority" }
+        weight: { type: number, format: double }
+        max_mps: { type: [number, "null"], format: double }
+        share_mps: { type: number, format: double, description: Fair share of the campaign capacity. }
+        rate_mps: { type: [number, "null"], format: double, description: Measured rate. }
+        remaining: { type: integer, format: int64 }
+        total_recipients: { type: integer, format: int64 }
+        eta_seconds: { type: [integer, "null"], format: int64 }
+        paused_reason: { type: [string, "null"] }
+        resume_at: { type: [string, "null"], format: date-time }
+
+    CampaignQueueNumber:
+      type: object
+      required: [phone_number_id, ceiling_mps, rate_mps, reserved_share, campaign_capacity_mps, limit, campaigns]
+      properties:
+        phone_number_id: { type: string, format: uuid }
+        ceiling_mps: { type: integer }
+        rate_mps: { type: integer }
+        reserved_share: { type: number, format: double }
+        campaign_capacity_mps: { type: number, format: double }
+        limit: { $ref: "#/components/schemas/PortfolioLimit" }
+        campaigns: { type: array, items: { $ref: "#/components/schemas/CampaignQueueEntry" } }
+
+    CampaignQueueResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CampaignQueueNumber" } }
+        meta: { $ref: "#/components/schemas/Meta" }
 
     CampaignResponse:
       type: object

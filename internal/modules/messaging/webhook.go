@@ -350,6 +350,12 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 		if err := announceStatus(ctx, tx, q, updated); err != nil {
 			return false, err
 		}
+		if m.CampaignID != nil && s.campaignWithheld != nil && updated.Status == "failed" &&
+			updated.FailureClass != nil && *updated.FailureClass == whatsapp.FailureEcosystemLimit {
+			if err := s.campaignWithheld(ctx, q, updated); err != nil {
+				return false, err
+			}
+		}
 		if m.CampaignID != nil && s.campaignProgress != nil {
 			if err := s.campaignProgress(ctx, tx, q, *m.CampaignID); err != nil {
 				return false, err

@@ -28,6 +28,11 @@ type Filter struct {
 	ServiceConsent   *string
 	// Reachability: "meta_marketing_stopped" or "undeliverable".
 	Reachability *string
+	// FromCampaign with FromClasses: recipients of that campaign it did not
+	// reach for one of these reasons (campaign_recipient_class). Each
+	// contact matches once however many recipient rows it had.
+	FromCampaign *uuid.UUID
+	FromClasses  []string
 }
 
 // consentExpr is a category's effective consent status in SQL.
@@ -78,6 +83,11 @@ func (f Filter) where() (string, []any, error) {
 		default:
 			return "", nil, apperr.Validation("reachability", "Unknown reachability filter.")
 		}
+	}
+	if f.FromCampaign != nil {
+		conds = append(conds, "c.id IN (SELECT r.contact_id FROM campaign_recipients r LEFT JOIN messages m ON m.id = r.message_id"+
+			" WHERE r.campaign_id = "+bind(*f.FromCampaign)+" AND r.contact_id IS NOT NULL"+
+			" AND campaign_recipient_class(r.state, r.skip_reason, m.status, m.failure_class) = ANY("+bind(f.FromClasses)+"::text[]))")
 	}
 	if f.Segment != nil {
 		cmp, err := segment.Compile(f.Segment, len(args)+1)

@@ -173,6 +173,10 @@ type CentrifugoConfig struct {
 type WorkerConfig struct {
 	Concurrency int
 	Queues      map[string]int
+	// CampaignReservedPercent is the share of each number's throughput
+	// campaigns leave for inbox, API and automation messages
+	// (CAMPAIGN_RESERVED_PERCENT, 5–90, default 20).
+	CampaignReservedPercent int
 }
 
 // Load reads configuration from the environment and the optional secrets file.
@@ -224,7 +228,8 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 			HMACSecret: Secret(l.str("CENTRIFUGO_HMAC_SECRET", "")),
 		},
 		Worker: WorkerConfig{
-			Concurrency: l.int("WORKER_CONCURRENCY", 20),
+			Concurrency:             l.int("WORKER_CONCURRENCY", 20),
+			CampaignReservedPercent: l.int("CAMPAIGN_RESERVED_PERCENT", 20),
 		},
 		SMTP: SMTPConfig{
 			Host:     l.str("SMTP_HOST", ""),
@@ -309,6 +314,9 @@ func (c *Config) Validate(role Role) error {
 		req(len(c.EncryptionKey) == 32, "APP_ENCRYPTION_KEY")
 		if c.Worker.Concurrency < 1 {
 			errs = append(errs, errors.New("WORKER_CONCURRENCY must be >= 1"))
+		}
+		if p := c.Worker.CampaignReservedPercent; p < 5 || p > 90 {
+			errs = append(errs, fmt.Errorf("CAMPAIGN_RESERVED_PERCENT must be between 5 and 90 (got %d)", p))
 		}
 	}
 	if role == RoleAPI {

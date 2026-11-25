@@ -44,6 +44,8 @@ type Sent struct {
 	// Raw is the request body exactly as received.
 	Raw   json.RawMessage
 	WAMID string // empty when the scripted behavior failed
+	// At is when the request arrived (throughput tests).
+	At time.Time
 }
 
 // Server is the mock.
@@ -414,7 +416,7 @@ func (s *Server) send(w http.ResponseWriter, r *http.Request, pnid, token string
 
 func (s *Server) record(pnid, token string, m whatsapp.Message, body []byte, wamid string) {
 	s.mu.Lock()
-	s.sent = append(s.sent, Sent{PhoneNumberID: pnid, Token: token, Message: m, Raw: append(json.RawMessage(nil), body...), WAMID: wamid})
+	s.sent = append(s.sent, Sent{PhoneNumberID: pnid, Token: token, Message: m, Raw: append(json.RawMessage(nil), body...), WAMID: wamid, At: time.Now()})
 	s.mu.Unlock()
 }
 

@@ -89,6 +89,7 @@ var mfaEnrolmentOps = []string{"getMe", "logout", "reauthenticate", "startTotpSe
 // services holds what the API and CLI commands need.
 type services struct {
 	cfg        *config.Config
+	throttle   *messaging.Throttle
 	identity   *identity.Service
 	settings   *settings.Store
 	mail       *settings.Mail // nil when a test injects its own mailer
@@ -163,6 +164,12 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	cts := contacts.New(pool, cfg.MediaDir, log)
 	camp := campaigns.New(pool, cts, log)
 	msg.SetCampaignProgress(camp.PublishProgress)
+	msg.SetCampaignWithheld(camp.ScheduleResend)
+	// The send scheduler: the worker paces sends with it, the dispatcher
+	// and the queue view read capacities and shares from it.
+	throttle := messaging.NewThrottle(rdb, messaging.DefaultThroughput).WithCeilings(msg.ThroughputCeiling).
+		SetReservedShare(float64(cfg.Worker.CampaignReservedPercent) / 100)
+	camp.SetScheduler(throttle)
 	inbox := conversations.New(pool, msg, media, log)
 	// Outgoing webhooks: https only outside development; private
 	// destinations are always refused (internal/platform/safehttp).
@@ -172,7 +179,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// Restricted mode stops sending everywhere (see internal/shared/licensegate).
 	licensegate.Install(lic.Allowed)
 	return &services{cfg: cfg, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
-		campaigns: camp, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
+		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
 		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
 }
 

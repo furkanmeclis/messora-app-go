@@ -1574,6 +1574,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/campaigns/queue': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The send queue per phone number
+         * @description Per sending number: its throughput (Meta's ceiling and the current adaptive rate), the share reserved for inbox, API and automation messages, the portfolio messaging limit and its use, and the campaigns sharing the rest with their priority, fair share, measured rate and estimated time left. Running campaigns share by weighted fair queuing (high 4, normal 2, low 1).
+         */
+        get: operations['getCampaignQueue'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/campaigns/preflight': {
         parameters: {
             query?: never;
@@ -1656,7 +1676,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume a paused campaign */
+        /**
+         * Resume a paused campaign, optionally with changes or later
+         * @description Resumes any pause (manual, messaging limit, expired offer …). Recipients already sent to are never sent again. Name, priority and rate cap may be changed; with resume_at the campaign stays paused until then.
+         */
         post: operations['resumeCampaign'];
         delete?: never;
         options?: never;
@@ -1675,6 +1698,63 @@ export interface paths {
         put?: never;
         /** Stop for good; unsent messages are cancelled */
         post: operations['cancelCampaign'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/settings': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change name, priority or rate cap while the campaign is in progress
+         * @description The scheduler uses a new priority or cap from its next tick. Priority changes are audited.
+         */
+        patch: operations['updateCampaignSettings'];
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/pauses': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pause history with the counts at each pause */
+        get: operations['listCampaignPauses'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/resume-preview': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What resuming would send, with consent checked again and the estimated time
+         * @description Counts the recipients a resume would still send to (pending, waiting for a resend, held), what the consent rules decide for them now, the rate the campaign would get with the given settings, the estimated time, and the portfolio messaging limit left. Nothing is changed.
+         */
+        post: operations['previewCampaignResume'];
         delete?: never;
         options?: never;
         head?: never;
@@ -3738,13 +3818,17 @@ export interface components {
             data: components['schemas']['RealtimeSync'];
             meta: components['schemas']['Meta'];
         };
-        /** @enum {string} */
+        /**
+         * @description paused_limit waits for the portfolio messaging limit and resumes by itself; other pauses are paused.
+         * @enum {string}
+         */
         CampaignStatus:
             | 'draft'
             | 'scheduled'
             | 'preparing'
             | 'running'
             | 'paused'
+            | 'paused_limit'
             | 'completed'
             | 'cancelled'
             | 'failed';
@@ -3758,6 +3842,19 @@ export interface components {
             tag_id?: string;
             /** @enum {boolean} */
             all?: true;
+            /** @description Customers a finished campaign did not reach, for the chosen reasons; computed when the new campaign starts, one recipient per contact, consent checked again. user_stopped_marketing and blocked_by_consent cannot be chosen (hard blocks). */
+            previous_campaign?: {
+                /** Format: uuid */
+                campaign_id: string;
+                classes: (
+                    | 'temporary'
+                    | 'rejected_by_meta'
+                    | 'ecosystem_limit'
+                    | 'undeliverable'
+                    | 'permanent'
+                    | 'never_sent'
+                )[];
+            };
         };
         /** @description Template variables. Values may contain {{name}}, {{first_name}}, {{phone}}, {{email}}, {{var1}}–{{var5}} and {{attr:<key>}}. Use a list for positional templates and an object for named parameters. */
         CampaignParams: {
@@ -3852,6 +3949,33 @@ export interface components {
              * @description The offer the campaign promotes (see Offer).
              */
             offer_id?: string | null;
+            priority: components['schemas']['CampaignPriority'];
+            /**
+             * Format: double
+             * @description Rate cap in messages per second; null = its fair share.
+             */
+            max_mps?: number | null;
+            /** @description Why it is paused: manual, messaging_limit, offer_expired, license_restricted … */
+            paused_reason?: string | null;
+            /** Format: date-time */
+            paused_at?: string | null;
+            /** Format: uuid */
+            paused_by?: string | null;
+            /**
+             * Format: date-time
+             * @description When it resumes by itself (limit frees up
+             */
+            resume_at?: string | null;
+            /**
+             * Format: double
+             * @description Measured rate in messages per second.
+             */
+            send_rate?: number | null;
+            /**
+             * Format: int64
+             * @description Estimated time left at the measured rate.
+             */
+            eta_seconds?: number | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -3871,6 +3995,12 @@ export interface components {
              * @description Link an offer. A limited-time offer template takes its end as expiration_time_ms and its coupon; other templates can use the placeholders offer_title, offer_discount, offer_coupon, offer_ends, offer_url, offer_product and offer_description (e.g. {{offer_title}}). Starting or resuming is refused once the offer ended; a running campaign pauses with reason offer_expired.
              */
             offer_id?: string;
+            priority?: components['schemas']['CampaignPriority'];
+            /**
+             * Format: double
+             * @description Rate cap in messages per second.
+             */
+            max_mps?: number;
         };
         UpdateCampaignRequest: {
             name?: string;
@@ -3888,6 +4018,10 @@ export interface components {
             offer_id?: string;
             /** @description Unlink the offer. */
             clear_offer?: boolean;
+            priority?: components['schemas']['CampaignPriority'];
+            /** Format: double */
+            max_mps?: number;
+            clear_max_mps?: boolean;
         };
         CampaignEventItem: {
             /** Format: uuid */
@@ -3916,6 +4050,43 @@ export interface components {
             error_code?: string | null;
             error_title?: string | null;
             failure_class?: components['schemas']['FailureClass'];
+            /**
+             * @description Recipient state and message status combined.
+             * @enum {string}
+             */
+            outcome?:
+                | 'pending'
+                | 'retry_scheduled'
+                | 'in_flight'
+                | 'deferred'
+                | 'sent'
+                | 'delivered'
+                | 'read'
+                | 'unknown'
+                | 'failed'
+                | 'skipped'
+                | 'cancelled';
+            /**
+             * @description Why the recipient was not reached (see UnreachedClass); null = reached or still in progress.
+             * @enum {string|null}
+             */
+            unreached_class?:
+                | 'temporary'
+                | 'rejected_by_meta'
+                | 'ecosystem_limit'
+                | 'undeliverable'
+                | 'permanent'
+                | 'never_sent'
+                | 'user_stopped_marketing'
+                | 'blocked_by_consent'
+                | null;
+            /** @description New messages sent after Meta withheld an accepted one (131049). */
+            resends?: number;
+            /**
+             * Format: date-time
+             * @description When a withheld recipient gets its new message.
+             */
+            next_attempt_at?: string | null;
         };
         CampaignPreflightRequest: {
             audience: components['schemas']['CampaignAudience'];
@@ -3967,9 +4138,185 @@ export interface components {
             hard_blocked: number;
             blocked_reasons: components['schemas']['PreflightReason'][];
             warned_reasons: components['schemas']['PreflightReason'][];
+            /** @description For a previous_campaign audience: the source campaign's customers by why they were not reached (all classes, including those that cannot be selected, and "reached"). */
+            by_failure_class?: {
+                [key: string]: number;
+            };
         };
         CampaignPreflightResponse: {
             data: components['schemas']['CampaignPreflight'];
+            meta: components['schemas']['Meta'];
+        };
+        /**
+         * @description Why a campaign recipient was not reached: temporary (gave up after temporary errors), rejected_by_meta, ecosystem_limit (131049), undeliverable (131026), permanent (account, payload or missing variables), never_sent (cancelled or never queued), user_stopped_marketing (131050, hard block) and blocked_by_consent (hard block).
+         * @enum {string}
+         */
+        UnreachedClass:
+            | 'temporary'
+            | 'rejected_by_meta'
+            | 'ecosystem_limit'
+            | 'undeliverable'
+            | 'permanent'
+            | 'never_sent'
+            | 'user_stopped_marketing'
+            | 'blocked_by_consent';
+        /**
+         * @description Weight in the number's send scheduler (high 4, normal 2, low 1).
+         * @enum {string}
+         */
+        CampaignPriority: 'high' | 'normal' | 'low';
+        CampaignSettingsRequest: {
+            name?: string;
+            priority?: components['schemas']['CampaignPriority'];
+            /**
+             * Format: double
+             * @description Messages per second this campaign may use at most.
+             */
+            max_mps?: number;
+            /** @description Remove the rate cap. */
+            clear_max_mps?: boolean;
+        };
+        CampaignResumeRequest: {
+            name?: string;
+            priority?: components['schemas']['CampaignPriority'];
+            /** Format: double */
+            max_mps?: number;
+            clear_max_mps?: boolean;
+            /**
+             * Format: date-time
+             * @description Resume later instead of now; the campaign stays paused until then.
+             */
+            resume_at?: string;
+        };
+        CampaignPause: {
+            /** Format: uuid */
+            id: string;
+            status: components['schemas']['CampaignStatus'];
+            /** @description manual, system, messaging_limit, license_restricted, offer_expired, or a later automatic reason. */
+            reason: string;
+            detail: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            paused_at: string;
+            /** Format: uuid */
+            paused_by?: string | null;
+            /** Format: date-time */
+            resume_at?: string | null;
+            /** @description Counts at the pause — recipients by state (recipients_*), messages by status, recipients by unreached class (class_*). */
+            snapshot: {
+                [key: string]: number;
+            };
+            /** Format: date-time */
+            resumed_at?: string | null;
+            /** Format: uuid */
+            resumed_by?: string | null;
+            /** @description What was changed when resuming. */
+            changes?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        CampaignPauseListResponse: {
+            data: components['schemas']['CampaignPause'][];
+            meta: components['schemas']['Meta'];
+        };
+        PortfolioLimit: {
+            /** @description Meta's messaging limit tier; empty when unknown. */
+            tier: string;
+            /**
+             * Format: int64
+             * @description Unique customers per 24 hours outside their service window; 0 = no cap.
+             */
+            limit: number;
+            /** Format: int64 */
+            used: number;
+            /**
+             * Format: int64
+             * @description Campaign messages queued or sending that will count.
+             */
+            in_flight: number;
+            /**
+             * Format: date-time
+             * @description When the oldest counted customer stops counting.
+             */
+            frees_at?: string | null;
+        };
+        CampaignResumePreview: {
+            /** Format: uuid */
+            campaign_id: string;
+            /** Format: int64 */
+            remaining: number;
+            /** Format: int64 */
+            eligible: number;
+            /** Format: int64 */
+            blocked: number;
+            /** Format: int64 */
+            warned: number;
+            blocked_reasons: components['schemas']['PreflightReason'][];
+            warned_reasons: components['schemas']['PreflightReason'][];
+            /**
+             * Format: double
+             * @description Rate the campaign would get now.
+             */
+            share_mps: number;
+            /** Format: int64 */
+            estimated_seconds?: number | null;
+            /** @description The number's throughput ceiling. */
+            capacity_mps: number;
+            /** @description The number's current adaptive rate. */
+            rate_mps: number;
+            /** Format: double */
+            reserved_share: number;
+            limit: components['schemas']['PortfolioLimit'];
+        };
+        CampaignResumePreviewResponse: {
+            data: components['schemas']['CampaignResumePreview'];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignQueueEntry: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components['schemas']['CampaignStatus'];
+            priority: components['schemas']['CampaignPriority'];
+            /** Format: double */
+            weight: number;
+            /** Format: double */
+            max_mps?: number | null;
+            /**
+             * Format: double
+             * @description Fair share of the campaign capacity.
+             */
+            share_mps: number;
+            /**
+             * Format: double
+             * @description Measured rate.
+             */
+            rate_mps?: number | null;
+            /** Format: int64 */
+            remaining: number;
+            /** Format: int64 */
+            total_recipients: number;
+            /** Format: int64 */
+            eta_seconds?: number | null;
+            paused_reason?: string | null;
+            /** Format: date-time */
+            resume_at?: string | null;
+        };
+        CampaignQueueNumber: {
+            /** Format: uuid */
+            phone_number_id: string;
+            ceiling_mps: number;
+            rate_mps: number;
+            /** Format: double */
+            reserved_share: number;
+            /** Format: double */
+            campaign_capacity_mps: number;
+            limit: components['schemas']['PortfolioLimit'];
+            campaigns: components['schemas']['CampaignQueueEntry'][];
+        };
+        CampaignQueueResponse: {
+            data: components['schemas']['CampaignQueueNumber'][];
             meta: components['schemas']['Meta'];
         };
         CampaignResponse: {
@@ -7157,6 +7504,27 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    getCampaignQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queue */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignQueueResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     preflightCampaign: {
         parameters: {
             query?: never;
@@ -7318,7 +7686,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                'application/json': components['schemas']['CampaignResumeRequest'];
+            };
+        };
         responses: {
             /** @description Campaign */
             200: {
@@ -7355,6 +7727,83 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    updateCampaignSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CampaignSettingsRequest'];
+            };
+        };
+        responses: {
+            /** @description Campaign */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listCampaignPauses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pauses */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignPauseListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    previewCampaignResume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                'application/json': components['schemas']['CampaignSettingsRequest'];
+            };
+        };
+        responses: {
+            /** @description Summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResumePreviewResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     listCampaignEvents: {
         parameters: {
             query?: never;
@@ -7381,7 +7830,10 @@ export interface operations {
     listCampaignRecipients: {
         parameters: {
             query?: {
-                state?: 'pending' | 'queued' | 'skipped' | 'cancelled';
+                state?:
+                    'pending' | 'queued' | 'skipped' | 'cancelled' | 'retry';
+                /** @description Only recipients not reached for this reason. */
+                class?: components['schemas']['UnreachedClass'];
                 /** @description Opaque cursor from `meta.next_cursor`. */
                 cursor?: components['parameters']['Cursor'];
                 limit?: components['parameters']['Limit'];

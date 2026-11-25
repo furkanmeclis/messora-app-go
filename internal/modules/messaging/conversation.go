@@ -39,6 +39,13 @@ func WindowExpiresAt(lastInbound *time.Time) *time.Time {
 	return &t
 }
 
+// WindowOpenFor reports whether the customer service window between
+// contact and the sending number is open now.
+func WindowOpenFor(ctx context.Context, q *db.Queries, contactID, phoneNumberID uuid.UUID) (bool, error) {
+	last, err := threadLastInbound(ctx, q, contactID, phoneNumberID)
+	return WindowOpen(last, time.Now()), err
+}
+
 // threadLastInbound returns the customer's last window-opening message in
 // the thread between contact and the sending number (nil: never wrote).
 func threadLastInbound(ctx context.Context, q *db.Queries, contactID, phoneNumberID uuid.UUID) (*time.Time, error) {
