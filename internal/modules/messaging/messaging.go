@@ -45,6 +45,17 @@ const (
 // ServiceWindow is Meta's customer service window.
 const ServiceWindow = 24 * time.Hour
 
+// SendPayload is the payload of a TypeSend task. A campaign message names its
+// campaign, which routes the task to the campaigns queue (queue.RouteTask);
+// inbox, API and automation sends stay in the critical queue.
+func SendPayload(messageID uuid.UUID, campaignID *uuid.UUID) map[string]string {
+	p := map[string]string{"message_id": messageID.String()}
+	if campaignID != nil && *campaignID != uuid.Nil {
+		p["campaign_id"] = campaignID.String()
+	}
+	return p
+}
+
 // maxSendAttempts bounds retries of definitely-not-sent messages.
 const maxSendAttempts = 8
 
@@ -272,7 +283,7 @@ func (s *Service) QueueTx(ctx context.Context, tx pgx.Tx, in SendInput) (db.Mess
 		if err != nil {
 			return err
 		}
-		if _, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeSend), map[string]string{"message_id": out.ID.String()}, 0); err != nil {
+		if _, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeSend), SendPayload(out.ID, nil), 0); err != nil {
 			return err
 		}
 		_, err = recordNew(ctx, tx, q, out)

@@ -820,24 +820,29 @@ func (q *Queries) SetMaterializeCursor(ctx context.Context, arg SetMaterializeCu
 }
 
 const stalePendingMessages = `-- name: StalePendingMessages :many
-SELECT id FROM messages WHERE status = 'pending' AND updated_at < now() - make_interval(secs => $1::double precision)
+SELECT id, campaign_id FROM messages WHERE status = 'pending' AND updated_at < now() - make_interval(secs => $1::double precision)
 ORDER BY updated_at LIMIT 1000
 `
 
+type StalePendingMessagesRow struct {
+	ID         uuid.UUID
+	CampaignID *uuid.UUID
+}
+
 // Pending for longer than expected: its send task may have been lost.
-func (q *Queries) StalePendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error) {
+func (q *Queries) StalePendingMessages(ctx context.Context, olderThanSeconds float64) ([]StalePendingMessagesRow, error) {
 	rows, err := q.db.Query(ctx, stalePendingMessages, olderThanSeconds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []uuid.UUID{}
+	items := []StalePendingMessagesRow{}
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i StalePendingMessagesRow
+		if err := rows.Scan(&i.ID, &i.CampaignID); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

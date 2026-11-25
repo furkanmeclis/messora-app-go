@@ -38,3 +38,41 @@ func TestRouting(t *testing.T) {
 		t.Fatal("routing")
 	}
 }
+
+func TestCampaignSendsUseTheCampaignsQueue(t *testing.T) {
+	for _, tc := range []struct {
+		name, taskType, payload, want string
+	}{
+		{"campaign send", "whatsapp:send", `{"message_id":"0193a5a0-0000-7000-8000-000000000001","campaign_id":"0193a5a0-0000-7000-8000-000000000002"}`, Campaigns},
+		{"inbox/API/automation send", "whatsapp:send", `{"message_id":"0193a5a0-0000-7000-8000-000000000001"}`, Critical},
+		{"empty campaign id", "whatsapp:send", `{"message_id":"x","campaign_id":""}`, Critical},
+		{"undecodable payload", "whatsapp:send", `not json`, Critical},
+		{"other types ignore campaign_id", "campaign:dispatch", `{"campaign_id":"c"}`, Campaigns},
+		{"webhook stays critical", "whatsapp:webhook", `{"campaign_id":"c"}`, Critical},
+	} {
+		if got := RouteTask(tc.taskType, []byte(tc.payload)); got != tc.want {
+			t.Errorf("%s: routed to %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestPoliciesAreExplicitAndValid(t *testing.T) {
+	known := map[string]bool{}
+	for _, q := range AllQueues {
+		known[q] = true
+	}
+	for typ, p := range Policies() {
+		if !known[p.Queue] {
+			t.Errorf("%s: unknown queue %q", typ, p.Queue)
+		}
+		if p.MaxRetry < 1 || p.MaxRetry > 25 {
+			t.Errorf("%s: max retry %d out of range", typ, p.MaxRetry)
+		}
+	}
+	if p := PolicyFor("unknown:type"); p.Queue != Default || p.MaxRetry != DefaultMaxRetry {
+		t.Fatalf("fallback policy %+v", p)
+	}
+	if PolicyFor("whatsapp:send").MaxRetry != 10 {
+		t.Fatal("send budget changed: update docs/ARCHITECTURE.md §11")
+	}
+}
