@@ -202,5 +202,5 @@ func (s *Server) generate(w http.ResponseWriter, provider, path string, body []b
 
 func write(w http.ResponseWriter, status int, body string) {
 	w.WriteHeader(status)
-	_, _ = io.WriteString(w, body)
+	_, _ = io.WriteString(w, body) //nolint:gosec // test emulator answering with fixed JSON
 }

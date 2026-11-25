@@ -51,7 +51,7 @@ func (h *harness) enableAI(token, providerID, model string) {
 	h.t.Helper()
 	r := h.do(call{method: "PUT", path: "/api/v1/ai/settings", token: token, body: map[string]any{
 		"enabled": true, "default_provider_id": providerID, "default_model": model,
-		"disclosure": map[string]any{"tr": "Yapay zekâ asistanı yanıtlıyor.", "en": "An AI assistant is answering."},
+		"disclosure":          map[string]any{"tr": "Yapay zekâ asistanı yanıtlıyor.", "en": "An AI assistant is answering."},
 		"data_sharing_notice": map[string]any{"tr": "", "en": ""}}})
 	h.expect(r, 200, "")
 }

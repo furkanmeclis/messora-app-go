@@ -33,7 +33,7 @@ func newAnthropic(cfg ProviderConfig) *anthropicClient {
 // prompt (the Messages API has no developer role); temperature is not sent
 // because current Claude models fix it.
 func anthropicParams(req Request) anthropic.MessageNewParams {
-	p := anthropic.MessageNewParams{Model: anthropic.Model(req.Model), MaxTokens: maxTokens(req)}
+	p := anthropic.MessageNewParams{Model: req.Model, MaxTokens: maxTokens(req)}
 	if req.System != "" {
 		p.System = append(p.System, anthropic.TextBlockParam{Text: req.System})
 	}

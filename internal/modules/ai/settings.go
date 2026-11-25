@@ -45,7 +45,7 @@ type Settings struct {
 	DataSharingNotice Texts `json:"data_sharing_notice"`
 }
 
-// DefaultSettings: AI off until an admin connects a provider and turns it on.
+// DefaultSettings returns the initial settings: AI off until an admin connects a provider and turns it on.
 func DefaultSettings() Settings {
 	return Settings{
 		Disclosure: Texts{

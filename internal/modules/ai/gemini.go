@@ -23,7 +23,7 @@ func newGemini(cfg ProviderConfig) *geminiClient { return &geminiClient{cfg: cfg
 // geminiRequest builds contents and config. Gemini has only a system
 // instruction, so operator notes are appended to it.
 func geminiRequest(req Request) ([]*genai.Content, *genai.GenerateContentConfig) {
-	cfg := &genai.GenerateContentConfig{MaxOutputTokens: int32(min(maxTokens(req), 1<<31-1))}
+	cfg := &genai.GenerateContentConfig{MaxOutputTokens: int32(min(maxTokens(req), 1<<31-1))} //nolint:gosec // clamped to int32 range
 	system := req.System
 	if notes := operatorNotes(req.Messages); notes != "" {
 		system = strings.TrimSpace(system + "\n\n" + notes)

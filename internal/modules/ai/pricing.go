@@ -89,7 +89,7 @@ func (r Rules) Validate() error {
 		if t.InputTokensOver <= 0 {
 			return fmt.Errorf("pricing rules: threshold %d: input_tokens_over must be positive", i+1)
 		}
-		if err := t.Rates.validate(); err != nil {
+		if err := t.validate(); err != nil {
 			return fmt.Errorf("pricing rules: threshold %d: %w", i+1, err)
 		}
 	}

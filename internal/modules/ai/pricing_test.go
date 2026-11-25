@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"errors"
 	"math/big"
 	"strings"
 	"testing"
@@ -268,8 +269,8 @@ func TestPriceInputValidate(t *testing.T) {
 	}
 	for field, in := range cases {
 		err := in.Validate()
-		fe, isField := err.(*FieldError)
-		if !isField || fe.Field != field {
+		var fe *FieldError
+		if !errors.As(err, &fe) || fe.Field != field {
 			t.Errorf("%s: got %v", field, err)
 		}
 	}
