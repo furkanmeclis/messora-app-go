@@ -63,8 +63,17 @@ type Notification struct {
 
 // Entry groups changes for one WABA.
 type Entry struct {
-	ID      string   `json:"id"`
+	ID      string   `json:"id"`   // WABA ID
+	Time    int64    `json:"time"` // set on account-level changes
 	Changes []Change `json:"changes"`
+}
+
+// At is when Meta triggered the change (now when not sent).
+func (e Entry) At() time.Time {
+	if e.Time <= 0 {
+		return time.Now().UTC()
+	}
+	return time.Unix(e.Time, 0).UTC()
 }
 
 // Change is one event; Field selects how Value is interpreted.
@@ -190,14 +199,31 @@ func (m *InboundMessage) Time() time.Time { return parseUnix(m.Timestamp) }
 
 // Status is a delivery update for an outbound message.
 type Status struct {
-	ID                    string          `json:"id"` // wamid
-	Status                string          `json:"status"`
-	Timestamp             string          `json:"timestamp"`
-	RecipientID           string          `json:"recipient_id"`
-	BizOpaqueCallbackData string          `json:"biz_opaque_callback_data"`
-	Errors                []WebhookError  `json:"errors"`
-	Pricing               json.RawMessage `json:"pricing"`
-	Conversation          json.RawMessage `json:"conversation"`
+	ID                    string         `json:"id"` // wamid
+	Status                string         `json:"status"`
+	Timestamp             string         `json:"timestamp"`
+	RecipientID           string         `json:"recipient_id"`
+	BizOpaqueCallbackData string         `json:"biz_opaque_callback_data"`
+	Errors                []WebhookError `json:"errors"`
+	// Pricing is present on either the "sent" or the "delivered" status,
+	// never both (and not on read/failed).
+	Pricing      *Pricing        `json:"pricing"`
+	Conversation json.RawMessage `json:"conversation"`
+}
+
+// Pricing is the status webhook's pricing object. It carries no amount.
+type Pricing struct {
+	// Billable is deprecated by Meta (type and category decide).
+	Billable     *bool  `json:"billable"`
+	PricingModel string `json:"pricing_model"` // PMP (CBP before 2025-07-01)
+	// Type: regular (charged) | free_customer_service | free_entry_point |
+	// free_group_customer_service.
+	Type string `json:"type"`
+	// Category: marketing | utility | authentication |
+	// authentication-international | service | marketing_lite |
+	// referral_conversion | group_marketing | group_utility | group_service.
+	Category string `json:"category"`
+	Subtype  string `json:"subtype"` // free_tier | paid_exempt (free service only)
 }
 
 // Time parses the Unix timestamp string.
@@ -223,11 +249,127 @@ type TemplateStatusValue struct {
 }
 
 // QualityValue is the value of field "phone_number_quality_update".
+// Events seen: ONBOARDING, THROUGHPUT_UPGRADE (the number moved to the
+// higher throughput) and, in older payloads, FLAGGED/UNFLAGGED/UPGRADE/
+// DOWNGRADE. current_limit/old_limit are being replaced by
+// max_daily_conversations_per_business (the portfolio's messaging limit).
 type QualityValue struct {
-	DisplayPhoneNumber string `json:"display_phone_number"`
-	Event              string `json:"event"`
-	CurrentLimit       string `json:"current_limit"`
+	DisplayPhoneNumber               string `json:"display_phone_number"`
+	Event                            string `json:"event"`
+	CurrentLimit                     string `json:"current_limit"`
+	OldLimit                         string `json:"old_limit"`
+	MaxDailyConversationsPerBusiness string `json:"max_daily_conversations_per_business"`
 }
+
+// MessagingLimit is the portfolio limit the event reports, preferring the
+// current field.
+func (v QualityValue) MessagingLimit() string {
+	if v.MaxDailyConversationsPerBusiness != "" {
+		return v.MaxDailyConversationsPerBusiness
+	}
+	if v.Event == "THROUGHPUT_UPGRADE" {
+		return "" // current_limit is the throughput tier here, not the limit
+	}
+	return v.CurrentLimit
+}
+
+// AccountUpdateValue is the value of field "account_update". Only the
+// fields Messora acts on are decoded; the raw value is stored.
+type AccountUpdateValue struct {
+	Event           string `json:"event"`
+	PhoneNumber     string `json:"phone_number"`
+	RestrictionInfo []struct {
+		RestrictionType string `json:"restriction_type"`
+		Expiration      int64  `json:"expiration"`
+	} `json:"restriction_info"`
+	BanInfo *struct {
+		WABABanState string `json:"waba_ban_state"`
+		WABABanDate  string `json:"waba_ban_date"`
+	} `json:"ban_info"`
+	ViolationInfo *struct {
+		ViolationType string `json:"violation_type"`
+	} `json:"violation_info"`
+}
+
+// TemplateQualityValue is the value of field "message_template_quality_update".
+type TemplateQualityValue struct {
+	PreviousQualityScore    string      `json:"previous_quality_score"`
+	NewQualityScore         string      `json:"new_quality_score"` // GREEN | YELLOW | RED | UNKNOWN
+	MessageTemplateID       json.Number `json:"message_template_id"`
+	MessageTemplateName     string      `json:"message_template_name"`
+	MessageTemplateLanguage string      `json:"message_template_language"`
+}
+
+// CapabilityValue is the value of field "business_capability_update".
+type CapabilityValue struct {
+	// MaxDailyConversationsPerBusiness is documented as a tier string
+	// (TIER_2K) but Meta's own example sends a number; both are accepted.
+	MaxDailyConversationsPerBusiness json.RawMessage `json:"max_daily_conversations_per_business"`
+	MaxDailyConversationPerPhone     *int64          `json:"max_daily_conversation_per_phone"`
+	MaxPhoneNumbersPerBusiness       *int64          `json:"max_phone_numbers_per_business"`
+	MaxPhoneNumbersPerWABA           *int64          `json:"max_phone_numbers_per_waba"`
+}
+
+// MessagingLimit returns the portfolio limit as a tier name (TIER_250 …
+// TIER_UNLIMITED), or "" when the event does not carry one.
+func (v CapabilityValue) MessagingLimit() string {
+	if len(v.MaxDailyConversationsPerBusiness) > 0 {
+		var s string
+		if json.Unmarshal(v.MaxDailyConversationsPerBusiness, &s) == nil && s != "" {
+			return s
+		}
+		var n int64
+		if json.Unmarshal(v.MaxDailyConversationsPerBusiness, &n) == nil {
+			return LimitTier(n)
+		}
+	}
+	if v.MaxDailyConversationPerPhone != nil {
+		return LimitTier(*v.MaxDailyConversationPerPhone)
+	}
+	return ""
+}
+
+// LimitTier names a numeric messaging limit (-1 = unlimited).
+func LimitTier(n int64) string {
+	switch n {
+	case -1:
+		return "TIER_UNLIMITED"
+	case 2000:
+		return "TIER_2K"
+	case 10000:
+		return "TIER_10K"
+	case 100000:
+		return "TIER_100K"
+	}
+	if n <= 0 {
+		return ""
+	}
+	return "TIER_" + strconv.FormatInt(n, 10)
+}
+
+// UserPreferencesValue is the value of field "user_preferences": a user
+// stopped or resumed marketing messages from the business in WhatsApp.
+type UserPreferencesValue struct {
+	Metadata struct {
+		DisplayPhoneNumber string `json:"display_phone_number"`
+		PhoneNumberID      string `json:"phone_number_id"`
+	} `json:"metadata"`
+	UserPreferences []UserPreference `json:"user_preferences"`
+}
+
+// UserPreference is one preference change.
+type UserPreference struct {
+	WaID         string      `json:"wa_id"`   // omitted for username-only users
+	UserID       string      `json:"user_id"` // business-scoped user ID, when enabled
+	ParentUserID string      `json:"parent_user_id"`
+	Detail       string      `json:"detail"`
+	Category     string      `json:"category"` // marketing_messages
+	Value        string      `json:"value"`    // stop | resume
+	Timestamp    json.Number `json:"timestamp"`
+}
+
+// Time parses the Unix timestamp.
+func (p UserPreference) Time() time.Time { return parseUnix(p.Timestamp.String()) }
 
 func parseUnix(s string) time.Time {
 	n, err := strconv.ParseInt(s, 10, 64)

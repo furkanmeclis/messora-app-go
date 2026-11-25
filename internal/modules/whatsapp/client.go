@@ -230,6 +230,48 @@ func (c *Client) GetPhoneNumber(ctx context.Context, phoneNumberID, token string
 	return out, err
 }
 
+// GetAccountCurrency returns the WABA's billing currency (ISO 4217).
+func (c *Client) GetAccountCurrency(ctx context.Context, wabaID, token string) (string, error) {
+	var out struct {
+		Currency string `json:"currency"`
+	}
+	_, err := c.do(ctx, http.MethodGet, c.endpoint(url.PathEscape(wabaID), url.Values{"fields": {"currency"}}), token, nil, "", &out)
+	return out.Currency, err
+}
+
+// PricingAnalyticsField renders the pricing_analytics field expansion.
+func PricingAnalyticsField(p PricingQuery) string {
+	f := fmt.Sprintf("pricing_analytics.start(%d).end(%d).granularity(%s)", p.Start.Unix(), p.End.Unix(), p.Granularity)
+	if len(p.Dimensions) > 0 {
+		f += ".dimensions(" + strings.Join(p.Dimensions, ",") + ")"
+	}
+	if len(p.MetricTypes) > 0 {
+		f += ".metric_types(" + strings.Join(p.MetricTypes, ",") + ")"
+	}
+	return f
+}
+
+// PricingAnalytics returns Meta's (approximate) cost and volume data points
+// of the WABA, in the account's currency.
+func (c *Client) PricingAnalytics(ctx context.Context, wabaID, token string, p PricingQuery) ([]PricingDataPoint, error) {
+	var out struct {
+		PricingAnalytics struct {
+			Data []struct {
+				DataPoints []PricingDataPoint `json:"data_points"`
+			} `json:"data"`
+		} `json:"pricing_analytics"`
+	}
+	q := url.Values{"fields": {PricingAnalyticsField(p)}}
+	if _, err := c.do(ctx, http.MethodGet, c.endpoint(url.PathEscape(wabaID), q), token, nil, "", &out); err != nil {
+		return nil, err
+	}
+	var points []PricingDataPoint
+	for _, d := range out.PricingAnalytics.Data {
+		points = append(points, d.DataPoints...)
+	}
+	return points, nil
+}
+
 // RegisterPhoneNumber registers a number for Cloud API with its two-step
 // verification PIN (Meta allows 10 attempts per 72 hours).
 func (c *Client) RegisterPhoneNumber(ctx context.Context, phoneNumberID, token, pin string) error {

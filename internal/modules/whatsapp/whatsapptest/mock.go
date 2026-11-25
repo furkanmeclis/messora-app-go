@@ -57,6 +57,77 @@ type Server struct {
 	tokens    map[string]bool // accepted access tokens; empty = accept all
 	tokenInfo map[string]TokenInfo
 	exchanged map[string]string // short-lived token → long-lived token
+	currency  map[string]string // waba → currency
+	pricing   map[string][]whatsapp.PricingDataPoint
+	pricingQ  []string // pricing_analytics field expansions requested
+}
+
+// SetCurrency scripts GET /{waba}?fields=currency.
+func (s *Server) SetCurrency(waba, currency string) {
+	s.mu.Lock()
+	s.currency[waba] = currency
+	s.mu.Unlock()
+}
+
+// SetPricingAnalytics scripts the data points pricing_analytics returns for
+// a WABA (a nil Cost omits "cost", as for accounts on a partner's credit
+// line).
+func (s *Server) SetPricingAnalytics(waba string, points []whatsapp.PricingDataPoint) {
+	s.mu.Lock()
+	s.pricing[waba] = points
+	s.mu.Unlock()
+}
+
+// PricingQueries returns the pricing_analytics field expansions requested.
+func (s *Server) PricingQueries() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.pricingQ...)
+}
+
+// SetThroughput changes a registered number's throughput level.
+func (s *Server) SetThroughput(waba, phoneNumberID, level string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.numbers[waba] {
+		if s.numbers[waba][i].ID == phoneNumberID {
+			s.numbers[waba][i].Throughput.Level = level
+		}
+	}
+}
+
+// wabaFields answers GET /{waba}?fields=… (currency, pricing_analytics);
+// false when id is not a known WABA.
+func (s *Server) wabaFields(w http.ResponseWriter, r *http.Request, waba string) bool {
+	fields := r.URL.Query().Get("fields")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, known := s.numbers[waba]
+	if !known {
+		_, known = s.currency[waba]
+	}
+	if !known {
+		return false
+	}
+	switch {
+	case strings.HasPrefix(fields, "pricing_analytics"):
+		s.pricingQ = append(s.pricingQ, fields)
+		points := s.pricing[waba]
+		if points == nil {
+			points = []whatsapp.PricingDataPoint{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": waba, "pricing_analytics": map[string]any{
+			"data": []any{map[string]any{"data_points": points}}}})
+	case fields == "currency":
+		cur := s.currency[waba]
+		if cur == "" {
+			cur = "USD"
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": waba, "currency": cur})
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"id": waba})
+	}
+	return true
 }
 
 // TokenInfo scripts debug_token for one token. The zero value of a token
@@ -143,7 +214,8 @@ func NewHandler() (*Server, http.Handler) {
 func newServer() *Server {
 	return &Server{numbers: map[string][]whatsapp.PhoneNumber{}, templates: map[string][]whatsapp.TemplateInfo{},
 		media: map[string][]byte{}, mediaType: map[string]string{}, tokens: map[string]bool{},
-		tokenInfo: map[string]TokenInfo{}, exchanged: map[string]string{}}
+		tokenInfo: map[string]TokenInfo{}, exchanged: map[string]string{}, currency: map[string]string{},
+		pricing: map[string][]whatsapp.PricingDataPoint{}}
 }
 
 // Script queues behaviors for the next send requests (FIFO); once exhausted
@@ -258,6 +330,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"data": data})
 	case r.Method == http.MethodGet && edge == "" && strings.HasPrefix(id, "media"):
 		s.getMedia(w, r, id)
+	case r.Method == http.MethodGet && edge == "" && s.wabaFields(w, r, id):
 	case r.Method == http.MethodGet && edge == "":
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -451,9 +524,14 @@ func InboundMedia(phoneNumberID, from, wamid, mediaType, mediaID, mime, caption 
 	})
 }
 
-// StatusUpdate builds a "messages" notification with one status.
-func StatusUpdate(phoneNumberID, wamid, status, recipient, callback string, at time.Time, errCode int) []byte {
+// StatusUpdate builds a "messages" notification with one status, with
+// Meta's pricing object when pricing is given (Meta sends it on either the
+// "sent" or the "delivered" status).
+func StatusUpdate(phoneNumberID, wamid, status, recipient, callback string, at time.Time, errCode int, pricing ...whatsapp.Pricing) []byte {
 	st := map[string]any{"id": wamid, "status": status, "timestamp": fmt.Sprint(at.Unix()), "recipient_id": recipient}
+	if len(pricing) > 0 {
+		st["pricing"] = pricing[0]
+	}
 	if callback != "" {
 		st["biz_opaque_callback_data"] = callback
 	}
@@ -470,6 +548,64 @@ func TemplateStatus(waba, templateID, name, language, event, reason string) []by
 			"event": event, "message_template_id": json.Number(templateID), "message_template_name": name,
 			"message_template_language": language, "reason": reason}}}}}})
 	return b
+}
+
+// AccountChange builds a WABA-level notification for field (account_update,
+// phone_number_quality_update, business_capability_update,
+// message_template_quality_update, user_preferences …) with value as is.
+func AccountChange(waba, field string, value any) []byte {
+	b, _ := json.Marshal(map[string]any{"object": "whatsapp_business_account", "entry": []any{map[string]any{
+		"id": waba, "time": time.Now().Unix(), "changes": []any{map[string]any{"field": field, "value": value}}}}})
+	return b
+}
+
+// QualityUpdate builds a "phone_number_quality_update" notification.
+// limit is max_daily_conversations_per_business ("" to omit).
+func QualityUpdate(waba, displayPhoneNumber, event, currentLimit, limit string) []byte {
+	v := map[string]any{"display_phone_number": displayPhoneNumber, "event": event}
+	if currentLimit != "" {
+		v["current_limit"] = currentLimit
+	}
+	if limit != "" {
+		v["max_daily_conversations_per_business"] = limit
+	}
+	return AccountChange(waba, "phone_number_quality_update", v)
+}
+
+// AccountUpdate builds an "account_update" notification; extra fields
+// (phone_number, restriction_info, ban_info …) are merged into the value.
+func AccountUpdate(waba, event string, extra map[string]any) []byte {
+	v := map[string]any{"event": event}
+	for k, x := range extra {
+		v[k] = x
+	}
+	return AccountChange(waba, "account_update", v)
+}
+
+// TemplateQuality builds a "message_template_quality_update" notification.
+func TemplateQuality(waba, templateID, name, language, previous, current string) []byte {
+	return AccountChange(waba, "message_template_quality_update", map[string]any{
+		"previous_quality_score": previous, "new_quality_score": current, "message_template_id": json.Number(templateID),
+		"message_template_name": name, "message_template_language": language})
+}
+
+// CapabilityUpdate builds a "business_capability_update" notification.
+func CapabilityUpdate(waba, limit string, maxPhoneNumbersPerWABA int) []byte {
+	return AccountChange(waba, "business_capability_update", map[string]any{
+		"max_daily_conversations_per_business": limit, "max_phone_numbers_per_waba": maxPhoneNumbersPerWABA})
+}
+
+// UserPreferences builds a "user_preferences" notification (a user stopped
+// or resumed marketing messages).
+func UserPreferences(waba, phoneNumberID string, prefs ...whatsapp.UserPreference) []byte {
+	contacts := make([]any, 0, len(prefs))
+	for _, p := range prefs {
+		contacts = append(contacts, map[string]any{"wa_id": p.WaID, "user_id": p.UserID, "profile": map[string]string{"name": ""}})
+	}
+	return AccountChange(waba, "user_preferences", map[string]any{
+		"messaging_product": "whatsapp",
+		"metadata":          map[string]string{"display_phone_number": "15550000000", "phone_number_id": phoneNumberID},
+		"contacts":          contacts, "user_preferences": prefs})
 }
 
 func notification(phoneNumberID string, value map[string]any) []byte {
