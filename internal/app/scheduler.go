@@ -31,6 +31,8 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "webhook_cleanup", Every: 6 * time.Hour, TaskType: webhooks.TypeCleanup},
 		{Name: "license_check_in", Every: 6 * time.Hour, TaskType: licensing.TypeCheckIn},
 		{Name: "whatsapp_token_check", Every: 6 * time.Hour, TaskType: channels.TypeTokenCheck},
+		{Name: "whatsapp_signal_sync", Every: time.Hour, TaskType: channels.TypeSignalSync},
+		{Name: "meta_cost_reconcile", Every: 24 * time.Hour, TaskType: channels.TypeCostReconcile},
 	}
 }
 

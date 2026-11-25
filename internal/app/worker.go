@@ -85,8 +85,10 @@ func RunWorker(ctx context.Context) error {
 		return err
 	})
 
-	svc.messaging.SetThrottle(messaging.NewThrottle(rdb, 80))
+	// Each number's ceiling is the throughput Meta reports for it (80 when unknown).
+	svc.messaging.SetThrottle(messaging.NewThrottle(rdb, messaging.DefaultThroughput).WithCeilings(svc.messaging.ThroughputCeiling))
 	registerMessaging(mux, svc.messaging)
+	registerSignals(mux, svc.channels, log)
 	registerCampaigns(mux, svc.campaigns, svc.messaging, log)
 	registerAutomations(mux, svc.automation, log)
 	mux.HandleFunc(channels.TypeTokenCheck, func(ctx context.Context, _ *asynq.Task) error {
@@ -192,6 +194,38 @@ func registerMessaging(mux *asynq.ServeMux, m *messaging.Service) {
 			return err
 		}
 		return m.DownloadMedia(ctx, id)
+	})
+}
+
+// registerSignals wires Meta's account signals, cost reconciliation and the
+// user-preference event.
+func registerSignals(mux *asynq.ServeMux, ch *channels.Service, log *slog.Logger) {
+	mux.HandleFunc(channels.TypeSignalSync, func(ctx context.Context, t *asynq.Task) error {
+		var p struct {
+			AccountID *uuid.UUID `json:"account_id"`
+		}
+		_ = json.Unmarshal(t.Payload(), &p) // empty payload (scheduler) = every account
+		// Problems are logged; the next hourly run repeats the sync.
+		if err := ch.SyncSignals(ctx, p.AccountID); err != nil {
+			log.WarnContext(ctx, "whatsapp signal sync", "err", err)
+		}
+		return nil
+	})
+	mux.HandleFunc(channels.TypeCostReconcile, func(ctx context.Context, _ *asynq.Task) error {
+		// Every run re-reads the last days, so a failed one is repaired by the next.
+		if err := ch.ReconcileCosts(ctx, time.Now()); err != nil {
+			log.WarnContext(ctx, "meta cost reconciliation", "err", err)
+		}
+		return nil
+	})
+	mux.HandleFunc(messaging.TypeUserPreference, func(ctx context.Context, t *asynq.Task) error {
+		// Recorded in meta_user_preferences; consent handling subscribes here.
+		var e messaging.UserPreferenceEvent
+		if err := json.Unmarshal(t.Payload(), &e); err != nil {
+			return fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		log.InfoContext(ctx, "whatsapp user preference", "category", e.Category, "value", e.Value, "preference_id", e.ID)
+		return nil
 	})
 }
 

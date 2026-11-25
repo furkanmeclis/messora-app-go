@@ -435,6 +435,46 @@ export interface paths {
         patch: operations['updateSettings'];
         trace?: never;
     };
+    '/settings/meta-rates': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Imported Meta rate card
+         * @description Meta's per-message prices as imported from CSV, used to price each billable message. Meta publishes no pricing API; see docs/WHATSAPP.md ("Rate card") for the import format.
+         */
+        get: operations['listMetaRates'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/settings/meta-rates/import': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Meta's rate card from CSV
+         * @description Multipart upload with a `file` field holding a CSV with the columns market, countries, category, price, currency, effective_from and optionally tier_lower, tier_upper and source (at most 2 MB). Rows add to or replace the stored rates of the same currency, market, category, tier and date; a rate stays valid until the next date of its market and category. The whole file is rejected when any row is invalid.
+         */
+        post: operations['importMetaRates'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/appearance': {
         parameters: {
             query?: never;
@@ -2509,6 +2549,8 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             token: components['schemas']['WhatsAppTokenHealth'];
+            /** @description The account's billing currency as Meta reports it; message costs are in this currency. */
+            readonly currency?: string | null;
         };
         /** @description What Meta's debug_token reported about the stored access token. */
         WhatsAppTokenHealth: {
@@ -2554,9 +2596,18 @@ export interface components {
             phone_number_id: string;
             display_phone_number: string;
             verified_name: string;
+            /** @description Meta's messaging quality rating: GREEN, YELLOW, RED, NA or UNKNOWN. */
             quality_rating: string;
+            /** @description The business portfolio's messaging limit (TIER_250, TIER_2K, TIER_10K, TIER_100K, TIER_UNLIMITED); empty when unknown. */
             messaging_limit: string;
             throughput_level?: string;
+            /** @description Messages per second Meta allows this number (80 by default, 1000 after the upgrade); null when unknown. */
+            readonly throughput_mps?: number | null;
+            /**
+             * Format: date-time
+             * @description When quality, limit and throughput were last read from Meta.
+             */
+            readonly signals_checked_at?: string | null;
             is_default: boolean;
         };
         WebhookSetup: {
@@ -2582,7 +2633,8 @@ export interface components {
                 [key: string]: unknown;
             }[];
             rejected_reason: string;
-            quality_score?: string;
+            /** @description Meta's template quality (GREEN, YELLOW, RED, UNKNOWN); updated by the message_template_quality_update webhook. */
+            readonly quality_score?: string;
             /** Format: date-time */
             synced_at?: string;
         };
@@ -2692,6 +2744,64 @@ export interface components {
             failed_at?: string | null;
             /** Format: date-time */
             created_at: string;
+            /** @description Meta's pricing category from the status webhook (marketing, utility, authentication, authentication-international, service, …). */
+            readonly pricing_category?: string | null;
+            /** @description regular (charged) or a free type (free_customer_service, free_entry_point, …). */
+            readonly pricing_type?: string | null;
+            /** @description Cost as a decimal string, priced from the imported rate card ("0" for free messages); null when Meta has not reported the pricing yet or no rate matches. */
+            readonly cost_amount?: string | null;
+            readonly cost_currency?: string | null;
+        };
+        MetaRate: {
+            /** Format: uuid */
+            id: string;
+            currency: string;
+            market: string;
+            /** @description ISO 3166 alpha-2 codes of the market. */
+            countries: string[];
+            /** @enum {string} */
+            category:
+                | 'marketing'
+                | 'utility'
+                | 'authentication'
+                | 'authentication-international'
+                | 'service';
+            /** @description Price per message as a decimal string. */
+            price: string;
+            /**
+             * Format: int64
+             * @description First message of the month this tier applies to.
+             */
+            tier_lower: number | null;
+            /**
+             * Format: int64
+             * @description Last message of the month this tier applies to (null = no limit).
+             */
+            tier_upper: number | null;
+            /** Format: date */
+            effective_from: string;
+            /**
+             * Format: date
+             * @description Exclusive; null while it is the newest rate.
+             */
+            effective_to: string | null;
+            source: string;
+            /** Format: date-time */
+            imported_at: string;
+        };
+        MetaRateListResponse: {
+            data: components['schemas']['MetaRate'][];
+            meta: components['schemas']['Meta'];
+        };
+        MetaRateImport: {
+            /** @description Rate rows imported. */
+            rates: number;
+            /** @description Countries assigned to a market. */
+            markets: number;
+        };
+        MetaRateImportResponse: {
+            data: components['schemas']['MetaRateImport'];
+            meta: components['schemas']['Meta'];
         };
         WhatsAppAccountResponse: {
             data: components['schemas']['WhatsAppAccount'];
@@ -4384,6 +4494,55 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['SettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listMetaRates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rates, newest first within each market and category */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MetaRateListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    importMetaRates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'multipart/form-data': {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MetaRateImportResponse'];
                 };
             };
             default: components['responses']['Error'];

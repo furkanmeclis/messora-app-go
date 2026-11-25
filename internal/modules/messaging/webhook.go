@@ -15,6 +15,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/metacost"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 )
@@ -127,7 +128,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, id uuid.UUID, attempt, max
 		unmatched, media = 0, nil
 		for _, e := range n.Entry {
 			for _, c := range e.Changes {
-				u, m, err := s.applyChange(ctx, tx, q, c)
+				u, m, err := s.applyChange(ctx, tx, q, e, c)
 				if err != nil {
 					return fmt.Errorf("%s: %w", c.Field, err)
 				}
@@ -159,7 +160,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, id uuid.UUID, attempt, max
 	return nil
 }
 
-func (s *Service) applyChange(ctx context.Context, tx pgx.Tx, q *db.Queries, c whatsapp.Change) (unmatched int, media []uuid.UUID, err error) {
+func (s *Service) applyChange(ctx context.Context, tx pgx.Tx, q *db.Queries, e whatsapp.Entry, c whatsapp.Change) (unmatched int, media []uuid.UUID, err error) {
 	switch c.Field {
 	case "messages":
 		var v whatsapp.MessagesValue
@@ -204,14 +205,9 @@ func (s *Service) applyChange(ctx context.Context, tx pgx.Tx, q *db.Queries, c w
 		_, err := q.UpdateTemplateStatusByMetaID(ctx, db.UpdateTemplateStatusByMetaIDParams{
 			Status: v.Event, Reason: v.Reason, MetaTemplateID: v.MessageTemplateID.String()})
 		return 0, nil, err
-	case "phone_number_quality_update":
-		var v whatsapp.QualityValue
-		if err := json.Unmarshal(c.Value, &v); err != nil {
-			return 0, nil, err
-		}
-		if v.CurrentLimit != "" {
-			return 0, nil, q.UpdatePhoneNumberLimit(ctx, db.UpdatePhoneNumberLimitParams{MessagingLimit: v.CurrentLimit, DisplayPhoneNumber: v.DisplayPhoneNumber})
-		}
+	case "phone_number_quality_update", "account_update", "message_template_quality_update",
+		"business_capability_update", "user_preferences":
+		return 0, nil, s.accountChange(ctx, tx, q, e, c)
 	}
 	return unmatched, media, nil
 }
@@ -326,6 +322,16 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 	}
 	if err != nil {
 		return false, err
+	}
+	if p := st.Pricing; p != nil {
+		c, err := q.GetContact(ctx, updated.ContactID)
+		if err != nil {
+			return false, err
+		}
+		if err := metacost.PriceMessage(ctx, q, updated, metacost.Pricing{Type: p.Type, Category: p.Category,
+			Model: p.PricingModel, Billable: p.Billable}, c.PhoneE164); err != nil {
+			return false, fmt.Errorf("price message: %w", err)
+		}
 	}
 	if updated.Status != m.Status {
 		if err := announceStatus(ctx, tx, q, updated); err != nil {

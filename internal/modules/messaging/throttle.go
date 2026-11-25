@@ -3,6 +3,7 @@ package messaging
 import (
 	"context"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,38 +12,91 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
 )
 
+// DefaultThroughput is Meta's default per-number throughput (messages per
+// second), used while a number's own throughput is unknown.
+const DefaultThroughput = 80
+
+// ceilingTTL is how long a number's ceiling is cached in memory.
+const ceilingTTL = time.Minute
+
+// CeilingFunc returns a number's throughput in messages per second; 0 (or
+// an error) means unknown.
+type CeilingFunc func(ctx context.Context, pn uuid.UUID) (int, error)
+
 // Throttle paces sends per phone number with a GCRA limiter whose rate
 // adapts to Meta's feedback (AIMD): a throughput error (130429) halves the
 // rate, and every second of successful sending adds one message per second
-// back, up to the ceiling.
+// back, up to the number's ceiling — the throughput Meta reports for it
+// (phone_numbers.throughput_mps), or Ceiling when that is unknown.
 type Throttle struct {
 	rdb     goredis.UniversalClient
 	limiter *ratelimit.Limiter
-	// Ceiling is the highest rate per number (Meta's default throughput is
-	// 80 messages per second); Floor is the lowest the rate can fall to.
+	// Ceiling is the rate of numbers without a known throughput (Meta's
+	// default is 80 messages per second); Floor is the lowest the rate can
+	// fall to.
 	Ceiling, Floor int
 	prefix         string
+
+	lookup CeilingFunc
+	mu     sync.Mutex
+	cache  map[uuid.UUID]cachedCeiling
+}
+
+type cachedCeiling struct {
+	v       int
+	expires time.Time
 }
 
 // NewThrottle returns a throttle using rdb.
 func NewThrottle(rdb goredis.UniversalClient, ceiling int) *Throttle {
 	if ceiling <= 0 {
-		ceiling = 80
+		ceiling = DefaultThroughput
 	}
-	return &Throttle{rdb: rdb, limiter: ratelimit.New(rdb, "messora:send"), Ceiling: ceiling, Floor: 1, prefix: "messora:aimd:"}
+	return &Throttle{rdb: rdb, limiter: ratelimit.New(rdb, "messora:send"), Ceiling: ceiling, Floor: 1, prefix: "messora:aimd:",
+		cache: map[uuid.UUID]cachedCeiling{}}
+}
+
+// WithCeilings makes each number's ceiling its own throughput as returned
+// by fn (cached for a minute).
+func (t *Throttle) WithCeilings(fn CeilingFunc) *Throttle {
+	t.lookup = fn
+	return t
+}
+
+// CeilingFor returns the highest rate for pn.
+func (t *Throttle) CeilingFor(ctx context.Context, pn uuid.UUID) int {
+	if t.lookup == nil {
+		return t.Ceiling
+	}
+	now := time.Now()
+	t.mu.Lock()
+	c, ok := t.cache[pn]
+	t.mu.Unlock()
+	if ok && now.Before(c.expires) {
+		return c.v
+	}
+	v, err := t.lookup(ctx, pn)
+	if err != nil || v <= 0 {
+		v = t.Ceiling
+	}
+	t.mu.Lock()
+	t.cache[pn] = cachedCeiling{v: v, expires: now.Add(ceilingTTL)}
+	t.mu.Unlock()
+	return v
 }
 
 func (t *Throttle) rateKey(pn uuid.UUID) string { return t.prefix + pn.String() }
 
 // Rate returns the current rate for a number.
 func (t *Throttle) Rate(ctx context.Context, pn uuid.UUID) int {
+	ceiling := t.CeilingFor(ctx, pn)
 	v, err := t.rdb.Get(ctx, t.rateKey(pn)).Result()
 	if err != nil {
-		return t.Ceiling
+		return ceiling
 	}
 	n, err := strconv.Atoi(v)
-	if err != nil || n < t.Floor || n > t.Ceiling {
-		return t.Ceiling
+	if err != nil || n < t.Floor || n > ceiling {
+		return ceiling
 	}
 	return n
 }
@@ -70,8 +124,9 @@ func (t *Throttle) Backoff(ctx context.Context, pn uuid.UUID) int {
 
 // Succeeded grows the rate by one per second of successful sends.
 func (t *Throttle) Succeeded(ctx context.Context, pn uuid.UUID) {
+	ceiling := t.CeilingFor(ctx, pn)
 	r := t.Rate(ctx, pn)
-	if r >= t.Ceiling {
+	if r >= ceiling {
 		return
 	}
 	// No growth right after a backoff, and at most once per second.
@@ -79,6 +134,6 @@ func (t *Throttle) Succeeded(ctx context.Context, pn uuid.UUID) {
 		return
 	}
 	if ok, _ := t.rdb.SetNX(ctx, t.rateKey(pn)+":inc", 1, time.Second).Result(); ok {
-		_ = t.rdb.Set(ctx, t.rateKey(pn), min(t.Ceiling, r+1), 10*time.Minute).Err()
+		_ = t.rdb.Set(ctx, t.rateKey(pn), min(ceiling, r+1), 10*time.Minute).Err()
 	}
 }

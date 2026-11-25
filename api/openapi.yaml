@@ -493,6 +493,56 @@ paths:
               schema: { $ref: "#/components/schemas/SettingsResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /settings/meta-rates:
+    get:
+      operationId: listMetaRates
+      tags: [settings]
+      summary: Imported Meta rate card
+      description: >-
+        Meta's per-message prices as imported from CSV, used to price each
+        billable message. Meta publishes no pricing API; see docs/WHATSAPP.md
+        ("Rate card") for the import format.
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Rates, newest first within each market and category
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetaRateListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /settings/meta-rates/import:
+    post:
+      operationId: importMetaRates
+      tags: [settings]
+      summary: Import Meta's rate card from CSV
+      description: >-
+        Multipart upload with a `file` field holding a CSV with the columns
+        market, countries, category, price, currency, effective_from and
+        optionally tier_lower, tier_upper and source (at most 2 MB). Rows add
+        to or replace the stored rates of the same currency, market,
+        category, tier and date; a rate stays valid until the next date of
+        its market and category. The whole file is rejected when any row is
+        invalid.
+      security: [{ session: [settings.update] }]
+      x-messora-raw-body: 2097152
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: Imported
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetaRateImportResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /appearance:
     get:
       operationId: getAppearance
@@ -3361,6 +3411,10 @@ components:
         last_synced_at: { type: [string, "null"], format: date-time }
         created_at: { type: string, format: date-time }
         token: { $ref: "#/components/schemas/WhatsAppTokenHealth" }
+        currency:
+          type: [string, "null"]
+          readOnly: true
+          description: The account's billing currency as Meta reports it; message costs are in this currency.
 
     WhatsAppTokenHealth:
       type: object
@@ -3413,9 +3467,20 @@ components:
         phone_number_id: { type: string }
         display_phone_number: { type: string }
         verified_name: { type: string }
-        quality_rating: { type: string }
-        messaging_limit: { type: string }
+        quality_rating: { type: string, description: "Meta's messaging quality rating: GREEN, YELLOW, RED, NA or UNKNOWN." }
+        messaging_limit:
+          type: string
+          description: The business portfolio's messaging limit (TIER_250, TIER_2K, TIER_10K, TIER_100K, TIER_UNLIMITED); empty when unknown.
         throughput_level: { type: string }
+        throughput_mps:
+          type: [integer, "null"]
+          readOnly: true
+          description: Messages per second Meta allows this number (80 by default, 1000 after the upgrade); null when unknown.
+        signals_checked_at:
+          type: [string, "null"]
+          format: date-time
+          readOnly: true
+          description: When quality, limit and throughput were last read from Meta.
         is_default: { type: boolean }
 
     WebhookSetup:
@@ -3448,7 +3513,10 @@ components:
           type: array
           items: { type: object, additionalProperties: true }
         rejected_reason: { type: string }
-        quality_score: { type: string }
+        quality_score:
+          type: string
+          readOnly: true
+          description: Meta's template quality (GREEN, YELLOW, RED, UNKNOWN); updated by the message_template_quality_update webhook.
         synced_at: { type: string, format: date-time }
 
     CreateTemplateRequest:
@@ -3545,6 +3613,57 @@ components:
         read_at: { type: [string, "null"], format: date-time }
         failed_at: { type: [string, "null"], format: date-time }
         created_at: { type: string, format: date-time }
+        pricing_category:
+          type: [string, "null"]
+          readOnly: true
+          description: Meta's pricing category from the status webhook (marketing, utility, authentication, authentication-international, service, …).
+        pricing_type:
+          type: [string, "null"]
+          readOnly: true
+          description: regular (charged) or a free type (free_customer_service, free_entry_point, …).
+        cost_amount:
+          type: [string, "null"]
+          readOnly: true
+          description: >-
+            Cost as a decimal string, priced from the imported rate card ("0" for free
+            messages); null when Meta has not reported the pricing yet or no rate matches.
+        cost_currency: { type: [string, "null"], readOnly: true }
+
+    MetaRate:
+      type: object
+      required: [id, currency, market, countries, category, price, tier_lower, tier_upper, effective_from, effective_to, source, imported_at]
+      properties:
+        id: { type: string, format: uuid }
+        currency: { type: string }
+        market: { type: string }
+        countries: { type: array, items: { type: string }, description: ISO 3166 alpha-2 codes of the market. }
+        category: { type: string, enum: [marketing, utility, authentication, authentication-international, service] }
+        price: { type: string, description: Price per message as a decimal string. }
+        tier_lower: { type: [integer, "null"], format: int64, description: First message of the month this tier applies to. }
+        tier_upper: { type: [integer, "null"], format: int64, description: Last message of the month this tier applies to (null = no limit). }
+        effective_from: { type: string, format: date }
+        effective_to: { type: [string, "null"], format: date, description: Exclusive; null while it is the newest rate. }
+        source: { type: string }
+        imported_at: { type: string, format: date-time }
+
+    MetaRateListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/MetaRate" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    MetaRateImport:
+      type: object
+      required: [rates, markets]
+      properties:
+        rates: { type: integer, description: Rate rows imported. }
+        markets: { type: integer, description: Countries assigned to a market. }
+
+    MetaRateImportResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/MetaRateImport" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     WhatsAppAccountResponse:
       type: object

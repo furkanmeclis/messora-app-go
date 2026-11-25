@@ -12,7 +12,8 @@ import (
 )
 
 // WebhookFields are the webhook fields Messora processes.
-var WebhookFields = []string{"messages", "message_template_status_update", "phone_number_quality_update"}
+var WebhookFields = []string{"messages", "message_template_status_update", "message_template_quality_update",
+	"phone_number_quality_update", "account_update", "business_capability_update", "user_preferences"}
 
 // Handler serves the channel and template operations.
 type Handler struct {
@@ -30,7 +31,7 @@ func NewHandler(svc *Service, publicURL, verifyToken string, log *slog.Logger) *
 func accountToAPI(a db.WhatsappAccount) api.WhatsAppAccount {
 	return api.WhatsAppAccount{Id: a.ID, Name: a.Name, WabaId: a.WabaID, AppId: a.AppID,
 		Status: api.WhatsAppAccountStatus(a.Status), LastError: a.LastError, AppSecretConfigured: len(a.AppSecretEnc) > 0,
-		LastSyncedAt: a.LastSyncedAt, CreatedAt: a.CreatedAt, Token: tokenToAPI(a)}
+		LastSyncedAt: a.LastSyncedAt, CreatedAt: a.CreatedAt, Token: tokenToAPI(a), Currency: a.Currency}
 }
 
 func tokenToAPI(a db.WhatsappAccount) api.WhatsAppTokenHealth {
@@ -147,7 +148,12 @@ func (h *Handler) ListPhoneNumbers(w http.ResponseWriter, r *http.Request) {
 	for i, p := range rows {
 		out[i] = api.PhoneNumber{Id: p.ID, AccountId: p.AccountID, AccountName: p.AccountName, PhoneNumberId: p.PhoneNumberID,
 			DisplayPhoneNumber: p.DisplayPhoneNumber, VerifiedName: p.VerifiedName, QualityRating: p.QualityRating,
-			MessagingLimit: p.MessagingLimit, ThroughputLevel: &p.ThroughputLevel, IsDefault: p.IsDefault}
+			MessagingLimit: p.MessagingLimit, ThroughputLevel: &p.ThroughputLevel, IsDefault: p.IsDefault,
+			SignalsCheckedAt: p.SignalsCheckedAt}
+		if p.ThroughputMps != nil {
+			mps := int(*p.ThroughputMps)
+			out[i].ThroughputMps = &mps
+		}
 	}
 	httpx.JSON(w, r, http.StatusOK, out)
 }
