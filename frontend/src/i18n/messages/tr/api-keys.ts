@@ -16,6 +16,8 @@ const apiKeys: Messages['apiKeys'] = {
     never: 'Süresiz',
     revoke: 'İptal et',
     revoked: 'API anahtarı iptal edildi.',
+    revokedMany: '{count} API anahtarı iptal edildi.',
+    revokeManyTitle: '{count} API anahtarı iptal edilsin mi?',
     create: {
         button: 'Anahtar oluştur',
         title: 'API anahtarı oluşturun',

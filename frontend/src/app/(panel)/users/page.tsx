@@ -51,17 +51,13 @@ export default async function UsersPage() {
                 actions={<InviteDialog roles={assignable} />}
             />
             <div className="space-y-6">
-                <Card>
-                    <CardContent className="p-0">
-                        <UserTable
-                            users={users}
-                            meId={me.user.id}
-                            meIsOwner={me.user.role.key === 'owner'}
-                            myRank={myRank}
-                            roles={assignable}
-                        />
-                    </CardContent>
-                </Card>
+                <UserTable
+                    users={users}
+                    meId={me.user.id}
+                    meIsOwner={me.user.role.key === 'owner'}
+                    myRank={myRank}
+                    roles={assignable}
+                />
                 {invitations.length > 0 && (
                     <Card>
                         <CardHeader>

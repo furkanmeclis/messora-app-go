@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
@@ -33,11 +32,7 @@ export default async function ApiKeysPage() {
                 description={t('apiKeys.description')}
                 actions={<CreateKeyDialog scopes={scopes} />}
             />
-            <Card>
-                <CardContent className="p-0">
-                    <ApiKeyTable keys={keys} />
-                </CardContent>
-            </Card>
+            <ApiKeyTable keys={keys} />
         </>
     );
 }

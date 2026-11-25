@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
@@ -26,14 +25,10 @@ export default async function WebhooksPage() {
                 description={t('webhooks.description')}
                 actions={<EndpointDialog catalogue={catalogue.data} />}
             />
-            <Card>
-                <CardContent className="p-0">
-                    <EndpointTable
-                        endpoints={endpoints.data}
-                        catalogue={catalogue.data}
-                    />
-                </CardContent>
-            </Card>
+            <EndpointTable
+                endpoints={endpoints.data}
+                catalogue={catalogue.data}
+            />
         </>
     );
 }

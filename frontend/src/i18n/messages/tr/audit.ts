@@ -6,6 +6,7 @@ const audit: Messages['audit'] = {
         'Güvenlikle ilgili tüm işlemler, en yeniden eskiye. Kayıtlar değiştirilemez ve silinemez.',
     filteredBy: 'Filtre:',
     clearFilter: 'Filtreyi temizle',
+    filterBy: 'Yalnızca {action} kayıtlarını göster',
     columns: {
         when: 'Zaman',
         who: 'Kim',

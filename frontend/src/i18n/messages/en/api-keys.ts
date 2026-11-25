@@ -13,6 +13,8 @@ const apiKeys = {
     never: 'Never',
     revoke: 'Revoke',
     revoked: 'API key revoked.',
+    revokedMany: '{count} API key revoked.|{count} API keys revoked.',
+    revokeManyTitle: 'Revoke {count} API key?|Revoke {count} API keys?',
     create: {
         button: 'Create key',
         title: 'Create an API key',
