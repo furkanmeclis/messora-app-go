@@ -1,0 +1,12 @@
+# Accepted findings for `make image-scan`. Every entry has an expiry date
+# (`expired_at`): after it the scan fails again and the entry must be
+# re-checked. Keep entries only while the fix is not yet in our base image.
+vulnerabilities:
+  - id: CVE-2026-124851
+    paths: []
+    expired_at: 2026-12-09
+    statement: >-
+      libzstd1 in gcr.io/distroless/nodejs26-debian13 (web image). Debian has
+      the fix (1.5.7+dfsg-1+deb13u1) but the distroless image was not rebuilt
+      yet as of 2026-11-25 (digest ffa8a754…). The web server does not use
+      zstd on untrusted input. Bump the base image digest when it is rebuilt.

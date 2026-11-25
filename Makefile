@@ -69,7 +69,7 @@ actions-lint: ## Lint GitHub Actions workflows (actionlint)
 .PHONY: image-scan
 image-scan: ## Scan built images for HIGH/CRITICAL vulnerabilities with a fix available
 	@for img in messora/messora:$${MESSORA_VERSION:-dev} messora/messora-web:$${MESSORA_VERSION:-dev}; do \
-	  echo "trivy $$img"; docker run --rm -v /var/run/docker.sock:/var/run/docker.sock $(TRIVY_IMAGE) image --quiet --scanners vuln \
+	  echo "trivy $$img"; docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$(CURDIR)/.trivyignore.yaml:/.trivyignore.yaml:ro" $(TRIVY_IMAGE) image --quiet --scanners vuln --ignorefile /.trivyignore.yaml \
 	    --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 $$img || exit 1; done
 
 .PHONY: config-scan
