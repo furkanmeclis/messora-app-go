@@ -52,7 +52,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(*out), 0o750); err != nil {
 			return err
 		}
 		if err := os.WriteFile(*out, b, 0o644); err != nil { //nolint:gosec // a public document
