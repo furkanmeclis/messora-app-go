@@ -736,6 +736,61 @@ paths:
               schema: { $ref: "#/components/schemas/SystemStatusResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /system/failed-jobs:
+    get:
+      operationId: listFailedJobs
+      tags: [system]
+      summary: Background jobs that ran out of retries (dead letter), newest first
+      description: >-
+        Payloads are never returned: only identifier fields (keys ending in
+        `_id`) are listed in `refs`.
+      security: [{ session: [settings.read] }]
+      parameters:
+        - name: queue
+          in: query
+          schema: { $ref: "#/components/schemas/QueueName" }
+        - name: page
+          in: query
+          description: 1-based page number; meta.total is the number of failed jobs.
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Failed jobs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FailedJobListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /system/failed-jobs/{queue}/{jobId}:
+    parameters:
+      - { $ref: "#/components/parameters/QueuePath" }
+      - { $ref: "#/components/parameters/JobId" }
+    delete:
+      operationId: deleteFailedJob
+      tags: [system]
+      summary: Discard a failed job
+      security: [{ session: [settings.update] }]
+      responses:
+        "204": { description: "Deleted" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /system/failed-jobs/{queue}/{jobId}/retry:
+    parameters:
+      - { $ref: "#/components/parameters/QueuePath" }
+      - { $ref: "#/components/parameters/JobId" }
+    post:
+      operationId: retryFailedJob
+      tags: [system]
+      summary: Run a failed job again now
+      description: >-
+        The job is queued once more; if it fails again it returns to the
+        failed list immediately (its retry budget is already spent).
+      security: [{ session: [settings.update] }]
+      responses:
+        "204": { description: "Queued" }
+        default: { $ref: "#/components/responses/Error" }
+
   /channels/accounts:
     get:
       operationId: listWhatsAppAccounts
@@ -2548,6 +2603,16 @@ components:
       name: limit
       in: query
       schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    QueuePath:
+      name: queue
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/QueueName" }
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 200 }
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -3242,7 +3307,7 @@ components:
 
     SystemStatus:
       type: object
-      required: [version, healthy, components, checked_at]
+      required: [version, healthy, components, checked_at, failed_jobs]
       properties:
         version: { type: string }
         healthy: { type: boolean }
@@ -3250,6 +3315,30 @@ components:
           type: object
           additionalProperties: { $ref: "#/components/schemas/ComponentStatus" }
         checked_at: { type: string, format: date-time }
+        failed_jobs:
+          type: integer
+          format: int64
+          description: Background jobs that ran out of retries (see /system/failed-jobs); 0 when Redis is unreachable.
+
+    QueueName:
+      type: string
+      enum: [critical, campaigns, ai, default, bulk]
+
+    FailedJob:
+      type: object
+      required: [id, queue, type, last_error, retried, max_retry, refs]
+      properties:
+        id: { type: string }
+        queue: { $ref: "#/components/schemas/QueueName" }
+        type: { type: string, description: "Task type, e.g. whatsapp:send" }
+        last_error: { type: string }
+        failed_at: { type: string, format: date-time }
+        retried: { type: integer }
+        max_retry: { type: integer }
+        refs:
+          type: object
+          description: Identifier fields of the payload (keys ending in `_id`); the rest is never exposed.
+          additionalProperties: { type: string }
 
     # ── Envelopes ────────────────────────────────────────────────────────
     SetupStatusResponse:
@@ -3346,6 +3435,12 @@ components:
       type: object
       required: [data, meta]
       properties: { data: { $ref: "#/components/schemas/SystemStatus" }, meta: { $ref: "#/components/schemas/Meta" } }
+    FailedJobListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/FailedJob" } }
+        meta: { $ref: "#/components/schemas/Meta" }
 
     WhatsAppAccount:
       type: object

@@ -53,7 +53,7 @@ func RunAPI(ctx context.Context) error {
 		Add("postgres", health.Postgres(pool)).
 		Add("schema", health.Schema(pool)).
 		Add("redis", health.Redis(rdb))
-	sys := newSystemHandler(pool, rdb, insp, cf)
+	sys := newSystemHandler(pool, rdb, insp, cf, log)
 
 	r := chi.NewRouter()
 	r.NotFound(httpx.NotFound)
