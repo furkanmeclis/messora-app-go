@@ -66,6 +66,7 @@ import {
 } from '../actions';
 import { TagsInput } from '../tags-input';
 import { NUMBER_LOCALE } from '@/lib/format';
+import { ClientDataTable } from '@/components/client-data-table';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -316,6 +317,7 @@ export function UploadCard() {
 
 export function ImportList({ imports }: { imports: ContactImport[] }) {
     const t = useT();
+    const router = useRouter();
     const formatDateTime = useFormatDateTime();
     if (imports.length === 0) {
         return (
@@ -333,54 +335,97 @@ export function ImportList({ imports }: { imports: ContactImport[] }) {
         );
     }
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>{t('contacts.imports.file')}</TableHead>
-                    <TableHead>{t('contacts.imports.statusLabel')}</TableHead>
-                    <TableHead className="text-right">
-                        {t('contacts.imports.rows')}
-                    </TableHead>
-                    <TableHead className="text-right">
-                        {t('contacts.imports.createdUpdated')}
-                    </TableHead>
-                    <TableHead className="text-right">
-                        {t('contacts.imports.counters.failed')}
-                    </TableHead>
-                    <TableHead>{t('contacts.imports.uploaded')}</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {imports.map((i) => (
-                    <TableRow key={i.id}>
-                        <TableCell>
-                            <Link
-                                href={`/contacts/import/${i.id}`}
-                                className="font-medium hover:underline"
-                            >
-                                {i.filename}
-                            </Link>
-                        </TableCell>
-                        <TableCell>
-                            <ImportStatus status={i.status} />
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
+        <ClientDataTable
+            rows={imports}
+            rowId={(i) => i.id}
+            storageKey="contact-imports"
+            initialSort="-uploaded"
+            pageSize={10}
+            searchText={(i) => i.filename}
+            searchPlaceholder={t('table.search')}
+            noMatch={
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                    {t('table.noMatch')}
+                </p>
+            }
+            columns={[
+                {
+                    id: 'file',
+                    header: t('contacts.imports.file'),
+                    hideable: false,
+                    sortValue: (i) => i.filename,
+                    cell: (i) => (
+                        <Link
+                            href={`/contacts/import/${i.id}`}
+                            className="font-medium hover:underline"
+                        >
+                            {i.filename}
+                        </Link>
+                    ),
+                },
+                {
+                    id: 'status',
+                    header: t('contacts.imports.statusLabel'),
+                    sortValue: (i) => t(`contacts.imports.status.${i.status}`),
+                    cell: (i) => <ImportStatus status={i.status} />,
+                },
+                {
+                    id: 'rows',
+                    header: t('contacts.imports.rows'),
+                    className: 'text-right',
+                    sortValue: (i) => i.total_rows,
+                    cell: (i) => (
+                        <span className="tabular-nums">
                             {i.total_rows.toLocaleString(NUMBER_LOCALE)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        </span>
+                    ),
+                },
+                {
+                    id: 'created',
+                    header: t('contacts.imports.createdUpdated'),
+                    className: 'text-right',
+                    sortValue: (i) => i.created_count + i.updated_count,
+                    cell: (i) => (
+                        <span className="tabular-nums">
                             {i.created_count.toLocaleString(NUMBER_LOCALE)} /{' '}
                             {i.updated_count.toLocaleString(NUMBER_LOCALE)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        </span>
+                    ),
+                },
+                {
+                    id: 'failed',
+                    header: t('contacts.imports.counters.failed'),
+                    className: 'text-right',
+                    sortValue: (i) => i.failed_count,
+                    cell: (i) => (
+                        <span className="tabular-nums">
                             {i.failed_count.toLocaleString(NUMBER_LOCALE)}
-                        </TableCell>
-                        <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                        </span>
+                    ),
+                },
+                {
+                    id: 'uploaded',
+                    header: t('contacts.imports.uploaded'),
+                    sortValue: (i) => i.created_at,
+                    cell: (i) => (
+                        <span className="text-sm whitespace-nowrap text-muted-foreground">
                             {formatDateTime(i.created_at)}
-                        </TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
+                        </span>
+                    ),
+                },
+            ]}
+            rowMenu={(i) => [
+                [
+                    {
+                        id: 'open',
+                        label: i.filename,
+                        icon: FileSpreadsheet,
+                        run: () => router.push(`/contacts/import/${i.id}`),
+                    },
+                ],
+            ]}
+            onRowClick={(i) => router.push(`/contacts/import/${i.id}`)}
+        />
     );
 }
 

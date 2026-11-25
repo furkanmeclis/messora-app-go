@@ -22,14 +22,6 @@ import {
     EmptyTitle,
 } from '@/components/ui/empty';
 import { FieldGroup, FieldLegend, FieldSet } from '@/components/ui/field';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { Segmented } from '@/components/ui/segmented';
 import { useT } from '@/i18n/client';
@@ -40,6 +32,8 @@ import { ConfirmDelete } from '../confirm-delete';
 import { TAG_COLORS, TagChip } from '../tag-chip';
 import { useSubmit } from '../use-submit';
 import { NUMBER_LOCALE } from '@/lib/format';
+import { useRouter } from 'next/navigation';
+import { ClientDataTable } from '@/components/client-data-table';
 
 export function TagDialog({ tag }: { tag?: Tag }) {
     const t = useT();
@@ -157,9 +151,10 @@ export function TagTable({
     canManage: boolean;
 }) {
     const t = useT();
+    const router = useRouter();
     if (tags.length === 0) {
         return (
-            <Empty className="py-12">
+            <Empty className="border py-12">
                 <EmptyHeader>
                     <EmptyMedia variant="icon">
                         <Tags />
@@ -173,72 +168,89 @@ export function TagTable({
         );
     }
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>{t('contacts.filters.tag')}</TableHead>
-                    <TableHead className="text-right">
-                        {t('contacts.title')}
-                    </TableHead>
-                    {canManage && (
-                        <TableHead>
-                            <span className="sr-only">
-                                {t('contacts.actions')}
-                            </span>
-                        </TableHead>
-                    )}
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {tags.map((tag) => (
-                    <TableRow key={tag.id}>
-                        <TableCell>
-                            <Link
-                                href={`/contacts/tags/${tag.id}`}
-                                className="inline-flex rounded-full outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                                <TagChip name={tag.name} color={tag.color} />
-                            </Link>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                            <Link
-                                href={`/contacts?tag_id=${tag.id}`}
-                                className="hover:underline"
-                                aria-label={t('contacts.tags.showContacts', {
-                                    count: tag.contact_count,
-                                    name: tag.name,
-                                })}
-                            >
-                                {tag.contact_count.toLocaleString(
-                                    NUMBER_LOCALE,
-                                )}
-                            </Link>
-                        </TableCell>
-                        {canManage && (
-                            <TableCell className="text-right whitespace-nowrap">
-                                <TagDialog tag={tag} />
-                                <ConfirmDelete
-                                    label={t('contacts.tags.deleteLabel', {
-                                        name: tag.name,
-                                    })}
-                                    title={t('contacts.tags.deleteTitle', {
-                                        name: tag.name,
-                                    })}
-                                    description={t('contacts.tags.deleteBody', {
-                                        count: tag.contact_count,
-                                        formatted:
-                                            tag.contact_count.toLocaleString(
-                                                NUMBER_LOCALE,
-                                            ),
-                                    })}
-                                    confirm={t('contacts.tags.deleteConfirm')}
-                                    action={() => deleteTagAction(tag.id)}
-                                />
-                            </TableCell>
-                        )}
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
+        <ClientDataTable
+            rows={tags}
+            rowId={(tag) => tag.id}
+            storageKey="tags"
+            initialSort="name"
+            searchText={(tag) => tag.name}
+            searchPlaceholder={t('table.search')}
+            noMatch={
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                    {t('table.noMatch')}
+                </p>
+            }
+            columns={[
+                {
+                    id: 'name',
+                    header: t('contacts.filters.tag'),
+                    hideable: false,
+                    sortValue: (tag) => tag.name,
+                    cell: (tag) => (
+                        <Link
+                            href={`/contacts/tags/${tag.id}`}
+                            className="inline-flex rounded-full outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                            <TagChip name={tag.name} color={tag.color} />
+                        </Link>
+                    ),
+                },
+                {
+                    id: 'contacts',
+                    header: t('contacts.title'),
+                    className: 'text-right',
+                    sortValue: (tag) => tag.contact_count,
+                    cell: (tag) => (
+                        <Link
+                            href={`/contacts?tag_id=${tag.id}`}
+                            className="tabular-nums hover:underline"
+                            aria-label={t('contacts.tags.showContacts', {
+                                count: tag.contact_count,
+                                name: tag.name,
+                            })}
+                        >
+                            {tag.contact_count.toLocaleString(NUMBER_LOCALE)}
+                        </Link>
+                    ),
+                },
+            ]}
+            rowActions={
+                canManage
+                    ? (tag) => (
+                          <span className="whitespace-nowrap">
+                              <TagDialog tag={tag} />
+                              <ConfirmDelete
+                                  label={t('contacts.tags.deleteLabel', {
+                                      name: tag.name,
+                                  })}
+                                  title={t('contacts.tags.deleteTitle', {
+                                      name: tag.name,
+                                  })}
+                                  description={t('contacts.tags.deleteBody', {
+                                      count: tag.contact_count,
+                                      formatted:
+                                          tag.contact_count.toLocaleString(
+                                              NUMBER_LOCALE,
+                                          ),
+                                  })}
+                                  confirm={t('contacts.tags.deleteConfirm')}
+                                  action={() => deleteTagAction(tag.id)}
+                              />
+                          </span>
+                      )
+                    : undefined
+            }
+            rowMenu={(tag) => [
+                [
+                    {
+                        id: 'open',
+                        label: tag.name,
+                        icon: Tags,
+                        run: () => router.push(`/contacts/tags/${tag.id}`),
+                    },
+                ],
+            ]}
+            onRowClick={(tag) => router.push(`/contacts/tags/${tag.id}`)}
+        />
     );
 }
