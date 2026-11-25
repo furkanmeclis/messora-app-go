@@ -22,6 +22,7 @@ import insights from './insights';
 import account from './account';
 import apiKeys from './api-keys';
 import audit from './audit';
+import failedJobs from './failed-jobs';
 import campaigns from './campaigns';
 import channels from './channels';
 import templates from './templates';
@@ -51,6 +52,7 @@ export const en = {
     account,
     apiKeys,
     audit,
+    failedJobs,
     campaigns,
     channels,
     templates,

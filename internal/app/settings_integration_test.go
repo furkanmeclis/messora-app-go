@@ -266,7 +266,7 @@ func (h *harness) remount() {
 	r.NotFound(httpx.NotFound)
 	r.Use(httpx.RequestID, httpx.Recover(testutil.DiscardLogger()), httpx.IdentifyBFF(bffSecret))
 	cf, _ := centrifugo.New(config.CentrifugoConfig{APIURL: "http://127.0.0.1:1/api", APIKey: "x"})
-	sys := newSystemHandler(h.pool, testutil.Redis(h.t), queue.NewInspector(testutil.Redis(h.t)), cf)
+	sys := newSystemHandler(h.pool, testutil.Redis(h.t), queue.NewInspector(testutil.Redis(h.t)), cf, testutil.DiscardLogger())
 	if err := mountAPI(r, h.svc, h.pool, sys, testutil.Redis(h.t), testutil.DiscardLogger()); err != nil {
 		h.t.Fatal(err)
 	}

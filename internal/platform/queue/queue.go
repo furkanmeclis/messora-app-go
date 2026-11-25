@@ -5,9 +5,11 @@ package queue
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math/rand/v2"
 	"time"
 
@@ -20,12 +22,13 @@ import (
 const (
 	Critical  = "critical"
 	Campaigns = "campaigns"
+	AI        = "ai"
 	Default   = "default"
 	Bulk      = "bulk"
 )
 
 // AllQueues lists every queue the application uses.
-var AllQueues = []string{Critical, Campaigns, Default, Bulk}
+var AllQueues = []string{Critical, Campaigns, AI, Default, Bulk}
 
 // Task types handled in Phase 1.
 const (
@@ -33,31 +36,79 @@ const (
 	TypeIdentityCleanup = "maintenance:identity_cleanup"
 )
 
-// routes maps task types to queues; unknown types go to Default.
-var routes = map[string]string{
-	TypeOutboxCleanup:   Default,
-	TypeIdentityCleanup: Default,
-	// WhatsApp (constants live in the messaging module).
-	"whatsapp:send":           Critical,
-	"whatsapp:webhook":        Critical,
-	"whatsapp:media_download": Default,
-	"contacts:import":         Bulk,
-	"campaign:materialize":    Campaigns,
-	"campaign:dispatch":       Campaigns,
-	"campaign:start_due":      Default,
-	"campaign:reaper":         Default,
-	"automation:evaluate":     Critical,
-	"automation:run":          Default,
-	"automation:resume":       Default,
-	"automation:reaper":       Default,
+// Policy is where a task type runs and how often a failing task is retried
+// before asynq archives it (the dead letter, see docs/ARCHITECTURE.md §11).
+type Policy struct {
+	Queue    string
+	MaxRetry int
 }
 
-// Route returns the queue a task type is routed to.
-func Route(taskType string) string {
-	if q, ok := routes[taskType]; ok {
-		return q
+// DefaultMaxRetry applies to task types without an explicit policy.
+const DefaultMaxRetry = 10
+
+// periodicMaxRetry: scheduled jobs run again at their next slot anyway, so
+// a failing run is retried only briefly and then left visible as failed.
+const periodicMaxRetry = 2
+
+// policies maps task types to their queue and retry budget; unknown types go
+// to Default with DefaultMaxRetry. Deliberate deferrals (RetryAfterError) do
+// not consume the budget. Keep the table in docs/ARCHITECTURE.md §11 in sync.
+var policies = map[string]Policy{
+	TypeOutboxCleanup:   {Default, periodicMaxRetry},
+	TypeIdentityCleanup: {Default, periodicMaxRetry},
+	// WhatsApp (constants live in the messaging module). A send's attempts
+	// against Meta are capped by the messaging module (8) and retried as
+	// deferrals; this budget only covers infrastructure errors around them.
+	"whatsapp:send":           {Critical, 10},
+	"whatsapp:webhook":        {Critical, 20},
+	"whatsapp:media_download": {Default, 8},
+	"contacts:import":         {Bulk, 3},
+	"campaign:materialize":    {Campaigns, 10},
+	"campaign:dispatch":       {Campaigns, 10},
+	"campaign:start_due":      {Default, periodicMaxRetry},
+	"campaign:reaper":         {Default, periodicMaxRetry},
+	"automation:evaluate":     {Critical, 10},
+	"automation:run":          {Default, 10},
+	"automation:resume":       {Default, 10},
+	"automation:reaper":       {Default, periodicMaxRetry},
+	"webhook:fanout":          {Default, 10},
+	"webhook:deliver":         {Default, 10},
+	"webhook:cleanup":         {Default, periodicMaxRetry},
+	"channels:token_check":    {Default, periodicMaxRetry},
+	"license:check_in":        {Default, periodicMaxRetry},
+}
+
+// campaignAware task types move to the Campaigns queue when their payload
+// names a campaign, so bulk sends never delay inbox, API and automation
+// replies waiting in Critical.
+var campaignAware = map[string]bool{"whatsapp:send": true}
+
+// PolicyFor returns the policy of a task type.
+func PolicyFor(taskType string) Policy {
+	if p, ok := policies[taskType]; ok {
+		return p
 	}
-	return Default
+	return Policy{Queue: Default, MaxRetry: DefaultMaxRetry}
+}
+
+// Policies returns a copy of every explicit policy.
+func Policies() map[string]Policy { return maps.Clone(policies) }
+
+// Route returns the queue a task type is routed to by default.
+func Route(taskType string) string { return PolicyFor(taskType).Queue }
+
+// RouteTask returns the queue for a concrete task: campaign-aware types
+// whose JSON payload carries a non-empty "campaign_id" go to Campaigns.
+func RouteTask(taskType string, payload []byte) string {
+	if campaignAware[taskType] {
+		var p struct {
+			CampaignID string `json:"campaign_id"`
+		}
+		if json.Unmarshal(payload, &p) == nil && p.CampaignID != "" {
+			return Campaigns
+		}
+	}
+	return Route(taskType)
 }
 
 // NewClient returns an asynq client sharing the given Redis connection.
@@ -70,10 +121,11 @@ func NewInspector(rdb goredis.UniversalClient) *asynq.Inspector {
 	return asynq.NewInspectorFromRedisClient(rdb)
 }
 
-// Enqueue submits a task routed to its queue. A duplicate TaskID is reported
-// as ErrDuplicate so callers can treat it as success.
+// Enqueue submits a task routed to its queue (RouteTask) with its retry
+// budget (PolicyFor); later options override both. A duplicate TaskID is
+// reported as ErrDuplicate so callers can treat it as success.
 func Enqueue(ctx context.Context, c *asynq.Client, taskType string, payload []byte, opts ...asynq.Option) error {
-	opts = append([]asynq.Option{asynq.Queue(Route(taskType))}, opts...)
+	opts = append([]asynq.Option{asynq.Queue(RouteTask(taskType, payload)), asynq.MaxRetry(PolicyFor(taskType).MaxRetry)}, opts...)
 	_, err := c.EnqueueContext(ctx, asynq.NewTask(taskType, payload), opts...)
 	if errors.Is(err, asynq.ErrTaskIDConflict) || errors.Is(err, asynq.ErrDuplicateTask) {
 		return ErrDuplicate

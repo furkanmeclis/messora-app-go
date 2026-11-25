@@ -20,6 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pquerna/otp/totp"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/config"
@@ -61,6 +62,7 @@ type harness struct {
 	mail   *capturingMailer
 	router routers.Router
 	meta   *whatsapptest.Server
+	rdb    *goredis.Client
 }
 
 const (
@@ -85,7 +87,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	cf, _ := centrifugo.New(config.CentrifugoConfig{APIURL: "http://127.0.0.1:1/api", APIKey: "x"})
-	sys := newSystemHandler(pool, rdb, queue.NewInspector(rdb), cf)
+	sys := newSystemHandler(pool, rdb, queue.NewInspector(rdb), cf, testutil.DiscardLogger())
 
 	r := chi.NewRouter()
 	r.NotFound(httpx.NotFound)
@@ -106,7 +108,7 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &harness{t: t, pool: pool, srv: srv, svc: svc, mail: mail, router: router, meta: meta}
+	return &harness{t: t, pool: pool, srv: srv, svc: svc, mail: mail, router: router, meta: meta, rdb: rdb}
 }
 
 type call struct {

@@ -23,6 +23,7 @@ const overview = {
         worker: '{count} process|{count} processes',
         running: '{count} running',
         connections: '{used}/{max} connections',
+        failedJobs: '{count} failed job|{count} failed jobs',
     },
     components: {
         postgres: 'Primary data store',

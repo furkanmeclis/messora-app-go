@@ -126,7 +126,7 @@ LIMIT 500;
 
 -- name: StalePendingMessages :many
 -- Pending for longer than expected: its send task may have been lost.
-SELECT id FROM messages WHERE status = 'pending' AND updated_at < now() - make_interval(secs => @older_than_seconds::double precision)
+SELECT id, campaign_id FROM messages WHERE status = 'pending' AND updated_at < now() - make_interval(secs => @older_than_seconds::double precision)
 ORDER BY updated_at LIMIT 1000;
 
 -- name: TouchMessage :exec

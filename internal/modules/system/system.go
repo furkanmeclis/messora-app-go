@@ -5,6 +5,7 @@ package system
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
+	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/database"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
@@ -22,14 +24,17 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/scheduler"
 )
 
-// Handler serves system status.
+// Handler serves system status and the failed-jobs (dead letter) view.
 type Handler struct {
 	version string
 	checker *health.Checker
+	jobs    *FailedJobs
+	q       *db.Queries
+	log     *slog.Logger
 }
 
 // NewHandler wires every component check.
-func NewHandler(version string, pool *pgxpool.Pool, rdb goredis.UniversalClient, insp *asynq.Inspector, cf *centrifugo.Client) *Handler {
+func NewHandler(version string, pool *pgxpool.Pool, rdb goredis.UniversalClient, insp *asynq.Inspector, cf *centrifugo.Client, log *slog.Logger) *Handler {
 	c := health.NewChecker(3*time.Second).
 		Add("postgres", health.Postgres(pool)).
 		Add("schema", schemaCheck(pool)).
@@ -37,11 +42,17 @@ func NewHandler(version string, pool *pgxpool.Pool, rdb goredis.UniversalClient,
 		Add("worker", workerCheck(insp)).
 		Add("scheduler", schedulerCheck(rdb)).
 		Add("centrifugo", centrifugoCheck(cf))
-	return &Handler{version: version, checker: c}
+	return &Handler{version: version, checker: c, jobs: NewFailedJobs(insp), q: db.New(pool), log: log}
 }
 
 // GetSystemStatus implements api.ServerInterface.
 func (h *Handler) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
+	var failed int64
+	if counts, err := h.jobs.Count(); err == nil { // Redis trouble shows in the redis check
+		for _, n := range counts {
+			failed += int64(n)
+		}
+	}
 	results, ok := h.checker.Run(r.Context())
 	comps := make(map[string]api.ComponentStatus, len(results))
 	for k, v := range results {
@@ -52,7 +63,7 @@ func (h *Handler) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		comps[k] = c
 	}
-	httpx.JSON(w, r, http.StatusOK, api.SystemStatus{Version: h.version, Healthy: ok, Components: comps, CheckedAt: time.Now().UTC()})
+	httpx.JSON(w, r, http.StatusOK, api.SystemStatus{Version: h.version, Healthy: ok, Components: comps, CheckedAt: time.Now().UTC(), FailedJobs: failed})
 }
 
 // ReadyHandler serves the same checks on the internal port: 200 only when

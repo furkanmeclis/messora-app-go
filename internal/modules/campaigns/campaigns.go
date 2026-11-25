@@ -434,7 +434,7 @@ func (s *Service) Resume(ctx context.Context, id uuid.UUID, actor *uuid.UUID) (d
 			return err
 		}
 		for _, m := range held {
-			if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), map[string]string{"message_id": m.String()}, 0); err != nil {
+			if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), messaging.SendPayload(m, &id), 0); err != nil {
 				return err
 			}
 		}
@@ -684,7 +684,7 @@ func (s *Service) queue(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Camp
 		if err := q.MarkRecipientQueued(ctx, db.MarkRecipientQueuedParams{ID: r.ID, MessageID: &mid}); err != nil {
 			return n, err
 		}
-		if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), map[string]string{"message_id": mid.String()}, 0); err != nil {
+		if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), messaging.SendPayload(mid, &c.ID), 0); err != nil {
 			return n, err
 		}
 		n++
@@ -751,11 +751,11 @@ func (s *Service) Reap(ctx context.Context, send func(context.Context, uuid.UUID
 		if err != nil {
 			return err
 		}
-		for _, id := range stale {
-			if err := q.TouchMessage(ctx, id); err != nil {
+		for _, m := range stale {
+			if err := q.TouchMessage(ctx, m.ID); err != nil {
 				return err
 			}
-			if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), map[string]string{"message_id": id.String()}, 0); err != nil {
+			if _, err := outbox.Write(ctx, tx, outbox.TaskTopic(messaging.TypeSend), messaging.SendPayload(m.ID, m.CampaignID), 0); err != nil {
 				return err
 			}
 			fixed++

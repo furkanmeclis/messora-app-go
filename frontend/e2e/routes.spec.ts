@@ -151,6 +151,7 @@ const routes: [string, () => string][] = [
     ['/users', () => '/users'],
     ['/api-keys', () => '/api-keys'],
     ['/audit', () => '/audit'],
+    ['/system/failed-jobs', () => '/system/failed-jobs'],
     ['/settings', () => '/settings'],
     ['/settings/appearance', () => '/settings/appearance'],
     ['/settings/pwa', () => '/settings/pwa'],
@@ -172,6 +173,22 @@ for (const [name, path] of routes) {
         expect(page.url()).not.toMatch(/\/(login|setup)(\?|$)/);
     });
 }
+
+test('failed jobs page is reachable and lists the dead letter', async () => {
+    await page.goto('/');
+    await page
+        .getByRole('link', { name: 'Failed jobs', exact: true })
+        .first()
+        .click();
+    await expect(page).toHaveURL(/\/system\/failed-jobs$/);
+    await expect(page.locator('main h1').first()).toHaveText('Failed jobs');
+    // Either the empty state or rows; a fresh stack has no failed jobs.
+    await expect(
+        page
+            .getByText('No failed jobs')
+            .or(page.getByTestId('failed-job-row').first()),
+    ).toBeVisible();
+});
 
 test('desktop mode opens sections in windows', async () => {
     await page.goto('/');

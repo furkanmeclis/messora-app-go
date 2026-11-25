@@ -258,7 +258,7 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 		cfg.Meta.DryRun = true
 	}
 
-	queues, err := ParseQueues(l.str("WORKER_QUEUES", "critical=6,campaigns=3,default=3,bulk=1"))
+	queues, err := ParseQueues(l.str("WORKER_QUEUES", "critical=6,campaigns=3,default=3,ai=2,bulk=1"))
 	if err != nil {
 		l.errs = append(l.errs, fmt.Errorf("WORKER_QUEUES: %w", err))
 	}

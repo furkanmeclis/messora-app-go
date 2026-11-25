@@ -264,32 +264,54 @@ worker webhook:process (idempotent):
 
 ## 10. Kuyruklar ve worker
 
-| Kuyruk | Öncelik | Task'ler |
+| Kuyruk | Öncelik (varsayılan) | Task'ler |
 |---|---|---|
-| `critical` | 6 | `webhook:process`, `message:send` (inbox/API/otomasyon kaynaklı) |
-| `campaigns` | 3 | `campaign:materialize`, `campaign:dispatch`, `message:send` (kampanya) |
-| `default` | 3 | `automation:run`, `automation:resume`, `webhook:fanout`, `webhook:deliver`, `webhook:cleanup`, `media:download`, `template:sync` |
-| `bulk` | 1 | `contacts:import`, `contacts:export`, `segment:preview` |
+| `critical` | 6 | `whatsapp:webhook`, `whatsapp:send` (inbox/API/otomasyon kaynaklı), `automation:evaluate` |
+| `campaigns` | 3 | `campaign:materialize`, `campaign:dispatch`, `whatsapp:send` (kampanya mesajı) |
+| `default` | 3 | `automation:run`, `automation:resume`, `webhook:fanout`, `webhook:deliver`, `whatsapp:media_download`, zamanlanmış işler (§11) |
+| `ai` | 2 | Henüz task yok; Phase 16C'deki AI işleri için ayrıldı |
+| `bulk` | 1 | `contacts:import` |
 
-- Inbox yanıtları kampanya trafiğinin arkasında beklemesin diye kampanya mesajları ayrı kuyruğa gider (aynı numara rate limiter'ını paylaşırlar).
-- Tek worker process'i tüm kuyrukları dinler (`WORKER_QUEUES` ile seçilebilir). Ölçeklemek için aynı imaj farklı `WORKER_QUEUES` değerleriyle çoğaltılır.
-- Retry: Task tipine göre `RetryDelayFunc`. Kalıcı hatalar `asynq.SkipRetry` ile işaretlenir. Asynq "archived" kuyruğu dead-letter görevi görür. Mesajlar için asıl kayıt DB'deki `failed` durumudur, UI'dan yeniden denenebilir.
-- **Asynq notu:** v0.26 (1.0 öncesi), son commit 2026-11-11, aktif. Sürüm `go.mod`'da sabitlenecek ve asynq'e özgü kod `platform/queue` arkasında tutulacak. Böylece gerekirse değiştirilebilir. Asynq Redis'te `noeviction` gerektirir.
+- **Yönlendirme** `internal/platform/queue` içindeki tablodadır (`PolicyFor`). `whatsapp:send` payload'ı `campaign_id` taşıyorsa (`messaging.SendPayload`) `campaigns` kuyruğuna, taşımıyorsa `critical`'a gider (`RouteTask`). Böylece inbox yanıtları kampanya yükünün arkasında beklemez. İki kuyruk da aynı numara başı hız sınırlayıcısını paylaşır.
+- **Ertelemeler kuyruğu değiştirmez:** hız sınırı (`RetryAfterError`) asynq'in aynı task'i aynı kuyrukta yeniden planlamasıyla yapılır ve deneme hakkından düşmez (`IsFailure`).
+- Tek worker process'i tüm kuyrukları dinler. Öncelikler `WORKER_QUEUES` ile değiştirilir (varsayılan `critical=6,campaigns=3,default=3,ai=2,bulk=1`, eşzamanlılık `WORKER_CONCURRENCY=20`). Ölçeklemek için aynı imaj farklı `WORKER_QUEUES` değerleriyle çoğaltılır. `WORKER_QUEUES`'tan çıkarılan kuyruk hiç işlenmez.
+- **Retry:** exponential backoff (2 sn taban, ×2, ±%20 jitter, en fazla 10 dk). `RetryAfterError` istenen gecikmeyi kullanır. Kalıcı hatalar `asynq.SkipRetry` ile hemen arşivlenir. Deneme bütçesi task tipine göre aşağıdaki tablodadır (`queue.PolicyFor`; tabloda olmayan tipler `default` kuyruğu ve 10 deneme alır). Değer, ilk denemeden sonraki *başarısız* tekrar sayısıdır.
+
+| Task | Kuyruk | MaxRetry | Neden |
+|---|---|---|---|
+| `whatsapp:send` | `critical` / `campaigns` | 10 | Meta'ya yapılan denemeler mesajda sayılır ve 8'de `failed` olur (`maxSendAttempts`); geçici Meta hataları erteleme olarak tekrar edilir. Bu bütçe yalnızca altyapı hatalarını (DB/Redis) kapsar. |
+| `whatsapp:webhook` | `critical` | 20 | Son denemede olay `failed` işaretlenir (handler bütçeyi `GetMaxRetry` ile okur). Eşleşmeyen durumlar erteleme olarak 15 dk beklenir. |
+| `whatsapp:media_download` | `default` | 8 | |
+| `automation:evaluate`, `automation:run`, `automation:resume` | `critical` / `default` | 10 | Ayrıca `automation_reaper` takılan koşuları yeniden başlatır. |
+| `campaign:materialize`, `campaign:dispatch` | `campaigns` | 10 | Kaldığı yerden devam eder (cursor); `campaign_reaper` boşta kalan kampanyayı yeniden tetikler. |
+| `webhook:fanout`, `webhook:deliver` | `default` | 10 | Teslim denemeleri ve backoff `webhook_deliveries` tablosundadır; bu bütçe yalnızca kayıt yazılamadığında harcanır. |
+| `contacts:import` | `bulk` | 3 | |
+| Zamanlanmış işler (`maintenance:*`, `campaign:start_due`, `campaign:reaper`, `automation:reaper`, `webhook:cleanup`, `channels:token_check`, `license:check_in`) | `default` | 2 | Bir sonraki dilimde zaten yeniden çalışır. |
+
+- **Ölü mektup (dead letter):** Bütçesi biten veya `SkipRetry` dönen task asynq "archived" kümesine geçer (asynq kuyruk başına en fazla 10.000 kaydı 90 gün tutar). Panelde **Sistem → Başarısız işler** (`GET /system/failed-jobs`, `settings.read`) bu kayıtları en yeniden eskiye listeler: tip, kuyruk, son hata (kimlik bilgileri maskelenir), başarısızlık zamanı, deneme sayısı ve payload'dan yalnızca `_id` ile biten alanlar. Payload'ın kendisi asla döndürülmez. `POST /system/failed-jobs/{queue}/{id}/retry` task'i tekrar kuyruğa alır (bütçesi bittiği için yeniden başarısız olursa hemen arşive döner), `DELETE …/{queue}/{id}` siler. İkisi `settings.update` ister ve audit log'a yazılır (`failed_job.retry`, `failed_job.delete`). Toplam sayı `/system/status` yanıtındaki `failed_jobs` alanında ve genel bakış sayfasında uyarı olarak görünür. Mesajlar için asıl kayıt yine DB'deki `failed` durumudur.
+- **Asynq notu:** v0.26 (1.0 öncesi). Sürüm `go.mod`'da sabit, asynq'e özgü kod `internal/platform/queue` arkasında. Böylece gerekirse değiştirilebilir. Asynq Redis'te `noeviction` gerektirir.
 
 ## 11. Scheduler
 
 - Asynq Scheduler birden fazla instance'ta duplicate üretir. Bu yüzden scheduler process'i Redis lease lock (`SET NX PX` + yenileme) ile **leader** seçer, yalnızca leader tick atar.
-- İkinci güvenlik katmanı: her tick task'inin ID'si zaman dilimini içerir (`sched:campaigns_due:202611221905`), bu da duplicate'i asynq'te engeller.
+- İkinci güvenlik katmanı: her tick task'inin ID'si zaman dilimini içerir (`sched:<iş>:<dilimin unix zamanı>`, ör. `sched:campaigns_due:1795640700`), bu da duplicate'i asynq'te engeller.
 - Üçüncü katman: işler DB'de atomik claim ile yapılır.
 
-| İş | Periyot |
-|---|---|
-| Vadesi gelmiş planlı kampanyalar | 1 dk |
-| `sending` lease reaper, webhook event reaper, outbox reaper | 1 dk |
-| `unknown` mesaj zaman aşımı | 5 dk |
-| Template senkronizasyonu | 30 dk |
-| Numara kalite / limit tier yenileme | 6 sa |
-| Süresi dolmuş oturum, idempotency, outbox temizliği | 1 sa |
+| İş (`internal/app/scheduler.go`) | Task | Periyot |
+|---|---|---|
+| Vadesi gelmiş planlı kampanyaları başlat | `campaign:start_due` | 1 dk |
+| Kampanya/gönderim reaper'ı: `sending`'de kalan mesajlar `unknown` olur, kuyruğu kaybolmuş `pending` mesajlar yeniden kuyruğa alınır, boşta kalan kampanya dispatcher'ı yeniden tetiklenir | `campaign:reaper` | 1 dk |
+| Otomasyon reaper'ı: süresi dolan beklemeler ve takılan koşular | `automation:reaper` | 1 dk |
+| Yayınlanmış outbox kayıtlarının temizliği (7 gün) | `maintenance:outbox_cleanup` | 1 sa |
+| Süresi dolmuş oturum ve idempotency anahtarı temizliği | `maintenance:identity_cleanup` | 1 sa |
+| Giden webhook olay/teslim kayıtlarının temizliği | `webhook:cleanup` | 6 sa |
+| WhatsApp erişim token'ı kontrolü | `channels:token_check` | 6 sa |
+| Lisans check-in | `license:check_in` | 6 sa |
+| Numara bilgisi senkronu (`throughput`, `quality_rating`, portföy mesajlaşma limiti) | — | *Planlandı: Phase 16C P0* |
+
+- Meta webhook olayları alındıkları transaction'da outbox'a yazıldığı için ayrı bir webhook event reaper'ı yoktur. Outbox relay'i yayınlanamayan kaydı kendisi tekrar dener.
+- Template'ler hesap bağlanırken ve panelden elle yenilenince senkronlanır, durum değişiklikleri `message_template_status_update` webhook'uyla gelir. Periyodik template senkron işi yoktur.
+- `unknown` mesajlar için zaman aşımı işi yoktur: mesaj, Meta'dan durum webhook'u gelene kadar `unknown` kalır (§6.2).
 
 ## 12. Gerçek zamanlı (Centrifugo v6)
 

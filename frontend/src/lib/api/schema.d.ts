@@ -678,6 +678,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/system/failed-jobs': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Background jobs that ran out of retries (dead letter), newest first
+         * @description Payloads are never returned: only identifier fields (keys ending in `_id`) are listed in `refs`.
+         */
+        get: operations['listFailedJobs'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/system/failed-jobs/{queue}/{jobId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Discard a failed job */
+        delete: operations['deleteFailedJob'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/system/failed-jobs/{queue}/{jobId}/retry': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a failed job again now
+         * @description The job is queued once more; if it fails again it returns to the failed list immediately (its retry budget is already spent).
+         */
+        post: operations['retryFailedJob'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/channels/accounts': {
         parameters: {
             query?: never;
@@ -2469,6 +2532,28 @@ export interface components {
             };
             /** Format: date-time */
             checked_at: string;
+            /**
+             * Format: int64
+             * @description Background jobs that ran out of retries (see /system/failed-jobs); 0 when Redis is unreachable.
+             */
+            failed_jobs: number;
+        };
+        /** @enum {string} */
+        QueueName: 'critical' | 'campaigns' | 'ai' | 'default' | 'bulk';
+        FailedJob: {
+            id: string;
+            queue: components['schemas']['QueueName'];
+            /** @description Task type, e.g. whatsapp:send */
+            type: string;
+            last_error: string;
+            /** Format: date-time */
+            failed_at?: string;
+            retried: number;
+            max_retry: number;
+            /** @description Identifier fields of the payload (keys ending in `_id`); the rest is never exposed. */
+            refs: {
+                [key: string]: string;
+            };
         };
         SetupStatusResponse: {
             data: components['schemas']['SetupStatus'];
@@ -2552,6 +2637,10 @@ export interface components {
         };
         SystemStatusResponse: {
             data: components['schemas']['SystemStatus'];
+            meta: components['schemas']['Meta'];
+        };
+        FailedJobListResponse: {
+            data: components['schemas']['FailedJob'][];
             meta: components['schemas']['Meta'];
         };
         WhatsAppAccount: {
@@ -3876,6 +3965,8 @@ export interface components {
         /** @description Opaque cursor from `meta.next_cursor`. */
         Cursor: string;
         Limit: number;
+        QueuePath: components['schemas']['QueueName'];
+        JobId: string;
         /** @description Retry-safe POST: a repeated request with the same key replays the first successful response for 24 hours. Rejected requests (4xx/5xx) are not remembered, so a corrected request may reuse the key. */
         IdempotencyKey: string;
     };
@@ -4932,6 +5023,76 @@ export interface operations {
                 content: {
                     'application/json': components['schemas']['SystemStatusResponse'];
                 };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listFailedJobs: {
+        parameters: {
+            query?: {
+                queue?: components['schemas']['QueueName'];
+                /** @description 1-based page number; meta.total is the number of failed jobs. */
+                page?: number;
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Failed jobs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['FailedJobListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteFailedJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    retryFailedJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components['responses']['Error'];
         };

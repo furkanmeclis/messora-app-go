@@ -25,6 +25,7 @@ const overview: Messages['overview'] = {
         worker: '{count} süreç',
         running: '{count} görev çalışıyor',
         connections: '{used}/{max} bağlantı',
+        failedJobs: '{count} başarısız iş',
     },
     components: {
         postgres: 'Ana veri deposu',

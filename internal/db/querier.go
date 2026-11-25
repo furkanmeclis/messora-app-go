@@ -318,7 +318,7 @@ type Querier interface {
 	// Records what Meta's debug_token said about the stored token.
 	SetWhatsAppTokenInfo(ctx context.Context, arg SetWhatsAppTokenInfoParams) (WhatsappAccount, error)
 	// Pending for longer than expected: its send task may have been lost.
-	StalePendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
+	StalePendingMessages(ctx context.Context, olderThanSeconds float64) ([]StalePendingMessagesRow, error)
 	StalePreparingCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
 	StaleRunningRuns(ctx context.Context) ([]uuid.UUID, error)
 	StartContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error)

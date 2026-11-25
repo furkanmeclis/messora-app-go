@@ -226,8 +226,8 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	return nil
 }
 
-func newSystemHandler(pool *pgxpool.Pool, rdb goredis.UniversalClient, insp *asynq.Inspector, cf *centrifugo.Client) *system.Handler {
-	return system.NewHandler(Version, pool, rdb, insp, cf)
+func newSystemHandler(pool *pgxpool.Pool, rdb goredis.UniversalClient, insp *asynq.Inspector, cf *centrifugo.Client, log *slog.Logger) *system.Handler {
+	return system.NewHandler(Version, pool, rdb, insp, cf, log)
 }
 
 // automationHTTP is the client automation HTTP steps use: the same
