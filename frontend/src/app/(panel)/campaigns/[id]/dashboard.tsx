@@ -47,14 +47,6 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import {
     Tooltip,
     TooltipContent,
     TooltipTrigger,
@@ -82,6 +74,7 @@ import {
     summarize,
 } from '../campaign-ui';
 import { NUMBER_LOCALE } from '@/lib/format';
+import { ClientDataTable } from '@/components/client-data-table';
 
 type Perms = { edit: boolean; start: boolean; pause: boolean; del: boolean };
 
@@ -719,95 +712,113 @@ function RecipientTable({
         });
 
     return (
-        <div>
-            <div className="flex flex-wrap items-center gap-2 border-b px-4 pb-3">
-                <Select
-                    value={state}
-                    onValueChange={(v) => {
-                        setState(v);
-                        load(v);
-                    }}
-                >
-                    <SelectTrigger
-                        className="w-44"
-                        aria-label={t('campaigns.dashboard.recipientState')}
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {STATES.map((s) => (
-                            <SelectItem key={s} value={s}>
-                                {t(`campaigns.dashboard.states.${s}`)}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={pending}
-                    onClick={() => load(state)}
-                >
-                    {pending ? <Spinner /> : <RefreshCw />}{' '}
-                    {t('campaigns.dashboard.refresh')}
-                </Button>
-            </div>
+        <div className="space-y-3 px-4 pb-4">
             {error && (
-                <p role="alert" className="px-4 py-3 text-sm text-destructive">
+                <p role="alert" className="text-sm text-destructive">
                     {error}
                 </p>
             )}
-            {items.length === 0 ? (
-                <p className="p-6 text-sm text-muted-foreground">
-                    {state === ALL
-                        ? t('campaigns.dashboard.noRecipients')
-                        : t('campaigns.dashboard.noRecipientsInState')}
-                </p>
-            ) : (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>
-                                {t('campaigns.dashboard.phone')}
-                            </TableHead>
-                            <TableHead>
-                                {t('campaigns.dashboard.status')}
-                            </TableHead>
-                            <TableHead>
-                                {t('campaigns.dashboard.error')}
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {items.map((r) => (
-                            <TableRow key={r.id} data-testid="recipient-row">
-                                <TableCell className="font-mono text-sm">
-                                    {r.phone}
-                                </TableCell>
-                                <TableCell>
-                                    <MessageStatus r={r} />
-                                </TableCell>
-                                <TableCell className="max-w-xs text-xs break-words">
-                                    {r.error_code ? (
-                                        <>
-                                            <code>{r.error_code}</code>
-                                            {r.error_title
-                                                ? ` ${r.error_title}`
-                                                : ''}
-                                        </>
-                                    ) : (
-                                        <span className="text-muted-foreground">
-                                            —
-                                        </span>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            )}
+            <ClientDataTable
+                rows={items}
+                rowId={(r) => r.id}
+                storageKey="campaign-recipients"
+                rowTestId="recipient-row"
+                searchText={(r) =>
+                    `${r.phone} ${r.error_code ?? ''} ${r.error_title ?? ''}`
+                }
+                searchPlaceholder={t('table.search')}
+                toolbar={
+                    <>
+                        <Select
+                            value={state}
+                            onValueChange={(v) => {
+                                setState(v);
+                                load(v);
+                            }}
+                        >
+                            <SelectTrigger
+                                className="w-44"
+                                aria-label={t(
+                                    'campaigns.dashboard.recipientState',
+                                )}
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {STATES.map((s) => (
+                                    <SelectItem key={s} value={s}>
+                                        {t(`campaigns.dashboard.states.${s}`)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={pending}
+                            onClick={() => load(state)}
+                        >
+                            {pending ? <Spinner /> : <RefreshCw />}{' '}
+                            {t('campaigns.dashboard.refresh')}
+                        </Button>
+                    </>
+                }
+                empty={
+                    <p className="p-6 text-sm text-muted-foreground">
+                        {state === ALL
+                            ? t('campaigns.dashboard.noRecipients')
+                            : t('campaigns.dashboard.noRecipientsInState')}
+                    </p>
+                }
+                noMatch={
+                    <p className="p-8 text-center text-sm text-muted-foreground">
+                        {t('table.noMatch')}
+                    </p>
+                }
+                columns={[
+                    {
+                        id: 'phone',
+                        header: t('campaigns.dashboard.phone'),
+                        hideable: false,
+                        sortValue: (r) => r.phone,
+                        cell: (r) => (
+                            <span className="font-mono text-sm">{r.phone}</span>
+                        ),
+                    },
+                    {
+                        id: 'status',
+                        header: t('campaigns.dashboard.status'),
+                        sortValue: (r) =>
+                            r.state === 'queued'
+                                ? (r.message_status ?? 'pending')
+                                : r.state,
+                        cell: (r) => <MessageStatus r={r} />,
+                    },
+                    {
+                        id: 'error',
+                        header: t('campaigns.dashboard.error'),
+                        sortValue: (r) => r.error_code ?? null,
+                        cell: (r) => (
+                            <div className="max-w-xs text-xs break-words">
+                                {r.error_code ? (
+                                    <>
+                                        <code>{r.error_code}</code>
+                                        {r.error_title
+                                            ? ` ${r.error_title}`
+                                            : ''}
+                                    </>
+                                ) : (
+                                    <span className="text-muted-foreground">
+                                        —
+                                    </span>
+                                )}
+                            </div>
+                        ),
+                    },
+                ]}
+            />
             {cursor && (
-                <div className="border-t p-3 text-center">
+                <div className="text-center">
                     <Button
                         variant="outline"
                         disabled={pending}

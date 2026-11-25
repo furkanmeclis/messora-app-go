@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ClientDataTable } from '@/components/client-data-table';
 import { Megaphone } from 'lucide-react';
 import { notify } from '@/components/notify';
 import { useRealtimeEvents } from '@/components/realtime';
@@ -15,14 +17,6 @@ import {
     EmptyTitle,
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
 import { TabNav } from '@/components/tab-nav';
@@ -34,6 +28,7 @@ import {
     CampaignProgress,
     CampaignStatusBadge,
     statusLabel,
+    summarize,
 } from './campaign-ui';
 
 export function StatusFilter({ status }: { status: string }) {
@@ -81,6 +76,7 @@ export function CampaignList({
 }) {
     const t = useT();
     const formatDateTime = useFormatDateTime();
+    const router = useRouter();
     const [items, setItems] = useState(initial);
     const [cursor, setCursor] = useState(initialCursor);
     const [pending, startTransition] = useTransition();
@@ -108,7 +104,7 @@ export function CampaignList({
 
     if (items.length === 0) {
         return (
-            <Empty className="py-12">
+            <Empty className="border py-12">
                 <EmptyHeader>
                     <EmptyMedia variant="icon">
                         <Megaphone />
@@ -140,59 +136,92 @@ export function CampaignList({
         );
     }
 
+    const when = (c: Campaign) =>
+        c.status === 'scheduled'
+            ? c.scheduled_at
+            : (c.finished_at ?? c.started_at ?? c.created_at);
+
     return (
-        <div>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>{t('campaigns.list.name')}</TableHead>
-                        <TableHead>{t('campaigns.list.status')}</TableHead>
-                        <TableHead className="w-64">
-                            {t('campaigns.list.progress')}
-                        </TableHead>
-                        <TableHead>{t('campaigns.list.template')}</TableHead>
-                        <TableHead>{t('campaigns.list.when')}</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {items.map((c) => (
-                        <TableRow key={c.id} data-testid="campaign-row">
-                            <TableCell className="font-medium">
-                                <Link
-                                    href={`/campaigns/${c.id}`}
-                                    className="hover:underline"
-                                >
-                                    {c.name}
-                                </Link>
-                            </TableCell>
-                            <TableCell>
-                                <CampaignStatusBadge status={c.status} />
-                            </TableCell>
-                            <TableCell>
-                                {c.status === 'draft' ||
-                                c.status === 'scheduled' ? (
-                                    <span className="text-xs text-muted-foreground">
-                                        {t('campaigns.list.notStarted')}
-                                    </span>
-                                ) : (
-                                    <CampaignProgress
-                                        compact
-                                        counts={c.counts}
-                                        total={c.total_recipients}
-                                        label={t('campaigns.list.progressOf', {
-                                            name: c.name,
-                                        })}
-                                    />
-                                )}
-                            </TableCell>
-                            <TableCell className="font-mono text-xs">
+        <div className="space-y-3">
+            <ClientDataTable
+                rows={items}
+                rowId={(c) => c.id}
+                storageKey="campaigns"
+                rowTestId="campaign-row"
+                searchText={(c) =>
+                    `${c.name} ${c.template_name} ${statusLabel(t, c.status)}`
+                }
+                searchPlaceholder={t('table.search')}
+                noMatch={
+                    <p className="p-8 text-center text-sm text-muted-foreground">
+                        {t('table.noMatch')}
+                    </p>
+                }
+                columns={[
+                    {
+                        id: 'name',
+                        header: t('campaigns.list.name'),
+                        hideable: false,
+                        sortValue: (c) => c.name,
+                        cell: (c) => (
+                            <Link
+                                href={`/campaigns/${c.id}`}
+                                className="font-medium hover:underline"
+                            >
+                                {c.name}
+                            </Link>
+                        ),
+                    },
+                    {
+                        id: 'status',
+                        header: t('campaigns.list.status'),
+                        sortValue: (c) => statusLabel(t, c.status),
+                        cell: (c) => <CampaignStatusBadge status={c.status} />,
+                    },
+                    {
+                        id: 'progress',
+                        header: t('campaigns.list.progress'),
+                        className: 'w-64',
+                        sortValue: (c) => {
+                            const s = summarize(c.counts, c.total_recipients);
+                            return s.recipients ? s.done / s.recipients : null;
+                        },
+                        cell: (c) =>
+                            c.status === 'draft' || c.status === 'scheduled' ? (
+                                <span className="text-xs text-muted-foreground">
+                                    {t('campaigns.list.notStarted')}
+                                </span>
+                            ) : (
+                                <CampaignProgress
+                                    compact
+                                    counts={c.counts}
+                                    total={c.total_recipients}
+                                    label={t('campaigns.list.progressOf', {
+                                        name: c.name,
+                                    })}
+                                />
+                            ),
+                    },
+                    {
+                        id: 'template',
+                        header: t('campaigns.list.template'),
+                        sortValue: (c) => c.template_name,
+                        cell: (c) => (
+                            <span className="font-mono text-xs">
                                 {c.template_name}
                                 <span className="text-muted-foreground">
                                     {' '}
                                     ({c.template_language})
                                 </span>
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
+                            </span>
+                        ),
+                    },
+                    {
+                        id: 'when',
+                        header: t('campaigns.list.when'),
+                        sortValue: when,
+                        cell: (c) => (
+                            <span className="text-sm whitespace-nowrap text-muted-foreground">
                                 {c.status === 'scheduled'
                                     ? t('campaigns.list.starts', {
                                           date: formatDateTime(c.scheduled_at),
@@ -212,13 +241,24 @@ export function CampaignList({
                                                   c.created_at,
                                               ),
                                           })}
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+                            </span>
+                        ),
+                    },
+                ]}
+                rowMenu={(c) => [
+                    [
+                        {
+                            id: 'open',
+                            label: c.name,
+                            icon: Megaphone,
+                            run: () => router.push(`/campaigns/${c.id}`),
+                        },
+                    ],
+                ]}
+                onRowClick={(c) => router.push(`/campaigns/${c.id}`)}
+            />
             {cursor && (
-                <div className="border-t p-3 text-center">
+                <div className="text-center">
                     <Button variant="outline" onClick={more} disabled={pending}>
                         {pending && <Spinner />} {t('campaigns.list.loadMore')}
                     </Button>
