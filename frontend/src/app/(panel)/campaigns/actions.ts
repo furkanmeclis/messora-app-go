@@ -19,11 +19,29 @@ const STATUSES = new Set([
     'preparing',
     'running',
     'paused',
+    'paused_limit',
     'completed',
     'cancelled',
     'failed',
 ]);
-const RECIPIENT_STATES = new Set(['pending', 'queued', 'skipped', 'cancelled']);
+const RECIPIENT_STATES = new Set([
+    'pending',
+    'queued',
+    'skipped',
+    'cancelled',
+    'retry',
+]);
+const CLASSES = new Set([
+    'temporary',
+    'rejected_by_meta',
+    'ecosystem_limit',
+    'undeliverable',
+    'permanent',
+    'never_sent',
+    'user_stopped_marketing',
+    'blocked_by_consent',
+]);
+const PRIORITIES = new Set(['high', 'normal', 'low']);
 
 function check(id: string) {
     if (!UUID.test(id)) throw new Error('invalid id');
@@ -145,11 +163,13 @@ export async function loadRecipientsAction(
     id: string,
     state: string,
     cursor: string | undefined,
+    unreachedClass = '',
 ): Promise<ActionResult<{ items: CampaignRecipient[]; next?: string }>> {
     check(id);
     if (cursor) check(cursor);
     const q = new URLSearchParams({ limit: '50' });
     if (RECIPIENT_STATES.has(state)) q.set('state', state);
+    if (CLASSES.has(unreachedClass)) q.set('class', unreachedClass);
     if (cursor) q.set('cursor', cursor);
     return runAction(async () => {
         const r = await api<CampaignRecipient[]>(
@@ -174,6 +194,8 @@ export async function preflightAction(
         const v = input.audience[k];
         if (v) check(v);
     }
+    if (input.audience.previous_campaign)
+        check(input.audience.previous_campaign.campaign_id);
     return runAction(
         async () =>
             (
@@ -209,4 +231,78 @@ export async function audienceEstimateAction(
         });
         return r.data.count;
     });
+}
+
+export type CampaignSettings = Schemas['CampaignSettingsRequest'];
+export type ResumeRequest = Schemas['CampaignResumeRequest'];
+export type ResumePreview = Schemas['CampaignResumePreview'];
+export type CampaignPause = Schemas['CampaignPause'];
+
+function checkSettings(s: CampaignSettings) {
+    if (s.priority && !PRIORITIES.has(s.priority))
+        throw new Error('invalid priority');
+}
+
+/** Changes name, priority or rate cap of a campaign in progress. */
+export async function updateCampaignSettingsAction(
+    id: string,
+    settings: CampaignSettings,
+): Promise<ActionResult<Campaign>> {
+    check(id);
+    checkSettings(settings);
+    const t = await getT();
+    const res = await runAction(
+        async () =>
+            (
+                await api<Campaign>(`/campaigns/${id}/settings`, {
+                    method: 'PATCH',
+                    body: settings,
+                })
+            ).data,
+        settings.priority ? t('campaigns.engine.priorityChanged') : undefined,
+    );
+    revalidatePath('/campaigns');
+    return res;
+}
+
+/** What resuming would do (consent checked again, estimated time). */
+export async function resumePreviewAction(
+    id: string,
+    settings: CampaignSettings,
+): Promise<ActionResult<ResumePreview>> {
+    check(id);
+    checkSettings(settings);
+    return runAction(
+        async () =>
+            (
+                await api<ResumePreview>(`/campaigns/${id}/resume-preview`, {
+                    method: 'POST',
+                    body: settings,
+                })
+            ).data,
+    );
+}
+
+/** Resumes now or at resume_at, with optional changes. */
+export async function resumeCampaignAction(
+    id: string,
+    body: ResumeRequest,
+): Promise<ActionResult<Campaign>> {
+    check(id);
+    checkSettings(body);
+    if (body.resume_at && Number.isNaN(Date.parse(body.resume_at)))
+        throw new Error('invalid date');
+    const t = await getT();
+    const res = await runAction(
+        async () =>
+            (
+                await api<Campaign>(`/campaigns/${id}/resume`, {
+                    method: 'POST',
+                    body,
+                })
+            ).data,
+        t('campaigns.actions.resumed'),
+    );
+    revalidatePath('/campaigns');
+    return res;
 }

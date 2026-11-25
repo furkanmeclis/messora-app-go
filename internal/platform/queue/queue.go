@@ -237,13 +237,16 @@ type ServerOptions struct {
 func NewServer(rdb goredis.UniversalClient, o ServerOptions) *asynq.Server {
 	log := o.Logger
 	return asynq.NewServerFromRedisClient(rdb, asynq.Config{
-		Concurrency:     o.Concurrency,
-		Queues:          o.Queues,
-		RetryDelayFunc:  RetryDelay,
-		IsFailure:       IsFailure,
-		ShutdownTimeout: o.ShutdownTimeout,
-		Logger:          slogAdapter{log},
-		LogLevel:        asynq.WarnLevel,
+		Concurrency:    o.Concurrency,
+		Queues:         o.Queues,
+		RetryDelayFunc: RetryDelay,
+		// Paced sends come back after sub-second delays (send scheduler);
+		// asynq's default 5 s forwarding would leave capacity unused.
+		DelayedTaskCheckInterval: time.Second,
+		IsFailure:                IsFailure,
+		ShutdownTimeout:          o.ShutdownTimeout,
+		Logger:                   slogAdapter{log},
+		LogLevel:                 asynq.WarnLevel,
 		ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, t *asynq.Task, err error) {
 			retried, _ := asynq.GetRetryCount(ctx)
 			maxRetry, _ := asynq.GetMaxRetry(ctx)

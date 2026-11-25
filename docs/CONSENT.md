@@ -135,8 +135,11 @@ dispatcher keeps topping up with other recipients); the campaign completes
 only once its deferred messages are sent or given up, ticking once a minute
 meanwhile. The campaign reaper re-queues deferred messages whose retry task
 was lost. A `131049` reported by the status webhook (after Meta accepted the
-request) is recorded as `failed` / `ecosystem_limit`; it is not re-sent
-automatically.
+request) is recorded as `failed` / `ecosystem_limit`; while its campaign is
+still running or paused, the recipient gets one new message at least 24 hours
+later (consent checked again then, three attempts per recipient in all; see
+ARCHITECTURE.md §7). Otherwise the "previous campaign's unreached customers"
+audience can target it.
 
 `messages.failure_class` says why a message ended failed, skipped or
 cancelled: `rejected_by_meta`, `temporary` (gave up after repeated temporary

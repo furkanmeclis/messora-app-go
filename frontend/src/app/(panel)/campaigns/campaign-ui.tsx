@@ -15,6 +15,7 @@ export const CAMPAIGN_STATUSES: CampaignStatus[] = [
     'preparing',
     'running',
     'paused',
+    'paused_limit',
     'completed',
     'cancelled',
     'failed',
@@ -29,6 +30,7 @@ const STATUS_VARIANT: Record<
     preparing: 'default',
     running: 'default',
     paused: 'secondary',
+    paused_limit: 'secondary',
     completed: 'secondary',
     cancelled: 'outline',
     failed: 'destructive',
@@ -168,7 +170,88 @@ export function audienceLabel(
         return t('campaigns.audience.tag', {
             name: names[a.tag_id] ?? t('campaigns.audience.someTag'),
         });
+    const prev = a.previous_campaign as { campaign_id?: unknown } | undefined;
+    if (prev && typeof prev.campaign_id === 'string')
+        return t('campaigns.engine.audienceLabel', {
+            name:
+                names[prev.campaign_id] ??
+                t('campaigns.engine.anotherCampaign'),
+        });
     return '—';
+}
+
+/** Statuses in which a campaign can be resumed (every pause kind). */
+export function isPaused(status: string): boolean {
+    return status.startsWith('paused');
+}
+
+export const PRIORITIES = ['high', 'normal', 'low'] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
+export function priorityLabel(t: Translate, p: string): string {
+    const k = PRIORITIES.find((x) => x === p);
+    return k ? t(`campaigns.engine.priorities.${k}`) : p;
+}
+
+const PAUSE_REASONS = [
+    'manual',
+    'system',
+    'messaging_limit',
+    'license_restricted',
+    'offer_expired',
+] as const;
+
+/** Why a campaign was paused (unknown reasons are shown as they are). */
+export function pauseReasonLabel(t: Translate, reason: string): string {
+    const k = PAUSE_REASONS.find((x) => x === reason);
+    return k
+        ? t(`campaigns.engine.pauseReasons.${k}`)
+        : reason.replaceAll('_', ' ');
+}
+
+/** Classes a previous-campaign audience may select. */
+export const SELECTABLE_CLASSES = [
+    'temporary',
+    'rejected_by_meta',
+    'ecosystem_limit',
+    'undeliverable',
+    'permanent',
+    'never_sent',
+] as const;
+/** Classes that are hard blocks and never targeted again. */
+export const BLOCKED_CLASSES = [
+    'user_stopped_marketing',
+    'blocked_by_consent',
+] as const;
+const ALL_CLASSES = [
+    ...SELECTABLE_CLASSES,
+    ...BLOCKED_CLASSES,
+    'reached',
+] as const;
+
+/** Why a recipient was not reached. */
+export function unreachedLabel(t: Translate, c: string): string {
+    const k = ALL_CLASSES.find((x) => x === c);
+    return k ? t(`campaigns.engine.classes.${k}`) : c;
+}
+
+/** A duration in seconds as "1 h 5 min", "3 min", "40 s". */
+export function formatDuration(seconds: number): string {
+    const s = Math.max(0, Math.round(seconds));
+    if (s < 60) return `${s} s`;
+    const m = Math.round(s / 60);
+    if (m < 60) return `${m} min`;
+    const h = Math.floor(m / 60);
+    const rest = m % 60;
+    if (h < 48) return rest ? `${h} h ${rest} min` : `${h} h`;
+    return `${Math.round(h / 24)} d`;
+}
+
+/** A rate in messages per second, one decimal below 10. */
+export function formatRate(r: number): string {
+    return r < 10
+        ? r.toLocaleString(NUMBER_LOCALE, { maximumFractionDigits: 1 })
+        : Math.round(r).toLocaleString(NUMBER_LOCALE);
 }
 
 /** A recipient's skip reason (consent reasons are translated). */

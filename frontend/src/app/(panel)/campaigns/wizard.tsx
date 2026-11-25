@@ -78,13 +78,19 @@ import {
     type CampaignInput,
     type Preflight,
 } from './actions';
-import { audienceLabel } from './campaign-ui';
+import {
+    audienceLabel,
+    PRIORITIES,
+    priorityLabel,
+    type Priority,
+} from './campaign-ui';
+import { PreviousAudience } from './previous-audience';
 import { PreflightPanel } from './preflight';
 import type { WizardData } from './wizard-data';
 import { NUMBER_LOCALE } from '@/lib/format';
 
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
-type AudienceKind = 'segment' | 'group' | 'tag' | 'all';
+type AudienceKind = 'segment' | 'group' | 'tag' | 'all' | 'previous';
 
 type State = {
     name: string;
@@ -99,7 +105,27 @@ type State = {
     scheduledAt: string;
     /** Linked offer ('' = none). */
     offerId: string;
+    /** Unreached classes of a previous-campaign audience. */
+    prevClasses: string[];
+    priority: Priority;
+    /** Rate cap in messages per second ('' = none). */
+    maxMps: string;
 };
+
+/** The audience the API expects for the chosen kind. */
+function audienceOf(s: State): CampaignInput['audience'] {
+    if (s.audienceKind === 'all') return { all: true };
+    if (s.audienceKind === 'previous')
+        return {
+            previous_campaign: {
+                campaign_id: s.audienceId,
+                classes: s.prevClasses as NonNullable<
+                    CampaignInput['audience']['previous_campaign']
+                >['classes'],
+            },
+        };
+    return { [`${s.audienceKind}_id`]: s.audienceId };
+}
 
 const STEPS = [
     'basics',
@@ -151,16 +177,21 @@ function initialState(
             when: 'now',
             scheduledAt: '',
             offerId: '',
+            prevClasses: ['temporary', 'ecosystem_limit', 'never_sent'],
+            priority: 'normal',
+            maxMps: '',
         };
     }
     const a = c.audience;
     const kind: AudienceKind = a.all
         ? 'all'
-        : a.group_id
-          ? 'group'
-          : a.tag_id
-            ? 'tag'
-            : 'segment';
+        : a.previous_campaign
+          ? 'previous'
+          : a.group_id
+            ? 'group'
+            : a.tag_id
+              ? 'tag'
+              : 'segment';
     const tpl = templates.find(
         (x) => x.name === c.template_name && x.language === c.template_language,
     );
@@ -176,11 +207,19 @@ function initialState(
             ? valuesFromParams(c.template_params, shapeOf(tpl))
             : emptyValues(),
         audienceKind: kind,
-        audienceId: a.segment_id ?? a.group_id ?? a.tag_id ?? '',
+        audienceId:
+            a.segment_id ??
+            a.group_id ??
+            a.tag_id ??
+            a.previous_campaign?.campaign_id ??
+            '',
         windowSize: c.window_size ? String(c.window_size) : '',
         when: c.scheduled_at ? 'schedule' : 'now',
         scheduledAt: c.scheduled_at ? utcToZoned(c.scheduled_at, timezone) : '',
         offerId: c.offer_id ?? '',
+        prevClasses: a.previous_campaign?.classes ?? [],
+        priority: c.priority,
+        maxMps: c.max_mps ? String(c.max_mps) : '',
     };
 }
 
@@ -272,9 +311,14 @@ export function CampaignWizard({
     for (const x of data.segments ?? []) names[x.id] = x.name;
     for (const x of data.groups ?? []) names[x.id] = x.name;
     for (const x of data.tags ?? []) names[x.id] = x.name;
+    for (const x of data.finished ?? []) names[x.id] = x.name;
 
     const audienceKey =
-        s.audienceKind === 'all' ? 'all' : `${s.audienceKind}:${s.audienceId}`;
+        s.audienceKind === 'all'
+            ? 'all'
+            : s.audienceKind === 'previous'
+              ? `previous:${s.audienceId}:${[...s.prevClasses].sort().join(',')}`
+              : `${s.audienceKind}:${s.audienceId}`;
     const estimate: number | null | undefined = (() => {
         if (s.audienceKind === 'group')
             return data.groups?.find((g) => g.id === s.audienceId)
@@ -314,21 +358,24 @@ export function CampaignWizard({
 
     // The consent check runs on the review step for the chosen sender,
     // template and audience (cached per combination).
-    const audienceChosen = s.audienceKind === 'all' || !!s.audienceId;
+    const audienceChosen =
+        s.audienceKind === 'all' ||
+        (!!s.audienceId &&
+            (s.audienceKind !== 'previous' || s.prevClasses.length > 0));
     const preflightKey =
         template && audienceChosen
             ? `${audienceKey}|${sender?.id ?? s.phoneNumberId}|${templateKey(template)}`
             : null;
     const preflight = preflightKey ? preflights[preflightKey] : undefined;
     useEffect(() => {
-        if (step !== 4 || !preflightKey || !template) return;
+        // The previous-campaign audience shows its summary live on the
+        // audience step.
+        const live = step === 3 && s.audienceKind === 'previous';
+        if ((step !== 4 && !live) || !preflightKey || !template) return;
         if (preflightKey in preflights) return;
         let cancelled = false;
         preflightAction({
-            audience:
-                s.audienceKind === 'all'
-                    ? { all: true }
-                    : { [`${s.audienceKind}_id`]: s.audienceId },
+            audience: audienceOf(s),
             ...((sender?.id ?? s.phoneNumberId)
                 ? { phone_number_id: sender?.id ?? s.phoneNumberId }
                 : {}),
@@ -340,16 +387,7 @@ export function CampaignWizard({
         return () => {
             cancelled = true;
         };
-    }, [
-        step,
-        preflightKey,
-        preflights,
-        template,
-        sender,
-        s.audienceKind,
-        s.audienceId,
-        s.phoneNumberId,
-    ]);
+    }, [step, preflightKey, preflights, template, sender, s]);
     const eligible = preflight?.ok ? preflight.data.eligible : undefined;
 
     // ── Validation ──────────────────────────────────────────────────────
@@ -372,7 +410,12 @@ export function CampaignWizard({
             e.params = t('params.issues.title');
         }
         if (i === 3) {
-            if (s.audienceKind !== 'all' && !s.audienceId)
+            if (s.audienceKind === 'previous') {
+                if (!s.audienceId)
+                    e.audience = t('campaigns.engine.previous.chooseCampaign');
+                else if (s.prevClasses.length === 0)
+                    e.audience = t('campaigns.engine.previous.chooseClasses');
+            } else if (s.audienceKind !== 'all' && !s.audienceId)
                 e.audience = t(
                     s.audienceKind === 'segment'
                         ? 'campaigns.wizard.errors.chooseSegment'
@@ -386,6 +429,11 @@ export function CampaignWizard({
                 const n = Number(s.windowSize);
                 if (!Number.isInteger(n) || n < 0 || n > 10000)
                     e.window_size = t('campaigns.wizard.errors.windowSize');
+            }
+            if (s.maxMps) {
+                const n = Number(s.maxMps);
+                if (!(n > 0 && n <= 1000))
+                    e.max_mps = t('campaigns.engine.maxMpsHint');
             }
             if (s.when === 'schedule') {
                 const at = zonedToUtc(s.scheduledAt, data.timezone);
@@ -415,10 +463,7 @@ export function CampaignWizard({
     function buildInput(): CampaignInput | null {
         if (!template || !shape) return null;
         const params = paramsFromValues(s.params, shape);
-        const audience: CampaignInput['audience'] =
-            s.audienceKind === 'all'
-                ? { all: true }
-                : { [`${s.audienceKind}_id`]: s.audienceId };
+        const audience = audienceOf(s);
         return {
             name: s.name.trim(),
             phone_number_id: sender?.id ?? (s.phoneNumberId || undefined),
@@ -427,6 +472,12 @@ export function CampaignWizard({
             template_params: params,
             audience,
             window_size: s.windowSize ? Number(s.windowSize) : 0,
+            priority: s.priority,
+            ...(s.maxMps
+                ? { max_mps: Number(s.maxMps) }
+                : savedId
+                  ? ({ clear_max_mps: true } as Partial<CampaignInput>)
+                  : {}),
             ...(s.offerId
                 ? { offer_id: s.offerId }
                 : savedId
@@ -544,6 +595,8 @@ export function CampaignWizard({
                 'template_language',
                 'audience',
                 'window_size',
+                'max_mps',
+                'priority',
                 'scheduled_at',
                 'buttons',
                 'params',
@@ -948,7 +1001,7 @@ export function CampaignWizard({
                                     aria-label={t(
                                         'campaigns.wizard.audienceType',
                                     )}
-                                    className="grid-cols-2 sm:grid-cols-4"
+                                    className="grid-cols-2 sm:grid-cols-5"
                                     value={s.audienceKind}
                                     onValueChange={(v) =>
                                         setS((p) => ({
@@ -964,6 +1017,7 @@ export function CampaignWizard({
                                             ['group', data.groups],
                                             ['tag', data.tags],
                                             ['all', []],
+                                            ['previous', data.finished],
                                         ] as const
                                     ).map(([kind, list]) => (
                                         <RadioCard
@@ -978,40 +1032,64 @@ export function CampaignWizard({
                                     ))}
                                 </RadioCards>
                             </FieldSet>
-                            {s.audienceKind !== 'all' && (
-                                <AudiencePicker
-                                    kind={s.audienceKind}
-                                    value={s.audienceId}
+                            {s.audienceKind === 'previous' && (
+                                <PreviousAudience
+                                    campaigns={data.finished ?? []}
+                                    campaignId={s.audienceId}
+                                    classes={s.prevClasses}
+                                    onCampaign={(v) => set('audienceId', v)}
+                                    onClasses={(v) => set('prevClasses', v)}
+                                    summary={
+                                        preflightKey && template
+                                            ? preflight
+                                            : null
+                                    }
                                     error={
                                         errors.audience ??
-                                        errors[`audience.${s.audienceKind}_id`]
+                                        errors['audience.previous_campaign']
                                     }
-                                    options={
-                                        (s.audienceKind === 'segment'
-                                            ? data.segments
-                                            : s.audienceKind === 'group'
-                                              ? data.groups?.map((g) => ({
-                                                    id: g.id,
-                                                    name: `${g.name} (${g.member_count})`,
-                                                }))
-                                              : data.tags?.map((t) => ({
-                                                    id: t.id,
-                                                    name: `${t.name} (${t.contact_count})`,
-                                                }))) ?? []
-                                    }
-                                    onChange={(v) => set('audienceId', v)}
                                 />
                             )}
+                            {s.audienceKind !== 'all' &&
+                                s.audienceKind !== 'previous' && (
+                                    <AudiencePicker
+                                        kind={s.audienceKind}
+                                        value={s.audienceId}
+                                        error={
+                                            errors.audience ??
+                                            errors[
+                                                `audience.${s.audienceKind}_id`
+                                            ]
+                                        }
+                                        options={
+                                            (s.audienceKind === 'segment'
+                                                ? data.segments
+                                                : s.audienceKind === 'group'
+                                                  ? data.groups?.map((g) => ({
+                                                        id: g.id,
+                                                        name: `${g.name} (${g.member_count})`,
+                                                    }))
+                                                  : data.tags?.map((t) => ({
+                                                        id: t.id,
+                                                        name: `${t.name} (${t.contact_count})`,
+                                                    }))) ?? []
+                                        }
+                                        onChange={(v) => set('audienceId', v)}
+                                    />
+                                )}
                             {s.audienceKind === 'all' &&
                                 errors.audience &&
                                 err('audience')}
-                            <EstimateLine
-                                estimate={estimate}
-                                kind={s.audienceKind}
-                                chosen={
-                                    s.audienceKind === 'all' || !!s.audienceId
-                                }
-                            />
+                            {s.audienceKind !== 'previous' && (
+                                <EstimateLine
+                                    estimate={estimate}
+                                    kind={s.audienceKind}
+                                    chosen={
+                                        s.audienceKind === 'all' ||
+                                        !!s.audienceId
+                                    }
+                                />
+                            )}
                         </FieldGroup>
                     )}
 
@@ -1083,16 +1161,7 @@ export function CampaignWizard({
                                     {t('campaigns.wizard.audience')}
                                 </dt>
                                 <dd>
-                                    {audienceLabel(
-                                        t,
-                                        s.audienceKind === 'all'
-                                            ? { all: true }
-                                            : {
-                                                  [`${s.audienceKind}_id`]:
-                                                      s.audienceId,
-                                              },
-                                        names,
-                                    )}
+                                    {audienceLabel(t, audienceOf(s), names)}
                                     {typeof estimate === 'number' &&
                                         t('campaigns.wizard.aboutContacts', {
                                             count: estimate.toLocaleString(
@@ -1108,6 +1177,36 @@ export function CampaignWizard({
                                     canManageSettings={data.canConsentSettings}
                                 />
                             )}
+
+                            <Field className="max-w-xs">
+                                <FieldLabel htmlFor="cw-priority">
+                                    {t('campaigns.engine.priority')}
+                                </FieldLabel>
+                                <Select
+                                    value={s.priority}
+                                    onValueChange={(v) =>
+                                        set('priority', v as Priority)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="cw-priority"
+                                        className="w-full"
+                                        data-testid="wizard-priority"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {PRIORITIES.map((p) => (
+                                            <SelectItem key={p} value={p}>
+                                                {priorityLabel(t, p)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FieldDescription>
+                                    {t('campaigns.engine.priorityHint')}
+                                </FieldDescription>
+                            </Field>
 
                             <details className="rounded-lg border p-3">
                                 <summary className="cursor-pointer text-sm font-medium">
@@ -1149,6 +1248,42 @@ export function CampaignWizard({
                                     {err('window_size') ?? (
                                         <FieldDescription>
                                             {t('campaigns.wizard.inFlightHint')}
+                                        </FieldDescription>
+                                    )}
+                                </Field>
+                                <Field
+                                    className="mt-3 max-w-xs"
+                                    data-invalid={!!errors.max_mps}
+                                >
+                                    <FieldLabel htmlFor="cw-maxmps">
+                                        {t('campaigns.engine.maxMps')}
+                                    </FieldLabel>
+                                    <NumberField
+                                        id="cw-maxmps"
+                                        min={0}
+                                        max={1000}
+                                        step={0.1}
+                                        allowEmpty
+                                        placeholder={t(
+                                            'campaigns.engine.noCap',
+                                        )}
+                                        value={
+                                            s.maxMps === ''
+                                                ? null
+                                                : Number(s.maxMps)
+                                        }
+                                        onValueChange={(v) =>
+                                            set(
+                                                'maxMps',
+                                                v === null || v === 0
+                                                    ? ''
+                                                    : String(v),
+                                            )
+                                        }
+                                    />
+                                    {err('max_mps') ?? (
+                                        <FieldDescription>
+                                            {t('campaigns.engine.maxMpsHint')}
                                         </FieldDescription>
                                     )}
                                 </Field>
@@ -1373,7 +1508,7 @@ function AudiencePicker({
     error,
     onChange,
 }: {
-    kind: Exclude<AudienceKind, 'all'>;
+    kind: Exclude<AudienceKind, 'all' | 'previous'>;
     value: string;
     options: { id: string; name: string }[];
     error?: string;

@@ -27,6 +27,8 @@ import {
     CAMPAIGN_STATUSES,
     CampaignProgress,
     CampaignStatusBadge,
+    formatDuration,
+    priorityLabel,
     statusLabel,
     summarize,
 } from './campaign-ui';
@@ -50,10 +52,15 @@ export function StatusFilter({ status }: { status: string }) {
 
 /** Patches a campaign row from a `campaign.updated` event. */
 export function applyEvent<
-    T extends Pick<Campaign, 'id' | 'status' | 'counts'>,
+    T extends Pick<Campaign, 'id' | 'status' | 'counts'> &
+        Partial<Pick<Campaign, 'eta_seconds'>>,
 >(c: T, e: Record<string, unknown>): T {
     if (e.campaign_id !== c.id) return c;
     const next = { ...c };
+    if ('eta_seconds' in c || 'eta_seconds' in e) {
+        next.eta_seconds =
+            typeof e.eta_seconds === 'number' ? e.eta_seconds : null;
+    }
     if (typeof e.status === 'string') {
         next.status = e.status as Campaign['status'];
     }
@@ -83,7 +90,11 @@ export function CampaignList({
 
     // Live progress without polling: events carry status and counts.
     useRealtimeEvents((channel, e) => {
-        if (channel !== 'campaign:all' || e.type !== 'campaign.updated') return;
+        if (
+            channel !== 'campaign:all' ||
+            (e.type !== 'campaign.updated' && e.type !== 'campaign.progress')
+        )
+            return;
         setItems((list) => list.map((c) => applyEvent(c, e)));
     });
 
@@ -201,6 +212,34 @@ export function CampaignList({
                                     })}
                                 />
                             ),
+                    },
+                    {
+                        id: 'priority',
+                        header: t('campaigns.list.priority'),
+                        sortValue: (c) =>
+                            ({ high: 0, normal: 1, low: 2 })[c.priority],
+                        cell: (c) => (
+                            <span
+                                className="text-sm"
+                                data-testid="campaign-priority"
+                            >
+                                {priorityLabel(t, c.priority)}
+                            </span>
+                        ),
+                    },
+                    {
+                        id: 'eta',
+                        header: t('campaigns.list.eta'),
+                        sortValue: (c) => c.eta_seconds ?? null,
+                        cell: (c) => (
+                            <span className="text-sm whitespace-nowrap text-muted-foreground tabular-nums">
+                                {c.eta_seconds != null
+                                    ? t('campaigns.engine.etaValue', {
+                                          value: formatDuration(c.eta_seconds),
+                                      })
+                                    : '—'}
+                            </span>
+                        ),
                     },
                     {
                         id: 'template',
