@@ -355,9 +355,11 @@ test('image-header templates: the wizard takes the image and keeps it on edit', 
     await page
         .getByRole('textbox', { name: 'Button 2: end of the address' })
         .fill('yaz-indirimi');
-    await expect(
-        page.getByTestId('template-preview').locator('img'),
-    ).toHaveAttribute('src', 'https://cdn.example.com/kampanya.jpg');
+    // The panel does not load images from other sites (its content
+    // security policy): the preview names the link instead.
+    await expect(page.getByTestId('template-preview')).toContainText(
+        'https://cdn.example.com/kampanya.jpg',
+    );
     await page.getByRole('button', { name: 'Next' }).click();
     await page.getByRole('radio', { name: 'All contacts' }).check();
     await page.getByRole('button', { name: 'Next' }).click();
