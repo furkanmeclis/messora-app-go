@@ -10,6 +10,100 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AiModel struct {
+	ProviderID    pgtype.UUID
+	ModelID       string
+	DisplayName   string
+	ContextWindow *int64
+	MaxOutput     *int64
+	Capabilities  []byte
+	Lifecycle     *string
+	SyncedAt      pgtype.Timestamptz
+}
+
+type AiModelPrice struct {
+	ID            pgtype.UUID
+	ProviderKind  string
+	ModelPattern  string
+	Currency      string
+	Input         pgtype.Numeric
+	CachedInput   pgtype.Numeric
+	CacheWrite5m  pgtype.Numeric
+	CacheWrite1h  pgtype.Numeric
+	Output        pgtype.Numeric
+	Rules         []byte
+	EffectiveFrom pgtype.Date
+	EffectiveTo   pgtype.Date
+	Source        string
+	SourceUrl     string
+	Notes         string
+	ConfirmedBy   pgtype.UUID
+	ConfirmedAt   pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
+type AiProfile struct {
+	ID             pgtype.UUID
+	Name           string
+	PhoneNumberID  pgtype.UUID
+	SystemPrompt   string
+	ProviderID     pgtype.UUID
+	Model          *string
+	AutoReply      bool
+	Handoff        []byte
+	DataCollection []byte
+	AllowedActions []byte
+	DisclosureMode string
+	Status         string
+	CreatedBy      pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type AiProvider struct {
+	ID             pgtype.UUID
+	Kind           string
+	Name           string
+	ApiKeyEnc      []byte
+	KeyLast4       string
+	BaseUrl        *string
+	Status         string
+	StatusDetail   string
+	CheckedAt      pgtype.Timestamptz
+	ModelsSyncedAt pgtype.Timestamptz
+	Enabled        bool
+	CreatedBy      pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type AiUsage struct {
+	ID                 pgtype.UUID
+	ProviderID         pgtype.UUID
+	ProviderKind       string
+	Model              string
+	Purpose            string
+	ProfileID          pgtype.UUID
+	ConversationID     pgtype.UUID
+	ContactID          pgtype.UUID
+	CampaignID         pgtype.UUID
+	AutomationRunID    pgtype.UUID
+	InputTokens        int64
+	CachedTokens       int64
+	CacheWriteTokens   int64
+	CacheWrite1hTokens int64
+	OutputTokens       int64
+	ReasoningTokens    int64
+	Cost               pgtype.Numeric
+	Currency           *string
+	PriceID            pgtype.UUID
+	LatencyMs          int64
+	Status             string
+	ErrorKind          *string
+	CreatedAt          pgtype.Timestamptz
+}
+
 type ApiKey struct {
 	ID         pgtype.UUID
 	Name       string
