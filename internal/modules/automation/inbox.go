@@ -2,13 +2,11 @@ package automation
 
 import (
 	"context"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
-	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
 // Inbox is what the handoff, note and conversation-aware AI steps need
@@ -79,58 +77,34 @@ type AIReply struct {
 	Skipped string
 }
 
-// SourceAIUnverified is the provenance of contact fields AI steps write:
-// written by the AI, not confirmed by a person.
+// SourceAIUnverified is the provenance of contact fields AI steps write,
+// as the run log and the timeline show it: collected by the AI, not
+// confirmed by a person (contact_field_sources: source ai, verified false).
 const SourceAIUnverified = "ai_unverified"
 
-// FieldWriter stores contact fields with their provenance (source). The
-// contacts module's provenance store (P7) implements it once it exists;
-// until then directFields writes the contact columns and attributes, and
-// the source is kept in the run log and on the conversation's timeline.
-type FieldWriter interface {
-	SetFieldsWithSource(ctx context.Context, q *db.Queries, contactID uuid.UUID, fields map[string]string, source string) error
+// CodeFieldKept is the apperr code a FieldWriter returns for a value it did
+// not store because the field holds a value the AI may not replace (set by
+// a person, an import or the API, or verified).
+const CodeFieldKept = "FIELD_KEPT"
+
+// FieldOrigin is where the values an AI step stores came from.
+type FieldOrigin struct {
+	// Source is SourceAIUnverified.
+	Source string
+	// UsageID is the AI request (ai_usage) that produced the values.
+	UsageID *uuid.UUID
+	// ConversationID is the conversation they were collected in.
+	ConversationID *uuid.UUID
 }
 
-// directFields writes fields straight to the contact: name, email,
-// var1…var5, attr:<key>. Values that do not fit a field (an e-mail without
-// @) are a validation error.
-type directFields struct{}
-
-func (directFields) SetFieldsWithSource(ctx context.Context, q *db.Queries, contactID uuid.UUID, fields map[string]string, _ string) error {
-	p := db.UpdateContactParams{ID: contactID}
-	columns := false
-	for key, val := range fields {
-		if attr, ok := strings.CutPrefix(key, "attr:"); ok {
-			if err := q.SetContactAttribute(ctx, db.SetContactAttributeParams{ID: contactID, Key: attr, Value: val}); err != nil {
-				return err
-			}
-			continue
-		}
-		v := val
-		columns = true
-		switch key {
-		case "name":
-			p.Name = &v
-		case "email":
-			if !strings.Contains(v, "@") || strings.ContainsAny(v, " \t") {
-				return apperr.Validation("email", "not an e-mail address")
-			}
-			p.SetEmail, p.Email = true, &v
-		case "var1":
-			p.SetVar1, p.Var1 = true, &v
-		case "var2":
-			p.SetVar2, p.Var2 = true, &v
-		case "var3":
-			p.SetVar3, p.Var3 = true, &v
-		case "var4":
-			p.SetVar4, p.Var4 = true, &v
-		case "var5":
-			p.SetVar5, p.Var5 = true, &v
-		}
-	}
-	if !columns {
-		return nil
-	}
-	_, err := q.UpdateContact(ctx, p)
-	return err
+// FieldWriter stores contact fields with their provenance in the run's
+// transaction. The conversations module implements it on top of the
+// provenance store of AI customer intelligence (contact_field_sources,
+// ai.MayAIWrite): it never overwrites a value a person, an import or the
+// API set or one a person verified (apperr CodeFieldKept), and marks what
+// it stores as collected by the AI, not verified. A value a field cannot
+// take is an apperr validation error. Without a writer (SetFieldWriter)
+// AI field steps fail.
+type FieldWriter interface {
+	SetFieldsWithSource(ctx context.Context, tx pgx.Tx, q *db.Queries, contactID uuid.UUID, fields map[string]string, origin FieldOrigin) error
 }

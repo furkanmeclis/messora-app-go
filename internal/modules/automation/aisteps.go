@@ -35,12 +35,18 @@ const (
 	contextMessages = 20
 )
 
-// aiAction is the AI profile action a step needs (allowed_actions): steps
-// that change the contact need the profile's permission.
+// writesFields reports whether a step stores contact fields. Like the AI's
+// own data collection (docs/AI.md "What is stored") it needs an AI profile
+// on the number that may update fields (data_collection.may_update_fields);
+// the allowed_actions list is not consulted for it.
+func writesFields(st *Step) bool {
+	return st.Type == "ai_extract_fields" || st.Type == "ai_build_profile"
+}
+
+// aiAction is the AI profile action a step needs (allowed_actions) besides
+// storing fields (writesFields).
 func aiAction(st *Step) string {
 	switch st.Type {
-	case "ai_extract_fields", "ai_build_profile":
-		return "update_contact_fields"
 	case "ai_classify_segment":
 		return "add_tag"
 	}
@@ -93,6 +99,16 @@ func (s *Service) aiStep(ctx context.Context, st *Step, rc runCtx) stepResult {
 			prof = &p
 		case !errors.Is(err, ai.ErrNotFound):
 			return stepResult{err: err}
+		}
+	}
+	if writesFields(st) {
+		if prof == nil {
+			return stepResult{err: &StepError{Code: CodeAINoProfile,
+				Message: "Storing contact fields needs an active AI profile on the conversation's number that may update fields: create one in Settings → AI."}}
+		}
+		if !prof.DataCollection.MayUpdateFields {
+			return stepResult{err: &StepError{Code: CodeAINotAllowed,
+				Message: fmt.Sprintf("The AI profile %q may not update contact fields: turn on \"may update fields\" in the profile or remove the step.", prof.Name)}}
 		}
 	}
 	if need := aiAction(st); need != "" && prof != nil && !prof.Allows(need) {
@@ -218,11 +234,11 @@ func (s *Service) aiStep(ctx context.Context, st *Step, rc runCtx) stepResult {
 		}
 		r := stepResult{outcome: "ok", detail: usageDetail(res, nil)}
 		r.apply = func(ctx context.Context, tx pgx.Tx, q *db.Queries) stepResult {
-			written, err := s.writeFields(ctx, tx, q, rc, found)
+			written, kept, err := s.writeFields(ctx, tx, q, rc, found, usageRef(res))
 			if err != nil {
 				return stepResult{err: err}
 			}
-			return stepResult{outcome: "ok", detail: map[string]any{"fields": written, "source": SourceAIUnverified}}
+			return stepResult{outcome: "ok", detail: map[string]any{"fields": written, "kept": kept, "source": SourceAIUnverified}}
 		}
 		return r
 	case "ai_classify_segment":
@@ -302,11 +318,11 @@ func (s *Service) aiStep(ctx context.Context, st *Step, rc runCtx) stepResult {
 		}
 		r := stepResult{outcome: "ok", vars: map[string]string{"profile": found["attr:"+attr]}, detail: usageDetail(res, map[string]any{"attribute": attr})}
 		r.apply = func(ctx context.Context, tx pgx.Tx, q *db.Queries) stepResult {
-			written, err := s.writeFields(ctx, tx, q, rc, found)
+			written, kept, err := s.writeFields(ctx, tx, q, rc, found, usageRef(res))
 			if err != nil {
 				return stepResult{err: err}
 			}
-			return stepResult{outcome: "ok", detail: map[string]any{"fields": written, "source": SourceAIUnverified}}
+			return stepResult{outcome: "ok", detail: map[string]any{"fields": written, "kept": kept, "source": SourceAIUnverified}}
 		}
 		return r
 	}
@@ -353,7 +369,7 @@ func (s *Service) aiAutoReply(ctx context.Context, st *Step, rc runCtx) stepResu
 				}
 			}
 			if len(reply.Fields) > 0 {
-				if _, err := s.writeFields(ctx, tx, q, rc, reply.Fields); err != nil {
+				if _, _, err := s.writeFields(ctx, tx, q, rc, reply.Fields, reply.UsageID); err != nil {
 					return stepResult{err: err}
 				}
 			}
@@ -379,36 +395,46 @@ func (s *Service) aiRoute(ctx context.Context, st *Step, rc runCtx) stepResult {
 	return r
 }
 
-// writeFields stores fields the AI found (provenance ai_unverified) and
-// records them on the conversation's timeline. Values a field cannot take
-// are left out.
-func (s *Service) writeFields(ctx context.Context, tx pgx.Tx, q *db.Queries, rc runCtx, found map[string]string) ([]string, error) {
+// writeFields stores fields the AI found (provenance ai, not verified,
+// with the AI request usage) and records them on the conversation's
+// timeline. Values a field cannot take are left out; values the AI may not
+// replace (a person's, an import's, the API's or verified ones) are kept
+// and reported in kept.
+func (s *Service) writeFields(ctx context.Context, tx pgx.Tx, q *db.Queries, rc runCtx, found map[string]string, usage *uuid.UUID) (written, kept []string, err error) {
+	if s.fields == nil {
+		return nil, nil, errors.New("automation: no contact field writer")
+	}
 	keys := make([]string, 0, len(found))
 	for k := range found {
 		keys = append(keys, k)
 	}
 	slices.Sort(keys)
-	var written []string
+	origin := FieldOrigin{Source: SourceAIUnverified, UsageID: usage, ConversationID: rc.ev.ConversationID}
+	written, kept = []string{}, []string{}
 	for _, k := range keys {
-		err := s.fields.SetFieldsWithSource(ctx, q, rc.contact.ID, map[string]string{k: found[k]}, SourceAIUnverified)
-		if _, ok := apperr.As(err); ok {
-			continue
+		err := s.fields.SetFieldsWithSource(ctx, tx, q, rc.contact.ID, map[string]string{k: found[k]}, origin)
+		status := ""
+		if ae, ok := apperr.As(err); ok {
+			if ae.Code != CodeFieldKept {
+				continue
+			}
+			kept, status = append(kept, k), "kept_existing"
+		} else if err != nil {
+			return nil, nil, err
+		} else {
+			written = append(written, k)
 		}
-		if err != nil {
-			return nil, err
-		}
-		written = append(written, k)
 		if rc.ev.ConversationID != nil {
-			if _, err := activity.Record(ctx, tx, q, *rc.ev.ConversationID, activity.AIAction, activity.AI, activity.Data{"action": "update_field",
-				"field": k, "source": SourceAIUnverified, "by": "automation"}); err != nil {
-				return nil, err
+			d := activity.Data{"action": "update_field", "field": k, "source": SourceAIUnverified, "by": "automation"}
+			if status != "" {
+				d["status"] = status
+			}
+			if _, err := activity.Record(ctx, tx, q, *rc.ev.ConversationID, activity.AIAction, activity.AI, d); err != nil {
+				return nil, nil, err
 			}
 		}
 	}
-	if written == nil {
-		written = []string{}
-	}
-	return written, nil
+	return written, kept, nil
 }
 
 // structured runs a call with a structured output and decodes it into out.

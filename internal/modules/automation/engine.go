@@ -91,7 +91,7 @@ type Service struct {
 
 // New returns the engine. httpClient may be nil, which disables HTTP steps.
 func New(pool *pgxpool.Pool, msg *messaging.Service, mail mailer.Sender, httpClient Doer, log *slog.Logger) *Service {
-	return &Service{pool: pool, q: db.New(pool), msg: msg, mail: mail, http: httpClient, log: log, fields: directFields{}, now: time.Now}
+	return &Service{pool: pool, q: db.New(pool), msg: msg, mail: mail, http: httpClient, log: log, now: time.Now}
 }
 
 // SetAI connects the AI module (AI steps fail with ai_not_configured
@@ -102,8 +102,8 @@ func (s *Service) SetAI(a *ai.Service) { s.ai = a }
 // conversation-aware AI steps are skipped without it).
 func (s *Service) SetInbox(i Inbox) { s.inbox = i }
 
-// SetFieldWriter replaces how AI steps store contact fields (the contacts
-// module's provenance store, once it exists).
+// SetFieldWriter connects how AI steps store contact fields (the
+// conversations module, on the provenance store; see FieldWriter).
 func (s *Service) SetFieldWriter(f FieldWriter) { s.fields = f }
 
 // SetClock replaces the clock of the scanner (tests).

@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -530,6 +531,9 @@ func validateAction(s *Step, p string) error {
 		for _, f := range s.Fields {
 			if !validField(f.Key) || len([]rune(f.Label)) > 120 {
 				return bad(p+".fields", "Fields are name, email, var1–var5 or attr:<key>.")
+			}
+			if ai.SensitiveField(f.Key, f.Label) {
+				return bad(p+".fields", "The AI never collects special categories of personal data or secrets (health, beliefs, identity numbers, card numbers, passwords).")
 			}
 		}
 	case "ai_classify_segment":

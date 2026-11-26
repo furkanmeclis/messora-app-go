@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -212,8 +213,9 @@ func lastUser(req ai.Request) string {
 
 func TestAIDetectIntentBranchesAndExtractsFields(t *testing.T) {
 	h := newHarness(t)
-	token, _ := h.connect()
+	token, phoneID := h.connect()
 	s := h.setupAIOnly(token)
+	h.fieldProfile(token, phoneID, true)
 	s.answer(func(req ai.Request) (ai.Response, error) {
 		switch req.Output.Name {
 		case "messora_intent":
@@ -659,5 +661,98 @@ func TestCampaignReactionsStartReactionPresetsOnce(t *testing.T) {
 	}
 	if ev := h.lastRun(token, neg)["event"].(map[string]any); ev["source"] != "ai" || ev["campaign_id"] != camp2 {
 		t.Fatalf("AI event: %v", ev)
+	}
+}
+
+// fieldProfile creates an AI profile on the number that does not answer by
+// itself; mayUpdate is its "may update fields".
+func fieldProfileBody(phoneID string, mayUpdate bool) map[string]any {
+	return map[string]any{"name": "Otomasyon", "phone_number_id": phoneID, "auto_reply": false, "status": "active",
+		"system_prompt": "Acme mağazası.", "data_collection": map[string]any{"enabled": false, "fields": []any{}, "may_create_contact": false, "may_update_fields": mayUpdate}}
+}
+
+func (h *harness) fieldProfile(token, phoneID string, mayUpdate bool) string {
+	h.t.Helper()
+	r := h.do(call{method: "POST", path: "/api/v1/ai/profiles", token: token, body: fieldProfileBody(phoneID, mayUpdate)})
+	h.expect(r, 201, "")
+	return r.data()["id"].(string)
+}
+
+// AI field steps store values like the AI's own data collection: source
+// ai, not verified, with the AI request; never over a person's or a
+// verified value; only with the profile's "may update fields".
+func TestAIExtractFieldsKeepsProvenance(t *testing.T) {
+	h := newHarness(t)
+	token, phoneID := h.connect()
+	s := h.setupAIOnly(token)
+	answers := []map[string]any{
+		{"f0": "Ayşe Kaya", "f1": "ayse@example.com", "f2": "İzmir"},
+		{"f0": "Ayşe Kaya", "f1": "ayse.kaya@example.com", "f2": "Ankara"},
+		{"f0": "Ayşe Kaya", "f1": "yeni@example.com", "f2": "Bursa"},
+	}
+	n := 0
+	s.answer(func(req ai.Request) (ai.Response, error) {
+		if req.Output == nil || req.Output.Name != "messora_fields" {
+			return ai.Response{}, errors.New("unexpected request")
+		}
+		a := answers[min(n, len(answers)-1)]
+		n++
+		return structured(map[string]any{"fields": a}), nil
+	})
+	id := h.automation(token, map[string]any{"name": "Extract", "active": true, "trigger_type": "message_received",
+		"steps": []any{map[string]any{"id": "extract", "type": "ai_extract_fields", "fields": []any{
+			map[string]any{"key": "name", "label": "Ad"}, map[string]any{"key": "email"}, map[string]any{"key": "attr:city", "label": "Şehir"}}}}})
+
+	// Without "may update fields" the step is not allowed.
+	prof := h.fieldProfile(token, phoneID, false)
+	h.say("wamid.p0", "Merhaba")
+	if run := h.lastRun(token, id); run["status"] != "failed" || run["error_code"] != "ai_not_allowed" {
+		t.Fatalf("without may_update_fields: %v", run)
+	}
+	h.expect(h.do(call{method: "PUT", path: "/api/v1/ai/profiles/" + prof, token: token, body: fieldProfileBody(phoneID, true)}), 200, "")
+
+	// A person sets the name (theirs, verified).
+	cid := h.contactOf(token, testCustomer)["id"].(string)
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/contacts/" + cid, token: token, body: map[string]any{"name": "Ayşe Y."}}), 200, "")
+
+	h.say("wamid.p1", "Ben Ayşe Kaya, ayse@example.com, İzmir")
+	run := h.lastRun(token, id)
+	if run["status"] != "completed" {
+		t.Fatalf("run: %v", run)
+	}
+	detail := run["steps"].([]any)[0].(map[string]any)["detail"].(map[string]any)
+	if fmt.Sprint(detail["fields"]) != "[attr:city email]" || fmt.Sprint(detail["kept"]) != "[name]" {
+		t.Fatalf("detail: %v", detail)
+	}
+	c := h.contactOf(token, testCustomer)
+	if c["name"] != "Ayşe Y." || c["email"] != "ayse@example.com" || c["attributes"].(map[string]any)["city"] != "İzmir" {
+		t.Fatalf("contact: %v", c)
+	}
+	if src := sourceOf(c, "email"); src["source"] != "ai" || src["verified"] != false {
+		t.Fatalf("email provenance: %v", src)
+	}
+	if src := sourceOf(c, "name"); src["source"] != "user" || src["verified"] != true {
+		t.Fatalf("name provenance: %v", src)
+	}
+	if h.count("SELECT count(*) FROM contact_field_sources s JOIN ai_usage u ON u.id = s.ai_usage_id WHERE s.contact_id = $1 AND s.source = 'ai' AND NOT s.verified AND u.automation_run_id = $2",
+		cid, run["id"]) != 2 {
+		t.Fatal("the AI request is not kept with the values")
+	}
+
+	// The AI may replace its own unverified value; once a person verified
+	// it, it stays.
+	h.say("wamid.p2", "e-postam ayse.kaya@example.com, Ankara'dayım")
+	if c := h.contactOf(token, testCustomer); c["email"] != "ayse.kaya@example.com" || c["attributes"].(map[string]any)["city"] != "Ankara" {
+		t.Fatalf("own value not replaced: %v", c)
+	}
+	h.expect(h.do(call{method: "POST", path: "/api/v1/contacts/" + cid + "/verify-fields", token: token,
+		body: map[string]any{"fields": []string{"email"}}}), 200, "")
+	h.say("wamid.p3", "yeni e-postam yeni@example.com, Bursa")
+	c = h.contactOf(token, testCustomer)
+	if c["email"] != "ayse.kaya@example.com" || c["attributes"].(map[string]any)["city"] != "Bursa" {
+		t.Fatalf("verified value overwritten: %v", c)
+	}
+	if src := sourceOf(c, "email"); src["source"] != "ai" || src["verified"] != true {
+		t.Fatalf("verified email provenance: %v", src)
 	}
 }

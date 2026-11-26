@@ -248,11 +248,16 @@ func (s *Service) ComposeAIReply(ctx context.Context, id, runID uuid.UUID) (auto
 	}
 	out.Text, out.Disclose = truncateRunes(text, 4096), disclose
 	p := t.profile
-	if p.DataCollection.Enabled && p.DataCollection.MayUpdateFields && p.Allows("update_contact_fields") {
+	// Like the AI's own turns (collect): the profile's data collection with
+	// "may update fields"; the writer applies the provenance rules.
+	if p.DataCollection.Enabled && p.DataCollection.MayUpdateFields {
 		out.Fields = map[string]string{}
 		for _, f := range p.DataCollection.Fields {
 			if v := reply.ExtractedFields[f.Key]; v != nil && strings.TrimSpace(*v) != "" {
-				out.Fields[f.Key] = truncateRunes(strings.TrimSpace(*v), 500)
+				// Checked against the field's type, as in collect.
+				if val, ok := ai.ValidateValue(f, *v); ok {
+					out.Fields[f.Key] = val
+				}
 			}
 		}
 	}
