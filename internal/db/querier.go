@@ -454,6 +454,40 @@ type Querier interface {
 	// market's and the "Other" market's.
 	MetaRateCandidates(ctx context.Context, arg MetaRateCandidatesParams) ([]MetaRateCandidatesRow, error)
 	MuteContactAutomations(ctx context.Context, arg MuteContactAutomationsParams) error
+	// Open conversations the AI answers, visible to the viewer.
+	OpsAIActiveCount(ctx context.Context, arg OpsAIActiveCountParams) (int64, error)
+	// Meta's account alerts since since (restrictions, quality changes, …),
+	// newest first.
+	OpsAccountEvents(ctx context.Context, arg OpsAccountEventsParams) ([]OpsAccountEventsRow, error)
+	// Connected accounts in error, disabled, or with a token warning.
+	OpsAccountProblems(ctx context.Context) ([]OpsAccountProblemsRow, error)
+	// Campaigns sending, waiting or scheduled: sending first, then paused,
+	// then the next scheduled; with the sender's currency for the cost.
+	OpsActiveCampaigns(ctx context.Context, lim int32) ([]OpsActiveCampaignsRow, error)
+	// Automation runs in progress, newest first.
+	OpsActiveRuns(ctx context.Context, lim int32) ([]OpsActiveRunsRow, error)
+	// Conversations whose escalation no person accepted yet, oldest first.
+	OpsAwaitingHuman(ctx context.Context, arg OpsAwaitingHumanParams) ([]OpsAwaitingHumanRow, error)
+	// Operations center (GET /ops/overview): campaigns by state; completed and
+	// failed since day_start (the viewer's midnight). Every ops list is bounded;
+	// the conversation queries apply the visibility rule of ListConversations.
+	OpsCampaignStatusCounts(ctx context.Context, dayStart time.Time) (OpsCampaignStatusCountsRow, error)
+	// Automation runs that failed since since, newest first.
+	OpsFailedRuns(ctx context.Context, arg OpsFailedRunsParams) ([]OpsFailedRunsRow, error)
+	// Numbers whose quality Meta rates medium (YELLOW) or low (RED).
+	OpsLowQualityNumbers(ctx context.Context) ([]OpsLowQualityNumbersRow, error)
+	// Messages per hour since since_id (sparkline of the last 24 hours).
+	OpsMessageHours(ctx context.Context, sinceID uuid.UUID) ([]OpsMessageHoursRow, error)
+	// The newest messages of one direction since since_id (a UUIDv7 bound,
+	// so the primary key limits the scan), visible to the viewer: messages
+	// without a conversation only with see_all, as their realtime events.
+	OpsRecentMessages(ctx context.Context, arg OpsRecentMessagesParams) ([]OpsRecentMessagesRow, error)
+	// Open conversations nobody is assigned to, not answered by the AI, whose
+	// last message is the customer's; longest waiting first.
+	OpsUnassignedWaiting(ctx context.Context, lim int32) ([]OpsUnassignedWaitingRow, error)
+	// Open conversations visible to the viewer whose last message is the
+	// customer's (waiting for an answer), longest waiting first.
+	OpsWaitingReply(ctx context.Context, arg OpsWaitingReplyParams) ([]OpsWaitingReplyRow, error)
 	// Waiting runs whose resume task may have been lost.
 	OverdueWaitingRuns(ctx context.Context) ([]uuid.UUID, error)
 	PhoneNumberExists(ctx context.Context, id uuid.UUID) (bool, error)
