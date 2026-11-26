@@ -240,7 +240,7 @@ worker message:send  → §6
 - **Önceki kampanyada ulaşılamayanlar:** `audience.previous_campaign = {campaign_id, classes}`. Sınıf (`campaign_recipient_class` SQL fonksiyonu) alıcı durumu + son mesaj durumu + `failure_class`'tan çıkar: `temporary`, `rejected_by_meta`, `ecosystem_limit`, `undeliverable`, `permanent`, `never_sent` seçilebilir; `user_stopped_marketing` ve `blocked_by_consent` kesin engel olduğu için seçilemez. Kaynak kampanya bitmiş olmalıdır. Kitle başlatılırken hesaplanır, kişi başına tek alıcı; izin kuralları her kitlede olduğu gibi uygulanır. Ön kontrol (`POST /campaigns/preflight`) sınıf bazlı sayımı `by_failure_class` ile verir.
 - **Canlı ilerleme:** dispatcher her tick'te kuyruğa aldığını sayar, 2 sn'de bir ölçülen hızı (`send_rate`) günceller. `campaign.progress` olayı (sayımlar, hız, `eta_seconds`) kampanya başına en fazla 2 sn'de bir yayınlanır; durum değişiklikleri `campaign.updated` ile hemen gider.
 - **Planlanmış kampanya:** Scheduler her dakika `UPDATE … SET status='preparing' WHERE status='scheduled' AND scheduled_at <= now() RETURNING id` çalıştırır ve outbox'a yazar.
-- **İstatistik:** `campaign_stats` satırı (pending, queued, accepted, sent, delivered, read, failed, unknown, skipped) durum geçişleriyle aynı transaction'da artırılır. Webhook başına COUNT sorgusu yok. 80 mps'de tek satır güncellemesi PostgreSQL için sorun değildir. 1000 mps senaryosunda sayaç sharding'i (`campaign_stats_shards`) roadmap'tedir.
+- **İstatistik (Phase 16C P3):** alıcı satırı mesajının durumunu, zamanlarını, hatasını ve maliyetini `messages` üzerindeki tetikleyiciyle aynı transaction'da yansıtır; `campaign_counters` satırı (alıcı durumları, sonuçlar, mesaj durumları, cevap/dönüş/çıkış, 131048/131049/131050, maliyet) `campaign_recipients` ve `messages` tetikleyicileriyle artımlı güncellenir. Webhook başına COUNT sorgusu yok. `campaign:analytics_reconcile` (5 dk) aktif ve yakın zamanda biten kampanyaların sayaçlarını satırlardan yeniden hesaplayıp kaymayı onarır. Tanımlar ve atama: [`CAMPAIGN_ANALYTICS.md`](CAMPAIGN_ANALYTICS.md). 1000 mps senaryosunda sayaç sharding'i roadmap'tedir.
 - **Event log:** `campaign_events` (started, paused, resumed, cancelled, completed, auto_paused + sebep, kullanıcı).
 
 ## 8. Webhook alımı (Meta → Messora)
@@ -285,7 +285,7 @@ worker webhook:process (idempotent):
 | `campaigns` | 3 | `campaign:materialize`, `campaign:dispatch`, `whatsapp:send` (kampanya mesajı) |
 | `default` | 3 | `automation:run`, `automation:resume`, `webhook:fanout`, `webhook:deliver`, `whatsapp:media_download`, zamanlanmış işler (§11) |
 | `ai` | 2 | Henüz task yok; Phase 16C'deki AI işleri için ayrıldı |
-| `bulk` | 1 | `contacts:import` |
+| `bulk` | 1 | `contacts:import`, `campaign:export` |
 
 - **Yönlendirme** `internal/platform/queue` içindeki tablodadır (`PolicyFor`). `whatsapp:send` payload'ı `campaign_id` taşıyorsa (`messaging.SendPayload`) `campaigns` kuyruğuna, taşımıyorsa `critical`'a gider (`RouteTask`). Böylece inbox yanıtları kampanya yükünün arkasında beklemez. İki kuyruk da aynı numara başı hız sınırlayıcısını paylaşır.
 - **Ertelemeler kuyruğu değiştirmez:** hız sınırı (`RetryAfterError`) asynq'in aynı task'i aynı kuyrukta yeniden planlamasıyla yapılır ve deneme hakkından düşmez (`IsFailure`).
@@ -301,6 +301,7 @@ worker webhook:process (idempotent):
 | `campaign:materialize`, `campaign:dispatch` | `campaigns` | 10 | Kaldığı yerden devam eder (cursor); `campaign_reaper` boşta kalan kampanyayı yeniden tetikler. |
 | `webhook:fanout`, `webhook:deliver` | `default` | 10 | Teslim denemeleri ve backoff `webhook_deliveries` tablosundadır; bu bütçe yalnızca kayıt yazılamadığında harcanır. |
 | `contacts:import` | `bulk` | 3 | |
+| `campaign:export` (büyük alıcı dışa aktarmaları ve rapor XLSX/PDF) | `bulk` | 3 | Dosya 7 gün saklanır; takılan iş 30 dk sonra `failed` olur. |
 | Zamanlanmış işler (`maintenance:*`, `campaign:start_due`, `campaign:reaper`, `offers:tick`, `automation:reaper`, `webhook:cleanup`, `channels:token_check`, `license:check_in`) | `default` | 2 | Bir sonraki dilimde zaten yeniden çalışır. |
 | `ai:model_sync` (günlük AI model kataloğu senkronu) | `ai` | 2 | Sağlayıcı başına hata loglanır; ertesi gün tekrar çalışır. |
 
@@ -316,6 +317,7 @@ worker webhook:process (idempotent):
 | İş (`internal/app/scheduler.go`) | Task | Periyot |
 |---|---|---|
 | Vadesi gelmiş planlı kampanyaları başlat | `campaign:start_due` | 1 dk |
+| Kampanya sayaçlarının uzlaştırılması, kampanya koruması (spam eşikleri) ve süresi dolan dışa aktarma dosyalarının silinmesi | `campaign:analytics_reconcile` | 5 dk |
 | Kampanya/gönderim reaper'ı: `sending`'de kalan mesajlar `unknown` olur, kuyruğu kaybolmuş `pending` mesajlar yeniden kuyruğa alınır, boşta kalan kampanya dispatcher'ı yeniden tetiklenir | `campaign:reaper` | 1 dk |
 | Süreli teklifler: `scheduled` → `active` → `expired`; biten teklifin kampanyaları `offer_expired` ile duraklar, `offer.updated` yayınlanır | `offers:tick` | 1 dk |
 | Otomasyon reaper'ı: süresi dolan beklemeler ve takılan koşular | `automation:reaper` | 1 dk |
