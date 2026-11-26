@@ -240,6 +240,9 @@ type ServerOptions struct {
 	Queues          map[string]int
 	ShutdownTimeout time.Duration
 	Logger          *slog.Logger
+	// OnArchived, when set, is called after a task failed for the last
+	// time, i.e. asynq moves it to the dead letter (failed jobs).
+	OnArchived func(ctx context.Context, taskType string)
 }
 
 // NewServer builds an asynq server with Messora's retry policy and logging.
@@ -261,10 +264,15 @@ func NewServer(rdb goredis.UniversalClient, o ServerOptions) *asynq.Server {
 			maxRetry, _ := asynq.GetMaxRetry(ctx)
 			id, _ := asynq.GetTaskID(ctx)
 			level := slog.LevelWarn
-			if retried >= maxRetry {
-				level = slog.LevelError // final attempt: task is archived (dead letter)
+			// The final attempt, or SkipRetry: the task is archived (dead letter).
+			archived := errors.Is(err, asynq.SkipRetry) || (IsFailure(err) && retried >= maxRetry)
+			if archived {
+				level = slog.LevelError
 			}
 			log.Log(ctx, level, "task failed", "task_type", t.Type(), "job_id", id, "retry", retried, "max_retry", maxRetry, "err", err)
+			if archived && o.OnArchived != nil {
+				o.OnArchived(ctx, t.Type())
+			}
 		}),
 	})
 }

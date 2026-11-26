@@ -291,6 +291,11 @@ func (h *Handler) GetCampaignQueue(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
+	httpx.JSON(w, r, http.StatusOK, QueueToAPI(qs))
+}
+
+// QueueToAPI is the send queue view as the API returns it.
+func QueueToAPI(qs []QueueNumber) []api.CampaignQueueNumber {
 	out := make([]api.CampaignQueueNumber, len(qs))
 	for i, n := range qs {
 		cs := make([]api.CampaignQueueEntry, len(n.Campaigns))
@@ -302,7 +307,7 @@ func (h *Handler) GetCampaignQueue(w http.ResponseWriter, r *http.Request) {
 		out[i] = api.CampaignQueueNumber{PhoneNumberId: n.PhoneNumberID, CeilingMps: n.Ceiling, RateMps: n.Rate, ReservedShare: n.ReservedShare,
 			CampaignCapacityMps: n.Capacity.Campaigns, Limit: apiLimit(n.Limit), Campaigns: cs}
 	}
-	httpx.JSON(w, r, http.StatusOK, out)
+	return out
 }
 
 func apiLimit(l limitState) api.PortfolioLimit {

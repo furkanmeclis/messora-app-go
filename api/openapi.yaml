@@ -1277,6 +1277,53 @@ paths:
         "204": { description: "Queued" }
         default: { $ref: "#/components/responses/Error" }
 
+  /ops/overview:
+    get:
+      operationId: getOpsOverview
+      tags: [system]
+      summary: The operations center
+      description: >-
+        What needs attention now, in one call. Each section is present only
+        when the caller may read it: `campaigns` with campaigns.read (counts
+        by state, the active, paused and scheduled campaigns with progress,
+        rate, estimated time left, cost so far and spam signals, and the send
+        queue per number); `conversations` with conversations.read or
+        conversations.read_all, limited to the conversations the caller may
+        open (escalations no one accepted, unassigned conversations waiting,
+        conversations waiting for a reply, the AI's open conversations, the
+        newest messages); `activity` (messages per hour of the last 24 hours)
+        with conversations.read_all; `automations` with automations.read
+        (runs in progress and runs that failed in the last 24 hours);
+        `alerts` with settings.read (failed jobs, Meta account and number
+        problems, the AI budget, the licence). `sections` limits the answer to
+        some of them (the page re-reads a section when a realtime event says
+        it changed). Lists are bounded; `*_total` fields count everything.
+      security: [{ session: [] }]
+      parameters:
+        - name: sections
+          in: query
+          description: Comma-separated sections to return (default all the caller may read).
+          style: form
+          explode: false
+          schema:
+            type: array
+            maxItems: 5
+            items: { type: string, enum: [campaigns, conversations, activity, automations, alerts] }
+        - name: tz
+          in: query
+          description: IANA time zone that starts "today" (default UTC).
+          schema: { type: string, maxLength: 64 }
+      responses:
+        "200":
+          description: Overview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpsOverviewResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/Error" }
+
   /channels/accounts:
     get:
       operationId: listWhatsAppAccounts
@@ -5507,6 +5554,220 @@ components:
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/FailedJob" } }
         meta: { $ref: "#/components/schemas/Meta" }
+
+    OpsOverview:
+      type: object
+      required: [generated_at]
+      properties:
+        generated_at: { type: string, format: date-time }
+        campaigns: { $ref: "#/components/schemas/OpsCampaigns" }
+        conversations: { $ref: "#/components/schemas/OpsConversations" }
+        activity: { $ref: "#/components/schemas/OpsActivity" }
+        automations: { $ref: "#/components/schemas/OpsAutomations" }
+        alerts: { $ref: "#/components/schemas/OpsAlerts" }
+
+    OpsCampaigns:
+      type: object
+      required: [counts, active, queue]
+      properties:
+        counts: { $ref: "#/components/schemas/OpsCampaignCounts" }
+        active:
+          type: array
+          description: Running, preparing, paused and scheduled campaigns (at most 30), sending ones first.
+          items: { $ref: "#/components/schemas/OpsCampaign" }
+        queue:
+          type: array
+          description: The send queue per number (as GET /campaigns/queue).
+          items: { $ref: "#/components/schemas/CampaignQueueNumber" }
+
+    OpsCampaignCounts:
+      type: object
+      required: [running, preparing, scheduled, paused, paused_limit, paused_spam, paused_offer, completed_today, failed_today]
+      properties:
+        running: { type: integer, format: int64 }
+        preparing: { type: integer, format: int64 }
+        scheduled: { type: integer, format: int64 }
+        paused: { type: integer, format: int64, description: "Every pause, the messaging limit included." }
+        paused_limit: { type: integer, format: int64, description: Waiting for the portfolio messaging limit. }
+        paused_spam: { type: integer, format: int64, description: Stopped by campaign protection. }
+        paused_offer: { type: integer, format: int64, description: Stopped because the offer expired. }
+        completed_today: { type: integer, format: int64 }
+        failed_today: { type: integer, format: int64 }
+
+    OpsCampaign:
+      type: object
+      required: [id, name, status, priority, phone_number_id, display_phone_number, total_recipients, counts, cost_micros, currency, spam_errors]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/CampaignStatus" }
+        priority: { $ref: "#/components/schemas/CampaignPriority" }
+        phone_number_id: { type: string, format: uuid }
+        display_phone_number: { type: string }
+        total_recipients: { type: integer, format: int64 }
+        counts:
+          type: object
+          additionalProperties: { type: integer, format: int64 }
+          description: The campaign's counters, as in Campaign.counts.
+        max_mps: { type: [number, "null"], format: double }
+        send_rate: { type: [number, "null"], format: double }
+        eta_seconds: { type: [integer, "null"], format: int64 }
+        scheduled_at: { type: [string, "null"], format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        paused_reason: { type: [string, "null"] }
+        resume_at: { type: [string, "null"], format: date-time }
+        last_error: { type: [string, "null"] }
+        cost_micros: { type: integer, format: int64, description: "Meta cost of the messages so far, in millionths of the currency." }
+        currency: { type: string, description: The sending account's currency; empty when unknown. }
+        spam_errors: { type: integer, format: int64, description: "Messages that failed with 131048, 131049 or 131050 (spam and quality signals)." }
+
+    OpsConversations:
+      type: object
+      required: [awaiting_human, awaiting_human_total, unassigned, unassigned_total, waiting_reply, waiting_reply_total, ai_active, recent_inbound, recent_outbound]
+      properties:
+        awaiting_human: { type: array, items: { $ref: "#/components/schemas/OpsEscalation" }, description: Oldest first (at most 20). }
+        awaiting_human_total: { type: integer, format: int64 }
+        unassigned: { type: array, items: { $ref: "#/components/schemas/OpsWaitingConversation" }, description: "Open, nobody assigned, not with the AI, last message from the customer; longest waiting first (at most 20)." }
+        unassigned_total: { type: integer, format: int64 }
+        waiting_reply: { type: array, items: { $ref: "#/components/schemas/OpsWaitingConversation" }, description: Open conversations whose last message is the customer's (at most 20). }
+        waiting_reply_total: { type: integer, format: int64 }
+        ai_active: { type: integer, format: int64, description: Open conversations the AI answers. }
+        recent_inbound: { type: array, items: { $ref: "#/components/schemas/OpsMessage" }, description: Newest received messages of the last 24 hours (at most 20). }
+        recent_outbound: { type: array, items: { $ref: "#/components/schemas/OpsMessage" }, description: Newest sent messages of the last 24 hours (at most 20). }
+
+    OpsEscalation:
+      type: object
+      required: [conversation_id, handoff_id, contact_id, contact_name, phone_e164, reason, reason_detail, escalated_at, assignee_id]
+      properties:
+        conversation_id: { type: string, format: uuid }
+        handoff_id: { type: string, format: uuid }
+        contact_id: { type: string, format: uuid }
+        contact_name: { type: string }
+        phone_e164: { type: string }
+        reason: { type: string, description: Why the AI handed over (as ConversationHandoff.reason). }
+        reason_detail: { type: string }
+        escalated_at: { type: string, format: date-time }
+        assignee_id: { type: [string, "null"], format: uuid }
+
+    OpsWaitingConversation:
+      type: object
+      required: [conversation_id, contact_id, contact_name, phone_e164, waiting_since, unread_count, owner_type, assignee_id, assignee_name]
+      properties:
+        conversation_id: { type: string, format: uuid }
+        contact_id: { type: string, format: uuid }
+        contact_name: { type: string }
+        phone_e164: { type: string }
+        waiting_since: { type: string, format: date-time, description: The customer's last message. }
+        unread_count: { type: integer }
+        owner_type: { type: string, enum: [human, ai, none] }
+        assignee_id: { type: [string, "null"], format: uuid }
+        assignee_name: { type: [string, "null"] }
+
+    OpsMessage:
+      type: object
+      required: [id, conversation_id, contact_id, contact_name, phone_e164, direction, type, status, source, preview, error_code, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        conversation_id: { type: [string, "null"], format: uuid }
+        contact_id: { type: string, format: uuid }
+        contact_name: { type: string }
+        phone_e164: { type: string }
+        direction: { type: string, enum: [inbound, outbound] }
+        type: { type: string }
+        status: { type: string }
+        source: { type: string }
+        preview: { type: string, description: The first 120 characters of a text message. }
+        error_code: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+
+    OpsActivity:
+      type: object
+      required: [hours]
+      properties:
+        hours:
+          type: array
+          description: Messages per hour of the last 24 hours (hours without messages are left out).
+          items: { $ref: "#/components/schemas/OpsActivityHour" }
+
+    OpsActivityHour:
+      type: object
+      required: [hour, outbound, inbound]
+      properties:
+        hour: { type: string, format: date-time }
+        outbound: { type: integer, format: int64 }
+        inbound: { type: integer, format: int64 }
+
+    OpsAutomations:
+      type: object
+      required: [running, running_total, failed, failed_total]
+      properties:
+        running: { type: array, items: { $ref: "#/components/schemas/OpsAutomationRun" }, description: "Runs in progress, newest first (at most 20)." }
+        running_total: { type: integer, format: int64 }
+        failed: { type: array, items: { $ref: "#/components/schemas/OpsAutomationRun" }, description: "Runs that failed in the last 24 hours, newest first (at most 20)." }
+        failed_total: { type: integer, format: int64 }
+
+    OpsAutomationRun:
+      type: object
+      required: [id, automation_id, automation_name, status, at, conversation_id]
+      properties:
+        id: { type: string, format: uuid }
+        automation_id: { type: string, format: uuid }
+        automation_name: { type: string }
+        status: { type: string, enum: [queued, running, waiting, failed] }
+        error: { type: string, description: Why it failed. }
+        steps_done: { type: integer }
+        started_by: { type: string }
+        at: { type: string, format: date-time, description: When it started (in progress) or failed. }
+        conversation_id: { type: [string, "null"], format: uuid, description: Only when the caller may open the conversation. }
+
+    OpsAlerts:
+      type: object
+      required: [failed_jobs, accounts, numbers, events, license]
+      properties:
+        failed_jobs: { type: integer, description: Background jobs that ran out of retries. }
+        accounts: { type: array, items: { $ref: "#/components/schemas/OpsAccountAlert" } }
+        numbers: { type: array, items: { $ref: "#/components/schemas/OpsNumberAlert" } }
+        events: { type: array, items: { $ref: "#/components/schemas/OpsAccountEvent" }, description: Meta's account alerts of the last 7 days (at most 10). }
+        ai_budget: { $ref: "#/components/schemas/AIBudget" }
+        license: { $ref: "#/components/schemas/LicenseSummary" }
+
+    OpsAccountAlert:
+      type: object
+      required: [account_id, name, status, last_error, token_warning, token_expires_at]
+      properties:
+        account_id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [active, error, disabled] }
+        last_error: { type: [string, "null"] }
+        token_warning: { type: [string, "null"] }
+        token_expires_at: { type: [string, "null"], format: date-time }
+
+    OpsNumberAlert:
+      type: object
+      required: [phone_number_id, account_id, display_phone_number, verified_name, quality_rating]
+      properties:
+        phone_number_id: { type: string, format: uuid }
+        account_id: { type: string, format: uuid }
+        display_phone_number: { type: string }
+        verified_name: { type: string }
+        quality_rating: { type: string, enum: [RED, YELLOW] }
+
+    OpsAccountEvent:
+      type: object
+      required: [id, account_id, account_name, phone_number_id, display_phone_number, kind, occurred_at]
+      properties:
+        id: { type: string, format: uuid }
+        account_id: { type: string, format: uuid }
+        account_name: { type: string }
+        phone_number_id: { type: [string, "null"], format: uuid }
+        display_phone_number: { type: [string, "null"] }
+        kind: { type: string, description: "The webhook field and event, e.g. account_update.account_restriction." }
+        occurred_at: { type: string, format: date-time }
+
+    OpsOverviewResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/OpsOverview" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     WhatsAppAccount:
       type: object

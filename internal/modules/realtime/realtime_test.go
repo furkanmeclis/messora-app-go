@@ -71,6 +71,14 @@ func TestAuthorizeMatrix(t *testing.T) {
 		{"viewer", viewer, InboxChannel, false},
 		{"viewer", viewer, UnassignedChannel, false},
 		{"viewer", viewer, NotificationsChannel, true},
+		// Operations center hints: any section permission.
+		{"owner", owner, OpsChannel, true},
+		{"agent", agent, OpsChannel, true},
+		{"viewer", viewer, OpsChannel, true}, // settings.read: alerts
+		{"contacts only", user("contacts.read"), OpsChannel, false},
+		{"api key", apiKey, OpsChannel, false},
+		{"mfa pending", mfaPending, OpsChannel, false},
+		{"owner", owner, "system:ops:x", false},
 		{"api key", apiKey, InboxChannel, false},
 		{"anonymous", nil, InboxChannel, false},
 		{"mfa pending", mfaPending, InboxChannel, false},

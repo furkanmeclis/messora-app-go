@@ -45,13 +45,21 @@ func NewHandler(version string, pool *pgxpool.Pool, rdb goredis.UniversalClient,
 	return &Handler{version: version, checker: c, jobs: NewFailedJobs(insp), q: db.New(pool), log: log}
 }
 
+// FailedJobsTotal is the number of failed jobs in every queue.
+func (h *Handler) FailedJobsTotal() (int, error) {
+	counts, err := h.jobs.Count()
+	total := 0
+	for _, n := range counts {
+		total += n
+	}
+	return total, err
+}
+
 // GetSystemStatus implements api.ServerInterface.
 func (h *Handler) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
 	var failed int64
-	if counts, err := h.jobs.Count(); err == nil { // Redis trouble shows in the redis check
-		for _, n := range counts {
-			failed += int64(n)
-		}
+	if n, err := h.FailedJobsTotal(); err == nil { // Redis trouble shows in the redis check
+		failed = int64(n)
 	}
 	results, ok := h.checker.Run(r.Context())
 	comps := make(map[string]api.ComponentStatus, len(results))

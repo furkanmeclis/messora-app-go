@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
@@ -158,6 +159,7 @@ func RunWorker(ctx context.Context) error {
 	srv := queue.NewServer(rdb, queue.ServerOptions{
 		Concurrency: cfg.Worker.Concurrency, Queues: cfg.Worker.Queues,
 		ShutdownTimeout: cfg.ShutdownTimeout, Logger: log.With("component", "asynq"),
+		OnArchived: opsFailedJobHint(pool, log),
 	})
 
 	ready := health.NewChecker(2*time.Second).
@@ -397,4 +399,16 @@ func registerAutomations(mux *asynq.ServeMux, a *automation.Service, log *slog.L
 		}
 		return err
 	})
+}
+
+// opsFailedJobHint tells the operations center that a job reached the dead
+// letter (its alerts count failed jobs), as an ops.updated hint.
+func opsFailedJobHint(pool *pgxpool.Pool, log *slog.Logger) func(context.Context, string) {
+	return func(ctx context.Context, taskType string) {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := realtime.PublishOps(ctx, pool, realtime.OpsSectionAlerts); err != nil {
+			log.WarnContext(ctx, "could not announce a failed job", "task_type", taskType, "err", err)
+		}
+	}
 }

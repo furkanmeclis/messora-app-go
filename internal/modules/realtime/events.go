@@ -54,7 +54,28 @@ const (
 	TypeAIStatus = "ai.status"
 	// TypeNotificationCreated: a notice for one user or for everyone.
 	TypeNotificationCreated = "notification.created"
+	// TypeOpsUpdated: a section of the operations center changed in a way
+	// no other event shows (OpsChannel). Database triggers (migration
+	// 00022) write most of them.
+	TypeOpsUpdated = "ops.updated"
 )
+
+// Operations center sections named by ops.updated.
+const (
+	OpsSectionAutomations = "automations"
+	OpsSectionAlerts      = "alerts"
+)
+
+// OpsEvent says which section of the operations center to read again.
+type OpsEvent struct {
+	Envelope
+	Section string `json:"section"`
+}
+
+// PublishOps announces that section changed, on OpsChannel.
+func PublishOps(ctx context.Context, tx outbox.DBTX, section string) error {
+	return Publish(ctx, tx, OpsChannel, OpsEvent{Envelope: NewEnvelope(TypeOpsUpdated), Section: section})
+}
 
 // ActivityEvent announces a new item of a conversation's timeline; the
 // client fetches it from /conversations/{id}/activity.

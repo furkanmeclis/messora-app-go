@@ -224,11 +224,15 @@ func remaining(counts map[string]int64) int64 {
 }
 
 // eta estimates the seconds left at the measured rate (nil when unknown).
-func eta(c db.Campaign, counts map[string]int64) *int64 {
-	if c.Status != "running" || c.SendRate == nil || *c.SendRate <= 0 {
+func eta(c db.Campaign, counts map[string]int64) *int64 { return ETA(c.Status, c.SendRate, counts) }
+
+// ETA estimates the seconds a campaign in status, sending at the measured
+// rate, needs for what is left in counts (nil when unknown).
+func ETA(status string, rate *float64, counts map[string]int64) *int64 {
+	if status != "running" || rate == nil || *rate <= 0 {
 		return nil
 	}
-	v := int64(math.Ceil(float64(remaining(counts)) / *c.SendRate))
+	v := int64(math.Ceil(float64(remaining(counts)) / *rate))
 	return &v
 }
 

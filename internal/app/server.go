@@ -29,6 +29,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/licensing"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ops"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
@@ -64,6 +65,7 @@ type (
 	licensingHandler  = licensing.Handler
 	consentHandler    = consent.Handler
 	aiHandler         = ai.Handler
+	opsHandler        = ops.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -85,6 +87,7 @@ type apiServer struct {
 	*licensingHandler
 	*consentHandler
 	*aiHandler
+	*opsHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -249,6 +252,8 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		consentHandler:    consent.NewHandler(pool, log),
 		offersHandler:     offers.NewHandler(svc.offers, log),
 		aiHandler:         ai.NewHandler(svc.ai, log),
+		opsHandler: ops.NewHandler(ops.New(pool, ops.Deps{Campaigns: svc.campaigns, FailedJobs: sys.FailedJobsTotal,
+			Budget: svc.ai.BudgetStatus}), lh.Summary, log),
 	}
 	// The public API description (only what an API key can call), anonymous.
 	raw, err := api.GetSpecJSON()

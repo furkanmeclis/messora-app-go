@@ -14,6 +14,8 @@
 //	                                              (assigned to them or to nobody)
 //	campaign:all           campaign list progress campaigns.read
 //	campaign:<id>          one campaign           campaigns.read
+//	system:ops             operations center      any of OpsPermissions
+//	                       section hints
 //
 // Everything else is refused. Events carry IDs and states only, never message
 // bodies: the client fetches the details from the API with its own
@@ -43,7 +45,27 @@ const (
 	UnassignedChannel    = "inbox:unassigned"
 	CampaignsChannel     = "campaign:all"
 	NotificationsChannel = "system:notifications"
+	// OpsChannel carries ops.updated hints for the operations center. It
+	// lives in the system namespace so existing Centrifugo configurations
+	// need no new namespace.
+	OpsChannel = "system:ops"
 )
+
+// OpsPermissions are the permissions of the operations center's sections;
+// any one of them grants OpsChannel. Its events carry a section name only,
+// never IDs.
+var OpsPermissions = []string{"campaigns.read", "conversations.read", "conversations.read_all", "automations.read", "settings.read"}
+
+// HasAnyOps reports whether p may read at least one section of the
+// operations center.
+func HasAnyOps(p *principal.Principal) bool {
+	for _, perm := range OpsPermissions {
+		if p.Has(perm) {
+			return true
+		}
+	}
+	return false
+}
 
 // PersonalChannel is the user-limited channel of one user.
 func PersonalChannel(userID uuid.UUID) string { return "personal:#" + userID.String() }
@@ -84,7 +106,7 @@ func AuthorizeContext(ctx context.Context, p *principal.Principal, channel strin
 	case "personal":
 		allowed = rest == "#"+p.ID.String()
 	case "system":
-		allowed = rest == "notifications"
+		allowed = rest == "notifications" || (rest == "ops" && HasAnyOps(p))
 	case "inbox":
 		switch rest {
 		case "all":
