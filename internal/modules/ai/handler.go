@@ -83,7 +83,7 @@ func actorID(r *http.Request) *uuid.UUID {
 func (h *Handler) settingsToAPI(s Settings) api.AISettings {
 	return api.AISettings{Enabled: s.Enabled, DefaultProviderId: s.DefaultProviderID, DefaultModel: s.DefaultModel,
 		Disclosure: api.AITexts{Tr: s.Disclosure.TR, En: s.Disclosure.EN}, DataSharingNotice: api.AITexts{Tr: s.DataSharingNotice.TR, En: s.DataSharingNotice.EN},
-		FakeProviderAvailable: h.svc.FakeAllowed()}
+		FakeProviderAvailable: h.svc.FakeAllowed(), MaxRepliesPerHour: s.RepliesPerHour(), ContextMessages: s.ContextSize()}
 }
 
 // GetAISettings implements api.ServerInterface.
@@ -103,9 +103,22 @@ func (h *Handler) UpdateAISettings(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	s, err := h.svc.SaveSettings(r.Context(), Settings{Enabled: req.Enabled, DefaultProviderID: req.DefaultProviderId, DefaultModel: req.DefaultModel,
-		Disclosure: Texts{TR: req.Disclosure.Tr, EN: req.Disclosure.En}, DataSharingNotice: Texts{TR: req.DataSharingNotice.Tr, EN: req.DataSharingNotice.En}},
-		actorID(r))
+	in := Settings{Enabled: req.Enabled, DefaultProviderID: req.DefaultProviderId, DefaultModel: req.DefaultModel,
+		Disclosure: Texts{TR: req.Disclosure.Tr, EN: req.Disclosure.En}, DataSharingNotice: Texts{TR: req.DataSharingNotice.Tr, EN: req.DataSharingNotice.En}}
+	// Left out: keep the stored values.
+	old, err := h.svc.Settings(r.Context())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	in.MaxRepliesPerHour, in.ContextMessages = old.MaxRepliesPerHour, old.ContextMessages
+	if req.MaxRepliesPerHour != nil {
+		in.MaxRepliesPerHour = *req.MaxRepliesPerHour
+	}
+	if req.ContextMessages != nil {
+		in.ContextMessages = *req.ContextMessages
+	}
+	s, err := h.svc.SaveSettings(r.Context(), in, actorID(r))
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -478,7 +491,8 @@ func profileToAPI(p Profile) api.AIProfile {
 	return api.AIProfile{Id: p.ID, Name: p.Name, PhoneNumberId: p.PhoneNumberID, PhoneDisplay: p.PhoneDisplay, SystemPrompt: p.SystemPrompt,
 		ProviderId: p.ProviderID, Model: p.Model, AutoReply: p.AutoReply,
 		Handoff: api.AIHandoff{OnRequest: true, OnLowConfidence: low, OnNoAnswer: p.Handoff.OnNoAnswer,
-			OnCriticalIntents: p.Handoff.OnCriticalIntents, OnUnauthorizedAction: p.Handoff.OnUnauthorizedAction},
+			OnCriticalIntents: p.Handoff.OnCriticalIntents, OnUnauthorizedAction: p.Handoff.OnUnauthorizedAction,
+			OnHumanTakeover: ptr(api.AIHandoffOnHumanTakeover(takeoverOf(p.Handoff)))},
 		DataCollection: api.AIDataCollection{Enabled: p.DataCollection.Enabled, Fields: fields,
 			MayCreateContact: p.DataCollection.MayCreateContact, MayUpdateFields: p.DataCollection.MayUpdateFields},
 		AllowedActions: p.AllowedActions, DisclosureMode: api.AIDisclosureMode(p.DisclosureMode), Status: api.AIProfileStatus(p.Status),
@@ -494,6 +508,9 @@ func profileFromAPI(in api.AIProfileInput) Profile {
 	if in.Handoff != nil {
 		p.Handoff = Handoff{OnNoAnswer: in.Handoff.OnNoAnswer, OnCriticalIntents: in.Handoff.OnCriticalIntents,
 			OnUnauthorizedAction: in.Handoff.OnUnauthorizedAction}
+		if in.Handoff.OnHumanTakeover != nil {
+			p.Handoff.OnHumanTakeover = string(*in.Handoff.OnHumanTakeover)
+		}
 		if in.Handoff.OnLowConfidence != nil {
 			// float32 → two decimals, so 0.7 stays 0.7.
 			v := float64(int(*in.Handoff.OnLowConfidence*100+0.5)) / 100
@@ -620,4 +637,13 @@ func (h *Handler) TestAIProfile(w http.ResponseWriter, r *http.Request, id api.P
 			EscalateReason: rp.EscalateReason, ExtractedFields: fields}
 	}
 	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// takeoverOf is the stored takeover mode (off for profiles saved before it
+// existed).
+func takeoverOf(h Handoff) string {
+	if h.OnHumanTakeover == TakeoverSuggest {
+		return TakeoverSuggest
+	}
+	return TakeoverOff
 }

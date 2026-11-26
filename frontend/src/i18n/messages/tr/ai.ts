@@ -43,6 +43,11 @@ const ai: Messages['ai'] = {
         turkish: 'Türkçe',
         english: 'İngilizce',
         saved: 'Yapay zekâ ayarları kaydedildi.',
+        maxReplies: 'Sohbet ve saat başına AI yanıtı',
+        maxRepliesHint:
+            'Hız ve maliyet koruması. Aşılınca sohbet bir temsilciye geçer.',
+        contextMessages: 'AI’ın okuduğu mesaj sayısı',
+        contextMessagesHint: 'Bir AI turunun gördüğü son mesaj sayısı.',
         training:
             'Messora, seçenek sunan sağlayıcılardan sohbet verisini saklamamalarını ve eğitimde kullanmamalarını ister (OpenAI: store=false). Sağlayıcı bazında ayrıntı için docs/AI.md.',
     },
@@ -219,6 +224,11 @@ const ai: Messages['ai'] = {
         criticalIntents: 'Bu niyetleri her zaman devret',
         criticalIntentsHint:
             'Küçük harf ve alt çizgiyle, virgülle ayrılmış (complaint, refund_request).',
+        onHumanTakeover: 'Bir temsilci devraldığında',
+        onHumanTakeoverHint:
+            'Temsilci yanıtladığında, devraldığında ya da devir olduğunda AI ne yapar.',
+        takeoverOff: 'AI dursun',
+        takeoverSuggest: 'Yanıt önermeye devam etsin',
         onUnauthorized:
             'Müşteri, yapay zekânın yapamayacağı bir işlem istediğinde',
         dataCollection: 'Bilgi toplama',

@@ -165,6 +165,8 @@ type AutomationRun struct {
 	UpdatedAt         time.Time
 	FinishedAt        *time.Time
 	Visited           []byte
+	ConversationID    *uuid.UUID
+	StartedBy         string
 }
 
 type AutomationRunStep struct {
@@ -292,6 +294,7 @@ type Contact struct {
 	MetaMarketingStoppedAt *time.Time
 	UndeliverableAt        *time.Time
 	UndeliverableCode      *string
+	AiDisabled             bool
 }
 
 type ContactGroup struct {
@@ -352,18 +355,54 @@ type ContactTag struct {
 }
 
 type Conversation struct {
-	ID            uuid.UUID
-	ContactID     uuid.UUID
-	PhoneNumberID uuid.UUID
-	Status        string
-	AssigneeID    *uuid.UUID
-	LastMessageID *uuid.UUID
-	LastMessageAt time.Time
-	LastInboundAt *time.Time
-	UnreadCount   int32
-	ClosedAt      *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                 uuid.UUID
+	ContactID          uuid.UUID
+	PhoneNumberID      uuid.UUID
+	Status             string
+	AssigneeID         *uuid.UUID
+	LastMessageID      *uuid.UUID
+	LastMessageAt      time.Time
+	LastInboundAt      *time.Time
+	UnreadCount        int32
+	ClosedAt           *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	OwnerType          string
+	AiMode             string
+	AiProfileID        *uuid.UUID
+	AiPausedReason     *string
+	AiStatus           string
+	AiStatusDetail     *string
+	AiModeSetAt        *time.Time
+	AiHandledMessageID *uuid.UUID
+	AiDisclosedAt      *time.Time
+	PendingHandoffID   *uuid.UUID
+}
+
+type ConversationActivity struct {
+	ID             uuid.UUID
+	ConversationID uuid.UUID
+	Kind           string
+	ActorType      string
+	ActorID        *uuid.UUID
+	Data           []byte
+	CreatedAt      time.Time
+}
+
+type ConversationAiDraft struct {
+	ID             uuid.UUID
+	ConversationID uuid.UUID
+	MessageID      *uuid.UUID
+	Kind           string
+	Body           string
+	Confidence     float64
+	Intent         string
+	AiUsageID      *uuid.UUID
+	Status         string
+	DecidedBy      *uuid.UUID
+	DecidedAt      *time.Time
+	SentMessageID  *uuid.UUID
+	CreatedAt      time.Time
 }
 
 type ConversationEvent struct {
@@ -373,6 +412,38 @@ type ConversationEvent struct {
 	ActorType      string
 	ActorID        *uuid.UUID
 	AssigneeID     *uuid.UUID
+	CreatedAt      time.Time
+}
+
+type ConversationHandoff struct {
+	ID                  uuid.UUID
+	ConversationID      uuid.UUID
+	FromType            string
+	FromUserID          *uuid.UUID
+	ToType              string
+	ToUserID            *uuid.UUID
+	Reason              string
+	ReasonDetail        string
+	Summary             string
+	SummarySource       string
+	DetectedNeed        string
+	SuggestedNextAction string
+	CollectedFields     []byte
+	ActorType           string
+	ActorID             *uuid.UUID
+	CreatedAt           time.Time
+	AcceptedBy          *uuid.UUID
+	AcceptedAt          *time.Time
+}
+
+type ConversationNote struct {
+	ID             uuid.UUID
+	ConversationID uuid.UUID
+	AuthorType     string
+	AuthorID       *uuid.UUID
+	Body           string
+	Visibility     string
+	ForAi          bool
 	CreatedAt      time.Time
 }
 
@@ -439,6 +510,8 @@ type Message struct {
 	ConsentCategory  *string
 	NextAttemptAt    *time.Time
 	RetryOf          *uuid.UUID
+	SentBy           *string
+	AiUsageID        *uuid.UUID
 }
 
 type MessageTemplate struct {

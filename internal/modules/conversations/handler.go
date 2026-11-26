@@ -42,10 +42,11 @@ func conversationToAPI(c db.ListConversationsRow, now time.Time) api.Conversatio
 	open, expires := windowExpiry(c.LastInboundAt, now)
 	out := api.Conversation{Id: c.ID, Status: api.ConversationStatus(c.Status), UnreadCount: c.UnreadCount,
 		Contact: api.ConversationContact{Id: c.ContactID, Phone: c.PhoneE164, Name: c.ContactName, ProfileName: c.ProfileName,
-			OptedOut: c.OptedOutAt != nil},
+			OptedOut: c.OptedOutAt != nil, AiDisabled: c.ContactAiDisabled},
 		PhoneNumber:   api.ConversationPhoneNumber{Id: c.PhoneNumberID, AccountId: c.PhoneAccountID, DisplayPhoneNumber: c.DisplayPhoneNumber, VerifiedName: c.VerifiedName},
 		LastMessageAt: c.LastMessageAt, LastInboundAt: c.LastInboundAt, WindowOpen: open, WindowExpiresAt: expires,
-		ClosedAt: c.ClosedAt, CreatedAt: c.CreatedAt}
+		ClosedAt: c.ClosedAt, CreatedAt: c.CreatedAt, OwnerType: api.ConversationOwnerType(c.OwnerType), AiMode: api.ConversationAIMode(c.AiMode),
+		AiStatus: api.ConversationAiStatus(c.AiStatus), AiStatusDetail: c.AiStatusDetail, AiProfileId: c.AiProfileID, PendingHandoffId: c.PendingHandoffID}
 	if c.AssigneeID != nil {
 		out.Assignee = &api.UserRef{Id: *c.AssigneeID, Name: deref(c.AssigneeName)}
 	}
@@ -69,7 +70,8 @@ func messageToAPI(m db.Message, f *db.MediaFile) api.InboxMessage {
 	out := api.InboxMessage{Id: m.ID, Direction: api.InboxMessageDirection(m.Direction), Type: m.Type, Body: m.Body,
 		Status: api.InboxMessageStatus(m.Status), Wamid: m.Wamid, ReplyToWamid: m.ReplyToWamid, Source: api.InboxMessageSource(m.Source),
 		ErrorCode: m.ErrorCode, ErrorTitle: m.ErrorTitle, OccurredAt: m.OccurredAt, SentAt: m.SentAt, DeliveredAt: m.DeliveredAt,
-		ReadAt: m.ReadAt, FailedAt: m.FailedAt, CreatedAt: m.CreatedAt, FailureClass: (*api.FailureClass)(m.FailureClass)}
+		ReadAt: m.ReadAt, FailedAt: m.FailedAt, CreatedAt: m.CreatedAt, FailureClass: (*api.FailureClass)(m.FailureClass),
+		SentBy: (*api.InboxMessageSentBy)(m.SentBy), AiUsageId: m.AiUsageID}
 	if f != nil {
 		out.Media = &api.InboxMedia{Id: f.ID, MimeType: f.MimeType, Filename: f.Filename, SizeBytes: f.SizeBytes,
 			Status: api.InboxMediaStatus(f.Status)}
@@ -107,6 +109,9 @@ func (h *Handler) ListConversations(w http.ResponseWriter, r *http.Request, p ap
 	}
 	if p.Q != nil {
 		f.Query = *p.Q
+	}
+	if p.Ai != nil {
+		f.AI = string(*p.Ai)
 	}
 	cursor, err := parseCursor(p.Cursor)
 	if err != nil {

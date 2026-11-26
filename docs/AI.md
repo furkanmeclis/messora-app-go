@@ -194,6 +194,153 @@ conversation through the saved profile exactly like a live turn and shows
 the structured reply, tokens, cost and the full instructions. Nothing is
 sent to a customer; the request is recorded with purpose `test`.
 
+## Sohbet devri (conversation intelligence and AI handoff)
+
+> Phase 16C P6. Code: `internal/modules/conversations` (`ownership.go`
+> state machine, `escalation.go` handoff rules, `aicontext.go` context
+> builder, `aireply.go` reply loop, `handoff.go` agent actions),
+> `internal/modules/activity` (timeline). Migration `00018_conversation_ai.sql`.
+
+### Who answers a conversation
+
+Every conversation has an owner (`owner_type`) and an AI mode (`ai_mode`):
+
+| Owner | Modes | Meaning |
+|---|---|---|
+| `none` / `human` | `off` | No AI. |
+| `none` / `human` | `suggest` | The AI drafts a reply for each customer message; an agent accepts, edits or rejects it. |
+| `ai` | `auto_reply` | The AI answers the customer. |
+| `ai` | `awaiting_approval` | The AI writes the reply; an agent approves it before it is sent. |
+
+The transitions are one pure function (`conversations.Next`), unit-tested
+case by case:
+
+- **First customer message:** a conversation nobody owns takes the mode of
+  the number's AI profile — `auto_reply` (owner `ai`) when the profile is
+  active and auto replies, `suggest` when it is active and only suggests,
+  otherwise nothing (and it is decided again on the next message). AI must
+  be on for the company and allowed for the contact.
+- **Hand to the AI** (`PUT /conversations/{id}/ai-mode`, `POST …/handoff`
+  with `to: ai`): needs AI on, an active profile on the number and AI
+  allowed for the contact, else `409 AI_UNAVAILABLE`. An unanswered last
+  customer message is answered right away.
+- **Hand to a person** (`POST …/handoff` with `to: human`): to a user
+  (another person needs `conversations.assign`) or to the pool
+  (unassigned). The conversation waits for a person (`pending_handoff_id`).
+- **Take over** (`POST …/takeover`, or any agent reply while the AI owns
+  the conversation or it waits for a person): the agent becomes owner and
+  assignee, a pending escalation is accepted. The AI then keeps the mode the
+  profile sets in `handoff.on_human_takeover`: `off` (default) or
+  `suggest`.
+- **Escalation:** the AI hands over (below); the conversation waits for a
+  person.
+- **AI disabled for the contact** (`PUT /contacts/{id}/ai`) takes every
+  conversation of the contact from the AI (to the pool, or its assignee)
+  and stops suggestions. **AI switched off for the company** is noticed on
+  the next customer message: a conversation the AI owns is escalated with
+  reason `ai_error` (`disabled`) — never dropped silently.
+
+Every change writes a handoff row when the owner changes
+(`conversation_handoffs`), a timeline item, and an audit entry
+(`conversation.ai_mode`, `conversation.handoff`, `conversation.takeover`,
+`conversation.escalate`, `contact.ai`). They need `conversations.reply`
+(contacts: `contacts.update`) and follow the visibility rules: a
+conversation the caller cannot see answers 404.
+
+### The AI reply loop
+
+1. A customer message (not a reaction or a consent keyword) in a
+   conversation the AI owns or drafts in schedules `ai:reply` (queue `ai`)
+   **3 seconds** later. When the task runs and a newer customer message
+   exists, it does nothing: the newer message's task answers the whole
+   burst once.
+2. Guards, each handing the conversation to a person when the AI owns it
+   (a suggestion turn only shows `ai_status: error`): AI off / contact
+   disabled / no active profile (`ai_error`), more AI requests in the last
+   hour than `max_replies_per_hour` (company AI settings, default 20;
+   `ai_error`, `rate_limited`), the 24-hour window closed in auto reply
+   (`window_closed`; free text cannot be sent).
+3. `ai.status: thinking` is announced; the request is built
+   (`BuildTurn`): the profile's instructions and the platform rules, what
+   the business knows about the customer (name, e-mail, var1–5, custom
+   attributes), the last `context_messages` messages (default 20; customer
+   messages as user content, the business's as assistant content) and the
+   **notes for the AI** as operator notes in time order. The answer is the
+   structured reply (`reply`, `confidence`, `intent`, `escalate`,
+   `escalate_reason`, `extracted_fields`, `actions`).
+4. Provider errors (any `ai.Error` kind) and unreadable answers hand over
+   with `ai_error` and the error kind.
+5. The handoff rules (`conversations.Decide`), in this order: the customer
+   asked for a person — the model's intent `human_request` **or** a
+   deterministic Turkish/English check (`WantsHuman`: *temsilci…*, *insan*,
+   *gerçek biri*, *canlı destek*, *yetkili*, *human*, *agent*, *real
+   person* …, with Turkish case folding from the consent keywords) — then a
+   critical intent, the model's `escalate`, an action the profile may not
+   take (when `on_unauthorized_action`), confidence below the threshold, an
+   empty reply.
+6. Otherwise: **auto reply** sends the text through the normal send path
+   (consent and window rules; a refusal hands over), as
+   `messages.source = ai`, `sent_by = ai` with the `ai_usage_id`;
+   **awaiting approval** stores a draft of kind `approval`; **suggest**
+   stores a draft of kind `suggestion` (a newer draft or an agent's reply
+   supersedes it). Drafts are accepted (`…/ai-drafts/{id}/accept`, with an
+   optional edited `body`) or rejected.
+7. What the reply asked for and the profile allows runs in the same
+   transaction: collected fields are written to the contact (data
+   collection with *may update fields* and the `update_contact_fields`
+   action), automations allowed as `automation:<id>` start for the
+   conversation (`started_by: ai`). Refused actions are recorded.
+
+The turn claims the customer message (`ai_handled_message_id`) in the
+transaction that sends, drafts or escalates, so a retried or redelivered
+task never sends twice.
+
+**Disclosure.** With the profile's disclosure mode *first message*,
+Messora puts the company's disclosure text (Settings → AI) in front of the
+first AI message of each conversation (`ai_disclosed_at`); the model is
+told not to repeat it and to answer honestly when asked. *When asked*
+leaves it to the model; *off* is warned about in the panel.
+
+### Escalation
+
+An escalation creates a handoff from `ai` to the pool (or the assignee)
+with the reason (`customer_request`, `no_answer`, `low_confidence`,
+`critical_intent`, `unauthorized_action`, `window_closed`, `ai_error`,
+`manual`), a **summary**, the customer's need, a suggested next action
+and the fields the AI collected. The summary is one extra request
+(purpose `summarize`, structured: `summary`, `detected_need`,
+`suggested_next_action`); when the AI failed or cannot write it, a
+deterministic summary of the customer's last messages is used
+(`summary_source: fallback`). People who may take it are told
+(`notification.created`, kind `conversation.escalated`): the assignee, or
+everyone who can read conversations. The inbox shows the banner and lists
+the conversation under **İnsan bekleyen** (`?ai=waiting_human`) until
+someone takes it over.
+
+### Internal notes
+
+`conversation_notes` are internal: never sent to the customer and never
+given to the model as customer content. Notes marked **AI'a not**
+(`for_ai`) are operator instructions in the AI's next turns (the latest 20);
+the AI is told never to quote them. Tests assert that note text appears
+neither in user content sent to the model nor in any payload sent to Meta.
+
+### Activity timeline
+
+`conversation_activity` is one typed stream written next to every change:
+`handed_to_ai`, `handed_to_human`, `ai_mode_changed`, `assignee_changed`,
+`closed`, `reopened`, `note_added`, `ai_action`, `ai_reply_sent`,
+`ai_draft_created`, `ai_draft_decided`, `ai_error`, `escalation`,
+`handoff_accepted`, `automation_started` / `automation_completed` /
+`automation_failed` (name, started by, steps, error), `message_sent`,
+`message_failed` (campaign messages are left out), `contact_ai_disabled` /
+`contact_ai_enabled`. `GET /conversations/{id}/activity` pages it (latest
+items, oldest first; the cursor goes back), each new item is announced as
+`conversation.activity` on `conversation:<id>`. Automation runs tied to a
+conversation (`automation_runs.conversation_id`, set from the triggering
+event) are listed by `GET /conversations/{id}/automation-runs` and
+announced as `automation.run.updated` on every start, step and end.
+
 ## Development and tests
 
 `AI_FAKE_PROVIDER=true` (refused with `APP_ENV=production`) enables the

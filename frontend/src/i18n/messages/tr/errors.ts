@@ -65,6 +65,8 @@ const errors: Messages['errors'] = {
     USER_EXISTS: 'Bu e-posta adresine sahip bir kullanıcı zaten var.',
     VALIDATION_ERROR: 'Girilen bilgileri kontrol edin: {detail}',
     WEBHOOK_LIMIT: 'Webhook sınırına ulaşıldı.',
+    AI_UNAVAILABLE: 'AI bu sohbette kullanılamıyor: {detail}',
+    DRAFT_DECIDED: 'Bu taslak için zaten karar verildi.',
     AI_DISABLED:
         'Yapay zekâ firma genelinde kapalı. Ayarlar → Yapay zekâ bölümünden açın.',
     AI_NOT_CONFIGURED: 'Yapay zekâ ayarlanmamış: {detail}',

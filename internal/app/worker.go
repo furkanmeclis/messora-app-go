@@ -21,6 +21,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/conversations"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
@@ -117,6 +118,13 @@ func RunWorker(ctx context.Context) error {
 		return nil
 	})
 	registerWebhooks(mux, svc.webhooks, log)
+	mux.HandleFunc(conversations.TypeAIReply, func(ctx context.Context, t *asynq.Task) error {
+		var p conversations.AIReplyPayload
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		return svc.inbox.HandleAIReply(ctx, p.ConversationID, p.MessageID)
+	})
 	mux.HandleFunc(ai.TypeModelSync, func(ctx context.Context, _ *asynq.Task) error {
 		// Per-provider failures are logged; the next daily run repeats them.
 		return svc.ai.SyncAll(ctx)

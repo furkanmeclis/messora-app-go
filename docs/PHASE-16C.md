@@ -189,7 +189,7 @@ Aşağıdaki önerilerin hepsi kabul edildi: (1) yetki izolasyonu 16C'de, firmal
 | P3 Analitik ve rapor | bekliyor |
 | P4 Şablon ve teklif | bekliyor |
 | P5 AI sağlayıcı ve profil | ✅ tamamlandı (2026-11-25), bkz. docs/AI.md — açık doğrulamalar: gerçek hesaplarla yapılandırılmış çıktı şemasının (nullable tipler) Anthropic/Gemini tarafından kabulü, Gemini `toolUsePromptTokenCount` faturalaması, seed fiyatların yönetici onayı |
-| P6 Sohbet zekâsı ve devir | bekliyor |
+| P6 Sohbet zekâsı ve devir | ✅ tamamlandı (2026-11-25), bkz. docs/AI.md "Sohbet devri" — sorumlu/AI modu durum makinesi, iç notlar, AI cevap döngüsü (`ai:reply`, 3 sn debounce), escalation özetiyle, aktivite zaman çizelgesi ve otomasyon koşuları canlı. Açık: devir hedefi yalnızca havuz veya atanan kişi (round robin yok); "çevrimiçi" temsilci takibi yok, bildirim konuşmaları okuyabilen tüm aktif kullanıcılara gider; AI'ın `add_tag` vb. parametreli aksiyonları yalnızca kaydedilir (otomasyon ve alan güncelleme çalışır) |
 | P7 AI müşteri zekâsı ve maliyet | bekliyor |
 | P8 Otomasyon ve presetler | bekliyor |
 | P9 Operasyon merkezi | bekliyor |

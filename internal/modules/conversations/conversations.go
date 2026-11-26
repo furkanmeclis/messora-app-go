@@ -25,6 +25,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/activity"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
@@ -39,20 +41,23 @@ import (
 const (
 	PermRead    = "conversations.read"
 	PermReadAll = "conversations.read_all"
+	PermAssign  = "conversations.assign"
 )
 
 // Service implements the inbox.
 type Service struct {
-	pool  *pgxpool.Pool
-	q     *db.Queries
-	msg   *messaging.Service
-	media *messaging.MediaStore
-	log   *slog.Logger
+	pool     *pgxpool.Pool
+	q        *db.Queries
+	msg      *messaging.Service
+	media    *messaging.MediaStore
+	ai       *ai.Service // nil: no AI reply loop
+	debounce time.Duration
+	log      *slog.Logger
 }
 
 // New returns the service.
 func New(pool *pgxpool.Pool, msg *messaging.Service, media *messaging.MediaStore, log *slog.Logger) *Service {
-	return &Service{pool: pool, q: db.New(pool), msg: msg, media: media, log: log}
+	return &Service{pool: pool, q: db.New(pool), msg: msg, media: media, log: log, debounce: DefaultDebounce}
 }
 
 var errNotFound = apperr.NotFound("Conversation not found.")
@@ -108,11 +113,22 @@ type Filter struct {
 	UnreadOnly    bool
 	PhoneNumberID *uuid.UUID
 	Query         string
+	AI            string // "", "ai" (the AI owns it) or "waiting_human" (escalated, not taken)
 }
 
 // params turns f into query parameters for p.
 func (f Filter) params(p *principal.Principal) (db.ListConversationsParams, error) {
 	out := db.ListConversationsParams{SeeAll: SeesAll(p), ViewerID: p.ID, Status: f.Status, PhoneNumberID: f.PhoneNumberID, OnlyUnread: f.UnreadOnly}
+	switch f.AI {
+	case "":
+	case "ai":
+		owner := string(OwnerAI)
+		out.OwnerType = &owner
+	case "waiting_human":
+		out.OnlyPendingHandoff = true
+	default:
+		return out, apperr.Validation("ai", "Use ai or waiting_human.")
+	}
 	switch a := strings.TrimSpace(f.Assignee); a {
 	case "":
 	case "me":
@@ -242,11 +258,27 @@ func (s *Service) Reply(ctx context.Context, p *principal.Principal, id uuid.UUI
 		in.Template = &tpl
 	}
 	in.To, in.PhoneNumberID, in.CreatedBy = ct.PhoneE164, &c.PhoneNumberID, &p.ID
-	in.Source = "api"
+	in.Source, in.SentBy = "api", string(p.Kind)
 	if p.Kind == principal.KindUser {
 		in.Source = "panel"
 	}
-	return s.msg.Queue(ctx, in)
+	m, err := s.msg.Queue(ctx, in)
+	if err != nil {
+		return m, err
+	}
+	// A person answering a conversation the AI owns (or one waiting for a
+	// person) takes it over; their reply replaces the AI's drafts.
+	if p.Kind == principal.KindUser {
+		if c.OwnerType == string(OwnerAI) || c.PendingHandoffID != nil {
+			if err := s.TakeOver(ctx, p, id); err != nil {
+				s.log.ErrorContext(ctx, "take over after reply", "conversation_id", id, "err", err)
+			}
+		}
+		if err := s.q.SupersedeAIDrafts(ctx, id); err != nil {
+			s.log.ErrorContext(ctx, "supersede ai drafts", "conversation_id", id, "err", err)
+		}
+	}
+	return m, nil
 }
 
 // change applies fn to a visible conversation in a transaction, records the
@@ -272,6 +304,19 @@ func (s *Service) change(ctx context.Context, p *principal.Principal, id uuid.UU
 	}
 	ev.ConversationID, ev.ActorType, ev.ActorID = id, string(p.Kind), &p.ID
 	if _, err := q.InsertConversationEvent(ctx, *ev); err != nil {
+		return err
+	}
+	kind, data := ev.Kind, activity.Data{}
+	switch ev.Kind {
+	case "assigned", "unassigned":
+		kind, data = activity.AssigneeChanged, activity.Data{"assignee_id": ev.AssigneeID}
+		if ev.AssigneeID != nil {
+			if u, err := q.GetAssignableUser(ctx, *ev.AssigneeID); err == nil {
+				data["assignee_name"] = u.Name
+			}
+		}
+	}
+	if _, err := activity.Record(ctx, tx, q, id, kind, activity.Of(p), data); err != nil {
 		return err
 	}
 	if entry != nil {
@@ -315,6 +360,14 @@ func (s *Service) Assign(ctx context.Context, p *principal.Principal, id uuid.UU
 		updated, err := q.SetConversationAssignee(ctx, db.SetConversationAssigneeParams{ID: id, AssigneeID: assignee})
 		if err != nil {
 			return c, nil, nil, err
+		}
+		if assignee != nil && updated.OwnerType == string(OwnerNone) {
+			// Somebody is responsible now: a person owns it.
+			if updated, err = q.SetConversationOwnership(ctx, db.SetConversationOwnershipParams{ID: id, OwnerType: string(OwnerHuman),
+				AiMode: updated.AiMode, AiProfileID: updated.AiProfileID, AiPausedReason: updated.AiPausedReason,
+				PendingHandoffID: updated.PendingHandoffID}); err != nil {
+				return c, nil, nil, err
+			}
 		}
 		kind := "assigned"
 		if assignee == nil {

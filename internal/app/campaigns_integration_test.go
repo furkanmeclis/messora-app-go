@@ -18,6 +18,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/conversations"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 	"github.com/furkanmeclis/messora-app-go/internal/testutil"
@@ -72,6 +73,8 @@ func (h *harness) pump(ctx context.Context, workers int) int {
 			err = h.svc.automation.Evaluate(ctx, ev)
 		case "task:" + automation.TypeRun, "task:" + automation.TypeResume:
 			err = h.svc.automation.Run(ctx, id("run_id"))
+		case "task:" + conversations.TypeAIReply:
+			err = h.svc.inbox.HandleAIReply(ctx, id("conversation_id"), id("message_id"))
 		case "task:" + messaging.TypeUserPreference:
 			var up messaging.UserPreferenceEvent
 			raw, _ := json.Marshal(e.payload)

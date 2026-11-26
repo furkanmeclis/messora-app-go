@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/activity"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
@@ -98,15 +99,17 @@ func (s *Service) Evaluate(ctx context.Context, e trigger.Event) error {
 		}
 		err := s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 			id, err := q.InsertAutomationRun(ctx, db.InsertAutomationRunParams{AutomationID: a.ID, AutomationVersion: a.Version,
-				EventKey: e.Key, Event: raw, ContactID: &e.ContactID})
+				EventKey: e.Key, Event: raw, ContactID: &e.ContactID, ConversationID: e.ConversationID, StartedBy: "system"})
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil // already ran for this event
 			}
 			if err != nil {
 				return err
 			}
-			_, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeRun), map[string]string{"run_id": id.String()}, 0)
-			return err
+			if _, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeRun), map[string]string{"run_id": id.String()}, 0); err != nil {
+				return err
+			}
+			return activity.AnnounceRun(ctx, tx, q, id, true)
 		})
 		if err != nil {
 			return err
@@ -146,65 +149,75 @@ func (s *Service) step(ctx context.Context, id uuid.UUID) (done bool, err error)
 	var ev trigger.Event
 	var contact db.Contact
 	var pc int32
-	err = s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
-		run, err := q.LockAutomationRun(ctx, id)
-		if errors.Is(err, pgx.ErrNoRows) {
-			done = true
-			return nil
-		}
-		if err != nil {
+	var conv *uuid.UUID // the run's conversation: its progress is announced there
+	announce := func(tx pgx.Tx, q *db.Queries, err error) error {
+		if err != nil || conv == nil {
 			return err
 		}
-		switch run.Status {
-		case "completed", "failed", "cancelled":
-			done = true
-			return nil
-		case "waiting":
-			if run.ResumeAt != nil && run.ResumeAt.After(time.Now().Add(time.Second)) {
-				done = true // woken early; the resume task comes later
+		return activity.AnnounceRun(ctx, tx, q, id, false)
+	}
+	err = s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		return announce(tx, q, func() error {
+			run, err := q.LockAutomationRun(ctx, id)
+			if errors.Is(err, pgx.ErrNoRows) {
+				done = true
 				return nil
 			}
-		}
-		a, err := q.GetAutomation(ctx, run.AutomationID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			done = true
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if a.Version != run.AutomationVersion {
-			done = true
-			return q.FinishAutomationRun(ctx, db.FinishAutomationRunParams{ID: id, Status: "cancelled", Error: ptr("The automation was edited while this run was in progress.")})
-		}
-		var prog []Instr
-		if err := json.Unmarshal(a.Program, &prog); err != nil {
-			return err
-		}
-		if int(run.Pc) >= len(prog) {
-			done = true
-			return q.FinishAutomationRun(ctx, db.FinishAutomationRunParams{ID: id, Status: "completed"})
-		}
-		_ = json.Unmarshal(run.Event, &ev)
-		if run.ContactID == nil {
-			done = true
-			return q.FinishAutomationRun(ctx, db.FinishAutomationRunParams{ID: id, Status: "failed", Error: ptr("The contact was deleted.")})
-		}
-		contact, err = q.GetContact(ctx, *run.ContactID)
-		if err != nil {
-			return err
-		}
-		pc = run.Pc
-		in := prog[pc]
-		if in.StepID == "" && in.Op != "jump" {
-			in.StepID = legacyStepID(a.Steps, int(pc))
-		}
-		if in.Op == "action" && (in.Step.Type == "http_request" || in.Step.Type == "send_email") {
-			external, externalID = in.Step, in.StepID
-			return nil // runs outside the transaction (network I/O)
-		}
-		res := s.exec(ctx, tx, q, in, int(pc), ev, contact)
-		return s.record(ctx, tx, q, id, pc, in, res, &done)
+			if err != nil {
+				return err
+			}
+			switch run.Status {
+			case "completed", "failed", "cancelled":
+				done = true
+				return nil
+			case "waiting":
+				if run.ResumeAt != nil && run.ResumeAt.After(time.Now().Add(time.Second)) {
+					done = true // woken early; the resume task comes later
+					return nil
+				}
+			}
+			conv = run.ConversationID
+			a, err := q.GetAutomation(ctx, run.AutomationID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				done = true
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if a.Version != run.AutomationVersion {
+				done = true
+				return q.FinishAutomationRun(ctx, db.FinishAutomationRunParams{ID: id, Status: "cancelled", Error: ptr("The automation was edited while this run was in progress.")})
+			}
+			var prog []Instr
+			if err := json.Unmarshal(a.Program, &prog); err != nil {
+				return err
+			}
+			if int(run.Pc) >= len(prog) {
+				done = true
+				return q.FinishAutomationRun(ctx, db.FinishAutomationRunParams{ID: id, Status: "completed"})
+			}
+			_ = json.Unmarshal(run.Event, &ev)
+			if run.ContactID == nil {
+				done = true
+				return q.FinishAutomationRun(ctx, db.FinishAutomationRunParams{ID: id, Status: "failed", Error: ptr("The contact was deleted.")})
+			}
+			contact, err = q.GetContact(ctx, *run.ContactID)
+			if err != nil {
+				return err
+			}
+			pc = run.Pc
+			in := prog[pc]
+			if in.StepID == "" && in.Op != "jump" {
+				in.StepID = legacyStepID(a.Steps, int(pc))
+			}
+			if in.Op == "action" && (in.Step.Type == "http_request" || in.Step.Type == "send_email") {
+				external, externalID = in.Step, in.StepID
+				return nil // runs outside the transaction (network I/O)
+			}
+			res := s.exec(ctx, tx, q, in, int(pc), ev, contact)
+			return s.record(ctx, tx, q, id, pc, in, res, &done)
+		}())
 	})
 	if err != nil || external == nil {
 		return done, err
@@ -220,7 +233,7 @@ func (s *Service) step(ctx context.Context, id uuid.UUID) (done bool, err error)
 			done = true // someone else advanced it meanwhile
 			return nil
 		}
-		return s.record(ctx, tx, q, id, pc, Instr{Op: "action", Step: external, StepID: externalID}, res, &done)
+		return announce(tx, q, s.record(ctx, tx, q, id, pc, Instr{Op: "action", Step: external, StepID: externalID}, res, &done))
 	})
 	return done, err
 }
@@ -371,6 +384,14 @@ func (s *Service) exec(ctx context.Context, tx pgx.Tx, q *db.Queries, in Instr, 
 		if err == nil {
 			_, err = q.InsertConversationEvent(ctx, db.InsertConversationEventParams{ConversationID: conv.ID, Kind: kind,
 				AssigneeID: st.AssigneeID, ActorType: "system"})
+		}
+		if err == nil {
+			ak, d := activity.Closed, activity.Data{}
+			if kind != "closed" {
+				ak, d = activity.AssigneeChanged, activity.Data{"assignee_id": st.AssigneeID}
+			}
+			d["by"] = "automation"
+			_, err = activity.Record(ctx, tx, q, conv.ID, ak, activity.System, d)
 		}
 		res.err = err
 	case "mute":

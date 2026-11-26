@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/activity"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 )
@@ -87,12 +88,25 @@ func recordNew(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message) (db.
 		if _, err := q.InsertConversationEvent(ctx, db.InsertConversationEventParams{ConversationID: c.ID, Kind: "reopened", ActorType: "system"}); err != nil {
 			return c, err
 		}
+		if _, err := activity.Record(ctx, tx, q, c.ID, activity.Reopened, activity.System, activity.Data{"by": "customer"}); err != nil {
+			return c, err
+		}
 		if err := webhooks.ConversationChanged(ctx, tx, "reopened", c, "system", nil); err != nil {
 			return c, err
 		}
 	}
 	if inbound {
 		if err := webhooks.MessageReceived(ctx, tx, m, c.ID); err != nil {
+			return c, err
+		}
+	} else if m.Source != "ai" {
+		// AI replies have their own timeline item (ai_reply_sent).
+		d := activity.Data{"message_id": m.ID, "source": m.Source, "type": m.Type}
+		actor := activity.System
+		if m.SentBy != nil && (*m.SentBy == activity.ActorUser || *m.SentBy == activity.ActorAPIKey) {
+			actor = activity.Actor{Type: *m.SentBy, ID: m.CreatedBy}
+		}
+		if _, err := activity.Record(ctx, tx, q, c.ID, activity.MessageSent, actor, d); err != nil {
 			return c, err
 		}
 	}
@@ -132,6 +146,26 @@ func announceStatus(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message)
 		return realtime.Publish(ctx, tx, realtime.ConversationChannel(conv.ID), ev)
 	}
 	return realtime.PublishMessage(ctx, tx, ev, conv)
+}
+
+// recordFailure puts a failed message in its conversation's timeline.
+func recordFailure(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message) error {
+	c, err := q.GetConversationByThread(ctx, db.GetConversationByThreadParams{ContactID: m.ContactID, PhoneNumberID: m.PhoneNumberID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	d := activity.Data{"message_id": m.ID, "source": m.Source}
+	if m.ErrorCode != nil {
+		d["error_code"] = *m.ErrorCode
+	}
+	if m.FailureClass != nil {
+		d["failure_class"] = *m.FailureClass
+	}
+	_, err = activity.Record(ctx, tx, q, c.ID, activity.MessageFailed, activity.System, d)
+	return err
 }
 
 // RecordCampaignMessage keeps the thread of a campaign message current, in

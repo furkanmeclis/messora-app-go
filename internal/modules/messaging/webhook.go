@@ -268,6 +268,11 @@ func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.P
 	if err := s.inboundConsent(ctx, tx, q, pn, c, conv, row); err != nil {
 		return uuid.Nil, fmt.Errorf("consent: %w", err)
 	}
+	if s.inboundHook != nil {
+		if err := s.inboundHook(ctx, tx, q, conv, row); err != nil {
+			return uuid.Nil, fmt.Errorf("inbound hook: %w", err)
+		}
+	}
 	if md := m.Media(); md != nil && md.ID != "" {
 		f, err := q.InsertMediaFile(ctx, db.InsertMediaFileParams{MessageID: &row.ID, MetaMediaID: &md.ID,
 			MimeType: md.MimeType, Filename: md.Filename, Sha256: md.SHA256})
@@ -344,6 +349,11 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 			// 131050 and 131026 usually arrive here, after Meta accepted
 			// the request.
 			if err := applyMetaRefusal(ctx, q, updated, *p.ErrorCode); err != nil {
+				return false, err
+			}
+		}
+		if updated.Status == "failed" && m.CampaignID == nil {
+			if err := recordFailure(ctx, tx, q, updated); err != nil {
 				return false, err
 			}
 		}

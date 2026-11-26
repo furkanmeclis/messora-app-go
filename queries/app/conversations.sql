@@ -31,7 +31,7 @@ RETURNING *;
 SELECT * FROM conversations WHERE id = @id;
 
 -- name: GetConversationRow :one
-SELECT c.*, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at,
+SELECT c.*, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at, ct.ai_disabled AS contact_ai_disabled,
        pn.display_phone_number, pn.verified_name, pn.account_id AS phone_account_id,
        m.direction AS last_direction, m.type AS last_type, m.body AS last_body, m.status AS last_status,
        u.name AS assignee_name
@@ -45,7 +45,7 @@ WHERE c.id = @id;
 -- name: ListConversations :many
 -- see_all is false for users who may only read conversations assigned to
 -- them or to nobody (conversations.read without conversations.read_all).
-SELECT c.*, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at,
+SELECT c.*, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at, ct.ai_disabled AS contact_ai_disabled,
        pn.display_phone_number, pn.verified_name, pn.account_id AS phone_account_id,
        m.direction AS last_direction, m.type AS last_type, m.body AS last_body, m.status AS last_status,
        u.name AS assignee_name
@@ -60,6 +60,8 @@ WHERE (@see_all::bool OR c.assignee_id IS NULL OR c.assignee_id = @viewer_id::uu
   AND (sqlc.narg(assignee_id)::uuid IS NULL OR c.assignee_id = sqlc.narg(assignee_id)::uuid)
   AND (sqlc.narg(phone_number_id)::uuid IS NULL OR c.phone_number_id = sqlc.narg(phone_number_id)::uuid)
   AND (NOT @only_unread::bool OR c.unread_count > 0)
+  AND (sqlc.narg(owner_type)::text IS NULL OR c.owner_type = sqlc.narg(owner_type)::text)
+  AND (NOT @only_pending_handoff::bool OR c.pending_handoff_id IS NOT NULL)
   AND (sqlc.narg(q)::text IS NULL OR ct.name ILIKE sqlc.narg(q)::text OR ct.profile_name ILIKE sqlc.narg(q)::text
        OR ct.phone_e164 LIKE sqlc.narg(q)::text)
   AND (sqlc.narg(before_at)::timestamptz IS NULL

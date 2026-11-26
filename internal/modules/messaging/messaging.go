@@ -60,6 +60,13 @@ func SendPayload(messageID uuid.UUID, campaignID *uuid.UUID) map[string]string {
 // maxSendAttempts bounds retries of definitely-not-sent messages.
 const maxSendAttempts = 8
 
+// InboundHook is told, inside the webhook transaction, about every new
+// customer message and its conversation (the AI reply loop listens here).
+type InboundHook func(ctx context.Context, tx pgx.Tx, q *db.Queries, conv db.Conversation, m db.Message) error
+
+// SetInboundHook registers the inbound hook.
+func (s *Service) SetInboundHook(h InboundHook) { s.inboundHook = h }
+
 // SetThrottle enables per-number pacing (nil disables it).
 func (s *Service) SetThrottle(t *Throttle) { s.throttle = t }
 
@@ -82,6 +89,7 @@ type Service struct {
 	throttle         *Throttle
 	campaignProgress CampaignProgress
 	campaignWithheld CampaignWithheld
+	inboundHook      InboundHook
 	pool             *pgxpool.Pool
 	q                *db.Queries
 	ch               *channels.Service
@@ -127,6 +135,10 @@ type SendInput struct {
 	ReplyTo       string // wamid
 	Source        string
 	CreatedBy     *uuid.UUID
+	// SentBy is who wrote the message (user, api_key, system or ai);
+	// AIUsageID the AI request that wrote it.
+	SentBy    string
+	AIUsageID *uuid.UUID
 }
 
 // build validates input and produces the Graph API message and a preview.
@@ -289,7 +301,7 @@ func (s *Service) QueueTx(ctx context.Context, tx pgx.Tx, in SendInput) (db.Mess
 		}
 		out, err = q.InsertOutboundMessage(ctx, db.InsertOutboundMessageParams{ID: uuid.Must(uuid.NewV7()), PhoneNumberID: pn.ID,
 			ContactID: c.ID, Type: in.Type, Body: body, Payload: payload, ReplyToWamid: nonEmpty(in.ReplyTo),
-			Source: in.Source, CreatedBy: in.CreatedBy, ConsentCategory: &category})
+			Source: in.Source, CreatedBy: in.CreatedBy, ConsentCategory: &category, SentBy: nonEmpty(in.SentBy), AiUsageID: in.AIUsageID})
 		if err != nil {
 			return err
 		}
@@ -542,6 +554,11 @@ func (s *Service) settle(ctx context.Context, id uuid.UUID, mark func(q *db.Quer
 		}
 		if err != nil {
 			return err
+		}
+		if m.Status == "failed" && m.CampaignID == nil {
+			if err := recordFailure(ctx, tx, q, m); err != nil {
+				return err
+			}
 		}
 		return announceStatus(ctx, tx, q, m)
 	})

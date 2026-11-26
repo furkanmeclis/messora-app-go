@@ -79,8 +79,9 @@ func TestRealtimeRoutingFollowsVisibility(t *testing.T) {
 			t.Fatalf("pool told %v", e.body)
 		}
 	}
-	// assignment: 1 event; inbound: message.created + conversation.updated.
-	if seen[realtime.UnassignedChannel] != 1 || seen[personalB] != 3 || seen[realtime.InboxChannel] != 3 || seen["conversation:"+c1] != 3 || seen[personalA] != 0 {
+	// assignment: 1 event (plus its activity item on the conversation's own
+	// channel); inbound: message.created + conversation.updated.
+	if seen[realtime.UnassignedChannel] != 1 || seen[personalB] != 3 || seen[realtime.InboxChannel] != 3 || seen["conversation:"+c1] != 4 || seen[personalA] != 0 {
 		t.Fatalf("assigned to B: %v", seen)
 	}
 	for _, e := range h.eventsAbout(c1, poolEvents) {
@@ -96,6 +97,9 @@ func TestRealtimeRoutingFollowsVisibility(t *testing.T) {
 	seen = map[string]int{}
 	for _, e := range h.eventsAbout(c1, from) {
 		seen[e.channel]++
+		if e.body["type"] == realtime.TypeConversationActivity {
+			continue // the timeline item, on the conversation's own channel
+		}
 		if e.body["assignee_id"] != agentAID {
 			t.Fatalf("reassignment event %v", e.body)
 		}

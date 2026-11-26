@@ -472,6 +472,38 @@ export function ProfileEditor({
                             />
                             {err('handoff.on_critical_intents')}
                         </Row>
+                        <Row
+                            label={t('ai.profiles.onHumanTakeover')}
+                            hint={t('ai.profiles.onHumanTakeoverHint')}
+                        >
+                            <Select
+                                value={v.handoff.on_human_takeover ?? 'off'}
+                                disabled={readOnly}
+                                onValueChange={(x) =>
+                                    setHandoff({
+                                        on_human_takeover: x as
+                                            'off' | 'suggest',
+                                    })
+                                }
+                            >
+                                <SelectTrigger
+                                    className="w-64"
+                                    aria-label={t(
+                                        'ai.profiles.onHumanTakeover',
+                                    )}
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="off">
+                                        {t('ai.profiles.takeoverOff')}
+                                    </SelectItem>
+                                    <SelectItem value="suggest">
+                                        {t('ai.profiles.takeoverSuggest')}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </Row>
                     </Section>
 
                     <Section

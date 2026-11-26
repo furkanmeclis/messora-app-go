@@ -33,7 +33,7 @@ func (q *Queries) GetAssignableUser(ctx context.Context, id uuid.UUID) (GetAssig
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at FROM conversations WHERE id = $1
+SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at, owner_type, ai_mode, ai_profile_id, ai_paused_reason, ai_status, ai_status_detail, ai_mode_set_at, ai_handled_message_id, ai_disclosed_at, pending_handoff_id FROM conversations WHERE id = $1
 `
 
 func (q *Queries) GetConversation(ctx context.Context, id uuid.UUID) (Conversation, error) {
@@ -52,12 +52,22 @@ func (q *Queries) GetConversation(ctx context.Context, id uuid.UUID) (Conversati
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerType,
+		&i.AiMode,
+		&i.AiProfileID,
+		&i.AiPausedReason,
+		&i.AiStatus,
+		&i.AiStatusDetail,
+		&i.AiModeSetAt,
+		&i.AiHandledMessageID,
+		&i.AiDisclosedAt,
+		&i.PendingHandoffID,
 	)
 	return i, err
 }
 
 const getConversationByThread = `-- name: GetConversationByThread :one
-SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at FROM conversations WHERE contact_id = $1 AND phone_number_id = $2
+SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at, owner_type, ai_mode, ai_profile_id, ai_paused_reason, ai_status, ai_status_detail, ai_mode_set_at, ai_handled_message_id, ai_disclosed_at, pending_handoff_id FROM conversations WHERE contact_id = $1 AND phone_number_id = $2
 `
 
 type GetConversationByThreadParams struct {
@@ -81,12 +91,22 @@ func (q *Queries) GetConversationByThread(ctx context.Context, arg GetConversati
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerType,
+		&i.AiMode,
+		&i.AiProfileID,
+		&i.AiPausedReason,
+		&i.AiStatus,
+		&i.AiStatusDetail,
+		&i.AiModeSetAt,
+		&i.AiHandledMessageID,
+		&i.AiDisclosedAt,
+		&i.PendingHandoffID,
 	)
 	return i, err
 }
 
 const getConversationRow = `-- name: GetConversationRow :one
-SELECT c.id, c.contact_id, c.phone_number_id, c.status, c.assignee_id, c.last_message_id, c.last_message_at, c.last_inbound_at, c.unread_count, c.closed_at, c.created_at, c.updated_at, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at,
+SELECT c.id, c.contact_id, c.phone_number_id, c.status, c.assignee_id, c.last_message_id, c.last_message_at, c.last_inbound_at, c.unread_count, c.closed_at, c.created_at, c.updated_at, c.owner_type, c.ai_mode, c.ai_profile_id, c.ai_paused_reason, c.ai_status, c.ai_status_detail, c.ai_mode_set_at, c.ai_handled_message_id, c.ai_disclosed_at, c.pending_handoff_id, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at, ct.ai_disabled AS contact_ai_disabled,
        pn.display_phone_number, pn.verified_name, pn.account_id AS phone_account_id,
        m.direction AS last_direction, m.type AS last_type, m.body AS last_body, m.status AS last_status,
        u.name AS assignee_name
@@ -111,10 +131,21 @@ type GetConversationRowRow struct {
 	ClosedAt           *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	OwnerType          string
+	AiMode             string
+	AiProfileID        *uuid.UUID
+	AiPausedReason     *string
+	AiStatus           string
+	AiStatusDetail     *string
+	AiModeSetAt        *time.Time
+	AiHandledMessageID *uuid.UUID
+	AiDisclosedAt      *time.Time
+	PendingHandoffID   *uuid.UUID
 	PhoneE164          string
 	ContactName        string
 	ProfileName        string
 	OptedOutAt         *time.Time
+	ContactAiDisabled  bool
 	DisplayPhoneNumber string
 	VerifiedName       string
 	PhoneAccountID     uuid.UUID
@@ -141,10 +172,21 @@ func (q *Queries) GetConversationRow(ctx context.Context, id uuid.UUID) (GetConv
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerType,
+		&i.AiMode,
+		&i.AiProfileID,
+		&i.AiPausedReason,
+		&i.AiStatus,
+		&i.AiStatusDetail,
+		&i.AiModeSetAt,
+		&i.AiHandledMessageID,
+		&i.AiDisclosedAt,
+		&i.PendingHandoffID,
 		&i.PhoneE164,
 		&i.ContactName,
 		&i.ProfileName,
 		&i.OptedOutAt,
+		&i.ContactAiDisabled,
 		&i.DisplayPhoneNumber,
 		&i.VerifiedName,
 		&i.PhoneAccountID,
@@ -250,7 +292,7 @@ func (q *Queries) ListConversationEvents(ctx context.Context, arg ListConversati
 }
 
 const listConversations = `-- name: ListConversations :many
-SELECT c.id, c.contact_id, c.phone_number_id, c.status, c.assignee_id, c.last_message_id, c.last_message_at, c.last_inbound_at, c.unread_count, c.closed_at, c.created_at, c.updated_at, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at,
+SELECT c.id, c.contact_id, c.phone_number_id, c.status, c.assignee_id, c.last_message_id, c.last_message_at, c.last_inbound_at, c.unread_count, c.closed_at, c.created_at, c.updated_at, c.owner_type, c.ai_mode, c.ai_profile_id, c.ai_paused_reason, c.ai_status, c.ai_status_detail, c.ai_mode_set_at, c.ai_handled_message_id, c.ai_disclosed_at, c.pending_handoff_id, ct.phone_e164, ct.name AS contact_name, ct.profile_name, ct.opted_out_at, ct.ai_disabled AS contact_ai_disabled,
        pn.display_phone_number, pn.verified_name, pn.account_id AS phone_account_id,
        m.direction AS last_direction, m.type AS last_type, m.body AS last_body, m.status AS last_status,
        u.name AS assignee_name
@@ -265,26 +307,30 @@ WHERE ($1::bool OR c.assignee_id IS NULL OR c.assignee_id = $2::uuid)
   AND ($5::uuid IS NULL OR c.assignee_id = $5::uuid)
   AND ($6::uuid IS NULL OR c.phone_number_id = $6::uuid)
   AND (NOT $7::bool OR c.unread_count > 0)
-  AND ($8::text IS NULL OR ct.name ILIKE $8::text OR ct.profile_name ILIKE $8::text
-       OR ct.phone_e164 LIKE $8::text)
-  AND ($9::timestamptz IS NULL
-       OR (c.last_message_at, c.id) < ($9::timestamptz, $10::uuid))
+  AND ($8::text IS NULL OR c.owner_type = $8::text)
+  AND (NOT $9::bool OR c.pending_handoff_id IS NOT NULL)
+  AND ($10::text IS NULL OR ct.name ILIKE $10::text OR ct.profile_name ILIKE $10::text
+       OR ct.phone_e164 LIKE $10::text)
+  AND ($11::timestamptz IS NULL
+       OR (c.last_message_at, c.id) < ($11::timestamptz, $12::uuid))
 ORDER BY c.last_message_at DESC, c.id DESC
-LIMIT $11
+LIMIT $13
 `
 
 type ListConversationsParams struct {
-	SeeAll         bool
-	ViewerID       uuid.UUID
-	Status         *string
-	OnlyUnassigned bool
-	AssigneeID     *uuid.UUID
-	PhoneNumberID  *uuid.UUID
-	OnlyUnread     bool
-	Q              *string
-	BeforeAt       *time.Time
-	BeforeID       *uuid.UUID
-	Lim            int32
+	SeeAll             bool
+	ViewerID           uuid.UUID
+	Status             *string
+	OnlyUnassigned     bool
+	AssigneeID         *uuid.UUID
+	PhoneNumberID      *uuid.UUID
+	OnlyUnread         bool
+	OwnerType          *string
+	OnlyPendingHandoff bool
+	Q                  *string
+	BeforeAt           *time.Time
+	BeforeID           *uuid.UUID
+	Lim                int32
 }
 
 type ListConversationsRow struct {
@@ -300,10 +346,21 @@ type ListConversationsRow struct {
 	ClosedAt           *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	OwnerType          string
+	AiMode             string
+	AiProfileID        *uuid.UUID
+	AiPausedReason     *string
+	AiStatus           string
+	AiStatusDetail     *string
+	AiModeSetAt        *time.Time
+	AiHandledMessageID *uuid.UUID
+	AiDisclosedAt      *time.Time
+	PendingHandoffID   *uuid.UUID
 	PhoneE164          string
 	ContactName        string
 	ProfileName        string
 	OptedOutAt         *time.Time
+	ContactAiDisabled  bool
 	DisplayPhoneNumber string
 	VerifiedName       string
 	PhoneAccountID     uuid.UUID
@@ -325,6 +382,8 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 		arg.AssigneeID,
 		arg.PhoneNumberID,
 		arg.OnlyUnread,
+		arg.OwnerType,
+		arg.OnlyPendingHandoff,
 		arg.Q,
 		arg.BeforeAt,
 		arg.BeforeID,
@@ -350,10 +409,21 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 			&i.ClosedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OwnerType,
+			&i.AiMode,
+			&i.AiProfileID,
+			&i.AiPausedReason,
+			&i.AiStatus,
+			&i.AiStatusDetail,
+			&i.AiModeSetAt,
+			&i.AiHandledMessageID,
+			&i.AiDisclosedAt,
+			&i.PendingHandoffID,
 			&i.PhoneE164,
 			&i.ContactName,
 			&i.ProfileName,
 			&i.OptedOutAt,
+			&i.ContactAiDisabled,
 			&i.DisplayPhoneNumber,
 			&i.VerifiedName,
 			&i.PhoneAccountID,
@@ -374,7 +444,7 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 }
 
 const listConversationsChangedSince = `-- name: ListConversationsChangedSince :many
-SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at FROM conversations
+SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at, owner_type, ai_mode, ai_profile_id, ai_paused_reason, ai_status, ai_status_detail, ai_mode_set_at, ai_handled_message_id, ai_disclosed_at, pending_handoff_id FROM conversations
 WHERE updated_at >= $1
   AND ($2::bool OR assignee_id IS NULL OR assignee_id = $3::uuid)
   AND (NOT $4::bool OR assignee_id IS NULL)
@@ -427,6 +497,16 @@ func (q *Queries) ListConversationsChangedSince(ctx context.Context, arg ListCon
 			&i.ClosedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OwnerType,
+			&i.AiMode,
+			&i.AiProfileID,
+			&i.AiPausedReason,
+			&i.AiStatus,
+			&i.AiStatusDetail,
+			&i.AiModeSetAt,
+			&i.AiHandledMessageID,
+			&i.AiDisclosedAt,
+			&i.PendingHandoffID,
 		); err != nil {
 			return nil, err
 		}
@@ -476,7 +556,7 @@ func (q *Queries) ListMediaForMessages(ctx context.Context, messageIds []uuid.UU
 }
 
 const listThreadMessages = `-- name: ListThreadMessages :many
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of FROM messages
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id FROM messages
 WHERE contact_id = $1 AND phone_number_id = $2
   AND ($3::uuid IS NULL OR id < $3::uuid)
 ORDER BY id DESC
@@ -543,6 +623,8 @@ func (q *Queries) ListThreadMessages(ctx context.Context, arg ListThreadMessages
 			&i.ConsentCategory,
 			&i.NextAttemptAt,
 			&i.RetryOf,
+			&i.SentBy,
+			&i.AiUsageID,
 		); err != nil {
 			return nil, err
 		}
@@ -556,7 +638,7 @@ func (q *Queries) ListThreadMessages(ctx context.Context, arg ListThreadMessages
 
 const lockConversationByThread = `-- name: LockConversationByThread :one
 
-SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at FROM conversations WHERE contact_id = $1 AND phone_number_id = $2 FOR UPDATE
+SELECT id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at, owner_type, ai_mode, ai_profile_id, ai_paused_reason, ai_status, ai_status_detail, ai_mode_set_at, ai_handled_message_id, ai_disclosed_at, pending_handoff_id FROM conversations WHERE contact_id = $1 AND phone_number_id = $2 FOR UPDATE
 `
 
 type LockConversationByThreadParams struct {
@@ -581,6 +663,16 @@ func (q *Queries) LockConversationByThread(ctx context.Context, arg LockConversa
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerType,
+		&i.AiMode,
+		&i.AiProfileID,
+		&i.AiPausedReason,
+		&i.AiStatus,
+		&i.AiStatusDetail,
+		&i.AiModeSetAt,
+		&i.AiHandledMessageID,
+		&i.AiDisclosedAt,
+		&i.PendingHandoffID,
 	)
 	return i, err
 }
@@ -588,7 +680,7 @@ func (q *Queries) LockConversationByThread(ctx context.Context, arg LockConversa
 const markConversationRead = `-- name: MarkConversationRead :one
 UPDATE conversations SET unread_count = 0, updated_at = now()
 WHERE id = $1
-RETURNING id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at
+RETURNING id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at, owner_type, ai_mode, ai_profile_id, ai_paused_reason, ai_status, ai_status_detail, ai_mode_set_at, ai_handled_message_id, ai_disclosed_at, pending_handoff_id
 `
 
 func (q *Queries) MarkConversationRead(ctx context.Context, id uuid.UUID) (Conversation, error) {
@@ -607,6 +699,16 @@ func (q *Queries) MarkConversationRead(ctx context.Context, id uuid.UUID) (Conve
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerType,
+		&i.AiMode,
+		&i.AiProfileID,
+		&i.AiPausedReason,
+		&i.AiStatus,
+		&i.AiStatusDetail,
+		&i.AiModeSetAt,
+		&i.AiHandledMessageID,
+		&i.AiDisclosedAt,
+		&i.PendingHandoffID,
 	)
 	return i, err
 }
@@ -614,7 +716,7 @@ func (q *Queries) MarkConversationRead(ctx context.Context, id uuid.UUID) (Conve
 const setConversationAssignee = `-- name: SetConversationAssignee :one
 UPDATE conversations SET assignee_id = $1, updated_at = now()
 WHERE id = $2
-RETURNING id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at
+RETURNING id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at, owner_type, ai_mode, ai_profile_id, ai_paused_reason, ai_status, ai_status_detail, ai_mode_set_at, ai_handled_message_id, ai_disclosed_at, pending_handoff_id
 `
 
 type SetConversationAssigneeParams struct {
@@ -638,6 +740,16 @@ func (q *Queries) SetConversationAssignee(ctx context.Context, arg SetConversati
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerType,
+		&i.AiMode,
+		&i.AiProfileID,
+		&i.AiPausedReason,
+		&i.AiStatus,
+		&i.AiStatusDetail,
+		&i.AiModeSetAt,
+		&i.AiHandledMessageID,
+		&i.AiDisclosedAt,
+		&i.PendingHandoffID,
 	)
 	return i, err
 }
@@ -647,7 +759,7 @@ UPDATE conversations SET status = $1,
     closed_at = CASE WHEN $1::text = 'closed' THEN now() END,
     updated_at = now()
 WHERE id = $2
-RETURNING id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at
+RETURNING id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at, owner_type, ai_mode, ai_profile_id, ai_paused_reason, ai_status, ai_status_detail, ai_mode_set_at, ai_handled_message_id, ai_disclosed_at, pending_handoff_id
 `
 
 type SetConversationStatusParams struct {
@@ -671,6 +783,16 @@ func (q *Queries) SetConversationStatus(ctx context.Context, arg SetConversation
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerType,
+		&i.AiMode,
+		&i.AiProfileID,
+		&i.AiPausedReason,
+		&i.AiStatus,
+		&i.AiStatusDetail,
+		&i.AiModeSetAt,
+		&i.AiHandledMessageID,
+		&i.AiDisclosedAt,
+		&i.PendingHandoffID,
 	)
 	return i, err
 }
@@ -690,7 +812,7 @@ ON CONFLICT (contact_id, phone_number_id) DO UPDATE SET
     status          = CASE WHEN $6::bool THEN 'open' ELSE conversations.status END,
     closed_at       = CASE WHEN $6::bool THEN NULL ELSE conversations.closed_at END,
     updated_at      = now()
-RETURNING id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at
+RETURNING id, contact_id, phone_number_id, status, assignee_id, last_message_id, last_message_at, last_inbound_at, unread_count, closed_at, created_at, updated_at, owner_type, ai_mode, ai_profile_id, ai_paused_reason, ai_status, ai_status_detail, ai_mode_set_at, ai_handled_message_id, ai_disclosed_at, pending_handoff_id
 `
 
 type TouchConversationParams struct {
@@ -729,6 +851,16 @@ func (q *Queries) TouchConversation(ctx context.Context, arg TouchConversationPa
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerType,
+		&i.AiMode,
+		&i.AiProfileID,
+		&i.AiPausedReason,
+		&i.AiStatus,
+		&i.AiStatusDetail,
+		&i.AiModeSetAt,
+		&i.AiHandledMessageID,
+		&i.AiDisclosedAt,
+		&i.PendingHandoffID,
 	)
 	return i, err
 }

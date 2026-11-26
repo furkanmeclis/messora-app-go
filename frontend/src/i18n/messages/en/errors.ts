@@ -66,6 +66,8 @@ const errors = {
     USER_EXISTS: 'A user with this e-mail address already exists.',
     VALIDATION_ERROR: 'Check the highlighted fields: {detail}',
     WEBHOOK_LIMIT: 'The webhook limit has been reached.',
+    AI_UNAVAILABLE: 'The AI is not available here: {detail}',
+    DRAFT_DECIDED: 'Someone already decided on this draft.',
     AI_DISABLED:
         'AI is turned off for the company. Turn it on in Settings → AI.',
     AI_NOT_CONFIGURED: 'AI is not configured: {detail}',

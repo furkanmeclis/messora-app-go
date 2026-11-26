@@ -204,6 +204,35 @@ export function Topbar({
             });
             return;
         }
+        if (
+            e.type === 'notification.created' &&
+            (e.kind === 'conversation.escalated' ||
+                e.kind === 'conversation.handed_over') &&
+            !e.synced
+        ) {
+            const conversation =
+                typeof e.conversation_id === 'string' ? e.conversation_id : '';
+            toast.info(
+                t(
+                    e.kind === 'conversation.escalated'
+                        ? 'inbox.ai.notification.escalated'
+                        : 'inbox.ai.notification.handedOver',
+                ),
+                {
+                    id: `handoff-${conversation}`,
+                    action: conversation
+                        ? {
+                              label: t('inbox.ai.notification.open'),
+                              onClick: () =>
+                                  router.push(
+                                      `/inbox?status=all&c=${conversation}`,
+                                  ),
+                          }
+                        : undefined,
+                },
+            );
+            return;
+        }
         if (e.type === 'conversation.updated') {
             const id = String(e.conversation_id);
             // A conversation reassigned to someone else is announced once
