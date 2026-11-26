@@ -14,6 +14,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 )
 
@@ -493,7 +494,7 @@ func TestHandoffPresetAndEscalationTrigger(t *testing.T) {
 
 func TestReactionAndCampaignReplyTriggers(t *testing.T) {
 	h := newHarness(t)
-	token, _ := h.connect()
+	token, phoneID := h.connect()
 	neg := h.automation(token, map[string]any{"name": "Unhappy", "active": true, "trigger_type": "reaction",
 		"trigger": map[string]any{"reaction": "negative"}, "steps": []any{map[string]any{"type": "add_tag", "tag": "olumsuz"}}})
 	anyR := h.automation(token, map[string]any{"name": "Any reaction", "active": true, "trigger_type": "reaction",
@@ -531,13 +532,10 @@ func TestReactionAndCampaignReplyTriggers(t *testing.T) {
 		t.Fatal("a reaction is not a campaign reply")
 	}
 
-	// Make our message a campaign message: the customer's answer to it is
-	// a campaign reply (quoting it, or simply the next message).
-	tag := h.seedTagged(1, "+90577", "promo")
-	camp := h.createCampaign(token, tag, 0, nil)
-	if _, err := h.pool.Exec(ctx, "UPDATE messages SET campaign_id = $2 WHERE id = $1", msgID, camp); err != nil {
-		t.Fatal(err)
-	}
+	// A campaign reaches the customer: their next message is the campaign
+	// reply the analytics count (docs/CAMPAIGN_ANALYTICS.md attribution),
+	// and the trigger carries that campaign.
+	camp := h.campaignReached(phoneID, "Promo", time.Now())
 	h.webhook(whatsapptest.InboundReply(testPNID, testCustomer, "wamid.cr1", "wamid.ours-1", "Fiyatı ne kadar?", time.Now()))
 	h.drain()
 	if h.runs(reply) != 1 || !h.hasTag(testCustomer, "kampanya-cevabi") {
@@ -550,10 +548,116 @@ func TestReactionAndCampaignReplyTriggers(t *testing.T) {
 	if ev["campaign_id"] != camp {
 		t.Fatalf("campaign reply event: %v", ev)
 	}
-	// A second message without a new campaign message is not a reply.
+	// A second message is not a second reply to the campaign.
 	h.inbound(testCustomer, "wamid.cr2", "Bekliyorum", time.Now())
 	h.drain()
 	if h.runs(reply) != 1 {
 		t.Fatal("follow-up message counted as campaign reply")
+	}
+}
+
+// installPresetWith installs a preset, fills its setup (assignee, template)
+// and enables it.
+func (h *harness) installPresetWith(token, key, assigneeID string) string {
+	h.t.Helper()
+	in := h.do(call{method: "POST", path: "/api/v1/automations/presets/" + key + "/install?lang=tr", token: token})
+	h.expect(in, 201, "")
+	a := in.data()
+	steps := a["steps"].([]any)
+	for _, s := range steps {
+		st := s.(map[string]any)
+		switch st["type"] {
+		case "send_template":
+			st["template"] = map[string]any{"name": "order_update", "language": "en"}
+		case "assign":
+			st["assignee_id"] = assigneeID
+		}
+	}
+	id := a["id"].(string)
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/automations/" + id, token: token, body: map[string]any{"steps": steps, "active": true}}), 200, "")
+	return id
+}
+
+// Campaign reactions (P3: quick reply mapping, AI classification, manual
+// label) start the reaction presets, once per recipient and polarity.
+func TestCampaignReactionsStartReactionPresetsOnce(t *testing.T) {
+	h := newHarness(t)
+	token, phoneID := h.connect()
+	_, agentID := h.inviteAgent(token)
+	pos := h.installPresetWith(token, "positive_feedback", agentID)
+	neg := h.automation(token, map[string]any{"name": "Unhappy", "active": true, "trigger_type": "reaction",
+		"trigger": map[string]any{"reaction": "negative"}, "steps": []any{map[string]any{"type": "add_tag", "tag": "olumsuz"}}})
+	ctx := context.Background()
+
+	h.inbound(testCustomer, "wamid.q0", "Merhaba", time.Now())
+	h.drain()
+	camp := h.campaignReached(phoneID, "Promo", time.Now())
+	if _, err := h.pool.Exec(ctx, `UPDATE campaigns SET reaction_map = '{"Evet": "positive", "Hayır": "negative"}' WHERE id = $1`, camp); err != nil {
+		t.Fatal(err)
+	}
+	// The customer taps "Evet" (Meta redelivers the webhook).
+	h.webhook(inboundButton(testCustomer, "wamid.q1", "Evet", "Evet", time.Now()))
+	h.webhook(inboundButton(testCustomer, "wamid.q1", "Evet", "Evet", time.Now()))
+	h.drain()
+	if h.runs(pos) != 1 || h.runs(neg) != 0 || !h.hasTag(testCustomer, "olumlu-donus") {
+		t.Fatalf("quick reply: positive=%d negative=%d", h.runs(pos), h.runs(neg))
+	}
+	run := h.lastRun(token, pos)
+	if run["status"] != "completed" {
+		t.Fatalf("preset run: %v", run)
+	}
+	ev := run["event"].(map[string]any)
+	if ev["source"] != "quick_reply" || ev["reaction"] != "positive" || ev["campaign_id"] != camp {
+		t.Fatalf("event: %v", ev)
+	}
+	conv := h.conversationOf(testCustomer)
+	if c := h.conversation(token, conv); c["assignee"] == nil || c["assignee"].(map[string]any)["id"] != agentID {
+		t.Fatalf("not assigned to the sales agent: %v", c["assignee"])
+	}
+
+	// The same polarity again (an operator confirms it): no second run.
+	var rid string
+	if err := h.pool.QueryRow(ctx, "SELECT id::text FROM campaign_recipients WHERE campaign_id = $1", camp).Scan(&rid); err != nil {
+		t.Fatal(err)
+	}
+	label := func(r string) {
+		t.Helper()
+		h.expect(h.do(call{method: "PUT", path: "/api/v1/campaigns/" + camp + "/recipients/" + rid + "/reaction", token: token,
+			body: map[string]any{"reaction": r}}), 204, "")
+		h.drain()
+	}
+	label("positive")
+	if h.runs(pos) != 1 {
+		t.Fatalf("relabelled positive started %d runs", h.runs(pos))
+	}
+	// The operator corrects it to negative: the negative automation, once.
+	label("negative")
+	label("neutral")
+	label("negative")
+	if h.runs(neg) != 1 || h.runs(pos) != 1 || !h.hasTag(testCustomer, "olumsuz") {
+		t.Fatalf("manual negative: positive=%d negative=%d", h.runs(pos), h.runs(neg))
+	}
+	if ev := h.lastRun(token, neg)["event"].(map[string]any); ev["source"] != "manual" {
+		t.Fatalf("manual event: %v", ev)
+	}
+
+	// An AI label of a second campaign's reply starts it as well.
+	camp2 := h.campaignReached(phoneID, "Promo 2", time.Now())
+	var rid2 uuid.UUID
+	if err := h.pool.QueryRow(ctx, "SELECT id FROM campaign_recipients WHERE campaign_id = $1", camp2).Scan(&rid2); err != nil {
+		t.Fatal(err)
+	}
+	negative := "negative"
+	for range 2 {
+		if _, err := h.svc.campaigns.SetReaction(ctx, uuid.MustParse(camp2), rid2, &negative, campaigns.ReactionSourceAI); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.drain()
+	if h.runs(neg) != 2 {
+		t.Fatalf("AI label: %d negative runs", h.runs(neg))
+	}
+	if ev := h.lastRun(token, neg)["event"].(map[string]any); ev["source"] != "ai" || ev["campaign_id"] != camp2 {
+		t.Fatalf("AI event: %v", ev)
 	}
 }

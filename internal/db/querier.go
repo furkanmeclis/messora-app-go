@@ -58,16 +58,13 @@ type Querier interface {
 	CampaignHourly(ctx context.Context, campaignID uuid.UUID) ([]CampaignHourlyRow, error)
 	CampaignMessageStats(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMessageStatsRow, error)
 	CampaignNames(ctx context.Context, ids []uuid.UUID) ([]CampaignNamesRow, error)
-	CampaignOfWAMID(ctx context.Context, wamid *string) (*uuid.UUID, error)
 	// Campaigns that are sending or waiting for the portfolio limit, with what
 	// is left (the queue view per number).
 	CampaignQueue(ctx context.Context) ([]CampaignQueueRow, error)
+	// The campaign of a message and the contact's recipient row in it (a
+	// reaction to a campaign message counts once per recipient and polarity).
+	CampaignRecipientOfWAMID(ctx context.Context, wamid *string) (CampaignRecipientOfWAMIDRow, error)
 	CampaignRecipientStats(ctx context.Context, campaignID uuid.UUID) ([]CampaignRecipientStatsRow, error)
-	// The campaign an inbound message answers: the campaign message it quotes,
-	// else the thread's latest outbound message when that is a campaign
-	// message of the last 72 hours and the customer has not written since.
-	// The nil uuid means none.
-	CampaignRepliedTo(ctx context.Context, arg CampaignRepliedToParams) (uuid.UUID, error)
 	// The campaign's template on its sender's account (category, status,
 	// quality, buttons).
 	CampaignTemplate(ctx context.Context, campaignID uuid.UUID) (MessageTemplate, error)
@@ -489,6 +486,10 @@ type Querier interface {
 	// A working token was stored: an account flagged by Meta errors is usable again.
 	ReactivateWhatsAppAccount(ctx context.Context, id uuid.UUID) error
 	RecentRunForContact(ctx context.Context, arg RecentRunForContactParams) (bool, error)
+	// Who a recipient is, for the automation triggers about their response
+	// (reaction, campaign_reply): contact, the campaign's number and the
+	// conversation of that thread.
+	RecipientAutomationTarget(ctx context.Context, id uuid.UUID) (RecipientAutomationTargetRow, error)
 	RecomputeCampaignCounters(ctx context.Context, campaignID uuid.UUID) (bool, error)
 	// Counts messages a dispatcher tick queued and, every two seconds, turns
 	// them into the measured rate; rolled = true when a new rate was computed

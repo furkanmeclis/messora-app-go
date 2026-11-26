@@ -100,7 +100,8 @@ const (
 
 // ReactionEvent is a customer's reaction. The contract is shared with the
 // analytics module (P3): whoever records a reaction calls EmitReaction in
-// the transaction that stores it.
+// the transaction that stores it. Reactions of campaign recipients use
+// RecipientReactionKey.
 type ReactionEvent struct {
 	// Key identifies the reaction (e.g. the wamid of the reaction message).
 	Key            string
@@ -114,10 +115,19 @@ type ReactionEvent struct {
 	// Reaction is Positive or Negative; anything else is not emitted.
 	Reaction string
 	// Source is where the reaction came from: "emoji" (a WhatsApp
-	// reaction), "button" (a quick-reply button), "text" …
+	// reaction), "quick_reply" (a mapped campaign button), "ai" (the AI
+	// classified a campaign reply) or "manual" (an operator's label).
 	Source string
 	// Body is the emoji or text, for {{message}}.
 	Body string
+}
+
+// RecipientReactionKey is the reaction key of a campaign recipient: one
+// reaction trigger per recipient and polarity, whatever the source (quick
+// reply, AI, manual label, WhatsApp emoji to the campaign message), so a
+// reaction relabelled or seen twice starts an automation only once.
+func RecipientReactionKey(recipientID uuid.UUID, polarity string) string {
+	return "recipient:" + recipientID.String() + ":" + polarity
 }
 
 // EmitReaction raises the reaction trigger, only for a positive or a

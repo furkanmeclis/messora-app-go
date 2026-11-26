@@ -145,24 +145,12 @@ WHERE c.last_message_at > @after::timestamptz AND c.last_message_at <= @before::
 ORDER BY c.last_message_at
 LIMIT 1000;
 
--- name: CampaignRepliedTo :one
--- The campaign an inbound message answers: the campaign message it quotes,
--- else the thread's latest outbound message when that is a campaign
--- message of the last 72 hours and the customer has not written since.
--- The nil uuid means none.
-SELECT coalesce(
-    (SELECT q.campaign_id FROM messages q WHERE sqlc.narg(reply_to_wamid)::text IS NOT NULL AND q.wamid = sqlc.narg(reply_to_wamid)::text),
-    (SELECT o.campaign_id FROM messages o
-     WHERE o.contact_id = @contact_id AND o.phone_number_id = @phone_number_id AND o.direction = 'outbound'
-       AND o.id < @message_id AND o.created_at > now() - interval '72 hours'
-       AND NOT EXISTS (SELECT 1 FROM messages i WHERE i.contact_id = o.contact_id AND i.phone_number_id = o.phone_number_id
-                       AND i.direction = 'inbound' AND i.id > o.id AND i.id < @message_id)
-     ORDER BY o.id DESC LIMIT 1),
-    '00000000-0000-0000-0000-000000000000'
-)::uuid AS campaign_id;
-
--- name: CampaignOfWAMID :one
-SELECT campaign_id FROM messages WHERE wamid = @wamid;
+-- name: CampaignRecipientOfWAMID :one
+-- The campaign of a message and the contact's recipient row in it (a
+-- reaction to a campaign message counts once per recipient and polarity).
+SELECT m.campaign_id, r.id AS recipient_id
+FROM messages m LEFT JOIN campaign_recipients r ON r.campaign_id = m.campaign_id AND r.contact_id = m.contact_id
+WHERE m.wamid = @wamid LIMIT 1;
 
 -- name: ListAutomationsByTypes :many
 SELECT * FROM automations WHERE active AND trigger_type = ANY(@trigger_types::text[]) ORDER BY created_at;

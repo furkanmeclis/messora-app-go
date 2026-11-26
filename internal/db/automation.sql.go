@@ -83,51 +83,24 @@ func (q *Queries) AppendAutomationRunVisited(ctx context.Context, arg AppendAuto
 	return err
 }
 
-const campaignOfWAMID = `-- name: CampaignOfWAMID :one
-SELECT campaign_id FROM messages WHERE wamid = $1
+const campaignRecipientOfWAMID = `-- name: CampaignRecipientOfWAMID :one
+SELECT m.campaign_id, r.id AS recipient_id
+FROM messages m LEFT JOIN campaign_recipients r ON r.campaign_id = m.campaign_id AND r.contact_id = m.contact_id
+WHERE m.wamid = $1 LIMIT 1
 `
 
-func (q *Queries) CampaignOfWAMID(ctx context.Context, wamid *string) (*uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, campaignOfWAMID, wamid)
-	var campaign_id *uuid.UUID
-	err := row.Scan(&campaign_id)
-	return campaign_id, err
+type CampaignRecipientOfWAMIDRow struct {
+	CampaignID  *uuid.UUID
+	RecipientID *uuid.UUID
 }
 
-const campaignRepliedTo = `-- name: CampaignRepliedTo :one
-SELECT coalesce(
-    (SELECT q.campaign_id FROM messages q WHERE $1::text IS NOT NULL AND q.wamid = $1::text),
-    (SELECT o.campaign_id FROM messages o
-     WHERE o.contact_id = $2 AND o.phone_number_id = $3 AND o.direction = 'outbound'
-       AND o.id < $4 AND o.created_at > now() - interval '72 hours'
-       AND NOT EXISTS (SELECT 1 FROM messages i WHERE i.contact_id = o.contact_id AND i.phone_number_id = o.phone_number_id
-                       AND i.direction = 'inbound' AND i.id > o.id AND i.id < $4)
-     ORDER BY o.id DESC LIMIT 1),
-    '00000000-0000-0000-0000-000000000000'
-)::uuid AS campaign_id
-`
-
-type CampaignRepliedToParams struct {
-	ReplyToWamid  *string
-	ContactID     uuid.UUID
-	PhoneNumberID uuid.UUID
-	MessageID     uuid.UUID
-}
-
-// The campaign an inbound message answers: the campaign message it quotes,
-// else the thread's latest outbound message when that is a campaign
-// message of the last 72 hours and the customer has not written since.
-// The nil uuid means none.
-func (q *Queries) CampaignRepliedTo(ctx context.Context, arg CampaignRepliedToParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, campaignRepliedTo,
-		arg.ReplyToWamid,
-		arg.ContactID,
-		arg.PhoneNumberID,
-		arg.MessageID,
-	)
-	var campaign_id uuid.UUID
-	err := row.Scan(&campaign_id)
-	return campaign_id, err
+// The campaign of a message and the contact's recipient row in it (a
+// reaction to a campaign message counts once per recipient and polarity).
+func (q *Queries) CampaignRecipientOfWAMID(ctx context.Context, wamid *string) (CampaignRecipientOfWAMIDRow, error) {
+	row := q.db.QueryRow(ctx, campaignRecipientOfWAMID, wamid)
+	var i CampaignRecipientOfWAMIDRow
+	err := row.Scan(&i.CampaignID, &i.RecipientID)
+	return i, err
 }
 
 const cancelRunsOfAutomation = `-- name: CancelRunsOfAutomation :execrows

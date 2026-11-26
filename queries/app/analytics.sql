@@ -199,3 +199,12 @@ SELECT coalesce(currency, 'USD')::text AS currency, coalesce(sum(cost), 0)::text
        coalesce(sum(cached_tokens), 0)::bigint AS cached_tokens,
        count(DISTINCT conversation_id)::bigint AS conversations
 FROM ai_usage WHERE campaign_id = @campaign_id GROUP BY 1 ORDER BY 1;
+
+-- name: RecipientAutomationTarget :one
+-- Who a recipient is, for the automation triggers about their response
+-- (reaction, campaign_reply): contact, the campaign's number and the
+-- conversation of that thread.
+SELECT r.contact_id, c.phone_number_id, cv.id AS conversation_id, r.reply_message_id
+FROM campaign_recipients r JOIN campaigns c ON c.id = r.campaign_id
+LEFT JOIN conversations cv ON cv.contact_id = r.contact_id AND cv.phone_number_id = c.phone_number_id
+WHERE r.id = @id;

@@ -867,6 +867,35 @@ func (q *Queries) ListContactTypes(ctx context.Context) ([]ListContactTypesRow, 
 	return items, nil
 }
 
+const recipientAutomationTarget = `-- name: RecipientAutomationTarget :one
+SELECT r.contact_id, c.phone_number_id, cv.id AS conversation_id, r.reply_message_id
+FROM campaign_recipients r JOIN campaigns c ON c.id = r.campaign_id
+LEFT JOIN conversations cv ON cv.contact_id = r.contact_id AND cv.phone_number_id = c.phone_number_id
+WHERE r.id = $1
+`
+
+type RecipientAutomationTargetRow struct {
+	ContactID      *uuid.UUID
+	PhoneNumberID  uuid.UUID
+	ConversationID *uuid.UUID
+	ReplyMessageID *uuid.UUID
+}
+
+// Who a recipient is, for the automation triggers about their response
+// (reaction, campaign_reply): contact, the campaign's number and the
+// conversation of that thread.
+func (q *Queries) RecipientAutomationTarget(ctx context.Context, id uuid.UUID) (RecipientAutomationTargetRow, error) {
+	row := q.db.QueryRow(ctx, recipientAutomationTarget, id)
+	var i RecipientAutomationTargetRow
+	err := row.Scan(
+		&i.ContactID,
+		&i.PhoneNumberID,
+		&i.ConversationID,
+		&i.ReplyMessageID,
+	)
+	return i, err
+}
+
 const recomputeCampaignCounters = `-- name: RecomputeCampaignCounters :one
 SELECT campaign_counters_recompute($1::uuid)::boolean AS drifted
 `
