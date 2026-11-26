@@ -16,11 +16,12 @@ CREATE INDEX automation_runs_failed_idx ON automation_runs (finished_at DESC) WH
 
 -- ops_hint announces that a section of the overview changed, for the
 -- changes no other realtime event reaches the overview with: an
--- automation run started or ended, a Meta account alert arrived, a number's
--- quality or an account's token state changed. It is an ops.updated event
--- (the realtime envelope plus "section") on system:ops, written to the
--- outbox in the transaction of the change; it carries no IDs, and the
--- client re-reads the section with its own permissions.
+-- automation run started or ended, a Meta account alert arrived (number
+-- quality changes included), an account's state or token warning changed.
+-- It is an ops.updated event (the realtime envelope plus "section") on
+-- system:ops, written to the outbox in the transaction of the change; it
+-- carries no IDs, and the client re-reads the section with its own
+-- permissions.
 -- +goose StatementBegin
 CREATE FUNCTION ops_hint() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -43,13 +44,10 @@ CREATE TRIGGER automation_runs_ops_finished
     FOR EACH ROW WHEN (OLD.status IS DISTINCT FROM NEW.status AND NEW.status IN ('completed', 'failed', 'cancelled'))
     EXECUTE FUNCTION ops_hint('automations');
 
+-- Number quality changes reach whatsapp_account_events too (00019).
 CREATE TRIGGER whatsapp_account_events_ops
     AFTER INSERT ON whatsapp_account_events
     FOR EACH ROW EXECUTE FUNCTION ops_hint('alerts');
-CREATE TRIGGER phone_numbers_ops_quality
-    AFTER UPDATE OF quality_rating ON phone_numbers
-    FOR EACH ROW WHEN (OLD.quality_rating IS DISTINCT FROM NEW.quality_rating)
-    EXECUTE FUNCTION ops_hint('alerts');
 CREATE TRIGGER whatsapp_accounts_ops_state
     AFTER UPDATE OF status, token_warning, last_error ON whatsapp_accounts
     FOR EACH ROW WHEN (OLD.status IS DISTINCT FROM NEW.status OR OLD.token_warning IS DISTINCT FROM NEW.token_warning
@@ -59,7 +57,6 @@ CREATE TRIGGER whatsapp_accounts_ops_state
 -- +goose Down
 -- Down migrations intentionally drop what Up created.
 DROP TRIGGER IF EXISTS whatsapp_accounts_ops_state ON whatsapp_accounts;
-DROP TRIGGER IF EXISTS phone_numbers_ops_quality ON phone_numbers;
 DROP TRIGGER IF EXISTS whatsapp_account_events_ops ON whatsapp_account_events;
 DROP TRIGGER IF EXISTS automation_runs_ops_finished ON automation_runs;
 DROP TRIGGER IF EXISTS automation_runs_ops_started ON automation_runs;

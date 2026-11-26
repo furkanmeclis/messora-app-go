@@ -120,8 +120,8 @@ func TestOpsOverview(t *testing.T) {
 	                  RETURNING id::text`)
 	hintsBefore := opsHints(h, "automations")
 	h.sqlOne(`INSERT INTO automation_runs (automation_id, automation_version, event_key, event, status, error, finished_at, conversation_id, error_code, attempt)
-	          VALUES ($1, 1, 'e1', '{}', 'failed', 'HTTP step: 500', now(), $2),
-	                 ($1, 1, 'e2', '{}', 'running', NULL, NULL, NULL)`, auto, mine)
+	          VALUES ($1, 1, 'e1', '{}', 'failed', 'HTTP step: 500', now(), $2, 'retries_exhausted', 3),
+	                 ($1, 1, 'e2', '{}', 'running', NULL, NULL, NULL, NULL, 0)`, auto, mine)
 	if got := opsHints(h, "automations"); got != hintsBefore+2 {
 		t.Fatalf("automation hints = %d, want %d (one per started run)", got, hintsBefore+2)
 	}
@@ -210,7 +210,7 @@ func TestOpsOverview(t *testing.T) {
 	if _, ok := o["campaigns"]; ok || o["conversations"] != nil {
 		t.Fatalf("agent asking for campaigns: %v", o)
 	}
-	h.expect(h.do(call{method: "GET", path: "/api/v1/ops/overview?tz=Mars/Base", token: owner}), 422, "VALIDATION_FAILED")
+	h.expect(h.do(call{method: "GET", path: "/api/v1/ops/overview?tz=Mars/Base", token: owner}), 422, "VALIDATION_ERROR")
 
 	// Quick actions: the agent takes the pooled escalation over; it leaves
 	// the queue and the change reaches the overview of the agent over the
