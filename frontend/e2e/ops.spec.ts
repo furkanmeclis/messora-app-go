@@ -62,18 +62,22 @@ function watchErrors(page: Page) {
 
 /** An unassigned conversation the AI escalated to the pool. */
 function escalation(phone: string, name: string, pn: string): string {
-    return sql(`
+    const id = sql(`
         WITH c AS (INSERT INTO contacts (phone_e164, name) VALUES ('${phone}', '${name}') RETURNING id),
              m AS (INSERT INTO messages (phone_number_id, contact_id, direction, wamid, type, body, status, source)
                    SELECT '${pn}', id, 'inbound', 'wamid.ops-${TAG}-${phone.slice(-2)}', 'text', 'Bir insanla görüşmek istiyorum',
                           'received', 'webhook' FROM c RETURNING id, contact_id, occurred_at),
              v AS (INSERT INTO conversations (contact_id, phone_number_id, last_message_id, last_message_at, last_inbound_at,
                                               unread_count, owner_type)
-                   SELECT contact_id, '${pn}', id, occurred_at, occurred_at, 1, 'human' FROM m RETURNING id),
-             h AS (INSERT INTO conversation_handoffs (conversation_id, from_type, to_type, reason, actor_type)
-                   SELECT id, 'ai', 'pool', 'customer_request', 'ai' FROM v RETURNING id, conversation_id)
-        UPDATE conversations SET pending_handoff_id = h.id FROM h WHERE conversations.id = h.conversation_id
-        RETURNING conversations.id;`);
+                   SELECT contact_id, '${pn}', id, occurred_at, occurred_at, 1, 'human' FROM m RETURNING id)
+        SELECT id FROM v;`);
+    // A statement does not see rows its own CTEs insert: a second one links
+    // the pending escalation.
+    sql(`
+        WITH h AS (INSERT INTO conversation_handoffs (conversation_id, from_type, to_type, reason, actor_type)
+                   VALUES ('${id}', 'ai', 'pool', 'customer_request', 'ai') RETURNING id)
+        UPDATE conversations SET pending_handoff_id = h.id FROM h WHERE conversations.id = '${id}';`);
+    return id;
 }
 
 test.describe.configure({ mode: 'serial' });

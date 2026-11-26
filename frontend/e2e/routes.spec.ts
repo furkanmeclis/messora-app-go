@@ -214,7 +214,7 @@ test('desktop mode opens sections in windows', async () => {
     await expect(frame.locator('[data-chrome]').first()).toBeHidden();
     await win.getByRole('button', { name: 'Close' }).click();
     await expect(win).toHaveCount(0);
-    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
     await page.getByRole('button', { name: 'Exit desktop mode' }).click();
     await expect(page.locator('main h1').first()).toBeVisible();
 });
