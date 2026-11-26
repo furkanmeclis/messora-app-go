@@ -7270,7 +7270,7 @@ export interface components {
          *         "created_at": "2026-11-01T10:00:00Z",
          *         "updated_at": "2026-11-01T10:00:00Z"
          *       },
-         *       "secret": "whsec_5f0d3c8e2a9b4e17a6c1d0f97e3b7b9a"
+         *       "secret": "whsec_example-signing-secret"
          *     }
          */
         WebhookEndpointSecret: {
