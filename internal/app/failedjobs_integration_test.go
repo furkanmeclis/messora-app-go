@@ -31,7 +31,7 @@ func (h *harness) failJob(taskType, payload, id string) {
 	})
 	q := queue.RouteTask(taskType, []byte(payload))
 	srv := queue.NewServer(h.rdb, queue.ServerOptions{Concurrency: 1, Queues: map[string]int{q: 1},
-		ShutdownTimeout: time.Second, Logger: testutil.DiscardLogger()})
+		ShutdownTimeout: time.Second, Logger: testutil.DiscardLogger(), OnArchived: opsFailedJobHint(h.pool, testutil.DiscardLogger())})
 	if err := srv.Start(mux); err != nil {
 		h.t.Fatal(err)
 	}
