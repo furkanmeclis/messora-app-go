@@ -77,7 +77,10 @@ test('an agent opens a conversation, replies and sees the delivery update', asyn
     ).toBeVisible();
 
     // The sidebar leads to the inbox; the list is keyboard reachable.
-    await page.getByRole('link', { name: 'Inbox' }).click();
+    await page
+        .locator('[data-sidebar="sidebar"]')
+        .getByRole('link', { name: 'Inbox' })
+        .click();
     await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible();
     const item = page
         .getByTestId('conversation-item')

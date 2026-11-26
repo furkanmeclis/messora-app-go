@@ -187,7 +187,10 @@ test('templates and campaigns start empty; the wizard needs a phone number', asy
         ).toBeVisible();
     }
 
-    await page.getByRole('link', { name: 'Campaigns' }).click();
+    await page
+        .locator('[data-sidebar="sidebar"]')
+        .getByRole('link', { name: 'Campaigns' })
+        .click();
     await expect(
         page.getByRole('heading', { name: 'Campaigns', level: 1 }),
     ).toBeVisible();
@@ -260,7 +263,10 @@ test('a paused campaign resumes and its dashboard follows it live', async ({
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
 
     await signIn(page);
-    await page.getByRole('link', { name: 'Campaigns' }).click();
+    await page
+        .locator('[data-sidebar="sidebar"]')
+        .getByRole('link', { name: 'Campaigns' })
+        .click();
     const row = page.getByTestId('campaign-row').filter({ hasText: campaign });
     await expect(row.getByTestId('campaign-status')).toHaveAttribute(
         'data-status',
