@@ -117,15 +117,25 @@ function money(micros: number, currency: string): string {
 }
 
 function age(iso: string, now: number): string {
+    // Unknown until mounted: the server and the browser would disagree.
+    if (!now) return '';
     return formatDuration((now - new Date(iso).getTime()) / 1000);
 }
 
-/** The current time, ticking every 30 s for waiting times. */
+/**
+ * The current time in the browser (0 while rendering on the server),
+ * ticking every 30 s for waiting times.
+ */
 function useNow(): number {
-    const [now, setNow] = useState(() => Date.now());
+    const [now, setNow] = useState(0);
     useEffect(() => {
-        const id = setInterval(() => setNow(Date.now()), 30_000);
-        return () => clearInterval(id);
+        const tick = () => setNow(Date.now());
+        const first = setTimeout(tick, 0);
+        const id = setInterval(tick, 30_000);
+        return () => {
+            clearTimeout(first);
+            clearInterval(id);
+        };
     }, []);
     return now;
 }
@@ -316,7 +326,7 @@ export function OpsCenter({
                 />
             )}
             {data.activity && data.activity.hours.length > 0 && (
-                <Sparkline hours={data.activity.hours} />
+                <Sparkline hours={data.activity.hours} timezone={timezone} />
             )}
             {data.conversations && (
                 <ConversationsSection
@@ -854,8 +864,10 @@ function CampaignsSection({
 
 function Sparkline({
     hours,
+    timezone,
 }: {
     hours: NonNullable<OpsOverview['activity']>['hours'];
+    timezone: string;
 }) {
     const t = useT();
     const config: ChartConfig = {
@@ -872,6 +884,7 @@ function Sparkline({
         label: new Date(h.hour).toLocaleTimeString(NUMBER_LOCALE, {
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: timezone,
         }),
         outbound: h.outbound,
         inbound: h.inbound,
