@@ -113,7 +113,7 @@ func AnnounceRun(ctx context.Context, tx pgx.Tx, q *db.Queries, runID uuid.UUID,
 		ConversationID: *r.ConversationID, Status: r.Status, StartedBy: r.StartedBy, StepsDone: r.StepsDone, FinishedAt: r.FinishedAt}); err != nil {
 		return err
 	}
-	milestone := ""
+	var milestone string
 	switch {
 	case started:
 		milestone = AutomationStarted
