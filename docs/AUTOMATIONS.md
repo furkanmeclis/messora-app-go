@@ -17,8 +17,8 @@ executed step is logged (`GET /api/v1/automations/{id}/runs`,
 | `subscription_request` | an inbound message matches a consent keyword (stop word, opt-out request phrase, resubscribe word; [CONSENT.md](CONSENT.md)); the consent change is already applied | optional `subscription`: `stop`, `request` or `resume` (default: any) |
 | `window_closing` | the 24-hour customer service window of a conversation closes within `minutes`, the window is still open and the customer's message is unanswered (the thread's last message is theirs) | `minutes` (5 – 1380, default 60); `include_answered` (also when the team answered last); `phone_number_id` |
 | `no_reply` | nobody answered for `minutes`: `no_reply_from: customer` — our message is the thread's last one; `agent` — the customer's is | `no_reply_from` and `minutes` (5 min – 30 days) required; `include_campaigns` (customer: campaign messages count as ours); `phone_number_id` |
-| `campaign_reply` | a customer answers a campaign message: the message quotes it, or the campaign message is the thread's latest outbound message of the last 72 hours and the customer had not written since | optional `campaign_id` |
-| `reaction` | a customer reacts to a message with a positive (👍 ❤️ 🙏 …) or negative (👎 😡 😢 …) emoji; neutral and removed reactions start nothing | optional `reaction` (`positive`/`negative`), `campaign_id` (of the message reacted to) |
+| `campaign_reply` | a customer's first reply to a campaign, as the campaign analytics attribute it ([CAMPAIGN_ANALYTICS.md](CAMPAIGN_ANALYTICS.md)): the campaign that reached them last, on its number, within `attribution_days`; once per recipient (reactions and system notices are not replies) | optional `campaign_id` |
+| `reaction` | a customer's response turns positive or negative: a WhatsApp emoji reaction (👍 ❤️ 🙏 … / 👎 😡 😢 …) to a message, or a campaign recipient's reaction label — a mapped quick-reply button, the AI's classification of the reply or a person's label; neutral, cleared and removed reactions start nothing | optional `reaction` (`positive`/`negative`), `campaign_id` (of the message reacted to / the recipient's campaign) |
 | `ai_escalation` | the AI hands a conversation to a person ([AI.md](AI.md), "Sohbet devri") | optional `reasons`: `customer_request`, `no_answer`, `low_confidence`, `critical_intent`, `unauthorized_action`, `window_closed`, `ai_error` |
 
 Every trigger accepts `cooldown_seconds`: at most one run per contact within
@@ -48,11 +48,36 @@ says so, and no preset sends a keep-alive.
 ### Reactions
 
 `trigger.EmitReaction(ctx, tx, q, trigger.ReactionEvent{…})` is the contract
-for whoever records reactions (P3 analytics): key, contact, conversation,
-number, the reaction message, the campaign of the reacted message, the
-polarity (`positive`/`negative`, see `trigger.Polarity`), the source
-(`emoji`, `button`, `text` …) and the body. The webhook raises it today for
-WhatsApp emoji reactions (source `emoji`).
+for whoever records reactions, in the transaction that stores them: key,
+contact, conversation, number, the reaction message, the campaign, the
+polarity (`positive`/`negative`) and the source. It is raised by
+
+- the webhook for WhatsApp emoji reactions (source `emoji`, polarity from
+  `trigger.Polarity`);
+- the campaigns module whenever a recipient's reaction label is set or
+  changed to positive or negative (`campaigns.SetReaction`,
+  `RecordInbound`): source `quick_reply` (a tapped button the campaign's
+  reaction map labels), `ai` (the AI classification of a free-text reply,
+  [AI.md](AI.md)) or `manual` (a person's label). Remapping the buttons
+  afterwards (`PUT /campaigns/{id}/reaction-map`) relabels past replies
+  without starting automations.
+
+A campaign recipient's reactions share one key per polarity
+(`trigger.RecipientReactionKey`: `recipient:<id>:<polarity>`; an emoji
+reaction to the campaign message uses it too), so the same recipient starts
+the "Olumlu/Olumsuz müşteri dönüşü" presets at most once per polarity —
+whether the customer taps the button, the AI labels the reply, a person
+confirms it or Meta redelivers the webhook. Correcting a label to the other
+polarity starts the other automation once.
+
+### Campaign replies
+
+`campaign_reply` uses the campaign analytics' attribution — one rule
+everywhere: the campaigns module raises it in the inbound transaction when
+it marks the recipient as replied (the first message on the campaign's
+number after the campaign reached the contact, before another campaign did
+and within the attribution window `attribution_days`, Campaign protection
+settings). Its key is `campaign_reply:<recipient>`.
 
 ## Steps
 
@@ -108,10 +133,14 @@ says why (`ai_disabled`, `ai_not_configured`, `ai_not_allowed`,
 Before an AI step runs, the engine checks that AI is on for the company
 (`ai.Enabled`); when it is off the run fails at once with `error_code`
 `ai_disabled` and a message pointing to Settings → AI (a configuration error
-is never retried). When the conversation's number has an AI profile, its
-`allowed_actions` must include what the step does: `update_contact_fields`
-for `ai_extract_fields` and `ai_build_profile`, `add_tag` for
-`ai_classify_segment` (otherwise `ai_not_allowed`); its prompt is the
+is never retried). Steps that store contact fields (`ai_extract_fields`,
+`ai_build_profile`) need an active AI profile on the conversation's number
+(`ai_no_profile`) whose data collection **may update fields**
+(`may_update_fields`, otherwise `ai_not_allowed`) — the same permission the
+AI's own turns need; the `update_contact_fields` action is not consulted.
+For other steps, when the number has an AI profile its `allowed_actions`
+must include what the step does: `add_tag` for `ai_classify_segment`
+(otherwise `ai_not_allowed`); its prompt is the
 business context and its provider/model override applies. `ai_auto_reply`
 needs an active profile (`ai_no_profile`). Handing over to a person is
 always allowed. Every model call is recorded in `ai_usage` with purpose
@@ -121,10 +150,18 @@ while AI is off.
 
 AI steps read the last 20 messages of the thread. Their results are run
 variables (`automation_runs.vars`, shown on the run). Fields AI steps write
-go through `automation.FieldWriter` with the source `ai_unverified`; until
-the contacts provenance store (P7) implements it, the fields are written to
-the contact directly and the provenance is kept on the run log and on the
-conversation's timeline (`ai_action`, `source: ai_unverified`).
+(`ai_extract_fields`, `ai_build_profile`, the fields an `ai_auto_reply`
+collects) go through `automation.FieldWriter`, which the conversations
+module implements on the provenance store with the same rules as the AI's
+own data collection ([AI.md](AI.md) "What is stored"): a value a person, an
+import or the API set, or one a person verified, is never overwritten
+(`ai.MayAIWrite`; the step logs it under `kept` and the timeline as
+`kept_existing`); stored values are marked source `ai`, not verified, in
+`contact_field_sources` with the AI request (`ai_usage_id`) and the
+conversation; values that do not fit the field (an e-mail that is not one)
+are left out; fields naming special categories of personal data or secrets
+are rejected when the automation is saved. The run log and the timeline
+show them as `ai_unverified`.
 
 ## Retries and idempotency
 

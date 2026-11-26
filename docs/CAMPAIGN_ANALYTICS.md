@@ -112,6 +112,14 @@ the inbound transaction and stores the result with source `ai`
 (docs/AI.md "Campaign reply classification"). An AI label never replaces
 a tapped quick reply; a quick reply replaces an AI label. All system labels are shown as "Sistem hesaplaması".
 
+Automations: a label set or changed to positive or negative (quick reply,
+AI or manual) raises the automation `reaction` trigger in the same
+transaction (source `quick_reply`, `ai` or `manual`), once per recipient
+and polarity; relabelling through a changed mapping does not. A
+recipient's first attributed reply raises `campaign_reply`. Both use this
+attribution, so automations and the analysis center always agree on the
+campaign (docs/AUTOMATIONS.md "Reactions" and "Campaign replies").
+
 ## Pre-launch analysis (forecast)
 
 `POST /campaigns/forecast` (wizard review step) and, unchangeable, stored
