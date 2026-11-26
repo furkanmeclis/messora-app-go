@@ -165,7 +165,7 @@ test('the detail page shows the analysis center', async ({ page }) => {
     const noErrors = watchErrors(page);
     await signIn(page);
     await page.goto(`/campaigns/${campaignId}`);
-    const center = page.getByTestId('analysis-center');
+    const center = page.getByRole('main').getByTestId('analysis-center');
     await expect(center).toBeVisible();
     const metrics = center.getByTestId('analysis-metrics');
     await expect(metrics.locator('[data-metric="delivered"]')).toContainText(
@@ -184,10 +184,12 @@ test('the detail page shows the analysis center', async ({ page }) => {
         'cost',
         'quality',
         'breakdowns',
-        'forecast',
         'reports',
+        'forecast',
     ]) {
         await center.getByTestId(`analysis-tab-${tab}`).click();
+        if (tab === 'breakdowns')
+            await expect(center.getByTestId('breakdowns')).toBeVisible();
     }
     await expect(center).toContainText('No forecast was stored');
     noErrors();
@@ -197,7 +199,7 @@ test('recipients filter and export', async ({ page }) => {
     const noErrors = watchErrors(page);
     await signIn(page);
     await page.goto(`/campaigns/${campaignId}`);
-    const center = page.getByTestId('analysis-center');
+    const center = page.getByRole('main').getByTestId('analysis-center');
     await center.getByTestId('analysis-tab-recipients').click();
     const panel = center.getByTestId('recipients-panel');
     await expect(panel.getByTestId('recipients-total')).toContainText('4');
