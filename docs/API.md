@@ -7,7 +7,7 @@ reference with request/response examples and code samples is served by each
 installation at `/docs/api`; the machine-readable document at `/api/v1/openapi.json`.
 Paths are relative to `/api/v1`. **Scope**: any one of the listed scopes is enough.
 
-55 operations.
+71 operations.
 
 ## Messaging
 
@@ -41,13 +41,24 @@ Paths are relative to `/api/v1`. **Scope**: any one of the listed scopes is enou
 |---|---|---|---|---|
 | GET | `/conversations` | Conversations visible to the caller, most recent activity first | `conversations.read`, `conversations.read_all` | 300/min per key |
 | GET | `/conversations/{conversationId}` | A conversation with its contact and 24-hour window | `conversations.read`, `conversations.read_all` | 300/min per key |
+| GET | `/conversations/{conversationId}/activity` | The conversation's activity timeline, newest last | `conversations.read`, `conversations.read_all` | 300/min per key |
+| GET | `/conversations/{conversationId}/ai-drafts` | AI suggestions and replies waiting for approval, newest first | `conversations.read`, `conversations.read_all` | 300/min per key |
+| POST | `/conversations/{conversationId}/ai-drafts/{draftId}/accept` | Send an AI draft, as written or edited | `conversations.reply` | 300/min per key |
+| POST | `/conversations/{conversationId}/ai-drafts/{draftId}/reject` | Discard an AI draft | `conversations.reply` | 300/min per key |
+| PUT | `/conversations/{conversationId}/ai-mode` | Set how the AI works in the conversation | `conversations.reply` | 300/min per key |
 | PUT | `/conversations/{conversationId}/assignment` | Assign the conversation to a user, or unassign it with null | `conversations.assign` | 300/min per key |
+| GET | `/conversations/{conversationId}/automation-runs` | Automation runs of the conversation, newest first (last 50) | `conversations.read`, `conversations.read_all` | 300/min per key |
 | POST | `/conversations/{conversationId}/close` | Close the conversation; the next customer message reopens it | `conversations.assign` | 300/min per key |
 | GET | `/conversations/{conversationId}/events` | Assignment and status history, newest first (last 100) | `conversations.read`, `conversations.read_all` | 300/min per key |
+| POST | `/conversations/{conversationId}/handoff` | Hand the conversation to the AI or to a person | `conversations.reply` | 300/min per key |
+| GET | `/conversations/{conversationId}/handoffs` | Owner changes and escalations, newest first (last 50) | `conversations.read`, `conversations.read_all` | 300/min per key |
 | GET | `/conversations/{conversationId}/media/{mediaId}` | Download a stored media file of a message in the conversation | `conversations.read`, `conversations.read_all` | 300/min per key |
 | GET | `/conversations/{conversationId}/messages` | Message history, newest first | `conversations.read`, `conversations.read_all` | 300/min per key |
 | POST | `/conversations/{conversationId}/messages` | Send a message in the conversation | `conversations.reply` | 300/min per key |
+| GET | `/conversations/{conversationId}/notes` | Internal notes, newest first (last 100) | `conversations.read`, `conversations.read_all` | 300/min per key |
+| POST | `/conversations/{conversationId}/notes` | Add an internal note | `conversations.reply` | 300/min per key |
 | POST | `/conversations/{conversationId}/reopen` | Reopen a closed conversation | `conversations.assign` | 300/min per key |
+| POST | `/conversations/{conversationId}/takeover` | Take the conversation over from the AI or the pool | `conversations.reply` | 300/min per key |
 
 ## Contacts & audiences
 
@@ -63,6 +74,7 @@ Paths are relative to `/api/v1`. **Scope**: any one of the listed scopes is enou
 | GET | `/contacts/{contactId}` | A contact with tags and groups | `contacts.read` | 300/min per key |
 | PATCH | `/contacts/{contactId}` | Edit a contact; an empty string clears an optional field | `contacts.update` | 300/min per key |
 | DELETE | `/contacts/{contactId}` | Delete a contact and its message history | `contacts.delete` | 300/min per key |
+| PUT | `/contacts/{contactId}/ai` | Allow or disable the AI for a contact | `contacts.update` | 300/min per key |
 | POST | `/contacts/{contactId}/consent` | Change a contact's consent | `contacts.update` | 300/min per key |
 | GET | `/contacts/{contactId}/consent-events` | The contact's consent history, newest first (at most 100) | `contacts.read` | 300/min per key |
 | GET | `/groups` | Contact groups with member counts | `contacts.read` | 300/min per key |
@@ -85,13 +97,17 @@ Paths are relative to `/api/v1`. **Scope**: any one of the listed scopes is enou
 | GET | `/campaigns` | Campaigns, newest first | `campaigns.read` | 300/min per key |
 | POST | `/campaigns` | Create a draft campaign | `campaigns.create` | 300/min per key |
 | POST | `/campaigns/preflight` | How many recipients of an audience may receive a template | `campaigns.create` | 300/min per key |
+| GET | `/campaigns/queue` | The send queue per phone number | `campaigns.read` | 300/min per key |
 | GET | `/campaigns/{campaignId}` | A campaign with live counts | `campaigns.read` | 300/min per key |
 | PATCH | `/campaigns/{campaignId}` | Edit a draft or scheduled campaign | `campaigns.create` | 300/min per key |
 | POST | `/campaigns/{campaignId}/cancel` | Stop for good; unsent messages are cancelled | `campaigns.pause` | 300/min per key |
 | GET | `/campaigns/{campaignId}/events` | Lifecycle events (started, paused, resumed, completed …) | `campaigns.read` | 300/min per key |
 | POST | `/campaigns/{campaignId}/pause` | Pause sending; unsent messages are held | `campaigns.pause` | 300/min per key |
+| GET | `/campaigns/{campaignId}/pauses` | Pause history with the counts at each pause | `campaigns.read` | 300/min per key |
 | GET | `/campaigns/{campaignId}/recipients` | Recipients with their message state | `campaigns.read` | 300/min per key |
-| POST | `/campaigns/{campaignId}/resume` | Resume a paused campaign | `campaigns.start` | 300/min per key |
+| POST | `/campaigns/{campaignId}/resume` | Resume a paused campaign, optionally with changes or later | `campaigns.start` | 300/min per key |
+| POST | `/campaigns/{campaignId}/resume-preview` | What resuming would send, with consent checked again and the estimated time | `campaigns.start` | 300/min per key |
+| PATCH | `/campaigns/{campaignId}/settings` | Change name, priority or rate cap while the campaign is in progress | `campaigns.start` | 300/min per key |
 | POST | `/campaigns/{campaignId}/start` | Start now, or schedule with `scheduled_at` | `campaigns.start` | 300/min per key |
 
 ## Automation & integrations

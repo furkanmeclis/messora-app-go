@@ -1817,7 +1817,11 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ContactAISettingResponse" }
               example: { data: { contact_id: "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e", ai_disabled: true }, meta: { request_id: "req_01" } }
-        "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}:
@@ -2627,6 +2631,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignQueueResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/preflight:
@@ -2857,6 +2864,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/pauses:
@@ -2864,6 +2877,11 @@ paths:
       operationId: listCampaignPauses
       tags: [campaigns]
       summary: Pause history with the counts at each pause
+      description: >-
+        The campaign's pauses, newest first (last 100): why it paused (manual,
+        messaging limit, expired offer …), who paused it, when it resumes by
+        itself, a snapshot of the recipient and message counts at that moment
+        and, once resumed, who resumed it and what was changed.
       security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2873,6 +2891,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignPauseListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/resume-preview:
@@ -2899,6 +2922,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResumePreviewResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/events:
@@ -3286,13 +3315,17 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
-        "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: AI_UNAVAILABLE — AI is off, the number has no active AI profile or AI is disabled for the contact.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
               example: { error: { code: AI_UNAVAILABLE, message: "The number has no active AI profile.", details: [] }, meta: { request_id: "req_01" } }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/handoff:
@@ -3327,8 +3360,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
-        "403": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/takeover:
@@ -3352,7 +3389,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
-        "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/handoffs:
@@ -3378,6 +3420,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationHandoffListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/notes:
@@ -3399,6 +3446,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationNoteListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createConversationNote
@@ -3425,7 +3477,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationNoteResponse" }
-        "422": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/activity:
@@ -3454,6 +3510,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationActivityListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/ai-drafts:
@@ -3461,6 +3522,11 @@ paths:
       operationId: listConversationAIDrafts
       tags: [conversations]
       summary: AI suggestions and replies waiting for approval, newest first
+      description: >-
+        Drafts the AI wrote for the conversation: suggestions (mode `suggest`)
+        and replies held for approval (mode `awaiting_approval`), with their
+        decision (accepted, edited, rejected) once someone decided. With
+        `pending=true` only undecided drafts are returned.
       security:
         - { session: [conversations.read] }
         - { session: [conversations.read_all] }
@@ -3475,6 +3541,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AIDraftListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/ai-drafts/{draftId}/accept:
@@ -3505,12 +3576,16 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AIDraftResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: DRAFT_DECIDED — someone already decided on this draft.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
-        "422": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/ai-drafts/{draftId}/reject:
@@ -3518,6 +3593,9 @@ paths:
       operationId: rejectConversationAIDraft
       tags: [conversations]
       summary: Discard an AI draft
+      description: >-
+        Marks the draft as rejected; nothing is sent to the customer. A draft
+        somebody already decided on returns 409 DRAFT_DECIDED.
       security:
         - { session: [conversations.reply] }
         - { apiKey: [conversations.reply] }
@@ -3530,7 +3608,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AIDraftResponse" }
-        "409": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/automation-runs:
@@ -3555,6 +3638,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationAutomationRunListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   # ── Automations (Phase 8) ────────────────────────────────────────────────
@@ -6413,7 +6501,7 @@ components:
       example:
         id: 019a8c2e-4f1b-7a0e-9c3d-5e7a1000000e
         contact: {id: 019a8c2e-4f1b-7a09-9c3d-5e7a10000009, phone: "+905321234567", name: Ayşe
-            Yılmaz, profile_name: Ayşe, opted_out: false}
+            Yılmaz, profile_name: Ayşe, opted_out: false, ai_disabled: false}
         phone_number: {id: 019a8c2e-4f1b-7a04-9c3d-5e7a10000004, account_id: 019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f,
           display_phone_number: "+90 212 555 01 23", verified_name: Messora Demo}
         status: open
@@ -6427,6 +6515,12 @@ components:
           status: received}
         closed_at: null
         created_at: "2026-11-20T12:00:00Z"
+        owner_type: human
+        ai_mode: suggest
+        ai_status: idle
+        ai_status_detail: null
+        ai_profile_id: 019a8c2e-4f1b-7a20-9c3d-5e7a10000020
+        pending_handoff_id: null
       type: object
       required: [id, contact, phone_number, status, assignee, unread_count, last_message_at, last_inbound_at,
                  window_open, window_expires_at, last_message, closed_at, created_at, owner_type, ai_mode, ai_status,
@@ -6487,6 +6581,8 @@ components:
         wamid: wamid.HBgMOTA1MzIxMjM0NTY3FQIAERgSMjU0RkJBQ0E4QjM3QzFGRTlGAA==
         reply_to_wamid: null
         source: api
+        sent_by: api_key
+        ai_usage_id: null
         error_code: null
         error_title: null
         media: null
@@ -7031,6 +7127,14 @@ components:
         finished_at: null
         last_error: null
         offer_id: null
+        priority: normal
+        max_mps: null
+        paused_reason: null
+        paused_at: null
+        paused_by: null
+        resume_at: null
+        send_rate: 18.5
+        eta_seconds: 97
         created_at: "2026-11-24T15:20:00Z"
         updated_at: "2026-11-25T09:00:00Z"
       type: object
@@ -7256,6 +7360,7 @@ components:
         priority: { $ref: "#/components/schemas/CampaignPriority" }
         max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000, description: Messages per second this campaign may use at most. }
         clear_max_mps: { type: boolean, description: Remove the rate cap. }
+      example: { priority: high, max_mps: 20 }
 
     CampaignResumeRequest:
       type: object
@@ -7266,6 +7371,7 @@ components:
         max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000 }
         clear_max_mps: { type: boolean }
         resume_at: { type: string, format: date-time, description: Resume later instead of now; the campaign stays paused until then. }
+      example: { priority: high, clear_max_mps: true, resume_at: "2026-11-26T08:00:00Z" }
 
     CampaignPause:
       type: object
@@ -7287,6 +7393,19 @@ components:
         resumed_at: { type: [string, "null"], format: date-time }
         resumed_by: { type: [string, "null"], format: uuid }
         changes: { type: [object, "null"], additionalProperties: true, description: What was changed when resuming. }
+      example:
+        id: 019a8c2e-4f1b-7a06-9c3d-5e7a10000006
+        status: paused
+        reason: manual
+        detail: {}
+        paused_at: "2026-11-25T10:15:00Z"
+        paused_by: 019a8c2e-4f1b-7a01-9c3d-5e7a10000001
+        resume_at: null
+        snapshot: {recipients_pending: 1800, recipients_skipped: 35, sent: 2365, delivered: 2290, read: 1410,
+          failed: 12, class_temporary: 9, class_undeliverable: 3}
+        resumed_at: "2026-11-25T11:00:00Z"
+        resumed_by: 019a8c2e-4f1b-7a01-9c3d-5e7a10000001
+        changes: {priority: {from: normal, to: high}}
 
     CampaignPauseListResponse:
       type: object
@@ -7304,6 +7423,7 @@ components:
         used: { type: integer, format: int64 }
         in_flight: { type: integer, format: int64, description: Campaign messages queued or sending that will count. }
         frees_at: { type: [string, "null"], format: date-time, description: When the oldest counted customer stops counting. }
+      example: { tier: TIER_10K, limit: 10000, used: 6120, in_flight: 1800, frees_at: "2026-11-26T09:00:00Z" }
 
     CampaignResumePreview:
       type: object
@@ -7322,6 +7442,20 @@ components:
         rate_mps: { type: integer, description: The number's current adaptive rate. }
         reserved_share: { type: number, format: double }
         limit: { $ref: "#/components/schemas/PortfolioLimit" }
+      example:
+        campaign_id: 019a8c2e-4f1b-7a03-9c3d-5e7a10000003
+        remaining: 1800
+        eligible: 1770
+        blocked: 25
+        warned: 40
+        blocked_reasons: [{reason: opted_out, count: 18, hard: true}, {reason: undeliverable, count: 7, hard: true}]
+        warned_reasons: [{reason: consent_unknown, count: 40, hard: false}]
+        share_mps: 24
+        estimated_seconds: 74
+        capacity_mps: 80
+        rate_mps: 60
+        reserved_share: 0.2
+        limit: { tier: TIER_10K, limit: 10000, used: 6120, in_flight: 0, frees_at: "2026-11-26T09:00:00Z" }
 
     CampaignResumePreviewResponse:
       type: object
@@ -7345,6 +7479,20 @@ components:
         eta_seconds: { type: [integer, "null"], format: int64 }
         paused_reason: { type: [string, "null"] }
         resume_at: { type: [string, "null"], format: date-time }
+      example:
+        id: 019a8c2e-4f1b-7a03-9c3d-5e7a10000003
+        name: Winter sale
+        status: running
+        priority: normal
+        weight: 2
+        max_mps: null
+        share_mps: 24
+        rate_mps: 18.5
+        remaining: 1800
+        total_recipients: 4200
+        eta_seconds: 97
+        paused_reason: null
+        resume_at: null
 
     CampaignQueueNumber:
       type: object
@@ -7357,6 +7505,27 @@ components:
         campaign_capacity_mps: { type: number, format: double }
         limit: { $ref: "#/components/schemas/PortfolioLimit" }
         campaigns: { type: array, items: { $ref: "#/components/schemas/CampaignQueueEntry" } }
+      example:
+        phone_number_id: 019a8c2e-4f1b-7a04-9c3d-5e7a10000004
+        ceiling_mps: 80
+        rate_mps: 60
+        reserved_share: 0.2
+        campaign_capacity_mps: 48
+        limit: { tier: TIER_10K, limit: 10000, used: 6120, in_flight: 1800, frees_at: "2026-11-26T09:00:00Z" }
+        campaigns:
+          - id: 019a8c2e-4f1b-7a03-9c3d-5e7a10000003
+            name: Winter sale
+            status: running
+            priority: normal
+            weight: 2
+            max_mps: null
+            share_mps: 24
+            rate_mps: 18.5
+            remaining: 1800
+            total_recipients: 4200
+            eta_seconds: 97
+            paused_reason: null
+            resume_at: null
 
     CampaignQueueResponse:
       type: object

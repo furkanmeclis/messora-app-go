@@ -2089,7 +2089,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Pause history with the counts at each pause */
+        /**
+         * Pause history with the counts at each pause
+         * @description The campaign's pauses, newest first (last 100): why it paused (manual, messaging limit, expired offer …), who paused it, when it resumes by itself, a snapshot of the recipient and message counts at that moment and, once resumed, who resumed it and what was changed.
+         */
         get: operations['listCampaignPauses'];
         put?: never;
         post?: never;
@@ -2471,7 +2474,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** AI suggestions and replies waiting for approval, newest first */
+        /**
+         * AI suggestions and replies waiting for approval, newest first
+         * @description Drafts the AI wrote for the conversation: suggestions (mode `suggest`) and replies held for approval (mode `awaiting_approval`), with their decision (accepted, edited, rejected) once someone decided. With `pending=true` only undecided drafts are returned.
+         */
         get: operations['listConversationAIDrafts'];
         put?: never;
         post?: never;
@@ -2510,7 +2516,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Discard an AI draft */
+        /**
+         * Discard an AI draft
+         * @description Marks the draft as rejected; nothing is sent to the customer. A draft somebody already decided on returns 409 DRAFT_DECIDED.
+         */
         post: operations['rejectConversationAIDraft'];
         delete?: never;
         options?: never;
@@ -4904,7 +4913,8 @@ export interface components {
          *         "phone": "+905321234567",
          *         "name": "Ayşe Yılmaz",
          *         "profile_name": "Ayşe",
-         *         "opted_out": false
+         *         "opted_out": false,
+         *         "ai_disabled": false
          *       },
          *       "phone_number": {
          *         "id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
@@ -4929,7 +4939,13 @@ export interface components {
          *         "status": "received"
          *       },
          *       "closed_at": null,
-         *       "created_at": "2026-11-20T12:00:00Z"
+         *       "created_at": "2026-11-20T12:00:00Z",
+         *       "owner_type": "human",
+         *       "ai_mode": "suggest",
+         *       "ai_status": "idle",
+         *       "ai_status_detail": null,
+         *       "ai_profile_id": "019a8c2e-4f1b-7a20-9c3d-5e7a10000020",
+         *       "pending_handoff_id": null
          *     }
          */
         Conversation: {
@@ -5005,6 +5021,8 @@ export interface components {
          *       "wamid": "wamid.HBgMOTA1MzIxMjM0NTY3FQIAERgSMjU0RkJBQ0E4QjM3QzFGRTlGAA==",
          *       "reply_to_wamid": null,
          *       "source": "api",
+         *       "sent_by": "api_key",
+         *       "ai_usage_id": null,
          *       "error_code": null,
          *       "error_title": null,
          *       "media": null,
@@ -5631,6 +5649,14 @@ export interface components {
          *       "finished_at": null,
          *       "last_error": null,
          *       "offer_id": null,
+         *       "priority": "normal",
+         *       "max_mps": null,
+         *       "paused_reason": null,
+         *       "paused_at": null,
+         *       "paused_by": null,
+         *       "resume_at": null,
+         *       "send_rate": 18.5,
+         *       "eta_seconds": 97,
          *       "created_at": "2026-11-24T15:20:00Z",
          *       "updated_at": "2026-11-25T09:00:00Z"
          *     }
@@ -5970,6 +5996,12 @@ export interface components {
          * @enum {string}
          */
         CampaignPriority: 'high' | 'normal' | 'low';
+        /**
+         * @example {
+         *       "priority": "high",
+         *       "max_mps": 20
+         *     }
+         */
         CampaignSettingsRequest: {
             name?: string;
             priority?: components['schemas']['CampaignPriority'];
@@ -5981,6 +6013,13 @@ export interface components {
             /** @description Remove the rate cap. */
             clear_max_mps?: boolean;
         };
+        /**
+         * @example {
+         *       "priority": "high",
+         *       "clear_max_mps": true,
+         *       "resume_at": "2026-11-26T08:00:00Z"
+         *     }
+         */
         CampaignResumeRequest: {
             name?: string;
             priority?: components['schemas']['CampaignPriority'];
@@ -5993,6 +6032,35 @@ export interface components {
              */
             resume_at?: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a06-9c3d-5e7a10000006",
+         *       "status": "paused",
+         *       "reason": "manual",
+         *       "detail": {},
+         *       "paused_at": "2026-11-25T10:15:00Z",
+         *       "paused_by": "019a8c2e-4f1b-7a01-9c3d-5e7a10000001",
+         *       "resume_at": null,
+         *       "snapshot": {
+         *         "recipients_pending": 1800,
+         *         "recipients_skipped": 35,
+         *         "sent": 2365,
+         *         "delivered": 2290,
+         *         "read": 1410,
+         *         "failed": 12,
+         *         "class_temporary": 9,
+         *         "class_undeliverable": 3
+         *       },
+         *       "resumed_at": "2026-11-25T11:00:00Z",
+         *       "resumed_by": "019a8c2e-4f1b-7a01-9c3d-5e7a10000001",
+         *       "changes": {
+         *         "priority": {
+         *           "from": "normal",
+         *           "to": "high"
+         *         }
+         *       }
+         *     }
+         */
         CampaignPause: {
             /** Format: uuid */
             id: string;
@@ -6025,6 +6093,15 @@ export interface components {
             data: components['schemas']['CampaignPause'][];
             meta: components['schemas']['Meta'];
         };
+        /**
+         * @example {
+         *       "tier": "TIER_10K",
+         *       "limit": 10000,
+         *       "used": 6120,
+         *       "in_flight": 1800,
+         *       "frees_at": "2026-11-26T09:00:00Z"
+         *     }
+         */
         PortfolioLimit: {
             /** @description Meta's messaging limit tier; empty when unknown. */
             tier: string;
@@ -6046,6 +6123,46 @@ export interface components {
              */
             frees_at?: string | null;
         };
+        /**
+         * @example {
+         *       "campaign_id": "019a8c2e-4f1b-7a03-9c3d-5e7a10000003",
+         *       "remaining": 1800,
+         *       "eligible": 1770,
+         *       "blocked": 25,
+         *       "warned": 40,
+         *       "blocked_reasons": [
+         *         {
+         *           "reason": "opted_out",
+         *           "count": 18,
+         *           "hard": true
+         *         },
+         *         {
+         *           "reason": "undeliverable",
+         *           "count": 7,
+         *           "hard": true
+         *         }
+         *       ],
+         *       "warned_reasons": [
+         *         {
+         *           "reason": "consent_unknown",
+         *           "count": 40,
+         *           "hard": false
+         *         }
+         *       ],
+         *       "share_mps": 24,
+         *       "estimated_seconds": 74,
+         *       "capacity_mps": 80,
+         *       "rate_mps": 60,
+         *       "reserved_share": 0.2,
+         *       "limit": {
+         *         "tier": "TIER_10K",
+         *         "limit": 10000,
+         *         "used": 6120,
+         *         "in_flight": 0,
+         *         "frees_at": "2026-11-26T09:00:00Z"
+         *       }
+         *     }
+         */
         CampaignResumePreview: {
             /** Format: uuid */
             campaign_id: string;
@@ -6078,6 +6195,23 @@ export interface components {
             data: components['schemas']['CampaignResumePreview'];
             meta: components['schemas']['Meta'];
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a03-9c3d-5e7a10000003",
+         *       "name": "Winter sale",
+         *       "status": "running",
+         *       "priority": "normal",
+         *       "weight": 2,
+         *       "max_mps": null,
+         *       "share_mps": 24,
+         *       "rate_mps": 18.5,
+         *       "remaining": 1800,
+         *       "total_recipients": 4200,
+         *       "eta_seconds": 97,
+         *       "paused_reason": null,
+         *       "resume_at": null
+         *     }
+         */
         CampaignQueueEntry: {
             /** Format: uuid */
             id: string;
@@ -6108,6 +6242,39 @@ export interface components {
             /** Format: date-time */
             resume_at?: string | null;
         };
+        /**
+         * @example {
+         *       "phone_number_id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
+         *       "ceiling_mps": 80,
+         *       "rate_mps": 60,
+         *       "reserved_share": 0.2,
+         *       "campaign_capacity_mps": 48,
+         *       "limit": {
+         *         "tier": "TIER_10K",
+         *         "limit": 10000,
+         *         "used": 6120,
+         *         "in_flight": 1800,
+         *         "frees_at": "2026-11-26T09:00:00Z"
+         *       },
+         *       "campaigns": [
+         *         {
+         *           "id": "019a8c2e-4f1b-7a03-9c3d-5e7a10000003",
+         *           "name": "Winter sale",
+         *           "status": "running",
+         *           "priority": "normal",
+         *           "weight": 2,
+         *           "max_mps": null,
+         *           "share_mps": 24,
+         *           "rate_mps": 18.5,
+         *           "remaining": 1800,
+         *           "total_recipients": 4200,
+         *           "eta_seconds": 97,
+         *           "paused_reason": null,
+         *           "resume_at": null
+         *         }
+         *       ]
+         *     }
+         */
         CampaignQueueNumber: {
             /** Format: uuid */
             phone_number_id: string;
@@ -9241,7 +9408,11 @@ export interface operations {
                     'application/json': components['schemas']['ContactAISettingResponse'];
                 };
             };
-            404: components['responses']['Error'];
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10255,6 +10426,9 @@ export interface operations {
                     'application/json': components['schemas']['CampaignQueueResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10529,6 +10703,12 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10552,6 +10732,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignPauseListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10579,6 +10764,12 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResumePreviewResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10980,7 +11171,9 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
-            404: components['responses']['Error'];
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
             /** @description AI_UNAVAILABLE — AI is off, the number has no active AI profile or AI is disabled for the contact. */
             409: {
                 headers: {
@@ -11002,6 +11195,8 @@ export interface operations {
                     'application/json': components['schemas']['ErrorEnvelope'];
                 };
             };
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11029,8 +11224,12 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
-            403: components['responses']['Error'];
-            409: components['responses']['Error'];
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11054,7 +11253,12 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
-            404: components['responses']['Error'];
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11078,6 +11282,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationHandoffListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11101,6 +11310,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationNoteListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11134,7 +11348,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationNoteResponse'];
                 };
             };
-            422: components['responses']['Error'];
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11162,6 +11380,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationActivityListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11188,6 +11411,11 @@ export interface operations {
                     'application/json': components['schemas']['AIDraftListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11221,6 +11449,9 @@ export interface operations {
                     'application/json': components['schemas']['AIDraftResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
             /** @description DRAFT_DECIDED — someone already decided on this draft. */
             409: {
                 headers: {
@@ -11230,7 +11461,8 @@ export interface operations {
                     'application/json': components['schemas']['ErrorEnvelope'];
                 };
             };
-            422: components['responses']['Error'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11255,7 +11487,12 @@ export interface operations {
                     'application/json': components['schemas']['AIDraftResponse'];
                 };
             };
-            409: components['responses']['Error'];
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11279,6 +11516,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationAutomationRunListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
