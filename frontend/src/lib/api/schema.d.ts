@@ -2193,7 +2193,7 @@ export interface paths {
         put?: never;
         /**
          * The recipients table (filters, sorting, pages, total)
-         * @description Statuses are combined with OR (sent, delivered, read, failed, pending, unknown, blocked, cancelled, rejected, replied, positive, negative, neutral, opted_out and every unreached class); the other filters with AND.
+         * @description Statuses are combined with OR (sent, delivered, read, failed, pending, unknown, blocked, cancelled, rejected, replied, positive, negative, neutral, opted_out and every unreached class); the other filters with AND. Offset paging (`offset`, `limit` up to 200, default 50) with the matching total in meta.total; `sort` is created (default, newest first), name, phone, sent_at, delivered_at, read_at, replied_at or cost, a leading - sorting descending. An unknown status or sort key answers 422.
          */
         post: operations['searchCampaignRecipients'];
         delete?: never;
@@ -2231,7 +2231,7 @@ export interface paths {
         };
         /**
          * Download the matching recipients as CSV or Excel
-         * @description Streams up to 20,000 rows; larger selections answer 409 EXPORT_TOO_LARGE and run as a background export (POST /campaigns/{campaignId}/exports).
+         * @description The recipients table's filters as query parameters (status comma-separated). Streams up to 20,000 rows; larger selections answer 409 EXPORT_TOO_LARGE and run as a background export (POST /campaigns/{campaignId}/exports). An unknown status answers 422.
          */
         get: operations['exportCampaignRecipients'];
         put?: never;
@@ -2291,7 +2291,7 @@ export interface paths {
         };
         /**
          * The campaign's analysis center
-         * @description Metrics tagged by source (meta: what Meta reported; system: what Messora computed), rates, cost (per-message estimate and Meta's reconciled daily totals for the number), the spam and quality section and hourly series.
+         * @description Metrics tagged by source (meta: what Meta reported — sent, delivered, read, failed, rejected and the 131048/131049/131050 errors; system: what Messora computed — audience, consent blocks, replies, reactions, opt-outs), rates as fractions 0–1 (null without a denominator), cost (the per-message estimate from Meta's pricing category × the imported rate card, with priced and unpriced counts, and Meta's reconciled daily totals for the number, which cover all its messages), AI cost attributed to the campaign, the spam and quality section (number quality, template status and quality, the account's quality timeline and why recipients were not reached) and hourly series.
          */
         get: operations['getCampaignAnalytics'];
         put?: never;
@@ -2309,7 +2309,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Figures per group, segment, tag, contact type or attribute value */
+        /**
+         * Figures per group, segment, tag, contact type or attribute value
+         * @description The campaign's recipients grouped by `dimension` (group, segment, tag, contact_type, or attribute with `attr_key` naming the custom attribute), each bucket with recipients, sent, delivered, read, replied, positive, negative, opted out and the estimated cost. A contact in two groups (tags, segments) counts in both. Buckets are ordered by recipients, largest first, at most 100; contacts without a type (or without the attribute) form the bucket with key "". attribute without attr_key answers 422.
+         */
         get: operations['getCampaignBreakdown'];
         put?: never;
         post?: never;
@@ -2328,7 +2331,7 @@ export interface paths {
         };
         /**
          * The forecast fixed at start, compared with the actual figures
-         * @description Same definitions for both sides (docs/CAMPAIGN_ANALYTICS.md); live while the campaign runs, final once it ended. forecast is null for a campaign started before forecasts existed.
+         * @description The forecast stored when the campaign started next to the actual figures, metric by metric (total, eligible, blocked, the expected counts, the rates, cost and duration_seconds) with the difference (delta = actual − forecast, delta_pct relative to the forecast). Same definitions for both sides (docs/CAMPAIGN_ANALYTICS.md); live while the campaign runs, final once it completed, was cancelled or failed. A side without a figure (e.g. expected counts of a forecast made without enough history) is null and so are its deltas. forecast is null, with no metrics, for a campaign not started yet or started before forecasts existed.
          */
         get: operations['getCampaignForecast'];
         put?: never;
@@ -6553,6 +6556,18 @@ export interface components {
         ReactionMap: {
             [key: string]: 'positive' | 'negative' | 'neutral';
         };
+        /**
+         * @example {
+         *       "audience": {
+         *         "segment_id": "019a8c2e-4f1b-7a05-9c3d-5e7a10000005"
+         *       },
+         *       "phone_number_id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
+         *       "template_name": "winter_sale",
+         *       "template_language": "tr",
+         *       "priority": "normal",
+         *       "scheduled_at": "2026-12-01T09:00:00Z"
+         *     }
+         */
         CampaignForecastRequest: {
             audience: components['schemas']['CampaignAudience'];
             /** Format: uuid */
@@ -6568,6 +6583,106 @@ export interface components {
              */
             scheduled_at?: string;
         };
+        /**
+         * @example {
+         *       "generated_at": "2026-11-30T15:42:10Z",
+         *       "category": "marketing",
+         *       "total": 4200,
+         *       "eligible": 4165,
+         *       "blocked": 35,
+         *       "warned": 610,
+         *       "blocked_reasons": [
+         *         {
+         *           "reason": "opted_out",
+         *           "count": 30,
+         *           "hard": true
+         *         },
+         *         {
+         *           "reason": "undeliverable",
+         *           "count": 5,
+         *           "hard": true
+         *         }
+         *       ],
+         *       "capacity": {
+         *         "ceiling_mps": 80,
+         *         "rate_mps": 80,
+         *         "reserved_share": 0.2,
+         *         "campaign_capacity_mps": 64,
+         *         "share_mps": 42.6667,
+         *         "others": [
+         *           {
+         *             "id": "019a8c2e-4f1b-7a0b-9c3d-5e7a1000000b",
+         *             "priority": "low",
+         *             "share_mps": 21.3333
+         *           }
+         *         ]
+         *       },
+         *       "limit": {
+         *         "tier": "TIER_10K",
+         *         "limit": 10000,
+         *         "used": 1200,
+         *         "in_flight": 0,
+         *         "remaining": 8800,
+         *         "counting": 3900,
+         *         "windows": 1
+         *       },
+         *       "start_at": "2026-12-01T09:00:00Z",
+         *       "duration_seconds": 98,
+         *       "finish_at": "2026-12-01T09:01:38Z",
+         *       "cost": {
+         *         "currency": "USD",
+         *         "amount": "44.690000",
+         *         "priced": 4100,
+         *         "free": 0,
+         *         "not_in_rate_card": 65,
+         *         "by_country": [
+         *           {
+         *             "country": "TR",
+         *             "recipients": 4100,
+         *             "charged": 4100,
+         *             "price": "0.010900",
+         *             "amount": "44.690000"
+         *           },
+         *           {
+         *             "country": "DE",
+         *             "recipients": 65,
+         *             "charged": 65,
+         *             "price": null,
+         *             "amount": null
+         *           }
+         *         ]
+         *       },
+         *       "rates": {
+         *         "status": "ok",
+         *         "campaigns": 4,
+         *         "recipients": 12800,
+         *         "campaigns_needed": 3,
+         *         "recipients_needed": 500,
+         *         "sent_rate": 0.99,
+         *         "delivery_rate": 0.97,
+         *         "read_rate": 0.62,
+         *         "reply_rate": 0.08,
+         *         "positive_rate": 0.05,
+         *         "negative_rate": 0.01,
+         *         "opt_out_rate": 0.004,
+         *         "based_on": [
+         *           "019a8c2e-4f1b-7a0c-9c3d-5e7a1000000c",
+         *           "019a8c2e-4f1b-7a0d-9c3d-5e7a1000000d",
+         *           "019a8c2e-4f1b-7a0e-9c3d-5e7a1000000e",
+         *           "019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f"
+         *         ]
+         *       },
+         *       "expected": {
+         *         "sent": 4123,
+         *         "delivered": 3999,
+         *         "read": 2479,
+         *         "replied": 320,
+         *         "positive": 200,
+         *         "negative": 40,
+         *         "opted_out": 16
+         *       }
+         *     }
+         */
         CampaignForecast: {
             /** Format: date-time */
             generated_at: string;
@@ -6714,6 +6829,240 @@ export interface components {
              */
             delta_pct: number | null;
         };
+        /**
+         * @example {
+         *       "final": true,
+         *       "stored_at": "2026-12-01T09:00:00Z",
+         *       "actual_cost": "44.308500",
+         *       "currency": "USD",
+         *       "forecast": {
+         *         "generated_at": "2026-12-01T09:00:00Z",
+         *         "category": "marketing",
+         *         "total": 4200,
+         *         "eligible": 4165,
+         *         "blocked": 35,
+         *         "warned": 610,
+         *         "blocked_reasons": [
+         *           {
+         *             "reason": "opted_out",
+         *             "count": 30,
+         *             "hard": true
+         *           },
+         *           {
+         *             "reason": "undeliverable",
+         *             "count": 5,
+         *             "hard": true
+         *           }
+         *         ],
+         *         "capacity": {
+         *           "ceiling_mps": 80,
+         *           "rate_mps": 80,
+         *           "reserved_share": 0.2,
+         *           "campaign_capacity_mps": 64,
+         *           "share_mps": 42.6667,
+         *           "others": [
+         *             {
+         *               "id": "019a8c2e-4f1b-7a0b-9c3d-5e7a1000000b",
+         *               "priority": "low",
+         *               "share_mps": 21.3333
+         *             }
+         *           ]
+         *         },
+         *         "limit": {
+         *           "tier": "TIER_10K",
+         *           "limit": 10000,
+         *           "used": 1200,
+         *           "in_flight": 0,
+         *           "remaining": 8800,
+         *           "counting": 3900,
+         *           "windows": 1
+         *         },
+         *         "start_at": "2026-12-01T09:00:00Z",
+         *         "duration_seconds": 98,
+         *         "finish_at": "2026-12-01T09:01:38Z",
+         *         "cost": {
+         *           "currency": "USD",
+         *           "amount": "44.690000",
+         *           "priced": 4100,
+         *           "free": 0,
+         *           "not_in_rate_card": 65,
+         *           "by_country": [
+         *             {
+         *               "country": "TR",
+         *               "recipients": 4100,
+         *               "charged": 4100,
+         *               "price": "0.010900",
+         *               "amount": "44.690000"
+         *             },
+         *             {
+         *               "country": "DE",
+         *               "recipients": 65,
+         *               "charged": 65,
+         *               "price": null,
+         *               "amount": null
+         *             }
+         *           ]
+         *         },
+         *         "rates": {
+         *           "status": "ok",
+         *           "campaigns": 4,
+         *           "recipients": 12800,
+         *           "campaigns_needed": 3,
+         *           "recipients_needed": 500,
+         *           "sent_rate": 0.99,
+         *           "delivery_rate": 0.97,
+         *           "read_rate": 0.62,
+         *           "reply_rate": 0.08,
+         *           "positive_rate": 0.05,
+         *           "negative_rate": 0.01,
+         *           "opt_out_rate": 0.004,
+         *           "based_on": [
+         *             "019a8c2e-4f1b-7a0c-9c3d-5e7a1000000c",
+         *             "019a8c2e-4f1b-7a0d-9c3d-5e7a1000000d",
+         *             "019a8c2e-4f1b-7a0e-9c3d-5e7a1000000e",
+         *             "019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f"
+         *           ]
+         *         },
+         *         "expected": {
+         *           "sent": 4123,
+         *           "delivered": 3999,
+         *           "read": 2479,
+         *           "replied": 320,
+         *           "positive": 200,
+         *           "negative": 40,
+         *           "opted_out": 16
+         *         }
+         *       },
+         *       "metrics": [
+         *         {
+         *           "metric": "total",
+         *           "forecast": 4200,
+         *           "actual": 4200,
+         *           "delta": 0,
+         *           "delta_pct": 0
+         *         },
+         *         {
+         *           "metric": "eligible",
+         *           "forecast": 4165,
+         *           "actual": 4165,
+         *           "delta": 0,
+         *           "delta_pct": 0
+         *         },
+         *         {
+         *           "metric": "blocked",
+         *           "forecast": 35,
+         *           "actual": 35,
+         *           "delta": 0,
+         *           "delta_pct": 0
+         *         },
+         *         {
+         *           "metric": "sent",
+         *           "forecast": 4123,
+         *           "actual": 4130,
+         *           "delta": 7,
+         *           "delta_pct": 0.17
+         *         },
+         *         {
+         *           "metric": "delivered",
+         *           "forecast": 3999,
+         *           "actual": 4010,
+         *           "delta": 11,
+         *           "delta_pct": 0.28
+         *         },
+         *         {
+         *           "metric": "read",
+         *           "forecast": 2479,
+         *           "actual": 2602,
+         *           "delta": 123,
+         *           "delta_pct": 4.96
+         *         },
+         *         {
+         *           "metric": "replied",
+         *           "forecast": 320,
+         *           "actual": 301,
+         *           "delta": -19,
+         *           "delta_pct": -5.94
+         *         },
+         *         {
+         *           "metric": "positive",
+         *           "forecast": 200,
+         *           "actual": 188,
+         *           "delta": -12,
+         *           "delta_pct": -6
+         *         },
+         *         {
+         *           "metric": "negative",
+         *           "forecast": 40,
+         *           "actual": 45,
+         *           "delta": 5,
+         *           "delta_pct": 12.5
+         *         },
+         *         {
+         *           "metric": "opted_out",
+         *           "forecast": 16,
+         *           "actual": 14,
+         *           "delta": -2,
+         *           "delta_pct": -12.5
+         *         },
+         *         {
+         *           "metric": "sent_rate",
+         *           "forecast": 0.99,
+         *           "actual": 0.9916,
+         *           "delta": 0.0016,
+         *           "delta_pct": 0.16
+         *         },
+         *         {
+         *           "metric": "delivery_rate",
+         *           "forecast": 0.97,
+         *           "actual": 0.9709,
+         *           "delta": 0.0009,
+         *           "delta_pct": 0.09
+         *         },
+         *         {
+         *           "metric": "read_rate",
+         *           "forecast": 0.62,
+         *           "actual": 0.6489,
+         *           "delta": 0.0289,
+         *           "delta_pct": 4.66
+         *         },
+         *         {
+         *           "metric": "reply_rate",
+         *           "forecast": 0.08,
+         *           "actual": 0.0751,
+         *           "delta": -0.0049,
+         *           "delta_pct": -6.13
+         *         },
+         *         {
+         *           "metric": "positive_rate",
+         *           "forecast": 0.05,
+         *           "actual": 0.0469,
+         *           "delta": -0.0031,
+         *           "delta_pct": -6.2
+         *         },
+         *         {
+         *           "metric": "opt_out_rate",
+         *           "forecast": 0.004,
+         *           "actual": 0.0035,
+         *           "delta": -0.0005,
+         *           "delta_pct": -12.5
+         *         },
+         *         {
+         *           "metric": "cost",
+         *           "forecast": 44.69,
+         *           "actual": 44.3085,
+         *           "delta": -0.3815,
+         *           "delta_pct": -0.85
+         *         },
+         *         {
+         *           "metric": "duration_seconds",
+         *           "forecast": 98,
+         *           "actual": 112,
+         *           "delta": 14,
+         *           "delta_pct": 14.29
+         *         }
+         *       ]
+         *     }
+         */
         CampaignForecastVsActual: {
             /** @description The campaign ended; the figures no longer change (replies may still arrive within the attribution window). */
             final: boolean;
@@ -6751,6 +7100,198 @@ export interface components {
             /** Format: double */
             opt_out: number | null;
         };
+        /**
+         * @example {
+         *       "counts": {
+         *         "recipients": 4200,
+         *         "recipients_queued": 4165,
+         *         "recipients_skipped": 35,
+         *         "sent": 120,
+         *         "delivered": 1408,
+         *         "read": 2602,
+         *         "failed": 35,
+         *         "a_sent": 4130,
+         *         "a_delivered": 4010,
+         *         "a_read": 2602,
+         *         "a_failed": 35,
+         *         "a_blocked": 35,
+         *         "a_pending": 0,
+         *         "a_unknown": 0,
+         *         "a_cancelled": 0,
+         *         "a_rejected": 0,
+         *         "a_replied": 301,
+         *         "a_positive": 188,
+         *         "a_negative": 45,
+         *         "a_neutral": 68,
+         *         "a_opted_out": 14,
+         *         "a_err_131048": 0,
+         *         "a_err_131049": 5,
+         *         "a_err_131050": 0,
+         *         "a_priced": 4065,
+         *         "a_unpriced": 65,
+         *         "a_cost_micros": 44308500
+         *       },
+         *       "metrics": [
+         *         {
+         *           "key": "audience",
+         *           "value": 4200,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "eligible",
+         *           "value": 4165,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "blocked",
+         *           "value": 35,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "pending",
+         *           "value": 0,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "sent",
+         *           "value": 4130,
+         *           "source": "meta"
+         *         },
+         *         {
+         *           "key": "delivered",
+         *           "value": 4010,
+         *           "source": "meta"
+         *         },
+         *         {
+         *           "key": "read",
+         *           "value": 2602,
+         *           "source": "meta"
+         *         },
+         *         {
+         *           "key": "failed",
+         *           "value": 35,
+         *           "source": "meta"
+         *         },
+         *         {
+         *           "key": "rejected",
+         *           "value": 0,
+         *           "source": "meta"
+         *         },
+         *         {
+         *           "key": "unknown",
+         *           "value": 0,
+         *           "source": "meta"
+         *         },
+         *         {
+         *           "key": "replied",
+         *           "value": 301,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "positive",
+         *           "value": 188,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "negative",
+         *           "value": 45,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "neutral",
+         *           "value": 68,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "opted_out",
+         *           "value": 14,
+         *           "source": "system"
+         *         },
+         *         {
+         *           "key": "err_131048",
+         *           "value": 0,
+         *           "source": "meta"
+         *         },
+         *         {
+         *           "key": "err_131049",
+         *           "value": 5,
+         *           "source": "meta"
+         *         },
+         *         {
+         *           "key": "err_131050",
+         *           "value": 0,
+         *           "source": "meta"
+         *         }
+         *       ],
+         *       "rates": {
+         *         "sent": 0.9916,
+         *         "delivery": 0.9709,
+         *         "read": 0.6489,
+         *         "reply": 0.0751,
+         *         "positive": 0.0469,
+         *         "negative": 0.0112,
+         *         "opt_out": 0.0035
+         *       },
+         *       "currency": "USD",
+         *       "cost_estimate": "44.308500",
+         *       "priced": 4065,
+         *       "unpriced": 65,
+         *       "cost_breakdown": [
+         *         {
+         *           "category": "marketing",
+         *           "type": "regular",
+         *           "messages": 4130,
+         *           "unpriced": 65,
+         *           "cost": "44.308500",
+         *           "currency": "USD"
+         *         }
+         *       ],
+         *       "reconciled": [
+         *         {
+         *           "day": "2026-12-01",
+         *           "category": "MARKETING",
+         *           "volume": 4388,
+         *           "cost": "47.829200",
+         *           "currency": "USD"
+         *         }
+         *       ],
+         *       "number_quality": "GREEN",
+         *       "template_status": "APPROVED",
+         *       "template_quality": "GREEN",
+         *       "timeline": [],
+         *       "classes": {
+         *         "reached": 4130,
+         *         "temporary": 20,
+         *         "undeliverable": 10,
+         *         "ecosystem_limit": 5,
+         *         "blocked_by_consent": 35
+         *       },
+         *       "hourly": [
+         *         {
+         *           "hour": "2026-12-01T09:00:00Z",
+         *           "sent": 4130,
+         *           "delivered": 3920,
+         *           "read": 1850,
+         *           "replied": 140,
+         *           "failed": 35
+         *         },
+         *         {
+         *           "hour": "2026-12-01T10:00:00Z",
+         *           "sent": 0,
+         *           "delivered": 90,
+         *           "read": 752,
+         *           "replied": 161,
+         *           "failed": 0
+         *         }
+         *       ],
+         *       "quick_replies": [
+         *         "Yes, interested",
+         *         "Not now"
+         *       ],
+         *       "ai_cost": [],
+         *       "total_cost": "44.308500"
+         *     }
+         */
         CampaignAnalytics: {
             /** @description The template's quick reply button texts (keys for the reaction mapping). */
             quick_replies: string[];
@@ -6831,6 +7372,21 @@ export interface components {
             data: components['schemas']['CampaignAnalytics'];
             meta: components['schemas']['Meta'];
         };
+        /**
+         * @example {
+         *       "key": "019a8c2e-4f1b-7a10-9c3d-5e7a10000010",
+         *       "label": "VIP customers",
+         *       "recipients": 1250,
+         *       "sent": 1241,
+         *       "delivered": 1212,
+         *       "read": 845,
+         *       "replied": 117,
+         *       "positive": 76,
+         *       "negative": 9,
+         *       "opted_out": 2,
+         *       "cost": "13.353600"
+         *     }
+         */
         CampaignBreakdownBucket: {
             key: string;
             label: string;
@@ -6872,6 +7428,20 @@ export interface components {
             /** @description Only these recipients (a page selection). */
             ids?: string[];
         };
+        /**
+         * @example {
+         *       "filter": {
+         *         "status": [
+         *           "delivered",
+         *           "read"
+         *         ],
+         *         "tag_id": "019a8c2e-4f1b-7a11-9c3d-5e7a10000011"
+         *       },
+         *       "sort": "-read_at",
+         *       "offset": 0,
+         *       "limit": 50
+         *     }
+         */
         CampaignRecipientSearchRequest: {
             filter?: components['schemas']['CampaignRecipientFilter'];
             /** @description created, name, phone, sent_at, delivered_at, read_at, replied_at or cost; a leading - sorts descending. */
@@ -6880,6 +7450,36 @@ export interface components {
             /** @default 50 */
             limit: number;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a08-9c3d-5e7a10000008",
+         *       "contact_id": "019a8c2e-4f1b-7a09-9c3d-5e7a10000009",
+         *       "phone": "+905321234567",
+         *       "name": "Ayşe Yılmaz",
+         *       "contact_type": "customer",
+         *       "state": "queued",
+         *       "skip_reason": null,
+         *       "message_id": "019a8c2e-4f1b-7a0a-9c3d-5e7a1000000a",
+         *       "message_status": "read",
+         *       "outcome": "read",
+         *       "unreached_class": "",
+         *       "failure_class": null,
+         *       "error_code": null,
+         *       "attempted_at": "2026-12-01T09:00:12Z",
+         *       "sent_at": "2026-12-01T09:00:13Z",
+         *       "delivered_at": "2026-12-01T09:00:15Z",
+         *       "read_at": "2026-12-01T09:04:51Z",
+         *       "failed_at": null,
+         *       "replied_at": "2026-12-01T09:05:30Z",
+         *       "reply_payload": "Yes, interested",
+         *       "reaction": "positive",
+         *       "reaction_source": "quick_reply",
+         *       "opted_out_at": null,
+         *       "cost": "0.010900",
+         *       "cost_currency": "USD",
+         *       "resends": 0
+         *     }
+         */
         CampaignRecipientRow: {
             /** Format: uuid */
             id: string;
@@ -11182,6 +11782,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignForecastResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11584,6 +12189,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignRecipientSearchResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11646,6 +12256,12 @@ export interface operations {
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': string;
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            409: components['responses']['Conflict'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11727,6 +12343,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignAnalyticsResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11754,6 +12375,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignBreakdownResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11777,6 +12403,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignForecastVsActualResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };

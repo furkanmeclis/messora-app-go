@@ -7,7 +7,7 @@ reference with request/response examples and code samples is served by each
 installation at `/docs/api`; the machine-readable document at `/api/v1/openapi.json`.
 Paths are relative to `/api/v1`. **Scope**: any one of the listed scopes is enough.
 
-71 operations.
+77 operations.
 
 ## Messaging
 
@@ -96,15 +96,21 @@ Paths are relative to `/api/v1`. **Scope**: any one of the listed scopes is enou
 |---|---|---|---|---|
 | GET | `/campaigns` | Campaigns, newest first | `campaigns.read` | 300/min per key |
 | POST | `/campaigns` | Create a draft campaign | `campaigns.create` | 300/min per key |
+| POST | `/campaigns/forecast` | Pre-launch analysis of a campaign | `campaigns.create` | 300/min per key |
 | POST | `/campaigns/preflight` | How many recipients of an audience may receive a template | `campaigns.create` | 300/min per key |
 | GET | `/campaigns/queue` | The send queue per phone number | `campaigns.read` | 300/min per key |
 | GET | `/campaigns/{campaignId}` | A campaign with live counts | `campaigns.read` | 300/min per key |
 | PATCH | `/campaigns/{campaignId}` | Edit a draft or scheduled campaign | `campaigns.create` | 300/min per key |
+| GET | `/campaigns/{campaignId}/analytics` | The campaign's analysis center | `campaigns.read` | 300/min per key |
+| GET | `/campaigns/{campaignId}/breakdown` | Figures per group, segment, tag, contact type or attribute value | `campaigns.read` | 300/min per key |
 | POST | `/campaigns/{campaignId}/cancel` | Stop for good; unsent messages are cancelled | `campaigns.pause` | 300/min per key |
 | GET | `/campaigns/{campaignId}/events` | Lifecycle events (started, paused, resumed, completed …) | `campaigns.read` | 300/min per key |
+| GET | `/campaigns/{campaignId}/forecast` | The forecast fixed at start, compared with the actual figures | `campaigns.read` | 300/min per key |
 | POST | `/campaigns/{campaignId}/pause` | Pause sending; unsent messages are held | `campaigns.pause` | 300/min per key |
 | GET | `/campaigns/{campaignId}/pauses` | Pause history with the counts at each pause | `campaigns.read` | 300/min per key |
 | GET | `/campaigns/{campaignId}/recipients` | Recipients with their message state | `campaigns.read` | 300/min per key |
+| GET | `/campaigns/{campaignId}/recipients/export` | Download the matching recipients as CSV or Excel | `campaigns.read` | 300/min per key |
+| POST | `/campaigns/{campaignId}/recipients/search` | The recipients table (filters, sorting, pages, total) | `campaigns.read` | 300/min per key |
 | POST | `/campaigns/{campaignId}/resume` | Resume a paused campaign, optionally with changes or later | `campaigns.start` | 300/min per key |
 | POST | `/campaigns/{campaignId}/resume-preview` | What resuming would send, with consent checked again and the estimated time | `campaigns.start` | 300/min per key |
 | PATCH | `/campaigns/{campaignId}/settings` | Change name, priority or rate cap while the campaign is in progress | `campaigns.start` | 300/min per key |
