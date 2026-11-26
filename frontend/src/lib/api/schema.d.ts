@@ -2089,7 +2089,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Pause history with the counts at each pause */
+        /**
+         * Pause history with the counts at each pause
+         * @description Every pause of the campaign, newest first: why it paused (manual, messaging limit, licence …), the recipient and message counts at that moment, and when and with which changes it was resumed.
+         */
         get: operations['listCampaignPauses'];
         put?: never;
         post?: never;
@@ -2471,7 +2474,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** AI suggestions and replies waiting for approval, newest first */
+        /**
+         * AI suggestions and replies waiting for approval, newest first
+         * @description The AI's drafts in the conversation: suggestions for the agent (suggest mode) and replies waiting for approval (awaiting_approval mode), with their status.
+         */
         get: operations['listConversationAIDrafts'];
         put?: never;
         post?: never;
@@ -2510,7 +2516,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Discard an AI draft */
+        /**
+         * Discard an AI draft
+         * @description The draft is marked rejected and nothing is sent; the decision is recorded in the activity timeline.
+         */
         post: operations['rejectConversationAIDraft'];
         delete?: never;
         options?: never;
@@ -2612,6 +2621,46 @@ export interface paths {
         get: operations['getAutomationRun'];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/automations/presets': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The library of ready-made automations
+         * @description Built-in presets (versioned definitions shipped with Messora): title, description, trigger, steps and the values the user must choose after installing (setup).
+         */
+        get: operations['listAutomationPresets'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/automations/presets/{presetKey}/install': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Install a preset as a new, disabled automation
+         * @description Creates a normal, freely editable automation from the preset (inactive). Values the preset cannot know (which template, which agent) are listed in the automation's setup; it cannot be enabled until they are filled.
+         */
+        post: operations['installAutomationPreset'];
         delete?: never;
         options?: never;
         head?: never;
@@ -4904,7 +4953,8 @@ export interface components {
          *         "phone": "+905321234567",
          *         "name": "Ayşe Yılmaz",
          *         "profile_name": "Ayşe",
-         *         "opted_out": false
+         *         "opted_out": false,
+         *         "ai_disabled": false
          *       },
          *       "phone_number": {
          *         "id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
@@ -4913,6 +4963,12 @@ export interface components {
          *         "verified_name": "Messora Demo"
          *       },
          *       "status": "open",
+         *       "owner_type": "human",
+         *       "ai_mode": "suggest",
+         *       "ai_status": "idle",
+         *       "ai_status_detail": null,
+         *       "ai_profile_id": "019a8c2e-4f1b-7a10-9c3d-5e7a10000010",
+         *       "pending_handoff_id": null,
          *       "assignee": {
          *         "id": "019a8c2e-4f1b-7a07-9c3d-5e7a10000007",
          *         "name": "Mehmet Kaya"
@@ -5005,6 +5061,8 @@ export interface components {
          *       "wamid": "wamid.HBgMOTA1MzIxMjM0NTY3FQIAERgSMjU0RkJBQ0E4QjM3QzFGRTlGAA==",
          *       "reply_to_wamid": null,
          *       "source": "api",
+         *       "sent_by": "api_key",
+         *       "ai_usage_id": null,
          *       "error_code": null,
          *       "error_title": null,
          *       "media": null,
@@ -5195,7 +5253,8 @@ export interface components {
             | 'unauthorized_action'
             | 'window_closed'
             | 'ai_error'
-            | 'manual';
+            | 'manual'
+            | 'automation';
         /**
          * @example {
          *       "id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
@@ -5617,6 +5676,7 @@ export interface components {
          *         "segment_id": "019a8c2e-4f1b-7a05-9c3d-5e7a10000005"
          *       },
          *       "window_size": 0,
+         *       "priority": "normal",
          *       "total_recipients": 4200,
          *       "counts": {
          *         "recipients_pending": 1800,
@@ -5970,6 +6030,12 @@ export interface components {
          * @enum {string}
          */
         CampaignPriority: 'high' | 'normal' | 'low';
+        /**
+         * @example {
+         *       "priority": "high",
+         *       "max_mps": 20
+         *     }
+         */
         CampaignSettingsRequest: {
             name?: string;
             priority?: components['schemas']['CampaignPriority'];
@@ -5981,6 +6047,13 @@ export interface components {
             /** @description Remove the rate cap. */
             clear_max_mps?: boolean;
         };
+        /**
+         * @example {
+         *       "priority": "normal",
+         *       "clear_max_mps": true,
+         *       "resume_at": "2026-11-26T08:00:00Z"
+         *     }
+         */
         CampaignResumeRequest: {
             name?: string;
             priority?: components['schemas']['CampaignPriority'];
@@ -5993,6 +6066,28 @@ export interface components {
              */
             resume_at?: string;
         };
+        /**
+         * @example {
+         *       "id": "019a8c2e-4f1b-7a12-9c3d-5e7a10000012",
+         *       "status": "paused",
+         *       "reason": "manual",
+         *       "detail": {},
+         *       "paused_at": "2026-11-25T10:00:00Z",
+         *       "paused_by": "019a8c2e-4f1b-7a07-9c3d-5e7a10000007",
+         *       "resume_at": null,
+         *       "snapshot": {
+         *         "recipients_pending": 1800,
+         *         "recipients_sent": 2365,
+         *         "delivered": 2290,
+         *         "read": 1410
+         *       },
+         *       "resumed_at": "2026-11-25T10:30:00Z",
+         *       "resumed_by": "019a8c2e-4f1b-7a07-9c3d-5e7a10000007",
+         *       "changes": {
+         *         "priority": "high"
+         *       }
+         *     }
+         */
         CampaignPause: {
             /** Format: uuid */
             id: string;
@@ -6046,6 +6141,29 @@ export interface components {
              */
             frees_at?: string | null;
         };
+        /**
+         * @example {
+         *       "campaign_id": "019a8c2e-4f1b-7a03-9c3d-5e7a10000003",
+         *       "remaining": 1800,
+         *       "eligible": 1760,
+         *       "blocked": 30,
+         *       "warned": 10,
+         *       "blocked_reasons": [],
+         *       "warned_reasons": [],
+         *       "share_mps": 64,
+         *       "estimated_seconds": 28,
+         *       "capacity_mps": 80,
+         *       "rate_mps": 80,
+         *       "reserved_share": 0.2,
+         *       "limit": {
+         *         "tier": "TIER_10K",
+         *         "limit": 10000,
+         *         "used": 3120,
+         *         "in_flight": 400,
+         *         "frees_at": null
+         *       }
+         *     }
+         */
         CampaignResumePreview: {
             /** Format: uuid */
             campaign_id: string;
@@ -6108,6 +6226,39 @@ export interface components {
             /** Format: date-time */
             resume_at?: string | null;
         };
+        /**
+         * @example {
+         *       "phone_number_id": "019a8c2e-4f1b-7a04-9c3d-5e7a10000004",
+         *       "ceiling_mps": 80,
+         *       "rate_mps": 80,
+         *       "reserved_share": 0.2,
+         *       "campaign_capacity_mps": 64,
+         *       "limit": {
+         *         "tier": "TIER_10K",
+         *         "limit": 10000,
+         *         "used": 3120,
+         *         "in_flight": 400,
+         *         "frees_at": "2026-11-26T09:00:00Z"
+         *       },
+         *       "campaigns": [
+         *         {
+         *           "id": "019a8c2e-4f1b-7a03-9c3d-5e7a10000003",
+         *           "name": "Winter sale",
+         *           "status": "running",
+         *           "priority": "normal",
+         *           "weight": 2,
+         *           "max_mps": null,
+         *           "share_mps": 64,
+         *           "rate_mps": 61.5,
+         *           "remaining": 1800,
+         *           "total_recipients": 4200,
+         *           "eta_seconds": 30,
+         *           "paused_reason": null,
+         *           "resume_at": null
+         *         }
+         *       ]
+         *     }
+         */
         CampaignQueueNumber: {
             /** Format: uuid */
             phone_number_id: string;
@@ -6147,7 +6298,12 @@ export interface components {
             | 'tag_added'
             | 'message_status'
             | 'conversation_closed'
-            | 'subscription_request';
+            | 'subscription_request'
+            | 'window_closing'
+            | 'no_reply'
+            | 'campaign_reply'
+            | 'reaction'
+            | 'ai_escalation';
         /** @description Options for the trigger type; see docs/AUTOMATIONS.md. */
         AutomationTrigger: {
             /** @enum {string} */
@@ -6165,9 +6321,35 @@ export interface components {
              * @enum {string}
              */
             subscription?: 'stop' | 'request' | 'resume';
+            /** @description window_closing: minutes before the 24-hour customer service window closes (5–1380, default 60). no_reply: minutes without an answer (5–43200). */
+            minutes?: number;
+            /** @description window_closing: also when the team answered last (default: only an unanswered customer message). */
+            include_answered?: boolean;
+            /**
+             * @description no_reply: customer = the customer has not answered our message; agent = the team has not answered the customer.
+             * @enum {string}
+             */
+            no_reply_from?: 'customer' | 'agent';
+            /** @description no_reply from customer: campaign messages count as our message too (default: conversation messages only). */
+            include_campaigns?: boolean;
+            /**
+             * @description reaction: only this polarity; omitted = both.
+             * @enum {string}
+             */
+            reaction?: 'positive' | 'negative';
+            /** @description ai_escalation: only these handoff reasons; omitted = any. */
+            reasons?: (
+                | 'customer_request'
+                | 'no_answer'
+                | 'low_confidence'
+                | 'critical_intent'
+                | 'unauthorized_action'
+                | 'window_closed'
+                | 'ai_error'
+            )[];
             cooldown_seconds?: number;
         };
-        /** @description One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field, condition (with if/then/else), http_request, send_email, delay, assign, close_conversation, mute. Text values accept placeholders such as {{name}}, {{first_name}}, {{var1}} and {{message}}. See docs/AUTOMATIONS.md. */
+        /** @description One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field, condition (with if/then/else), http_request, send_email, delay, assign, close_conversation, mute, handoff_to_ai, handoff_to_human, add_internal_note, and the AI steps ai_generate_message, ai_analyze_message, ai_detect_intent, ai_extract_fields, ai_classify_segment, ai_auto_reply, ai_route_to_agent, ai_build_profile. HTTP, e-mail, message and AI steps accept retry {max, backoff}. Text values accept placeholders such as {{name}}, {{first_name}}, {{var1}}, {{message}} and {{var:<name>}} (run variables AI steps produce). See docs/AUTOMATIONS.md. */
         AutomationStep: {
             type: string;
             /** @description Stable id of the step (unique within the automation; "trigger" is reserved). Optional: the server assigns one to steps without it. The canvas layout and run traces refer to steps by this id. */
@@ -6225,6 +6407,8 @@ export interface components {
          *           "y": 280
          *         }
          *       },
+         *       "setup": [],
+         *       "preset": null,
          *       "version": 3,
          *       "run_count": 1284,
          *       "last_run_at": "2026-11-25T09:12:08Z",
@@ -6243,6 +6427,10 @@ export interface components {
             /** @description Every step has an id (automations saved before ids existed get ids derived from their position). */
             steps: components['schemas']['AutomationStep'][];
             layout: components['schemas']['AutomationLayout'];
+            /** @description Values still to choose (an installed preset's template, agent …). An automation with open setup items cannot be enabled; the list empties as the steps are filled. */
+            setup: components['schemas']['AutomationSetupItem'][];
+            /** @description The preset this automation was installed from (null when built by hand). */
+            preset?: components['schemas']['AutomationPresetRef'] | null;
             version: number;
             /** Format: int64 */
             run_count: number;
@@ -6271,11 +6459,61 @@ export interface components {
             steps?: components['schemas']['AutomationStep'][];
             layout?: components['schemas']['AutomationLayout'];
         };
+        /**
+         * @example {
+         *       "step_id": "follow_template",
+         *       "field": "template",
+         *       "label": "Choose the approved template of the follow-up"
+         *     }
+         */
+        AutomationSetupItem: {
+            step_id: string;
+            /** @description The step's field to fill (template, assignee_id, group_id …). */
+            field: string;
+            label: string;
+        };
+        /**
+         * @example {
+         *       "key": "follow_up_unanswered",
+         *       "version": 1
+         *     }
+         */
+        AutomationPresetRef: {
+            key: string;
+            version: number;
+        };
+        AutomationPresetSetup: {
+            step_id: string;
+            field: string;
+            label: components['schemas']['LocalizedText'];
+        };
+        AutomationPreset: {
+            key: string;
+            version: number;
+            /** @description engagement, consent, ai, handoff, window, follow_up, campaign or feedback. */
+            category: string;
+            title: components['schemas']['LocalizedText'];
+            description: components['schemas']['LocalizedText'];
+            /** @description Advice shown with the preset (for example Meta's window rule). */
+            guidance?: components['schemas']['LocalizedText'] | null;
+            requires_ai: boolean;
+            trigger_type: components['schemas']['AutomationTriggerType'];
+            trigger: components['schemas']['AutomationTrigger'];
+            steps: components['schemas']['AutomationStep'][];
+            setup: components['schemas']['AutomationPresetSetup'][];
+        };
+        AutomationPresetListResponse: {
+            data: components['schemas']['AutomationPreset'][];
+            meta: components['schemas']['Meta'];
+        };
         AutomationRunStep: {
             pc: number;
             action: string;
-            /** @enum {string} */
-            outcome: 'ok' | 'skipped' | 'failed' | 'waiting';
+            /**
+             * @description retrying: the attempt failed and the step runs again after detail.retry_in_seconds.
+             * @enum {string}
+             */
+            outcome: 'ok' | 'skipped' | 'failed' | 'waiting' | 'retrying';
             detail: {
                 [key: string]: unknown;
             };
@@ -6302,6 +6540,14 @@ export interface components {
                 [key: string]: unknown;
             };
             error?: string | null;
+            /** @description Why a failed run failed: ai_disabled, ai_not_configured, ai_not_allowed, ai_no_profile, ai_error, retries_exhausted or step_failed. */
+            error_code?: string | null;
+            /** @description Retries of the current step so far (0 = first attempt). */
+            attempt?: number;
+            /** @description Run variables the AI steps produced ({{var:<name>}}). */
+            vars?: {
+                [key: string]: string;
+            };
             /** Format: date-time */
             resume_at?: string | null;
             steps?: components['schemas']['AutomationRunStep'][];
@@ -9241,7 +9487,11 @@ export interface operations {
                     'application/json': components['schemas']['ContactAISettingResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
             404: components['responses']['Error'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10255,6 +10505,9 @@ export interface operations {
                     'application/json': components['schemas']['CampaignQueueResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10529,6 +10782,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10552,6 +10810,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignPauseListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10579,6 +10842,11 @@ export interface operations {
                     'application/json': components['schemas']['CampaignResumePreviewResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -10980,6 +11248,8 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
             404: components['responses']['Error'];
             /** @description AI_UNAVAILABLE — AI is off, the number has no active AI profile or AI is disabled for the contact. */
             409: {
@@ -11002,6 +11272,8 @@ export interface operations {
                     'application/json': components['schemas']['ErrorEnvelope'];
                 };
             };
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11029,8 +11301,12 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
             403: components['responses']['Error'];
+            404: components['responses']['NotFound'];
             409: components['responses']['Error'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11054,7 +11330,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
             404: components['responses']['Error'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11078,6 +11358,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationHandoffListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11101,6 +11386,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationNoteListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11134,7 +11424,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationNoteResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
             422: components['responses']['Error'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11162,6 +11456,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationActivityListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11188,6 +11487,11 @@ export interface operations {
                     'application/json': components['schemas']['AIDraftListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11221,6 +11525,9 @@ export interface operations {
                     'application/json': components['schemas']['AIDraftResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
             /** @description DRAFT_DECIDED — someone already decided on this draft. */
             409: {
                 headers: {
@@ -11231,6 +11538,7 @@ export interface operations {
                 };
             };
             422: components['responses']['Error'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11255,7 +11563,12 @@ export interface operations {
                     'application/json': components['schemas']['AIDraftResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
             409: components['responses']['Error'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11279,6 +11592,11 @@ export interface operations {
                     'application/json': components['schemas']['ConversationAutomationRunListResponse'];
                 };
             };
+            401: components['responses']['Unauthorized'];
+            403: components['responses']['Forbidden'];
+            404: components['responses']['NotFound'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };
@@ -11452,6 +11770,53 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['AutomationRunResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAutomationPresets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Presets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationPresetListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    installAutomationPreset: {
+        parameters: {
+            query?: {
+                /** @description Language of the name and setup labels (tr or en; default the workspace language). */
+                lang?: 'tr' | 'en';
+            };
+            header?: never;
+            path: {
+                presetKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationResponse'];
                 };
             };
             default: components['responses']['Error'];

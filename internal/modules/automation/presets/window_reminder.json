@@ -1,0 +1,22 @@
+{
+  "key": "window_reminder",
+  "version": 1,
+  "category": "window",
+  "title": {"tr": "24 saatlik pencere hatırlatması", "en": "24-hour window reminder"},
+  "description": {
+    "tr": "Müşterinin cevaplanmamış mesajı varken 24 saatlik müşteri hizmeti penceresi kapanmadan 60 dakika önce sohbeti ekibe devreder ve iç not bırakır; böylece pencere kapanmadan gerçek bir cevap verilebilir.",
+    "en": "When a customer's message is still unanswered 60 minutes before the 24-hour customer service window closes, hands the conversation to the team with an internal note, so a real answer goes out while the window is open."
+  },
+  "guidance": {
+    "tr": "Meta kuralı: pencereyi yalnızca müşterinin mesajı yeniden açar. Pencereyi \"açık tutmak\" için anlamsız mesaj göndermeyin; müşteriye gerçekten faydalı bir cevap verin.",
+    "en": "Meta's rule: only a message from the customer reopens the window. Do not send filler to \"keep it open\"; give the customer a genuinely useful answer."
+  },
+  "trigger_type": "window_closing",
+  "trigger": {"minutes": 60},
+  "steps": [
+    {"id": "window_note", "type": "add_internal_note", "text": "Müşteri hizmeti penceresi 1 saat içinde kapanıyor ve müşterinin mesajı cevap bekliyor: \"{{message}}\". Pencere kapanınca yalnızca onaylı şablon gönderilebilir."},
+    {"id": "window_handoff", "type": "handoff_to_human", "text": "Pencere kapanmadan cevap verin."},
+    {"id": "window_tag", "type": "add_tag", "tag": "pencere-kapaniyor"}
+  ],
+  "setup": []
+}

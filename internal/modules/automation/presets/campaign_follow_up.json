@@ -1,0 +1,18 @@
+{
+  "key": "campaign_follow_up",
+  "version": 1,
+  "category": "campaign",
+  "title": {"tr": "Kampanya sonrası takip", "en": "Campaign follow-up"},
+  "description": {
+    "tr": "Bir kampanya mesajına cevap veren müşteriyi etiketler, cevabını iç not olarak kaydeder ve sohbeti ekibe devreder; ilgilenen müşteri bekletilmez. İsterseniz belirli bir kampanyayla sınırlayabilirsiniz.",
+    "en": "Tags a customer who answers a campaign message, keeps the answer as an internal note and hands the conversation to the team, so interested customers are not kept waiting. You can limit it to one campaign."
+  },
+  "trigger_type": "campaign_reply",
+  "trigger": {},
+  "steps": [
+    {"id": "campaign_tag", "type": "add_tag", "tag": "kampanya-cevabi"},
+    {"id": "campaign_note", "type": "add_internal_note", "text": "Müşteri kampanya mesajına cevap verdi: \"{{message}}\""},
+    {"id": "campaign_handoff", "type": "handoff_to_human", "text": "Kampanyaya cevap veren müşteri."}
+  ],
+  "setup": []
+}

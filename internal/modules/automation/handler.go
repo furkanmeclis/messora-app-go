@@ -60,7 +60,19 @@ func toAPI(a db.Automation, runs int64, last *time.Time) api.Automation {
 	}
 	out = api.Automation{Id: a.ID, Name: a.Name, Description: a.Description, Active: a.Active,
 		TriggerType: api.AutomationTriggerType(a.TriggerType), Trigger: t, Steps: steps, Layout: layout, Version: int(a.Version),
-		RunCount: runs, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
+		RunCount: runs, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Setup: []api.AutomationSetupItem{}}
+	var setup []SetupItem
+	_ = json.Unmarshal(a.Setup, &setup)
+	for _, s := range setup {
+		out.Setup = append(out.Setup, api.AutomationSetupItem{StepId: s.StepID, Field: s.Field, Label: s.Label})
+	}
+	if a.PresetKey != nil {
+		v := 0
+		if a.PresetVersion != nil {
+			v = int(*a.PresetVersion)
+		}
+		out.Preset = &api.AutomationPresetRef{Key: *a.PresetKey, Version: v}
+	}
 	out.LastRunAt = last
 	return out
 }
@@ -81,34 +93,58 @@ func layoutJSON(layout *api.AutomationLayout, steps []byte) ([]byte, error) {
 	return json.Marshal(clean)
 }
 
-// definition validates and compiles a trigger and steps.
-func definition(typ string, trig any, steps any) (triggerJSON, stepsJSON, program []byte, err error) {
+// compiled is a validated automation definition.
+type compiled struct {
+	trigger, steps, program, setup []byte
+	pending                        []SetupItem
+}
+
+// definition validates and compiles a trigger and steps. setup is the
+// automation's open setup items: those still unfilled stay open, and
+// their steps may lack the value (CompileDraft).
+func definition(typ string, trig any, steps any, setup []SetupItem) (compiled, error) {
 	var t Trigger
 	if trig != nil {
 		if err := recode(trig, &t); err != nil {
-			return nil, nil, nil, apperr.Validation("trigger", "Invalid trigger.")
+			return compiled{}, apperr.Validation("trigger", "Invalid trigger.")
 		}
 	}
 	if err := ValidateTrigger(typ, t); err != nil {
-		return nil, nil, nil, err
+		return compiled{}, err
 	}
 	var st []Step
 	if err := recode(steps, &st); err != nil {
-		return nil, nil, nil, apperr.Validation("steps", "Invalid steps.")
+		return compiled{}, apperr.Validation("steps", "Invalid steps.")
 	}
 	if err := ValidateIDs(st); err != nil {
-		return nil, nil, nil, err
+		return compiled{}, err
 	}
 	// Steps sent without ids (older clients) are named here.
 	AssignIDs(st)
-	prog, err := Compile(st)
+	pending := PendingSetup(st, setup)
+	prog, err := CompileDraft(st, SetupStepIDs(pending))
 	if err != nil {
-		return nil, nil, nil, err
+		return compiled{}, err
 	}
-	triggerJSON, _ = json.Marshal(t)
-	stepsJSON, _ = json.Marshal(st)
-	program, _ = json.Marshal(prog)
-	return triggerJSON, stepsJSON, program, nil
+	var c compiled
+	c.trigger, _ = json.Marshal(t)
+	c.steps, _ = json.Marshal(st)
+	c.program, _ = json.Marshal(prog)
+	c.setup, _ = json.Marshal(pending)
+	c.pending = pending
+	return c, nil
+}
+
+// setupBlocks refuses enabling an automation with open setup items.
+func setupBlocks(active bool, pending []SetupItem) error {
+	if !active || len(pending) == 0 {
+		return nil
+	}
+	labels := make([]string, len(pending))
+	for i, p := range pending {
+		labels[i] = p.Label
+	}
+	return apperr.Validation("active", "Finish the setup before enabling: "+strings.Join(labels, "; ")+".")
 }
 
 func (h *Handler) references(ctx context.Context, steps []byte) error {
@@ -161,9 +197,9 @@ func (h *Handler) CreateAutomation(w http.ResponseWriter, r *http.Request) {
 	if req.Trigger != nil {
 		trig = req.Trigger
 	}
-	tj, sj, pj, err := definition(string(req.TriggerType), trig, req.Steps)
+	def, err := definition(string(req.TriggerType), trig, req.Steps, nil)
 	if err == nil {
-		err = h.references(r.Context(), sj)
+		err = h.references(r.Context(), def.steps)
 	}
 	if err != nil {
 		h.fail(w, r, err)
@@ -171,7 +207,7 @@ func (h *Handler) CreateAutomation(w http.ResponseWriter, r *http.Request) {
 	}
 	lj := []byte("{}")
 	if req.Layout != nil {
-		if lj, err = layoutJSON(req.Layout, sj); err != nil {
+		if lj, err = layoutJSON(req.Layout, def.steps); err != nil {
 			h.fail(w, r, err)
 			return
 		}
@@ -184,7 +220,8 @@ func (h *Handler) CreateAutomation(w http.ResponseWriter, r *http.Request) {
 	var a db.Automation
 	err = h.svc.tx(r.Context(), func(_ pgx.Tx, q *db.Queries) error {
 		a, err = q.InsertAutomation(r.Context(), db.InsertAutomationParams{Name: strings.TrimSpace(req.Name), Description: desc,
-			Active: req.Active != nil && *req.Active, TriggerType: string(req.TriggerType), Trigger: tj, Steps: sj, Program: pj, Layout: lj, CreatedBy: &p.ID})
+			Active: req.Active != nil && *req.Active, TriggerType: string(req.TriggerType), Trigger: def.trigger, Steps: def.steps,
+			Program: def.program, Layout: lj, CreatedBy: &p.ID, Setup: def.setup})
 		if err != nil {
 			return err
 		}
@@ -245,6 +282,8 @@ func (h *Handler) UpdateAutomation(w http.ResponseWriter, r *http.Request, id ap
 	}
 	p := db.UpdateAutomationParams{ID: id, Name: req.Name, Description: req.Description, Active: req.Active}
 	redefined := req.TriggerType != nil || req.Trigger != nil || req.Steps != nil
+	var pending []SetupItem
+	_ = json.Unmarshal(cur.Setup, &pending)
 	if redefined {
 		typ := cur.TriggerType
 		if req.TriggerType != nil {
@@ -258,15 +297,24 @@ func (h *Handler) UpdateAutomation(w http.ResponseWriter, r *http.Request, id ap
 		if req.Steps != nil {
 			steps = *req.Steps
 		}
-		tj, sj, pj, err := definition(typ, trig, steps)
+		def, err := definition(typ, trig, steps, pending)
 		if err == nil {
-			err = h.references(r.Context(), sj)
+			err = h.references(r.Context(), def.steps)
 		}
 		if err != nil {
 			h.fail(w, r, err)
 			return
 		}
-		p.TriggerType, p.Trigger, p.Steps, p.Program = &typ, tj, sj, pj
+		p.TriggerType, p.Trigger, p.Steps, p.Program, p.Setup = &typ, def.trigger, def.steps, def.program, def.setup
+		pending = def.pending
+	}
+	active := cur.Active
+	if req.Active != nil {
+		active = *req.Active
+	}
+	if err := setupBlocks(active, pending); err != nil {
+		h.fail(w, r, err)
+		return
 	}
 	if req.Layout != nil {
 		steps := p.Steps
@@ -331,6 +379,12 @@ func runToAPI(x db.AutomationRun, phone string) api.AutomationRun {
 	if len(x.Visited) > 0 {
 		_ = json.Unmarshal(x.Visited, &out.Visited)
 	}
+	out.ErrorCode = x.ErrorCode
+	attempt := int(x.Attempt)
+	out.Attempt = &attempt
+	vars := map[string]string{}
+	_ = json.Unmarshal(x.Vars, &vars)
+	out.Vars = &vars
 	if phone != "" {
 		out.Phone = &phone
 	}
@@ -368,7 +422,8 @@ func (h *Handler) ListAutomationRuns(w http.ResponseWriter, r *http.Request, id 
 	out := make([]api.AutomationRun, len(rows))
 	for i, x := range rows {
 		out[i] = runToAPI(db.AutomationRun{ID: x.ID, AutomationID: x.AutomationID, ContactID: x.ContactID, Status: x.Status, Event: x.Event,
-			Error: x.Error, ResumeAt: x.ResumeAt, CreatedAt: x.CreatedAt, UpdatedAt: x.UpdatedAt, FinishedAt: x.FinishedAt, Visited: x.Visited}, x.Phone)
+			Error: x.Error, ResumeAt: x.ResumeAt, CreatedAt: x.CreatedAt, UpdatedAt: x.UpdatedAt, FinishedAt: x.FinishedAt, Visited: x.Visited,
+			Vars: x.Vars, Attempt: x.Attempt, ErrorCode: x.ErrorCode}, x.Phone)
 	}
 	httpx.JSONPage(w, r, http.StatusOK, out, next)
 }

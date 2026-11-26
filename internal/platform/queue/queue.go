@@ -72,6 +72,7 @@ var policies = map[string]Policy{
 	"automation:run":          {Default, 10},
 	"automation:resume":       {Default, 10},
 	"automation:reaper":       {Default, periodicMaxRetry},
+	"automation:scan":         {Default, periodicMaxRetry},
 	"webhook:fanout":          {Default, 10},
 	"webhook:deliver":         {Default, 10},
 	"webhook:cleanup":         {Default, periodicMaxRetry},

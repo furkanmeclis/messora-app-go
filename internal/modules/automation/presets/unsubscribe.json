@@ -1,0 +1,27 @@
+{
+  "key": "unsubscribe_request",
+  "version": 1,
+  "category": "consent",
+  "title": {"tr": "Abonelikten çıkma talebi", "en": "Unsubscribe request"},
+  "description": {
+    "tr": "Müşteri \"mesaj istemiyorum\" gibi bir talep yazdığında onay ister; DUR yazıp çıktığında teşekkür eder. Her durumda kişiyi etiketler ve ekibe iç not bırakır. İzin değişikliğinin kendisi otomatik uygulanır (bkz. İzin ayarları).",
+    "en": "When a customer asks to stop messages, asks them to confirm; when they opt out with STOP, thanks them. Either way the contact is tagged and the team gets an internal note. The consent change itself is applied automatically (see Consent settings)."
+  },
+  "trigger_type": "subscription_request",
+  "trigger": {},
+  "steps": [
+    {"id": "unsub_kind", "type": "condition", "if": {"field": "event.subscription", "operator": "equals", "value": "request"},
+      "then": [
+        {"id": "unsub_confirm", "type": "reply", "text": "Pazarlama mesajlarımızı almak istemediğinizi anladık. Onaylamak için DUR yazmanız yeterli; sipariş ve destek mesajlarınız etkilenmez."}
+      ],
+      "else": [
+        {"id": "unsub_stopped", "type": "condition", "if": {"field": "event.subscription", "operator": "equals", "value": "stop"},
+          "then": [
+            {"id": "unsub_thanks", "type": "reply", "text": "Talebiniz alındı, artık pazarlama mesajı göndermeyeceğiz. Fikrinizi değiştirirseniz BAŞLAT yazabilirsiniz. Teşekkürler!"}
+          ]}
+      ]},
+    {"id": "unsub_tag", "type": "add_tag", "tag": "abonelik-talebi"},
+    {"id": "unsub_note", "type": "add_internal_note", "text": "Müşteri abonelikle ilgili yazdı: \"{{message}}\". İzin durumu otomatik güncellendi; gerekirse kişiyle ilgilenin."}
+  ],
+  "setup": []
+}

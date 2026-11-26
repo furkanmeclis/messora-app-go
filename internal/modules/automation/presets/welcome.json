@@ -1,0 +1,17 @@
+{
+  "key": "welcome",
+  "version": 1,
+  "category": "engagement",
+  "title": {"tr": "Yeni müşteri karşılama", "en": "Welcome new customers"},
+  "description": {
+    "tr": "Size ilk kez yazan kişiye kısa bir karşılama mesajı gönderir ve onu \"yeni-musteri\" etiketiyle işaretler.",
+    "en": "Sends a short welcome to someone who writes to you for the first time and tags them \"yeni-musteri\"."
+  },
+  "trigger_type": "new_contact",
+  "trigger": {},
+  "steps": [
+    {"id": "welcome_reply", "type": "reply", "text": "Merhaba {{first_name}}, bize yazdığınız için teşekkürler! Size nasıl yardımcı olabiliriz?"},
+    {"id": "welcome_tag", "type": "add_tag", "tag": "yeni-musteri"}
+  ],
+  "setup": []
+}

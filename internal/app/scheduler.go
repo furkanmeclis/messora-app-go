@@ -31,6 +31,7 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "campaign_reaper", Every: time.Minute, TaskType: campaigns.TypeReaper},
 		{Name: "offers_tick", Every: time.Minute, TaskType: offers.TypeTick},
 		{Name: "automation_reaper", Every: time.Minute, TaskType: automation.TypeReaper},
+		{Name: "automation_scan", Every: time.Minute, TaskType: automation.TypeScan},
 		{Name: "webhook_cleanup", Every: 6 * time.Hour, TaskType: webhooks.TypeCleanup},
 		{Name: "license_check_in", Every: 6 * time.Hour, TaskType: licensing.TypeCheckIn},
 		{Name: "whatsapp_token_check", Every: 6 * time.Hour, TaskType: channels.TypeTokenCheck},

@@ -1818,6 +1818,10 @@ paths:
               schema: { $ref: "#/components/schemas/ContactAISettingResponse" }
               example: { data: { contact_id: "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e", ai_disabled: true }, meta: { request_id: "req_01" } }
         "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}:
@@ -2627,6 +2631,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignQueueResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/preflight:
@@ -2857,6 +2864,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/pauses:
@@ -2864,6 +2876,10 @@ paths:
       operationId: listCampaignPauses
       tags: [campaigns]
       summary: Pause history with the counts at each pause
+      description: >-
+        Every pause of the campaign, newest first: why it paused (manual, messaging limit,
+        licence …), the recipient and message counts at that moment, and when and with which
+        changes it was resumed.
       security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2873,6 +2889,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignPauseListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/resume-preview:
@@ -2899,6 +2920,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResumePreviewResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/events:
@@ -3293,6 +3319,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
               example: { error: { code: AI_UNAVAILABLE, message: "The number has no active AI profile.", details: [] }, meta: { request_id: "req_01" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/handoff:
@@ -3329,6 +3359,10 @@ paths:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
         "403": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/takeover:
@@ -3353,6 +3387,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
         "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/handoffs:
@@ -3378,6 +3416,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationHandoffListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/notes:
@@ -3399,6 +3442,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationNoteListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createConversationNote
@@ -3426,6 +3474,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationNoteResponse" }
         "422": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/activity:
@@ -3454,6 +3506,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationActivityListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/ai-drafts:
@@ -3461,6 +3518,9 @@ paths:
       operationId: listConversationAIDrafts
       tags: [conversations]
       summary: AI suggestions and replies waiting for approval, newest first
+      description: >-
+        The AI's drafts in the conversation: suggestions for the agent (suggest mode) and
+        replies waiting for approval (awaiting_approval mode), with their status.
       security:
         - { session: [conversations.read] }
         - { session: [conversations.read_all] }
@@ -3475,6 +3535,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AIDraftListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/ai-drafts/{draftId}/accept:
@@ -3511,6 +3576,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
         "422": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/ai-drafts/{draftId}/reject:
@@ -3518,6 +3587,7 @@ paths:
       operationId: rejectConversationAIDraft
       tags: [conversations]
       summary: Discard an AI draft
+      description: The draft is marked rejected and nothing is sent; the decision is recorded in the activity timeline.
       security:
         - { session: [conversations.reply] }
         - { apiKey: [conversations.reply] }
@@ -3531,6 +3601,11 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AIDraftResponse" }
         "409": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/automation-runs:
@@ -3555,6 +3630,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationAutomationRunListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   # ── Automations (Phase 8) ────────────────────────────────────────────────
@@ -3680,6 +3760,51 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AutomationRunResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /automations/presets:
+    get:
+      operationId: listAutomationPresets
+      tags: [automations]
+      summary: The library of ready-made automations
+      description: >-
+        Built-in presets (versioned definitions shipped with Messora): title, description,
+        trigger, steps and the values the user must choose after installing (setup).
+      security: [{ session: [automations.read] }]
+      responses:
+        "200":
+          description: Presets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationPresetListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /automations/presets/{presetKey}/install:
+    post:
+      operationId: installAutomationPreset
+      tags: [automations]
+      summary: Install a preset as a new, disabled automation
+      description: >-
+        Creates a normal, freely editable automation from the preset (inactive). Values the
+        preset cannot know (which template, which agent) are listed in the automation's setup;
+        it cannot be enabled until they are filled.
+      security: [{ session: [automations.manage] }]
+      parameters:
+        - name: presetKey
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-z0-9_]{1,64}$" }
+        - name: lang
+          in: query
+          required: false
+          description: Language of the name and setup labels (tr or en; default the workspace language).
+          schema: { type: string, enum: [tr, en] }
+      responses:
+        "201":
+          description: Installed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   # ── Outgoing webhooks (Phase 8) ─────────────────────────────────────────────
@@ -6413,10 +6538,16 @@ components:
       example:
         id: 019a8c2e-4f1b-7a0e-9c3d-5e7a1000000e
         contact: {id: 019a8c2e-4f1b-7a09-9c3d-5e7a10000009, phone: "+905321234567", name: Ayşe
-            Yılmaz, profile_name: Ayşe, opted_out: false}
+            Yılmaz, profile_name: Ayşe, opted_out: false, ai_disabled: false}
         phone_number: {id: 019a8c2e-4f1b-7a04-9c3d-5e7a10000004, account_id: 019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f,
           display_phone_number: "+90 212 555 01 23", verified_name: Messora Demo}
         status: open
+        owner_type: human
+        ai_mode: suggest
+        ai_status: idle
+        ai_status_detail: null
+        ai_profile_id: 019a8c2e-4f1b-7a10-9c3d-5e7a10000010
+        pending_handoff_id: null
         assignee: {id: 019a8c2e-4f1b-7a07-9c3d-5e7a10000007, name: Mehmet Kaya}
         unread_count: 2
         last_message_at: "2026-11-25T08:41:00Z"
@@ -6487,6 +6618,8 @@ components:
         wamid: wamid.HBgMOTA1MzIxMjM0NTY3FQIAERgSMjU0RkJBQ0E4QjM3QzFGRTlGAA==
         reply_to_wamid: null
         source: api
+        sent_by: api_key
+        ai_usage_id: null
         error_code: null
         error_title: null
         media: null
@@ -6634,7 +6767,7 @@ components:
         note: { type: string, maxLength: 500, description: Why (kept with the handoff). }
     HandoffReason:
       type: string
-      enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error, manual]
+      enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error, manual, automation]
     ConversationHandoff:
       type: object
       required: [id, from_type, from_user, to_type, to_user, reason, reason_detail, summary, summary_source, detected_need,
@@ -7023,6 +7156,7 @@ components:
         template_params: {body: ["{{first_name}}", "25%"]}
         audience: {segment_id: 019a8c2e-4f1b-7a05-9c3d-5e7a10000005}
         window_size: 0
+        priority: normal
         total_recipients: 4200
         counts: {recipients_pending: 1800, recipients_skipped: 35, sent: 2365, delivered: 2290,
           read: 1410, failed: 12}
@@ -7249,6 +7383,7 @@ components:
       description: Weight in the number's send scheduler (high 4, normal 2, low 1).
 
     CampaignSettingsRequest:
+      example: {priority: high, max_mps: 20}
       type: object
       additionalProperties: false
       properties:
@@ -7258,6 +7393,7 @@ components:
         clear_max_mps: { type: boolean, description: Remove the rate cap. }
 
     CampaignResumeRequest:
+      example: {priority: normal, clear_max_mps: true, resume_at: "2026-11-26T08:00:00Z"}
       type: object
       additionalProperties: false
       properties:
@@ -7268,6 +7404,18 @@ components:
         resume_at: { type: string, format: date-time, description: Resume later instead of now; the campaign stays paused until then. }
 
     CampaignPause:
+      example:
+        id: 019a8c2e-4f1b-7a12-9c3d-5e7a10000012
+        status: paused
+        reason: manual
+        detail: {}
+        paused_at: "2026-11-25T10:00:00Z"
+        paused_by: 019a8c2e-4f1b-7a07-9c3d-5e7a10000007
+        resume_at: null
+        snapshot: {recipients_pending: 1800, recipients_sent: 2365, delivered: 2290, read: 1410}
+        resumed_at: "2026-11-25T10:30:00Z"
+        resumed_by: 019a8c2e-4f1b-7a07-9c3d-5e7a10000007
+        changes: {priority: high}
       type: object
       required: [id, status, reason, detail, paused_at, snapshot]
       properties:
@@ -7306,6 +7454,20 @@ components:
         frees_at: { type: [string, "null"], format: date-time, description: When the oldest counted customer stops counting. }
 
     CampaignResumePreview:
+      example:
+        campaign_id: 019a8c2e-4f1b-7a03-9c3d-5e7a10000003
+        remaining: 1800
+        eligible: 1760
+        blocked: 30
+        warned: 10
+        blocked_reasons: []
+        warned_reasons: []
+        share_mps: 64
+        estimated_seconds: 28
+        capacity_mps: 80
+        rate_mps: 80
+        reserved_share: 0.2
+        limit: {tier: TIER_10K, limit: 10000, used: 3120, in_flight: 400, frees_at: null}
       type: object
       required: [campaign_id, remaining, eligible, blocked, warned, blocked_reasons, warned_reasons, share_mps, capacity_mps, rate_mps, reserved_share, limit]
       properties:
@@ -7347,6 +7509,17 @@ components:
         resume_at: { type: [string, "null"], format: date-time }
 
     CampaignQueueNumber:
+      example:
+        phone_number_id: 019a8c2e-4f1b-7a04-9c3d-5e7a10000004
+        ceiling_mps: 80
+        rate_mps: 80
+        reserved_share: 0.2
+        campaign_capacity_mps: 64
+        limit: {tier: TIER_10K, limit: 10000, used: 3120, in_flight: 400, frees_at: "2026-11-26T09:00:00Z"}
+        campaigns:
+          - {id: 019a8c2e-4f1b-7a03-9c3d-5e7a10000003, name: Winter sale, status: running, priority: normal, weight: 2,
+             max_mps: null, share_mps: 64, rate_mps: 61.5, remaining: 1800, total_recipients: 4200, eta_seconds: 30,
+             paused_reason: null, resume_at: null}
       type: object
       required: [phone_number_id, ceiling_mps, rate_mps, reserved_share, campaign_capacity_mps, limit, campaigns]
       properties:
@@ -7391,8 +7564,10 @@ components:
     # ── Automations (Phase 8) ──────────────────────────────────────────────
     AutomationTriggerType:
       type: string
-      enum: [message_received, new_contact, tag_added, message_status, conversation_closed, subscription_request]
-      x-enum-varnames: [TriggerMessageReceived, TriggerNewContact, TriggerTagAdded, TriggerMessageStatus, TriggerConversationClosed, TriggerSubscriptionRequest]
+      enum: [message_received, new_contact, tag_added, message_status, conversation_closed, subscription_request,
+        window_closing, no_reply, campaign_reply, reaction, ai_escalation]
+      x-enum-varnames: [TriggerMessageReceived, TriggerNewContact, TriggerTagAdded, TriggerMessageStatus, TriggerConversationClosed, TriggerSubscriptionRequest,
+        TriggerWindowClosing, TriggerNoReply, TriggerCampaignReply, TriggerReaction, TriggerAIEscalation]
 
     AutomationTrigger:
       type: object
@@ -7412,6 +7587,34 @@ components:
           type: string
           enum: [stop, request, resume]
           description: "subscription_request: only this kind (stop word, opt-out request phrase, resubscribe word); omitted = any."
+        minutes:
+          type: integer
+          minimum: 0
+          maximum: 43200
+          description: >-
+            window_closing: minutes before the 24-hour customer service window closes (5–1380,
+            default 60). no_reply: minutes without an answer (5–43200).
+        include_answered:
+          type: boolean
+          description: "window_closing: also when the team answered last (default: only an unanswered customer message)."
+        no_reply_from:
+          type: string
+          enum: [customer, agent]
+          description: "no_reply: customer = the customer has not answered our message; agent = the team has not answered the customer."
+        include_campaigns:
+          type: boolean
+          description: "no_reply from customer: campaign messages count as our message too (default: conversation messages only)."
+        reaction:
+          type: string
+          enum: [positive, negative]
+          description: "reaction: only this polarity; omitted = both."
+        reasons:
+          type: array
+          maxItems: 7
+          description: "ai_escalation: only these handoff reasons; omitted = any."
+          items:
+            type: string
+            enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error]
         cooldown_seconds: { type: integer, minimum: 0, maximum: 7776000 }
 
     AutomationStep:
@@ -7419,8 +7622,12 @@ components:
       description: >-
         One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field,
         condition (with if/then/else), http_request, send_email, delay, assign,
-        close_conversation, mute. Text values accept placeholders such as {{name}},
-        {{first_name}}, {{var1}} and {{message}}. See docs/AUTOMATIONS.md.
+        close_conversation, mute, handoff_to_ai, handoff_to_human, add_internal_note, and the
+        AI steps ai_generate_message, ai_analyze_message, ai_detect_intent, ai_extract_fields,
+        ai_classify_segment, ai_auto_reply, ai_route_to_agent, ai_build_profile. HTTP, e-mail,
+        message and AI steps accept retry {max, backoff}. Text values accept placeholders such
+        as {{name}}, {{first_name}}, {{var1}}, {{message}} and {{var:<name>}} (run variables AI
+        steps produce). See docs/AUTOMATIONS.md.
       required: [type]
       additionalProperties: true
       properties:
@@ -7465,13 +7672,15 @@ components:
           trigger: {x: 0, "y": 0}
           s1: {x: 0, "y": 140}
           s2: {x: 0, "y": 280}
+        setup: []
+        preset: null
         version: 3
         run_count: 1284
         last_run_at: "2026-11-25T09:12:08Z"
         created_at: "2026-10-14T11:00:00Z"
         updated_at: "2026-11-20T16:45:00Z"
       type: object
-      required: [id, name, description, active, trigger_type, trigger, steps, layout, version, run_count, created_at, updated_at]
+      required: [id, name, description, active, trigger_type, trigger, steps, layout, setup, version, run_count, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -7484,6 +7693,17 @@ components:
           description: Every step has an id (automations saved before ids existed get ids derived from their position).
           items: { $ref: "#/components/schemas/AutomationStep" }
         layout: { $ref: "#/components/schemas/AutomationLayout" }
+        setup:
+          type: array
+          description: >-
+            Values still to choose (an installed preset's template, agent …). An automation with
+            open setup items cannot be enabled; the list empties as the steps are filled.
+          items: { $ref: "#/components/schemas/AutomationSetupItem" }
+        preset:
+          description: The preset this automation was installed from (null when built by hand).
+          oneOf:
+            - { $ref: "#/components/schemas/AutomationPresetRef" }
+            - { type: "null" }
         version: { type: integer }
         run_count: { type: integer, format: int64 }
         last_run_at: { type: [string, "null"], format: date-time }
@@ -7524,13 +7744,72 @@ components:
           items: { $ref: "#/components/schemas/AutomationStep" }
         layout: { $ref: "#/components/schemas/AutomationLayout" }
 
+    AutomationSetupItem:
+      type: object
+      required: [step_id, field, label]
+      example: {step_id: follow_template, field: template, label: Choose the approved template of the follow-up}
+      properties:
+        step_id: { type: string }
+        field: { type: string, description: "The step's field to fill (template, assignee_id, group_id …)." }
+        label: { type: string }
+
+    AutomationPresetRef:
+      type: object
+      required: [key, version]
+      example: {key: follow_up_unanswered, version: 1}
+      properties:
+        key: { type: string }
+        version: { type: integer }
+
+    AutomationPresetSetup:
+      type: object
+      required: [step_id, field, label]
+      properties:
+        step_id: { type: string }
+        field: { type: string }
+        label: { $ref: "#/components/schemas/LocalizedText" }
+
+    AutomationPreset:
+      type: object
+      required: [key, version, category, title, description, requires_ai, trigger_type, trigger, steps, setup]
+      properties:
+        key: { type: string }
+        version: { type: integer }
+        category: { type: string, description: "engagement, consent, ai, handoff, window, follow_up, campaign or feedback." }
+        title: { $ref: "#/components/schemas/LocalizedText" }
+        description: { $ref: "#/components/schemas/LocalizedText" }
+        guidance:
+          description: Advice shown with the preset (for example Meta's window rule).
+          oneOf:
+            - { $ref: "#/components/schemas/LocalizedText" }
+            - { type: "null" }
+        requires_ai: { type: boolean }
+        trigger_type: { $ref: "#/components/schemas/AutomationTriggerType" }
+        trigger: { $ref: "#/components/schemas/AutomationTrigger" }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationStep" }
+        setup:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationPresetSetup" }
+
+    AutomationPresetListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AutomationPreset" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
     AutomationRunStep:
       type: object
       required: [pc, action, outcome, detail, created_at]
       properties:
         pc: { type: integer }
         action: { type: string }
-        outcome: { type: string, enum: [ok, skipped, failed, waiting] }
+        outcome:
+          type: string
+          enum: [ok, skipped, failed, waiting, retrying]
+          description: "retrying: the attempt failed and the step runs again after detail.retry_in_seconds."
         detail: { type: object, additionalProperties: true }
         created_at: { type: string, format: date-time }
 
@@ -7545,6 +7824,16 @@ components:
         status: { type: string, enum: [queued, running, waiting, completed, failed, cancelled] }
         event: { type: object, additionalProperties: true }
         error: { type: [string, "null"] }
+        error_code:
+          type: [string, "null"]
+          description: >-
+            Why a failed run failed: ai_disabled, ai_not_configured, ai_not_allowed, ai_no_profile,
+            ai_error, retries_exhausted or step_failed.
+        attempt: { type: integer, description: "Retries of the current step so far (0 = first attempt)." }
+        vars:
+          type: object
+          additionalProperties: { type: string }
+          description: Run variables the AI steps produced ({{var:<name>}}).
         resume_at: { type: [string, "null"], format: date-time }
         steps:
           type: array

@@ -1,0 +1,17 @@
+{
+  "key": "ai_auto_reply",
+  "version": 1,
+  "category": "ai",
+  "requires_ai": true,
+  "title": {"tr": "AI ile otomatik cevap", "en": "Answer with AI"},
+  "description": {
+    "tr": "Gelen her mesaja numaranın AI profiliyle tek bir cevap yazar. Profilin devir kuralları geçerlidir: AI emin değilse veya müşteri insan isterse sohbet ekibe devredilir.",
+    "en": "Answers each incoming message once with the number's AI profile. The profile's handoff rules apply: when the AI is unsure or the customer asks for a person, the conversation goes to the team."
+  },
+  "trigger_type": "message_received",
+  "trigger": {},
+  "steps": [
+    {"id": "ai_reply", "type": "ai_auto_reply", "retry": {"max": 2, "backoff": 20}}
+  ],
+  "setup": []
+}

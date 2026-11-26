@@ -190,9 +190,14 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// schedule an ai:reply turn (see conversations.HandleAIReply).
 	inbox.SetAI(aiSvc)
 	msg.SetInboundHook(inbox.OnInbound)
+	// Automations: AI steps use the AI module, handoff and note steps the
+	// conversations module.
+	auto := automation.New(pool, msg, mail, automationHTTP(cfg), log)
+	auto.SetAI(aiSvc)
+	auto.SetInbox(inbox)
 	return &services{cfg: cfg, ai: aiSvc, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
-		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
+		automation: auto}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
