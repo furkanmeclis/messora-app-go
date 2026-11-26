@@ -108,6 +108,9 @@ test('owner sets up the installation, runs the wizard and enrols two-factor auth
     await expect(
         page.getByRole('heading', { name: 'Welcome, Olivia' }),
     ).toBeVisible();
+    // The overview is the operations center; health is on the System tab.
+    await expect(page.getByTestId('ops-center')).toBeVisible();
+    await page.goto('/?tab=system');
     await expect(page.getByText('All systems healthy')).toBeVisible();
     await expect(page.getByText(OWNER.org).first()).toBeVisible();
     noErrors();

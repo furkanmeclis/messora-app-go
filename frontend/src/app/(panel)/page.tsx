@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, ServerCog, ShieldAlert } from 'lucide-react';
-import { TabNav } from '@/components/tab-nav';
+import { ShieldAlert } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { getT } from '@/i18n/server';
@@ -10,6 +9,7 @@ import { errorMessage } from '@/lib/server/actions';
 import { can, requireMe } from '@/lib/server/auth';
 import type { SystemStatus } from '@/lib/types';
 import { OpsCenter } from './ops-center';
+import { OverviewTabs } from './overview-tabs';
 import type { OpsOverview } from './ops-actions';
 import { PageHeading } from './panel-header';
 import { RefreshButton } from './refresh-button';
@@ -79,25 +79,7 @@ export default async function OverviewPage({
             )}
 
             {canSystem && (
-                <TabNav
-                    className="mb-6"
-                    label={t('overview.ops.tabs.label')}
-                    items={[
-                        {
-                            href: '/',
-                            label: t('overview.ops.tabs.ops'),
-                            icon: Activity,
-                            active: tab === 'ops',
-                        },
-                        {
-                            href: '/?tab=system',
-                            label: t('overview.ops.tabs.system'),
-                            icon: ServerCog,
-                            active: tab === 'system',
-                            count: status?.failed_jobs || undefined,
-                        },
-                    ]}
-                />
+                <OverviewTabs tab={tab} failedJobs={status?.failed_jobs} />
             )}
 
             {loadError && (
