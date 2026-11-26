@@ -18,6 +18,9 @@ const contacts: Messages['contacts'] = {
         imports: 'İçe aktarımlar',
     },
     fields: {
+        contactType: 'Kişi tipi',
+        contactTypeHint:
+            'ör. bireysel, kurumsal — kampanya kırılımlarında kullanılır.',
         name: 'Ad',
         phone: 'Telefon numarası',
         email: 'E-posta',

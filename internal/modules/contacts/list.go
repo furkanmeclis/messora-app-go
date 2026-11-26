@@ -33,6 +33,9 @@ type Filter struct {
 	// contact matches once however many recipient rows it had.
 	FromCampaign *uuid.UUID
 	FromClasses  []string
+	// ContactIDs restricts to an explicit list (a campaign's "selected
+	// contacts" audience); nil = no restriction.
+	ContactIDs []uuid.UUID
 }
 
 // consentExpr is a category's effective consent status in SQL.
@@ -88,6 +91,9 @@ func (f Filter) where() (string, []any, error) {
 		conds = append(conds, "c.id IN (SELECT r.contact_id FROM campaign_recipients r LEFT JOIN messages m ON m.id = r.message_id"+
 			" WHERE r.campaign_id = "+bind(*f.FromCampaign)+" AND r.contact_id IS NOT NULL"+
 			" AND campaign_recipient_class(r.state, r.skip_reason, m.status, m.failure_class) = ANY("+bind(f.FromClasses)+"::text[]))")
+	}
+	if f.ContactIDs != nil {
+		conds = append(conds, "c.id = ANY("+bind(f.ContactIDs)+"::uuid[])")
 	}
 	if f.Segment != nil {
 		cmp, err := segment.Compile(f.Segment, len(args)+1)
@@ -243,6 +249,67 @@ func (s *Service) ConsentGroups(ctx context.Context, f Filter) ([]ConsentGroup, 
 		}
 		out = append(out, ConsentGroup{N: n, State: consent.StateOf(db.Contact{MarketingConsent: m, ServiceConsent: sv,
 			OptedOutAt: flag(out1), MetaMarketingStoppedAt: flag(stopped), UndeliverableAt: flag(undeliverable)})})
+	}
+	return out, rows.Err()
+}
+
+// Where returns the SQL condition (over contacts aliased c) and arguments
+// of f, numbered from $1, for queries of other modules that join contacts
+// (campaign recipients).
+func (f Filter) Where() (string, []any, error) { return f.where() }
+
+// ForecastGroup counts matching contacts that share a consent state, a
+// phone prefix (the first five characters of the E.164 number: enough for
+// the country, +1 area codes included) and whether their customer service
+// window with the sending number is open and whether they already count
+// against the portfolio's messaging limit.
+type ForecastGroup struct {
+	State      consent.State
+	Prefix     string
+	WindowOpen bool
+	Reached    bool
+	N          int64
+}
+
+// ForecastGroups breaks the matching contacts down for a campaign forecast
+// in one aggregate query.
+func (s *Service) ForecastGroups(ctx context.Context, f Filter, phoneNumberID, accountID uuid.UUID) ([]ForecastGroup, error) {
+	where, args, err := f.where()
+	if err != nil {
+		return nil, err
+	}
+	n := len(args)
+	args = append(args, phoneNumberID, accountID)
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`SELECT c.marketing_consent, c.service_consent, c.opted_out_at IS NOT NULL,
+			c.meta_marketing_stopped_at IS NOT NULL, c.undeliverable_at IS NOT NULL, left(c.phone_e164, 5),
+			EXISTS (SELECT 1 FROM conversations v WHERE v.contact_id = c.id AND v.phone_number_id = $%d
+			        AND v.last_inbound_at > now() - interval '24 hours'),
+			EXISTS (SELECT 1 FROM portfolio_reach pr WHERE pr.account_id = $%d AND pr.contact_id = c.id
+			        AND pr.last_at > now() - interval '24 hours'),
+			count(*)
+		FROM contacts c WHERE %s GROUP BY 1, 2, 3, 4, 5, 6, 7, 8`, n+1, n+2, where), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ForecastGroup
+	set := time.Unix(0, 0).UTC()
+	flag := func(on bool) *time.Time {
+		if on {
+			return &set
+		}
+		return nil
+	}
+	for rows.Next() {
+		var m, sv, prefix string
+		var optedOut, stopped, undeliverable, open, reached bool
+		var cnt int64
+		if err := rows.Scan(&m, &sv, &optedOut, &stopped, &undeliverable, &prefix, &open, &reached, &cnt); err != nil {
+			return nil, err
+		}
+		out = append(out, ForecastGroup{N: cnt, Prefix: prefix, WindowOpen: open, Reached: reached,
+			State: consent.StateOf(db.Contact{MarketingConsent: m, ServiceConsent: sv, OptedOutAt: flag(optedOut),
+				MetaMarketingStoppedAt: flag(stopped), UndeliverableAt: flag(undeliverable)})})
 	}
 	return out, rows.Err()
 }

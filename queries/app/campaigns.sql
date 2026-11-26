@@ -80,8 +80,10 @@ ORDER BY r.next_attempt_at, r.id LIMIT @lim
 FOR UPDATE SKIP LOCKED;
 
 -- name: MarkRecipientQueued :exec
+-- The recipient now mirrors the new message (pending).
 UPDATE campaign_recipients SET state = 'queued', message_id = @message_id,
-    resends = resends + CASE WHEN state = 'retry' THEN 1 ELSE 0 END, next_attempt_at = NULL, updated_at = now()
+    resends = resends + CASE WHEN state = 'retry' THEN 1 ELSE 0 END, next_attempt_at = NULL,
+    msg_status = 'pending', error_code = NULL, failure_class = NULL, failed_at = NULL, updated_at = now()
 WHERE id = @id;
 
 -- name: ScheduleRecipientResend :one

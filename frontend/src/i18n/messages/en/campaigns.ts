@@ -40,6 +40,7 @@ const campaigns = {
     progressValue: '{percent}% processed ({done} of {total})',
     processed: '{done} / {total} processed',
     audience: {
+        contacts: '{count} selected contacts',
         all: 'All contacts',
         segment: 'Segment: {name}',
         savedSegment: 'saved segment',
@@ -216,6 +217,7 @@ const campaigns = {
             messaging_limit: 'portfolio messaging limit reached',
             license_restricted: 'licence restricted',
             offer_expired: 'the offer ended',
+            spam_protection: 'campaign protection (spam and quality signals)',
         },
         pauses: 'Pause history',
         noPauses: 'The campaign has not been paused.',
@@ -382,6 +384,7 @@ const campaigns = {
             tag: 'A tag',
             all: 'All contacts',
             previous: 'Not reached before',
+            contacts: 'Selected contacts',
         },
         defaultNumber: 'Default number',
         button: 'Button {n}',

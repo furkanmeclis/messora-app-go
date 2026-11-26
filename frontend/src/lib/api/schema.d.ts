@@ -1957,6 +1957,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/campaigns/forecast': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pre-launch analysis of a campaign
+         * @description Who would get the campaign (consent preflight), how long it takes with the number's capacity, the other running campaigns and the portfolio's messaging limit (possibly several 24-hour windows), the estimated Meta cost from the imported rate card (recipient country × template category, 2026-10-01 charging rules; countries without a rate are counted in not_in_rate_card, never guessed) and, only with enough history (at least 3 completed campaigns of the same template category and 500 recipients), expected rates. Without history rates.status is insufficient_history with what is missing. Nothing is stored; the forecast is fixed when the campaign starts.
+         */
+        post: operations['forecastCampaign'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/campaigns/{campaignId}': {
         parameters: {
             query?: never;
@@ -2155,6 +2175,219 @@ export interface paths {
          */
         get: operations['listCampaignRecipients'];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/recipients/search': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The recipients table (filters, sorting, pages, total)
+         * @description Statuses are combined with OR (sent, delivered, read, failed, pending, unknown, blocked, cancelled, rejected, replied, positive, negative, neutral, opted_out and every unreached class); the other filters with AND.
+         */
+        post: operations['searchCampaignRecipients'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/recipients/bulk': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tag, group or follow up a selection of recipients
+         * @description The selection is the filter (all matching) or filter.ids (a page selection). follow_up creates a draft campaign with the same number, template and reaction mapping whose audience is the selected contacts (at most 50,000).
+         */
+        post: operations['bulkCampaignRecipients'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/recipients/export': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the matching recipients as CSV or Excel
+         * @description Streams up to 20,000 rows; larger selections answer 409 EXPORT_TOO_LARGE and run as a background export (POST /campaigns/{campaignId}/exports).
+         */
+        get: operations['exportCampaignRecipients'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/recipients/{recipientId}/reaction': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Label a recipient's reaction by hand
+         * @description A manual label overrides the system's (quick reply mapping, AI) and is never replaced by it; null clears.
+         */
+        put: operations['setCampaignRecipientReaction'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/reaction-map': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Map quick reply buttons to positive, negative or neutral
+         * @description Keys are the button payloads or texts. Recipients who already tapped a button are relabelled (manual labels stay).
+         */
+        put: operations['setCampaignReactionMap'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/analytics': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The campaign's analysis center
+         * @description Metrics tagged by source (meta: what Meta reported; system: what Messora computed), rates, cost (per-message estimate and Meta's reconciled daily totals for the number), the spam and quality section and hourly series.
+         */
+        get: operations['getCampaignAnalytics'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/breakdown': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Figures per group, segment, tag, contact type or attribute value */
+        get: operations['getCampaignBreakdown'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/forecast': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The forecast fixed at start, compared with the actual figures
+         * @description Same definitions for both sides (docs/CAMPAIGN_ANALYTICS.md); live while the campaign runs, final once it ended. forecast is null for a campaign started before forecasts existed.
+         */
+        get: operations['getCampaignForecast'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/exports': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent exports of the campaign */
+        get: operations['listCampaignExports'];
+        put?: never;
+        /**
+         * Export recipients or the report in the background
+         * @description recipients as csv or xlsx (with the table's filters), the report as xlsx (sheets Özet, Maliyet, Teslimat, Alıcılar, Segment, Etiket, Tahmin vs Gerçek) or pdf (summary). The file is kept for 7 days.
+         */
+        post: operations['createCampaignExport'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/exports/{exportId}/download': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download a finished export */
+        get: operations['downloadCampaignExport'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/settings/campaign-protection': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Campaign protection (spam thresholds) and attribution window */
+        get: operations['getCampaignProtectionSettings'];
+        /** Change the campaign protection settings */
+        put: operations['updateCampaignProtectionSettings'];
         post?: never;
         delete?: never;
         options?: never;
@@ -4433,6 +4666,8 @@ export interface components {
             consent: components['schemas']['ContactConsent'];
             /** Format: date-time */
             last_inbound_at?: string | null;
+            /** @description What kind of customer (free text, e.g. bireysel, kurumsal), for campaign breakdowns. */
+            contact_type?: string | null;
             /** @enum {string} */
             source: 'webhook' | 'manual' | 'import' | 'api';
             /** Format: date-time */
@@ -4453,6 +4688,8 @@ export interface components {
             };
             tags?: string[];
             group_ids?: string[];
+            /** @description "" clears it. */
+            contact_type?: string;
         };
         /**
          * @example {
@@ -5554,6 +5791,8 @@ export interface components {
                     | 'never_sent'
                 )[];
             };
+            /** @description An explicit list of contacts (e.g. a follow-up to a selection of another campaign's recipients). */
+            contact_ids?: string[];
         };
         /** @description Template variables. Values may contain {{name}}, {{first_name}}, {{phone}}, {{email}}, {{var1}}–{{var5}} and {{attr:<key>}}. Use a list for positional templates and an object for named parameters. */
         CampaignParams: {
@@ -5676,7 +5915,7 @@ export interface components {
             window_size: number;
             /** Format: int64 */
             total_recipients: number;
-            /** @description Recipients by state (recipients_pending, recipients_skipped …) and messages by status (sent, delivered, read, failed, unknown, held …). */
+            /** @description Recipients by state (recipients_pending, recipients_skipped …), messages by status (sent, delivered, read, failed, unknown, held …) and the analytics counters (a_sent, a_delivered, a_read, a_failed, a_pending, a_blocked, a_rejected, a_replied, a_positive, a_negative, a_neutral, a_opted_out, a_err_131048/131049/131050, a_priced, a_unpriced, a_cost_micros). Read from incremental counters, not counted per request. */
             counts: {
                 [key: string]: number;
             };
@@ -5719,6 +5958,7 @@ export interface components {
              * @description Estimated time left at the measured rate.
              */
             eta_seconds?: number | null;
+            reaction_map?: components['schemas']['ReactionMap'];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -5760,6 +6000,7 @@ export interface components {
              * @description Rate cap in messages per second.
              */
             max_mps?: number;
+            reaction_map?: components['schemas']['ReactionMap'];
         };
         /**
          * @example {
@@ -5789,6 +6030,7 @@ export interface components {
             /** Format: double */
             max_mps?: number;
             clear_max_mps?: boolean;
+            reaction_map?: components['schemas']['ReactionMap'];
         };
         /**
          * @example {
@@ -6305,6 +6547,462 @@ export interface components {
         };
         CampaignRecipientListResponse: {
             data: components['schemas']['CampaignRecipient'][];
+            meta: components['schemas']['Meta'];
+        };
+        /** @description Quick reply button payload or text → positive | negative | neutral. */
+        ReactionMap: {
+            [key: string]: 'positive' | 'negative' | 'neutral';
+        };
+        CampaignForecastRequest: {
+            audience: components['schemas']['CampaignAudience'];
+            /** Format: uuid */
+            phone_number_id?: string;
+            template_name: string;
+            template_language: string;
+            priority?: components['schemas']['CampaignPriority'];
+            /** Format: double */
+            max_mps?: number;
+            /**
+             * Format: date-time
+             * @description When sending would start (now when omitted).
+             */
+            scheduled_at?: string;
+        };
+        CampaignForecast: {
+            /** Format: date-time */
+            generated_at: string;
+            category: string;
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            eligible: number;
+            /** Format: int64 */
+            blocked: number;
+            /** Format: int64 */
+            warned: number;
+            blocked_reasons: components['schemas']['PreflightReason'][];
+            capacity: {
+                ceiling_mps: number;
+                rate_mps: number;
+                /** Format: double */
+                reserved_share: number;
+                /** Format: double */
+                campaign_capacity_mps: number;
+                /**
+                 * Format: double
+                 * @description The share this campaign would get.
+                 */
+                share_mps: number;
+                others: {
+                    /** Format: uuid */
+                    id: string;
+                    priority: string;
+                    /** Format: double */
+                    share_mps: number;
+                }[];
+            };
+            limit: {
+                tier: string;
+                /**
+                 * Format: int64
+                 * @description 0 = no limit.
+                 */
+                limit: number;
+                /** Format: int64 */
+                used: number;
+                /** Format: int64 */
+                in_flight: number;
+                /** Format: int64 */
+                remaining: number;
+                /**
+                 * Format: int64
+                 * @description Eligible customers that would count against the limit.
+                 */
+                counting: number;
+                /** @description 24-hour limit windows the send needs (1 = fits now). */
+                windows: number;
+            };
+            /** Format: date-time */
+            start_at: string;
+            /** Format: int64 */
+            duration_seconds: number | null;
+            /** Format: date-time */
+            finish_at: string | null;
+            cost: {
+                currency: string;
+                /** @description Decimal total of the priced recipients. */
+                amount: string;
+                /** Format: int64 */
+                priced: number;
+                /** Format: int64 */
+                free: number;
+                /**
+                 * Format: int64
+                 * @description Charged recipients whose country has no rate in the card.
+                 */
+                not_in_rate_card: number;
+                by_country: {
+                    country: string;
+                    /** Format: int64 */
+                    recipients: number;
+                    /** Format: int64 */
+                    charged: number;
+                    price: string | null;
+                    amount: string | null;
+                }[];
+            };
+            rates: {
+                /** @enum {string} */
+                status: 'ok' | 'insufficient_history';
+                campaigns: number;
+                /** Format: int64 */
+                recipients: number;
+                campaigns_needed: number;
+                /** Format: int64 */
+                recipients_needed: number;
+                /** Format: double */
+                sent_rate: number | null;
+                /** Format: double */
+                delivery_rate: number | null;
+                /** Format: double */
+                read_rate: number | null;
+                /** Format: double */
+                reply_rate: number | null;
+                /** Format: double */
+                positive_rate: number | null;
+                /** Format: double */
+                negative_rate: number | null;
+                /** Format: double */
+                opt_out_rate: number | null;
+                based_on: string[];
+            };
+            expected: {
+                /** Format: int64 */
+                sent: number | null;
+                /** Format: int64 */
+                delivered: number | null;
+                /** Format: int64 */
+                read: number | null;
+                /** Format: int64 */
+                replied: number | null;
+                /** Format: int64 */
+                positive: number | null;
+                /** Format: int64 */
+                negative: number | null;
+                /** Format: int64 */
+                opted_out: number | null;
+            };
+        };
+        CampaignForecastResponse: {
+            data: components['schemas']['CampaignForecast'];
+            meta: components['schemas']['Meta'];
+        };
+        ForecastComparison: {
+            metric: string;
+            /** Format: double */
+            forecast: number | null;
+            /** Format: double */
+            actual: number | null;
+            /**
+             * Format: double
+             * @description actual − forecast
+             */
+            delta: number | null;
+            /**
+             * Format: double
+             * @description (actual − forecast) / forecast × 100
+             */
+            delta_pct: number | null;
+        };
+        CampaignForecastVsActual: {
+            /** @description The campaign ended; the figures no longer change (replies may still arrive within the attribution window). */
+            final: boolean;
+            forecast: components['schemas']['CampaignForecast'] | null;
+            /** Format: date-time */
+            stored_at?: string | null;
+            metrics: components['schemas']['ForecastComparison'][];
+            actual_cost: string;
+            currency: string;
+        };
+        CampaignForecastVsActualResponse: {
+            data: components['schemas']['CampaignForecastVsActual'];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignMetric: {
+            key: string;
+            /** Format: int64 */
+            value: number;
+            /** @enum {string} */
+            source: 'meta' | 'system';
+        };
+        CampaignRates: {
+            /** Format: double */
+            sent: number | null;
+            /** Format: double */
+            delivery: number | null;
+            /** Format: double */
+            read: number | null;
+            /** Format: double */
+            reply: number | null;
+            /** Format: double */
+            positive: number | null;
+            /** Format: double */
+            negative: number | null;
+            /** Format: double */
+            opt_out: number | null;
+        };
+        CampaignAnalytics: {
+            /** @description The template's quick reply button texts (keys for the reaction mapping). */
+            quick_replies: string[];
+            /** @description AI usage attributed to the campaign (ai_usage.campaign_id), per currency; empty until AI features attribute usage. */
+            ai_cost: {
+                currency: string;
+                cost: string;
+                /** Format: int64 */
+                requests: number;
+            }[];
+            /** @description Meta estimate + AI cost (the campaign's operating cost) when they share a currency. */
+            total_cost?: string | null;
+            counts: {
+                [key: string]: number;
+            };
+            metrics: components['schemas']['CampaignMetric'][];
+            rates: components['schemas']['CampaignRates'];
+            currency: string;
+            /** @description Sum of per-message costs (Meta's pricing category × the imported rate card). */
+            cost_estimate: string;
+            /** Format: int64 */
+            priced: number;
+            /**
+             * Format: int64
+             * @description Billable messages without a rate in the card.
+             */
+            unpriced: number;
+            cost_breakdown: {
+                category: string;
+                type: string;
+                /** Format: int64 */
+                messages: number;
+                /** Format: int64 */
+                unpriced: number;
+                cost: string;
+                currency: string;
+            }[];
+            /** @description Meta's own daily cost (pricing_analytics) of the campaign's number on the campaign's days — every message of the number, not only the campaign's. */
+            reconciled: {
+                /** Format: date */
+                day: string;
+                category: string;
+                /** Format: int64 */
+                volume: number;
+                cost: string | null;
+                currency: string | null;
+            }[];
+            number_quality: string;
+            template_status: string;
+            template_quality: string;
+            timeline: {
+                kind: string;
+                /** Format: date-time */
+                occurred_at: string;
+                payload: {
+                    [key: string]: unknown;
+                };
+            }[];
+            classes: {
+                [key: string]: number;
+            };
+            hourly: {
+                /** Format: date-time */
+                hour: string;
+                /** Format: int64 */
+                sent: number;
+                /** Format: int64 */
+                delivered: number;
+                /** Format: int64 */
+                read: number;
+                /** Format: int64 */
+                replied: number;
+                /** Format: int64 */
+                failed: number;
+            }[];
+        };
+        CampaignAnalyticsResponse: {
+            data: components['schemas']['CampaignAnalytics'];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignBreakdownBucket: {
+            key: string;
+            label: string;
+            /** Format: int64 */
+            recipients: number;
+            /** Format: int64 */
+            sent: number;
+            /** Format: int64 */
+            delivered: number;
+            /** Format: int64 */
+            read: number;
+            /** Format: int64 */
+            replied: number;
+            /** Format: int64 */
+            positive: number;
+            /** Format: int64 */
+            negative: number;
+            /** Format: int64 */
+            opted_out: number;
+            cost: string;
+        };
+        CampaignBreakdownResponse: {
+            data: components['schemas']['CampaignBreakdownBucket'][];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignRecipientFilter: {
+            q?: string;
+            status?: string[];
+            /** Format: uuid */
+            tag_id?: string;
+            /** Format: uuid */
+            group_id?: string;
+            /** Format: uuid */
+            segment_id?: string;
+            /** @description "" = contacts without a type. */
+            contact_type?: string;
+            attr_key?: string;
+            attr_value?: string;
+            /** @description Only these recipients (a page selection). */
+            ids?: string[];
+        };
+        CampaignRecipientSearchRequest: {
+            filter?: components['schemas']['CampaignRecipientFilter'];
+            /** @description created, name, phone, sent_at, delivered_at, read_at, replied_at or cost; a leading - sorts descending. */
+            sort?: string;
+            offset?: number;
+            /** @default 50 */
+            limit: number;
+        };
+        CampaignRecipientRow: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            contact_id?: string | null;
+            phone: string;
+            name: string;
+            contact_type: string;
+            state: string;
+            skip_reason?: string | null;
+            /** Format: uuid */
+            message_id?: string | null;
+            message_status?: string | null;
+            outcome: string;
+            /** @description "" = reached or in progress. */
+            unreached_class: string;
+            failure_class?: string | null;
+            error_code?: string | null;
+            /** Format: date-time */
+            attempted_at?: string | null;
+            /** Format: date-time */
+            sent_at?: string | null;
+            /** Format: date-time */
+            delivered_at?: string | null;
+            /** Format: date-time */
+            read_at?: string | null;
+            /** Format: date-time */
+            failed_at?: string | null;
+            /** Format: date-time */
+            replied_at?: string | null;
+            reply_payload?: string | null;
+            /** @enum {string|null} */
+            reaction?: 'positive' | 'negative' | 'neutral' | null;
+            /** @enum {string|null} */
+            reaction_source?: 'quick_reply' | 'ai' | 'manual' | null;
+            /** Format: date-time */
+            opted_out_at?: string | null;
+            cost?: string | null;
+            cost_currency?: string | null;
+            resends: number;
+        };
+        CampaignRecipientSearchResponse: {
+            data: components['schemas']['CampaignRecipientRow'][];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignRecipientBulkRequest: {
+            filter?: components['schemas']['CampaignRecipientFilter'];
+            /** @enum {string} */
+            action: 'add_tag' | 'add_to_group' | 'follow_up';
+            /**
+             * Format: uuid
+             * @description The tag or group.
+             */
+            target_id?: string;
+        };
+        CampaignRecipientBulkResponse: {
+            data: {
+                /** Format: int64 */
+                affected: number;
+                campaign?: components['schemas']['Campaign'];
+            };
+            meta: components['schemas']['Meta'];
+        };
+        CampaignExportRequest: {
+            /** @enum {string} */
+            kind: 'recipients' | 'report';
+            /** @enum {string} */
+            format: 'csv' | 'xlsx' | 'pdf';
+            filter?: components['schemas']['CampaignRecipientFilter'];
+        };
+        CampaignExport: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            campaign_id: string;
+            /** @enum {string} */
+            kind: 'recipients' | 'report';
+            /** @enum {string} */
+            format: 'csv' | 'xlsx' | 'pdf';
+            /** @enum {string} */
+            status: 'queued' | 'running' | 'done' | 'failed' | 'expired';
+            filename?: string | null;
+            /** Format: int64 */
+            size_bytes?: number | null;
+            /** Format: int64 */
+            rows?: number | null;
+            error?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            finished_at?: string | null;
+            /** Format: date-time */
+            expires_at?: string | null;
+        };
+        CampaignExportResponse: {
+            data: components['schemas']['CampaignExport'];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignExportListResponse: {
+            data: components['schemas']['CampaignExport'][];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignProtectionSettings: {
+            enabled: boolean;
+            stop_on_131048: boolean;
+            stop_on_account_restriction: boolean;
+            /** @description Latest attempts the rates are computed over. */
+            window: number;
+            min_attempts: number;
+            /**
+             * Format: double
+             * @description Pause when 131049+131050 exceed this share.
+             */
+            ecosystem_rate_pct: number;
+            /** Format: double */
+            opt_out_rate_pct: number;
+            /** @enum {string} */
+            quality_stop: 'red' | 'yellow' | 'off';
+            stop_on_template_paused: boolean;
+            attribution_days: number;
+        };
+        CampaignProtectionSettingsResponse: {
+            data: components['schemas']['CampaignProtectionSettings'];
             meta: components['schemas']['Meta'];
         };
         /** @enum {string} */
@@ -10462,6 +11160,31 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    forecastCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CampaignForecastRequest'];
+            };
+        };
+        responses: {
+            /** @description Forecast */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignForecastResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     getCampaign: {
         parameters: {
             query?: never;
@@ -10834,6 +11557,346 @@ export interface operations {
             404: components['responses']['NotFound'];
             422: components['responses']['ValidationFailed'];
             429: components['responses']['RateLimited'];
+            default: components['responses']['Error'];
+        };
+    };
+    searchCampaignRecipients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CampaignRecipientSearchRequest'];
+            };
+        };
+        responses: {
+            /** @description Page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignRecipientSearchResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    bulkCampaignRecipients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CampaignRecipientBulkRequest'];
+            };
+        };
+        responses: {
+            /** @description Done */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignRecipientBulkResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    exportCampaignRecipients: {
+        parameters: {
+            query?: {
+                format?: 'csv' | 'xlsx';
+                q?: string;
+                /** @description Comma-separated status filters. */
+                status?: string;
+                tag_id?: string;
+                group_id?: string;
+                segment_id?: string;
+                contact_type?: string;
+                attr_key?: string;
+                attr_value?: string;
+            };
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV (UTF-8 with header row) or Excel workbook */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'text/csv': string;
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    setCampaignRecipientReaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+                recipientId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': {
+                    /** @enum {string|null} */
+                    reaction: 'positive' | 'negative' | 'neutral' | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    setCampaignReactionMap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': {
+                    reaction_map: components['schemas']['ReactionMap'];
+                };
+            };
+        };
+        responses: {
+            /** @description Campaign */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getCampaignAnalytics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Analysis */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignAnalyticsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getCampaignBreakdown: {
+        parameters: {
+            query: {
+                dimension:
+                    'group' | 'segment' | 'tag' | 'contact_type' | 'attribute';
+                attr_key?: string;
+            };
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Buckets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignBreakdownResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getCampaignForecast: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forecast vs actual */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignForecastVsActualResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listCampaignExports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exports */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignExportListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createCampaignExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CampaignExportRequest'];
+            };
+        };
+        responses: {
+            /** @description Queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignExportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    downloadCampaignExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+                exportId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/octet-stream': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getCampaignProtectionSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignProtectionSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateCampaignProtectionSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CampaignProtectionSettings'];
+            };
+        };
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignProtectionSettingsResponse'];
+                };
+            };
             default: components['responses']['Error'];
         };
     };

@@ -209,7 +209,7 @@ func (q *Queries) FinishContactImport(ctx context.Context, arg FinishContactImpo
 }
 
 const getContactByPhone = `-- name: GetContactByPhone :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled FROM contacts WHERE phone_e164 = $1
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type FROM contacts WHERE phone_e164 = $1
 `
 
 func (q *Queries) GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error) {
@@ -247,6 +247,7 @@ func (q *Queries) GetContactByPhone(ctx context.Context, phoneE164 string) (Cont
 		&i.UndeliverableAt,
 		&i.UndeliverableCode,
 		&i.AiDisabled,
+		&i.ContactType,
 	)
 	return i, err
 }
@@ -387,7 +388,7 @@ const insertContact = `-- name: InsertContact :one
 INSERT INTO contacts (phone_e164, name, email, var1, var2, var3, var4, var5, attributes, source)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10)
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type
 `
 
 type InsertContactParams struct {
@@ -451,6 +452,7 @@ func (q *Queries) InsertContact(ctx context.Context, arg InsertContactParams) (C
 		&i.UndeliverableAt,
 		&i.UndeliverableCode,
 		&i.AiDisabled,
+		&i.ContactType,
 	)
 	return i, err
 }
@@ -892,7 +894,7 @@ func (q *Queries) ListTags(ctx context.Context) ([]ListTagsRow, error) {
 }
 
 const lockContact = `-- name: LockContact :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled FROM contacts WHERE id = $1 FOR UPDATE
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type FROM contacts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockContact(ctx context.Context, id uuid.UUID) (Contact, error) {
@@ -930,6 +932,7 @@ func (q *Queries) LockContact(ctx context.Context, id uuid.UUID) (Contact, error
 		&i.UndeliverableAt,
 		&i.UndeliverableCode,
 		&i.AiDisabled,
+		&i.ContactType,
 	)
 	return i, err
 }
@@ -1097,7 +1100,7 @@ UPDATE contacts SET
                                     THEN coalesce($4::text, opt_out_reason) ELSE NULL END,
     updated_at               = now()
 WHERE id = $6
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type
 `
 
 type SetContactConsentParams struct {
@@ -1153,6 +1156,7 @@ func (q *Queries) SetContactConsent(ctx context.Context, arg SetContactConsentPa
 		&i.UndeliverableAt,
 		&i.UndeliverableCode,
 		&i.AiDisabled,
+		&i.ContactType,
 	)
 	return i, err
 }
@@ -1287,7 +1291,7 @@ UPDATE contacts SET
     attributes = coalesce($14, attributes),
     updated_at = now()
 WHERE id = $15
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type
 `
 
 type UpdateContactParams struct {
@@ -1359,6 +1363,7 @@ func (q *Queries) UpdateContact(ctx context.Context, arg UpdateContactParams) (C
 		&i.UndeliverableAt,
 		&i.UndeliverableCode,
 		&i.AiDisabled,
+		&i.ContactType,
 	)
 	return i, err
 }

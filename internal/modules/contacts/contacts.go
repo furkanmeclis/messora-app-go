@@ -69,6 +69,8 @@ type Fields struct {
 	Attributes map[string]string
 	Tags       *[]string
 	GroupIDs   *[]uuid.UUID
+	// ContactType sets the contact's type ("" clears it; nil keeps it).
+	ContactType *string
 }
 
 func cleanOptional(p *string, field string, max int) (*string, error) {
@@ -237,6 +239,19 @@ func setTagsAndGroups(ctx context.Context, tx pgx.Tx, q *db.Queries, id uuid.UUI
 					return err
 				}
 			}
+		}
+	}
+	if f.ContactType != nil {
+		v := strings.TrimSpace(*f.ContactType)
+		if len([]rune(v)) > 60 {
+			return apperr.Validation("contact_type", "The contact type is at most 60 characters.")
+		}
+		var ct *string
+		if v != "" {
+			ct = &v
+		}
+		if err := q.SetContactType(ctx, db.SetContactTypeParams{ID: id, ContactType: ct}); err != nil {
+			return err
 		}
 	}
 	if f.GroupIDs != nil {

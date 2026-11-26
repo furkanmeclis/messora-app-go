@@ -16,6 +16,9 @@ const contacts = {
         imports: 'Imports',
     },
     fields: {
+        contactType: 'Contact type',
+        contactTypeHint:
+            'e.g. individual, corporate — used in campaign breakdowns.',
         name: 'Name',
         phone: 'Phone number',
         email: 'E-mail',

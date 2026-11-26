@@ -107,6 +107,7 @@ export function ContactForm({
     const router = useRouter();
     const [name, setName] = useState(contact.name);
     const [email, setEmail] = useState(contact.email ?? '');
+    const [contactType, setContactType] = useState(contact.contact_type ?? '');
     const [vars, setVars] = useState<string[]>(
         VARS.map((k) => contact[k] ?? ''),
     );
@@ -153,6 +154,7 @@ export function ContactForm({
                 var3,
                 var4,
                 var5,
+                contact_type: contactType.trim(),
                 attributes,
                 tags: tagNames,
                 group_ids: groupIds,
@@ -202,6 +204,16 @@ export function ContactForm({
                             readOnly={ro}
                             onChange={(e) => setEmail(e.target.value)}
                             error={errors.email}
+                        />
+                        <TextField
+                            label={t('contacts.fields.contactType')}
+                            name="contact_type"
+                            value={contactType}
+                            maxLength={60}
+                            readOnly={ro}
+                            onChange={(e) => setContactType(e.target.value)}
+                            error={errors.contact_type}
+                            hint={t('contacts.fields.contactTypeHint')}
                         />
                         {VARS.map((k, i) => (
                             <TextField

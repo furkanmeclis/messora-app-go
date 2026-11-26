@@ -211,6 +211,53 @@ type Campaign struct {
 	SendRate            *float64
 	RateWindowStart     *time.Time
 	RateWindowQueued    int64
+	ReactionMap         []byte
+}
+
+type CampaignCounter struct {
+	CampaignID   uuid.UUID
+	Recipients   int64
+	RPending     int64
+	RQueued      int64
+	RSkipped     int64
+	RCancelled   int64
+	RRetry       int64
+	OPending     int64
+	OSent        int64
+	ODelivered   int64
+	ORead        int64
+	OFailed      int64
+	OUnknown     int64
+	OBlocked     int64
+	OCancelled   int64
+	Sent         int64
+	Delivered    int64
+	Read         int64
+	Rejected     int64
+	Replied      int64
+	Positive     int64
+	Negative     int64
+	Neutral      int64
+	OptedOut     int64
+	MPending     int64
+	MSending     int64
+	MUnknown     int64
+	MSent        int64
+	MDelivered   int64
+	MRead        int64
+	MFailed      int64
+	MHeld        int64
+	MCancelled   int64
+	MDeferred    int64
+	MSkipped     int64
+	Err131048    int64
+	Err131049    int64
+	Err131050    int64
+	Priced       int64
+	Unpriced     int64
+	Cost         pgtype.Numeric
+	ReconciledAt *time.Time
+	UpdatedAt    time.Time
 }
 
 type CampaignEvent struct {
@@ -219,6 +266,30 @@ type CampaignEvent struct {
 	Kind       string
 	Detail     []byte
 	ActorID    *uuid.UUID
+	CreatedAt  time.Time
+}
+
+type CampaignExport struct {
+	ID          uuid.UUID
+	CampaignID  uuid.UUID
+	Kind        string
+	Format      string
+	Filters     []byte
+	Status      string
+	FileKey     *string
+	Filename    *string
+	SizeBytes   *int64
+	RowsWritten *int64
+	Error       *string
+	RequestedBy *uuid.UUID
+	CreatedAt   time.Time
+	FinishedAt  *time.Time
+	ExpiresAt   *time.Time
+}
+
+type CampaignForecast struct {
+	CampaignID uuid.UUID
+	Forecast   []byte
 	CreatedAt  time.Time
 }
 
@@ -238,17 +309,34 @@ type CampaignPause struct {
 }
 
 type CampaignRecipient struct {
-	ID            uuid.UUID
-	CampaignID    uuid.UUID
-	ContactID     *uuid.UUID
-	PhoneE164     string
-	State         string
-	SkipReason    *string
-	MessageID     *uuid.UUID
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	NextAttemptAt *time.Time
-	Resends       int32
+	ID             uuid.UUID
+	CampaignID     uuid.UUID
+	ContactID      *uuid.UUID
+	PhoneE164      string
+	State          string
+	SkipReason     *string
+	MessageID      *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	NextAttemptAt  *time.Time
+	Resends        int32
+	MsgStatus      *string
+	AttemptedAt    *time.Time
+	SentAt         *time.Time
+	DeliveredAt    *time.Time
+	ReadAt         *time.Time
+	FailedAt       *time.Time
+	ErrorCode      *string
+	FailureClass   *string
+	CostAmount     pgtype.Numeric
+	CostCurrency   *string
+	RepliedAt      *time.Time
+	ReplyMessageID *uuid.UUID
+	ReplyPayload   *string
+	Reaction       *string
+	ReactionSource *string
+	ReactionAt     *time.Time
+	OptedOutAt     *time.Time
 }
 
 type ConsentEvent struct {
@@ -295,6 +383,7 @@ type Contact struct {
 	UndeliverableAt        *time.Time
 	UndeliverableCode      *string
 	AiDisabled             bool
+	ContactType            *string
 }
 
 type ContactGroup struct {

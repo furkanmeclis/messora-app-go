@@ -93,6 +93,8 @@ export type ContactPatch = {
     var3: string;
     var4: string;
     var5: string;
+    /** "" clears it. */
+    contact_type: string;
     attributes: Record<string, string>;
     tags: string[];
     group_ids: string[];

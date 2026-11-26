@@ -42,6 +42,9 @@ const (
 	TypeDispatch    = "campaign:dispatch"
 	TypeReaper      = "campaign:reaper"
 	TypeStartDue    = "campaign:start_due"
+	// TypeAnalyticsReconcile recomputes counters, checks spam protection
+	// and expires export files.
+	TypeAnalyticsReconcile = "campaign:analytics_reconcile"
 )
 
 // Tunables.
@@ -65,6 +68,10 @@ type Service struct {
 	// sched is the per-number send scheduler (nil: Meta's default
 	// throughput, no shares stored).
 	sched *messaging.Throttle
+	// classifier labels free-text replies (P7; nil: none).
+	classifier ReplyClassifier
+	// exports keeps generated export files (nil: exports unavailable).
+	exports *ExportStore
 	// TickInterval is the dispatcher period (tests shorten it).
 	TickInterval time.Duration
 }
@@ -87,17 +94,29 @@ type Audience struct {
 	// PreviousCampaign targets the customers an earlier campaign did not
 	// reach, by why (audience.go).
 	PreviousCampaign *PreviousCampaign `json:"previous_campaign,omitempty"`
+	// ContactIDs is an explicit list of contacts (e.g. a follow-up to a
+	// selection of another campaign's recipients), at most MaxAudienceContacts.
+	ContactIDs []uuid.UUID `json:"contact_ids,omitempty"`
 }
 
+// MaxAudienceContacts caps an explicit contact list audience.
+const MaxAudienceContacts = 50000
+
 func (a Audience) validate() error {
+	if a.ContactIDs != nil && len(a.ContactIDs) == 0 {
+		return apperr.Validation("audience.contact_ids", "Choose at least one contact.")
+	}
+	if len(a.ContactIDs) > MaxAudienceContacts {
+		return apperr.Validation("audience.contact_ids", fmt.Sprintf("A contact list audience has at most %d contacts.", MaxAudienceContacts))
+	}
 	n := 0
-	for _, set := range []bool{a.SegmentID != nil, a.GroupID != nil, a.TagID != nil, a.All, a.PreviousCampaign != nil} {
+	for _, set := range []bool{a.SegmentID != nil, a.GroupID != nil, a.TagID != nil, a.All, a.PreviousCampaign != nil, a.ContactIDs != nil} {
 		if set {
 			n++
 		}
 	}
 	if n != 1 {
-		return apperr.Validation("audience", "Choose exactly one audience: a segment, a group, a tag, all contacts or a previous campaign's unreached customers.")
+		return apperr.Validation("audience", "Choose exactly one audience: a segment, a group, a tag, all contacts, a previous campaign's unreached customers or a list of contacts.")
 	}
 	if a.PreviousCampaign != nil {
 		return a.PreviousCampaign.validate()
@@ -193,6 +212,8 @@ type Input struct {
 	Priority    *string
 	MaxMPS      *float64
 	ClearMaxMPS bool
+	// ReactionMap maps quick reply buttons to positive/negative/neutral.
+	ReactionMap *map[string]string
 }
 
 // Create stores a draft.
@@ -242,6 +263,12 @@ func (s *Service) Create(ctx context.Context, in Input, actor *uuid.UUID) (db.Ca
 		if err != nil {
 			return err
 		}
+		if in.ReactionMap != nil {
+			rm, _ := json.Marshal(*in.ReactionMap)
+			if c, err = q.SetCampaignReactionMap(ctx, db.SetCampaignReactionMapParams{ID: c.ID, ReactionMap: rm}); err != nil {
+				return err
+			}
+		}
 		return audit.Record(ctx, q, audit.Entry{Action: "campaign.create", EntityType: "campaign", EntityID: &c.ID})
 	})
 	return c, err
@@ -276,6 +303,13 @@ func (s *Service) validate(ctx context.Context, in Input) error {
 	}
 	if err := validateSettings(in.Priority, in.MaxMPS); err != nil {
 		return err
+	}
+	if in.ReactionMap != nil {
+		for k, v := range *in.ReactionMap {
+			if k == "" || len(k) > 256 || !ValidReaction(v) {
+				return apperr.Validation("reaction_map", "Each quick reply maps to positive, negative or neutral.")
+			}
+		}
 	}
 	if in.PhoneNumberID != nil {
 		if _, err := s.q.GetPhoneNumber(ctx, *in.PhoneNumberID); errors.Is(err, pgx.ErrNoRows) {
@@ -366,8 +400,17 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (db.Campai
 			}
 			return apperr.Conflict("CAMPAIGN_STARTED", "Only draft or scheduled campaigns can be edited.")
 		}
-		if err != nil || (in.OfferID == nil && !in.ClearOffer) {
+		if err != nil {
 			return err
+		}
+		if in.ReactionMap != nil {
+			rm, _ := json.Marshal(*in.ReactionMap)
+			if c, err = q.SetCampaignReactionMap(ctx, db.SetCampaignReactionMapParams{ID: id, ReactionMap: rm}); err != nil {
+				return err
+			}
+		}
+		if in.OfferID == nil && !in.ClearOffer {
+			return nil
 		}
 		if err := q.SetCampaignOffer(ctx, db.SetCampaignOfferParams{ID: id, OfferID: in.OfferID}); err != nil {
 			return err
@@ -700,7 +743,7 @@ func dispatchPayload(c db.Campaign) map[string]any {
 
 // filter turns an audience into a contact filter.
 func (s *Service) filter(ctx context.Context, a Audience) (contacts.Filter, error) {
-	f := contacts.Filter{TagID: a.TagID, GroupID: a.GroupID}
+	f := contacts.Filter{TagID: a.TagID, GroupID: a.GroupID, ContactIDs: a.ContactIDs}
 	if pc := a.PreviousCampaign; pc != nil {
 		f.FromCampaign, f.FromClasses = &pc.CampaignID, pc.Classes
 	}
@@ -730,6 +773,10 @@ func (s *Service) Materialize(ctx context.Context, id uuid.UUID) error {
 	}
 	if stop, err := s.pauseIfOfferEnded(ctx, c); stop || err != nil {
 		return err
+	}
+	if c.MaterializeCursor == nil {
+		// The pre-launch forecast is fixed as the campaign starts.
+		s.snapshotForecast(ctx, c)
 	}
 	var a Audience
 	_ = json.Unmarshal(c.Audience, &a)
@@ -1176,24 +1223,15 @@ func (s *Service) Stats(ctx context.Context, id uuid.UUID) (map[string]int64, er
 	return stats(ctx, s.q, id)
 }
 
+// stats reads the campaign's incremental counters (one row; see
+// analytics.go): recipients by state, messages by status and the analytics
+// counters.
 func stats(ctx context.Context, q *db.Queries, id uuid.UUID) (map[string]int64, error) {
-	out := map[string]int64{}
-	rs, err := q.CampaignRecipientStats(ctx, id)
+	k, err := counters(ctx, q, id)
 	if err != nil {
 		return nil, err
 	}
-	for _, r := range rs {
-		out["recipients_"+r.State] = r.N
-		out["recipients"] += r.N
-	}
-	ms, err := q.CampaignMessageStats(ctx, &id)
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range ms {
-		out[m.Status] = m.N
-	}
-	return out, nil
+	return countsOf(k), nil
 }
 
 func (s *Service) tx(ctx context.Context, fn func(pgx.Tx, *db.Queries) error) error {

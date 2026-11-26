@@ -142,6 +142,12 @@ func (s *Service) accountChange(ctx context.Context, tx pgx.Tx, q *db.Queries, e
 		if err := record("phone_number_quality_update."+strings.ToLower(v.Event), pn); err != nil {
 			return err
 		}
+		if v.Event == "FLAGGED" && s.hooks.Account != nil {
+			// Meta flags a number whose quality dropped to low.
+			if err := s.hooks.Account(ctx, tx, q, AccountSignal{AccountID: acc.ID, PhoneNumberID: pn, NumberQuality: "RED"}); err != nil {
+				return err
+			}
+		}
 		// The event does not carry the quality rating: read the numbers'
 		// current signals from Meta.
 		_, err = outbox.Write(ctx, tx, outbox.TaskTopic(channels.TypeSignalSync), map[string]string{"account_id": acc.ID.String()}, 0)
@@ -159,7 +165,13 @@ func (s *Service) accountChange(ctx context.Context, tx pgx.Tx, q *db.Queries, e
 		case "ACCOUNT_RESTRICTION", "ACCOUNT_VIOLATION", "DISABLED_UPDATE", "ACCOUNT_DELETED", "ACCOUNT_OFFBOARDED", "PARTNER_REMOVED":
 			s.log.WarnContext(ctx, "Meta reported an account problem", "account_id", acc.ID, "event", v.Event)
 		}
-		return record("account_update."+strings.ToLower(v.Event), pn)
+		if err := record("account_update."+strings.ToLower(v.Event), pn); err != nil {
+			return err
+		}
+		if s.hooks.Account != nil {
+			return s.hooks.Account(ctx, tx, q, AccountSignal{AccountID: acc.ID, PhoneNumberID: pn, AccountEvent: v.Event})
+		}
+		return nil
 	case "message_template_quality_update":
 		var v whatsapp.TemplateQualityValue
 		if err := json.Unmarshal(c.Value, &v); err != nil {
@@ -171,7 +183,14 @@ func (s *Service) accountChange(ctx context.Context, tx pgx.Tx, q *db.Queries, e
 				return err
 			}
 		}
-		return record("message_template_quality_update", nil)
+		if err := record("message_template_quality_update", nil); err != nil {
+			return err
+		}
+		if s.hooks.Account != nil && v.NewQualityScore != "" {
+			return s.hooks.Account(ctx, tx, q, AccountSignal{AccountID: acc.ID, TemplateName: v.MessageTemplateName,
+				TemplateLanguage: v.MessageTemplateLanguage, TemplateQuality: v.NewQualityScore})
+		}
+		return nil
 	case "business_capability_update":
 		var v whatsapp.CapabilityValue
 		if err := json.Unmarshal(c.Value, &v); err != nil {

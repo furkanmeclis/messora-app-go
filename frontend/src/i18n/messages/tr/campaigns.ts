@@ -42,6 +42,7 @@ const campaigns: Messages['campaigns'] = {
     progressValue: '%{percent} işlendi ({total} alıcının {done} tanesi)',
     processed: '{done} / {total} işlendi',
     audience: {
+        contacts: '{count} seçili kişi',
         all: 'Tüm kişiler',
         segment: 'Segment: {name}',
         savedSegment: 'kayıtlı segment',
@@ -219,6 +220,7 @@ const campaigns: Messages['campaigns'] = {
             messaging_limit: 'portföy mesajlaşma limiti doldu',
             license_restricted: 'lisans kısıtlı',
             offer_expired: 'teklifin süresi doldu',
+            spam_protection: 'kampanya koruması (spam ve kalite sinyalleri)',
         },
         pauses: 'Duraklatma geçmişi',
         noPauses: 'Kampanya hiç duraklatılmadı.',
@@ -386,6 +388,7 @@ const campaigns: Messages['campaigns'] = {
             tag: 'Bir etiket',
             all: 'Tüm kişiler',
             previous: 'Daha önce ulaşılamayanlar',
+            contacts: 'Seçili kişiler',
         },
         defaultNumber: 'Varsayılan numara',
         button: 'Buton {n}',

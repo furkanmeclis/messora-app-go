@@ -84,8 +84,32 @@ type CampaignWithheld func(ctx context.Context, q *db.Queries, m db.Message) err
 // SetCampaignWithheld registers the hook that schedules a resend.
 func (s *Service) SetCampaignWithheld(f CampaignWithheld) { s.campaignWithheld = f }
 
+// AccountSignal is an account webhook as campaign spam protection sees it.
+type AccountSignal struct {
+	AccountID                       uuid.UUID
+	PhoneNumberID                   *uuid.UUID
+	AccountEvent, NumberQuality     string
+	TemplateName, TemplateLanguage  string
+	TemplateStatus, TemplateQuality string
+}
+
+// CampaignHooks are told, inside the transaction that records them, about
+// what campaign analytics and spam protection follow: a new inbound message
+// (replies, quick replies), a campaign message that ended with an error
+// (131048/131049/131050), and account webhooks (restrictions, quality,
+// template status).
+type CampaignHooks struct {
+	Inbound      func(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message) error
+	MessageError func(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message) error
+	Account      func(ctx context.Context, tx pgx.Tx, q *db.Queries, sig AccountSignal) error
+}
+
+// SetCampaignHooks registers the analytics hooks.
+func (s *Service) SetCampaignHooks(h CampaignHooks) { s.hooks = h }
+
 // Service implements messaging.
 type Service struct {
+	hooks            CampaignHooks
 	throttle         *Throttle
 	campaignProgress CampaignProgress
 	campaignWithheld CampaignWithheld
@@ -557,6 +581,11 @@ func (s *Service) settle(ctx context.Context, id uuid.UUID, mark func(q *db.Quer
 		}
 		if m.Status == "failed" && m.CampaignID == nil {
 			if err := recordFailure(ctx, tx, q, m); err != nil {
+				return err
+			}
+		}
+		if m.CampaignID != nil && m.ErrorCode != nil && s.hooks.MessageError != nil {
+			if err := s.hooks.MessageError(ctx, tx, q, m); err != nil {
 				return err
 			}
 		}

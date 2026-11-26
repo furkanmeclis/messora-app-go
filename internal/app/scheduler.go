@@ -29,6 +29,7 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "identity_cleanup", Every: time.Hour, TaskType: queue.TypeIdentityCleanup},
 		{Name: "campaigns_due", Every: time.Minute, TaskType: campaigns.TypeStartDue},
 		{Name: "campaign_reaper", Every: time.Minute, TaskType: campaigns.TypeReaper},
+		{Name: "campaign_analytics_reconcile", Every: 5 * time.Minute, TaskType: campaigns.TypeAnalyticsReconcile},
 		{Name: "offers_tick", Every: time.Minute, TaskType: offers.TypeTick},
 		{Name: "automation_reaper", Every: time.Minute, TaskType: automation.TypeReaper},
 		{Name: "webhook_cleanup", Every: 6 * time.Hour, TaskType: webhooks.TypeCleanup},

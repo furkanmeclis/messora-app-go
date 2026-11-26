@@ -47,7 +47,8 @@ func contactToAPI(c db.Contact, tags []db.Tag, groups []uuid.UUID) api.Contact {
 	return api.Contact{Id: c.ID, Phone: c.PhoneE164, Name: c.Name, ProfileName: c.ProfileName, Email: c.Email,
 		Var1: c.Var1, Var2: c.Var2, Var3: c.Var3, Var4: c.Var4, Var5: c.Var5, Attributes: attrs, Tags: refs,
 		GroupIds: groups, OptedOut: c.OptedOutAt != nil, OptedOutAt: c.OptedOutAt, LastInboundAt: c.LastInboundAt,
-		Consent: ConsentToAPI(c), Source: api.ContactSource(c.Source), CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
+		Consent: ConsentToAPI(c), Source: api.ContactSource(c.Source), CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+		ContactType: c.ContactType}
 }
 
 // ConsentToAPI is a contact's consent as the API shows it (the legacy
@@ -63,8 +64,8 @@ func ConsentToAPI(c db.Contact) api.ContactConsent {
 	}
 }
 
-func fieldsFrom(name, email *string, vars [5]*string, attrs *map[string]string, tags *[]string, groups *[]uuid.UUID) Fields {
-	f := Fields{Name: name, Email: email, Vars: vars, Tags: tags, GroupIDs: groups}
+func fieldsFrom(name, email *string, vars [5]*string, attrs *map[string]string, tags *[]string, groups *[]uuid.UUID, contactType *string) Fields {
+	f := Fields{Name: name, Email: email, Vars: vars, Tags: tags, GroupIDs: groups, ContactType: contactType}
 	if attrs != nil {
 		f.Attributes = *attrs
 	}
@@ -201,7 +202,7 @@ func (h *Handler) CreateContact(w http.ResponseWriter, r *http.Request, _ api.Cr
 		source = "api"
 	}
 	c, err := h.svc.Create(r.Context(), req.Phone, fieldsFrom(req.Name, req.Email,
-		[5]*string{req.Var1, req.Var2, req.Var3, req.Var4, req.Var5}, req.Attributes, req.Tags, req.GroupIds), source)
+		[5]*string{req.Var1, req.Var2, req.Var3, req.Var4, req.Var5}, req.Attributes, req.Tags, req.GroupIds, req.ContactType), source)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -222,7 +223,7 @@ func (h *Handler) UpdateContact(w http.ResponseWriter, r *http.Request, id api.C
 		return
 	}
 	if _, err := h.svc.Update(r.Context(), id, fieldsFrom(req.Name, req.Email,
-		[5]*string{req.Var1, req.Var2, req.Var3, req.Var4, req.Var5}, req.Attributes, req.Tags, req.GroupIds)); err != nil {
+		[5]*string{req.Var1, req.Var2, req.Var3, req.Var4, req.Var5}, req.Attributes, req.Tags, req.GroupIds, req.ContactType)); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -385,7 +386,7 @@ func (h *Handler) ExportContacts(w http.ResponseWriter, r *http.Request, p api.E
 	}
 	var out rowWriter
 	var xw *xlsxWriter
-	if p.Format != nil && *p.Format == api.Xlsx {
+	if p.Format != nil && *p.Format == api.ExportContactsParamsFormatXlsx {
 		if xw, err = newXLSXWriter(h.svc.imp.tmpDir()); err != nil {
 			h.fail(w, r, err)
 			return

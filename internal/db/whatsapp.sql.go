@@ -310,7 +310,7 @@ func (q *Queries) FindApprovedTemplate(ctx context.Context, arg FindApprovedTemp
 }
 
 const getContact = `-- name: GetContact :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled FROM contacts WHERE id = $1
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type FROM contacts WHERE id = $1
 `
 
 func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (Contact, error) {
@@ -348,6 +348,7 @@ func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 		&i.UndeliverableAt,
 		&i.UndeliverableCode,
 		&i.AiDisabled,
+		&i.ContactType,
 	)
 	return i, err
 }
@@ -1691,7 +1692,7 @@ ON CONFLICT (phone_e164) DO UPDATE SET
     wa_id        = coalesce(excluded.wa_id, contacts.wa_id),
     profile_name = CASE WHEN excluded.profile_name <> '' THEN excluded.profile_name ELSE contacts.profile_name END,
     updated_at   = now()
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type
 `
 
 type UpsertContactByPhoneParams struct {
@@ -1736,6 +1737,7 @@ func (q *Queries) UpsertContactByPhone(ctx context.Context, arg UpsertContactByP
 		&i.UndeliverableAt,
 		&i.UndeliverableCode,
 		&i.AiDisabled,
+		&i.ContactType,
 	)
 	return i, err
 }

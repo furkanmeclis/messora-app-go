@@ -91,7 +91,7 @@ func RunWorker(ctx context.Context) error {
 	// Each number's ceiling is the throughput Meta reports for it (80 when unknown).
 	svc.messaging.SetThrottle(svc.throttle)
 	registerMessaging(mux, svc.messaging)
-	registerSignals(mux, svc.channels, svc.messaging, log)
+	registerSignals(mux, svc.channels, svc.messaging, svc.campaigns, log)
 	registerCampaigns(mux, svc.campaigns, svc.messaging, log)
 	mux.HandleFunc(offers.TypeTick, func(ctx context.Context, _ *asynq.Task) error {
 		n, err := svc.offers.Tick(ctx)
@@ -220,7 +220,7 @@ func registerMessaging(mux *asynq.ServeMux, m *messaging.Service) {
 
 // registerSignals wires Meta's account signals, cost reconciliation and the
 // user-preference event.
-func registerSignals(mux *asynq.ServeMux, ch *channels.Service, m *messaging.Service, log *slog.Logger) {
+func registerSignals(mux *asynq.ServeMux, ch *channels.Service, m *messaging.Service, camp *campaigns.Service, log *slog.Logger) {
 	mux.HandleFunc(channels.TypeSignalSync, func(ctx context.Context, t *asynq.Task) error {
 		var p struct {
 			AccountID *uuid.UUID `json:"account_id"`
@@ -229,6 +229,10 @@ func registerSignals(mux *asynq.ServeMux, ch *channels.Service, m *messaging.Ser
 		// Problems are logged; the next hourly run repeats the sync.
 		if err := ch.SyncSignals(ctx, p.AccountID); err != nil {
 			log.WarnContext(ctx, "whatsapp signal sync", "err", err)
+		}
+		// A number's quality may have dropped: campaign spam protection.
+		if err := camp.ProtectActive(ctx); err != nil {
+			log.WarnContext(ctx, "campaign protection after signal sync", "err", err)
 		}
 		return nil
 	})
@@ -280,6 +284,22 @@ func registerCampaigns(mux *asynq.ServeMux, c *campaigns.Service, m *messaging.S
 			log.InfoContext(ctx, "scheduled campaigns started", "count", n)
 		}
 		return err
+	})
+	mux.HandleFunc(campaigns.TypeAnalyticsReconcile, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := c.ReconcileCounters(ctx)
+		if n > 0 {
+			log.WarnContext(ctx, "campaign counters repaired", "campaigns", n)
+		}
+		return err
+	})
+	mux.HandleFunc(campaigns.TypeExport, func(ctx context.Context, t *asynq.Task) error {
+		var e struct {
+			ExportID uuid.UUID `json:"export_id"`
+		}
+		if err := json.Unmarshal(t.Payload(), &e); err != nil {
+			return fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		return c.RunExport(ctx, e.ExportID)
 	})
 	mux.HandleFunc(campaigns.TypeReaper, func(ctx context.Context, _ *asynq.Task) error {
 		n, err := c.Reap(ctx, m.Send)
