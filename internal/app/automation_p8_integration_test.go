@@ -375,6 +375,11 @@ func TestEveryPresetInstallsAndCompiles(t *testing.T) {
 		if len(setup) != len(p["setup"].([]any)) {
 			t.Fatalf("%s setup %v", key, setup)
 		}
+		// Reading it back (the editor) keeps the setup and the preset.
+		g := h.do(call{method: "GET", path: "/api/v1/automations/" + id, token: token}).data()
+		if len(g["setup"].([]any)) != len(setup) || g["preset"] == nil {
+			t.Fatalf("%s read back: %v", key, g)
+		}
 		enable := map[string]any{"active": true}
 		if len(setup) == 0 {
 			h.expect(h.do(call{method: "PATCH", path: "/api/v1/automations/" + id, token: token, body: enable}), 200, "")

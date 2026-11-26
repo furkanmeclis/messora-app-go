@@ -180,7 +180,8 @@ func (h *Handler) ListAutomations(w http.ResponseWriter, r *http.Request) {
 	out := make([]api.Automation, len(rows))
 	for i, a := range rows {
 		out[i] = toAPI(db.Automation{ID: a.ID, Name: a.Name, Description: a.Description, Active: a.Active, TriggerType: a.TriggerType,
-			Trigger: a.Trigger, Steps: a.Steps, Program: a.Program, Version: a.Version, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Layout: a.Layout},
+			Trigger: a.Trigger, Steps: a.Steps, Program: a.Program, Version: a.Version, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Layout: a.Layout,
+			Setup: a.Setup, PresetKey: a.PresetKey, PresetVersion: a.PresetVersion},
 			a.RunCount, lastRun(a.HasRun, a.LastRunAt))
 	}
 	httpx.JSON(w, r, http.StatusOK, out)
@@ -259,7 +260,8 @@ func (h *Handler) GetAutomation(w http.ResponseWriter, r *http.Request, id api.A
 	}
 	httpx.JSON(w, r, http.StatusOK, toAPI(db.Automation{ID: a.ID, Name: a.Name, Description: a.Description, Active: a.Active,
 		TriggerType: a.TriggerType, Trigger: a.Trigger, Steps: a.Steps, Program: a.Program, Version: a.Version,
-		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Layout: a.Layout}, a.RunCount, lastRun(a.HasRun, a.LastRunAt)))
+		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Layout: a.Layout,
+		Setup: a.Setup, PresetKey: a.PresetKey, PresetVersion: a.PresetVersion}, a.RunCount, lastRun(a.HasRun, a.LastRunAt)))
 }
 
 func lastRun(has bool, at time.Time) *time.Time {
