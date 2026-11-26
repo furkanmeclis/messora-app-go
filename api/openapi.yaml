@@ -2436,6 +2436,35 @@ paths:
               schema: { $ref: "#/components/schemas/CampaignPreflightResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /campaigns/forecast:
+    post:
+      operationId: forecastCampaign
+      tags: [campaigns]
+      summary: Pre-launch analysis of a campaign
+      description: >-
+        Who would get the campaign (consent preflight), how long it takes with the
+        number's capacity, the other running campaigns and the portfolio's messaging
+        limit (possibly several 24-hour windows), the estimated Meta cost from the
+        imported rate card (recipient country × template category, 2026-10-01
+        charging rules; countries without a rate are counted in not_in_rate_card,
+        never guessed) and, only with enough history (at least 3 completed campaigns
+        of the same template category and 500 recipients), expected rates. Without
+        history rates.status is insufficient_history with what is missing. Nothing is
+        stored; the forecast is fixed when the campaign starts.
+      security: [{ session: [campaigns.create] }, { apiKey: [campaigns.create] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignForecastRequest" }
+      responses:
+        "200":
+          description: Forecast
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignForecastResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /campaigns/{campaignId}:
     get:
       operationId: getCampaign
@@ -2662,6 +2691,287 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignRecipientListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/recipients/search:
+    post:
+      operationId: searchCampaignRecipients
+      tags: [campaigns]
+      summary: The recipients table (filters, sorting, pages, total)
+      description: >-
+        Statuses are combined with OR (sent, delivered, read, failed, pending,
+        unknown, blocked, cancelled, rejected, replied, positive, negative,
+        neutral, opted_out and every unreached class); the other filters with
+        AND.
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignRecipientSearchRequest" }
+      responses:
+        "200":
+          description: Page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignRecipientSearchResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/recipients/bulk:
+    post:
+      operationId: bulkCampaignRecipients
+      tags: [campaigns]
+      summary: Tag, group or follow up a selection of recipients
+      description: >-
+        The selection is the filter (all matching) or filter.ids (a page
+        selection). follow_up creates a draft campaign with the same number,
+        template and reaction mapping whose audience is the selected contacts
+        (at most 50,000).
+      security: [{ session: [campaigns.create] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignRecipientBulkRequest" }
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignRecipientBulkResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/recipients/export:
+    get:
+      operationId: exportCampaignRecipients
+      tags: [campaigns]
+      summary: Download the matching recipients as CSV or Excel
+      description: >-
+        Streams up to 20,000 rows; larger selections answer 409 EXPORT_TOO_LARGE
+        and run as a background export (POST /campaigns/{campaignId}/exports).
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+        - { name: format, in: query, schema: { type: string, enum: [csv, xlsx], default: csv } }
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: status, in: query, description: Comma-separated status filters., schema: { type: string, maxLength: 500 } }
+        - { name: tag_id, in: query, schema: { type: string, format: uuid } }
+        - { name: group_id, in: query, schema: { type: string, format: uuid } }
+        - { name: segment_id, in: query, schema: { type: string, format: uuid } }
+        - { name: contact_type, in: query, schema: { type: string, maxLength: 60 } }
+        - { name: attr_key, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: attr_value, in: query, schema: { type: string, maxLength: 200 } }
+      responses:
+        "200":
+          description: CSV (UTF-8 with header row) or Excel workbook
+          content:
+            text/csv:
+              schema: { type: string }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/recipients/{recipientId}/reaction:
+    put:
+      operationId: setCampaignRecipientReaction
+      tags: [campaigns]
+      summary: Label a recipient's reaction by hand
+      description: A manual label overrides the system's (quick reply mapping, AI) and is never replaced by it; null clears.
+      security: [{ session: [campaigns.create] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+        - { name: recipientId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reaction]
+              properties:
+                reaction: { type: [string, "null"], enum: [positive, negative, neutral, null] }
+      responses:
+        "204": { description: Stored }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/reaction-map:
+    put:
+      operationId: setCampaignReactionMap
+      tags: [campaigns]
+      summary: Map quick reply buttons to positive, negative or neutral
+      description: >-
+        Keys are the button payloads or texts. Recipients who already tapped a
+        button are relabelled (manual labels stay).
+      security: [{ session: [campaigns.create] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reaction_map]
+              properties:
+                reaction_map: { $ref: "#/components/schemas/ReactionMap" }
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/analytics:
+    get:
+      operationId: getCampaignAnalytics
+      tags: [campaigns]
+      summary: The campaign's analysis center
+      description: >-
+        Metrics tagged by source (meta: what Meta reported; system: what
+        Messora computed), rates, cost (per-message estimate and Meta's
+        reconciled daily totals for the number), the spam and quality section
+        and hourly series.
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Analysis
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignAnalyticsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/breakdown:
+    get:
+      operationId: getCampaignBreakdown
+      tags: [campaigns]
+      summary: Figures per group, segment, tag, contact type or attribute value
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+        - { name: dimension, in: query, required: true, schema: { type: string, enum: [group, segment, tag, contact_type, attribute] } }
+        - { name: attr_key, in: query, schema: { type: string, maxLength: 100 } }
+      responses:
+        "200":
+          description: Buckets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignBreakdownResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/forecast:
+    get:
+      operationId: getCampaignForecast
+      tags: [campaigns]
+      summary: The forecast fixed at start, compared with the actual figures
+      description: >-
+        Same definitions for both sides (docs/CAMPAIGN_ANALYTICS.md); live
+        while the campaign runs, final once it ended. forecast is null for a
+        campaign started before forecasts existed.
+      security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Forecast vs actual
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignForecastVsActualResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/exports:
+    get:
+      operationId: listCampaignExports
+      tags: [campaigns]
+      summary: Recent exports of the campaign
+      security: [{ session: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Exports
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignExportListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createCampaignExport
+      tags: [campaigns]
+      summary: Export recipients or the report in the background
+      description: >-
+        recipients as csv or xlsx (with the table's filters), the report as xlsx
+        (sheets Özet, Maliyet, Teslimat, Alıcılar, Segment, Etiket, Tahmin vs
+        Gerçek) or pdf (summary). The file is kept for 7 days.
+      security: [{ session: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignExportRequest" }
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignExportResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/exports/{exportId}/download:
+    get:
+      operationId: downloadCampaignExport
+      tags: [campaigns]
+      summary: Download a finished export
+      security: [{ session: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+        - { name: exportId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        default: { $ref: "#/components/responses/Error" }
+
+  /settings/campaign-protection:
+    get:
+      operationId: getCampaignProtectionSettings
+      tags: [settings]
+      summary: Campaign protection (spam thresholds) and attribution window
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignProtectionSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updateCampaignProtectionSettings
+      tags: [settings]
+      summary: Change the campaign protection settings
+      security: [{ session: [settings.update] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignProtectionSettings" }
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignProtectionSettingsResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   # ── Inbox (Phase 7) ─────────────────────────────────────────────────────────
@@ -5002,6 +5312,7 @@ components:
         opted_out_at: { type: [string, "null"], format: date-time }
         consent: { $ref: "#/components/schemas/ContactConsent" }
         last_inbound_at: { type: [string, "null"], format: date-time }
+        contact_type: { type: [string, "null"], description: "What kind of customer (free text, e.g. bireysel, kurumsal), for campaign breakdowns." }
         source: { type: string, enum: [webhook, manual, import, api] }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -5028,6 +5339,7 @@ components:
           type: array
           maxItems: 100
           items: { type: string, format: uuid }
+        contact_type: { type: string, maxLength: 60, description: "\"\" clears it." }
 
     CreateContactRequest:
       allOf:
@@ -5642,6 +5954,12 @@ components:
               minItems: 1
               uniqueItems: true
               items: { type: string, enum: [temporary, rejected_by_meta, ecosystem_limit, undeliverable, permanent, never_sent] }
+        contact_ids:
+          type: array
+          minItems: 1
+          maxItems: 50000
+          description: An explicit list of contacts (e.g. a follow-up to a selection of another campaign's recipients).
+          items: { type: string, format: uuid }
 
     CampaignParams:
       type: object
@@ -5744,7 +6062,11 @@ components:
         total_recipients: { type: integer, format: int64 }
         counts:
           type: object
-          description: Recipients by state (recipients_pending, recipients_skipped …) and messages by status (sent, delivered, read, failed, unknown, held …).
+          description: >-
+            Recipients by state (recipients_pending, recipients_skipped …), messages by status (sent, delivered, read,
+            failed, unknown, held …) and the analytics counters (a_sent, a_delivered, a_read, a_failed, a_pending,
+            a_blocked, a_rejected, a_replied, a_positive, a_negative, a_neutral, a_opted_out, a_err_131048/131049/131050,
+            a_priced, a_unpriced, a_cost_micros). Read from incremental counters, not counted per request.
           additionalProperties: { type: integer, format: int64 }
         scheduled_at: { type: [string, "null"], format: date-time }
         started_at: { type: [string, "null"], format: date-time }
@@ -5759,6 +6081,7 @@ components:
         resume_at: { type: [string, "null"], format: date-time, description: "When it resumes by itself (limit frees up, or a scheduled resume)." }
         send_rate: { type: [number, "null"], format: double, description: Measured rate in messages per second. }
         eta_seconds: { type: [integer, "null"], format: int64, description: Estimated time left at the measured rate. }
+        reaction_map: { $ref: "#/components/schemas/ReactionMap" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -5786,6 +6109,7 @@ components:
             offer ended; a running campaign pauses with reason offer_expired.
         priority: { $ref: "#/components/schemas/CampaignPriority" }
         max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000, description: Rate cap in messages per second. }
+        reaction_map: { $ref: "#/components/schemas/ReactionMap" }
 
     UpdateCampaignRequest:
       type: object
@@ -5804,6 +6128,7 @@ components:
         priority: { $ref: "#/components/schemas/CampaignPriority" }
         max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000 }
         clear_max_mps: { type: boolean }
+        reaction_map: { $ref: "#/components/schemas/ReactionMap" }
 
     CampaignEventItem:
       type: object
@@ -6041,6 +6366,413 @@ components:
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/CampaignRecipient" } }
         meta: { $ref: "#/components/schemas/Meta" }
+
+    # ── Campaign analytics (Phase 16C P3) ───────────────────────────────────
+    ReactionMap:
+      type: object
+      description: Quick reply button payload or text → positive | negative | neutral.
+      maxProperties: 50
+      additionalProperties: { type: string, enum: [positive, negative, neutral] }
+
+    CampaignForecastRequest:
+      type: object
+      additionalProperties: false
+      required: [audience, template_name, template_language]
+      properties:
+        audience: { $ref: "#/components/schemas/CampaignAudience" }
+        phone_number_id: { type: string, format: uuid }
+        template_name: { type: string }
+        template_language: { type: string }
+        priority: { $ref: "#/components/schemas/CampaignPriority" }
+        max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000 }
+        scheduled_at: { type: string, format: date-time, description: When sending would start (now when omitted). }
+
+    CampaignForecast:
+      type: object
+      required: [generated_at, category, total, eligible, blocked, warned, blocked_reasons, capacity, limit, start_at, duration_seconds, finish_at, cost, rates, expected]
+      properties:
+        generated_at: { type: string, format: date-time }
+        category: { type: string }
+        total: { type: integer, format: int64 }
+        eligible: { type: integer, format: int64 }
+        blocked: { type: integer, format: int64 }
+        warned: { type: integer, format: int64 }
+        blocked_reasons: { type: array, items: { $ref: "#/components/schemas/PreflightReason" } }
+        capacity:
+          type: object
+          required: [ceiling_mps, rate_mps, reserved_share, campaign_capacity_mps, share_mps, others]
+          properties:
+            ceiling_mps: { type: integer }
+            rate_mps: { type: integer }
+            reserved_share: { type: number, format: double }
+            campaign_capacity_mps: { type: number, format: double }
+            share_mps: { type: number, format: double, description: The share this campaign would get. }
+            others:
+              type: array
+              items:
+                type: object
+                required: [id, priority, share_mps]
+                properties:
+                  id: { type: string, format: uuid }
+                  priority: { type: string }
+                  share_mps: { type: number, format: double }
+        limit:
+          type: object
+          required: [tier, limit, used, in_flight, remaining, counting, windows]
+          properties:
+            tier: { type: string }
+            limit: { type: integer, format: int64, description: 0 = no limit. }
+            used: { type: integer, format: int64 }
+            in_flight: { type: integer, format: int64 }
+            remaining: { type: integer, format: int64 }
+            counting: { type: integer, format: int64, description: Eligible customers that would count against the limit. }
+            windows: { type: integer, description: 24-hour limit windows the send needs (1 = fits now). }
+        start_at: { type: string, format: date-time }
+        duration_seconds: { type: [integer, "null"], format: int64 }
+        finish_at: { type: [string, "null"], format: date-time }
+        cost:
+          type: object
+          required: [currency, amount, priced, free, not_in_rate_card, by_country]
+          properties:
+            currency: { type: string }
+            amount: { type: string, description: Decimal total of the priced recipients. }
+            priced: { type: integer, format: int64 }
+            free: { type: integer, format: int64 }
+            not_in_rate_card: { type: integer, format: int64, description: Charged recipients whose country has no rate in the card. }
+            by_country:
+              type: array
+              items:
+                type: object
+                required: [country, recipients, charged, price, amount]
+                properties:
+                  country: { type: string }
+                  recipients: { type: integer, format: int64 }
+                  charged: { type: integer, format: int64 }
+                  price: { type: [string, "null"] }
+                  amount: { type: [string, "null"] }
+        rates:
+          type: object
+          required: [status, campaigns, recipients, campaigns_needed, recipients_needed, sent_rate, delivery_rate, read_rate, reply_rate, positive_rate, negative_rate, opt_out_rate, based_on]
+          properties:
+            status: { type: string, enum: [ok, insufficient_history] }
+            campaigns: { type: integer }
+            recipients: { type: integer, format: int64 }
+            campaigns_needed: { type: integer }
+            recipients_needed: { type: integer, format: int64 }
+            sent_rate: { type: [number, "null"], format: double }
+            delivery_rate: { type: [number, "null"], format: double }
+            read_rate: { type: [number, "null"], format: double }
+            reply_rate: { type: [number, "null"], format: double }
+            positive_rate: { type: [number, "null"], format: double }
+            negative_rate: { type: [number, "null"], format: double }
+            opt_out_rate: { type: [number, "null"], format: double }
+            based_on: { type: array, items: { type: string } }
+        expected:
+          type: object
+          required: [sent, delivered, read, replied, positive, negative, opted_out]
+          properties:
+            sent: { type: [integer, "null"], format: int64 }
+            delivered: { type: [integer, "null"], format: int64 }
+            read: { type: [integer, "null"], format: int64 }
+            replied: { type: [integer, "null"], format: int64 }
+            positive: { type: [integer, "null"], format: int64 }
+            negative: { type: [integer, "null"], format: int64 }
+            opted_out: { type: [integer, "null"], format: int64 }
+
+    CampaignForecastResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/CampaignForecast" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    ForecastComparison:
+      type: object
+      required: [metric, forecast, actual, delta, delta_pct]
+      properties:
+        metric: { type: string }
+        forecast: { type: [number, "null"], format: double }
+        actual: { type: [number, "null"], format: double }
+        delta: { type: [number, "null"], format: double, description: actual − forecast }
+        delta_pct: { type: [number, "null"], format: double, description: (actual − forecast) / forecast × 100 }
+
+    CampaignForecastVsActual:
+      type: object
+      required: [final, forecast, metrics, actual_cost, currency]
+      properties:
+        final: { type: boolean, description: The campaign ended; the figures no longer change (replies may still arrive within the attribution window). }
+        forecast: { oneOf: [{ $ref: "#/components/schemas/CampaignForecast" }, { type: "null" }] }
+        stored_at: { type: [string, "null"], format: date-time }
+        metrics: { type: array, items: { $ref: "#/components/schemas/ForecastComparison" } }
+        actual_cost: { type: string }
+        currency: { type: string }
+
+    CampaignForecastVsActualResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/CampaignForecastVsActual" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    CampaignMetric:
+      type: object
+      required: [key, value, source]
+      properties:
+        key: { type: string }
+        value: { type: integer, format: int64 }
+        source: { type: string, enum: [meta, system] }
+
+    CampaignRates:
+      type: object
+      required: [sent, delivery, read, reply, positive, negative, opt_out]
+      properties:
+        sent: { type: [number, "null"], format: double }
+        delivery: { type: [number, "null"], format: double }
+        read: { type: [number, "null"], format: double }
+        reply: { type: [number, "null"], format: double }
+        positive: { type: [number, "null"], format: double }
+        negative: { type: [number, "null"], format: double }
+        opt_out: { type: [number, "null"], format: double }
+
+    CampaignAnalytics:
+      type: object
+      required: [counts, metrics, rates, currency, cost_estimate, priced, unpriced, cost_breakdown, reconciled, number_quality,
+                 template_status, template_quality, timeline, classes, hourly, quick_replies, ai_cost]
+      properties:
+        quick_replies: { type: array, items: { type: string }, description: "The template's quick reply button texts (keys for the reaction mapping)." }
+        ai_cost:
+          type: array
+          description: AI usage attributed to the campaign (ai_usage.campaign_id), per currency; empty until AI features attribute usage.
+          items:
+            type: object
+            required: [currency, cost, requests]
+            properties:
+              currency: { type: string }
+              cost: { type: string }
+              requests: { type: integer, format: int64 }
+        total_cost: { type: [string, "null"], description: "Meta estimate + AI cost (the campaign's operating cost) when they share a currency." }
+        counts: { type: object, additionalProperties: { type: integer, format: int64 } }
+        metrics: { type: array, items: { $ref: "#/components/schemas/CampaignMetric" } }
+        rates: { $ref: "#/components/schemas/CampaignRates" }
+        currency: { type: string }
+        cost_estimate: { type: string, description: "Sum of per-message costs (Meta's pricing category × the imported rate card)." }
+        priced: { type: integer, format: int64 }
+        unpriced: { type: integer, format: int64, description: Billable messages without a rate in the card. }
+        cost_breakdown:
+          type: array
+          items:
+            type: object
+            required: [category, type, messages, unpriced, cost, currency]
+            properties:
+              category: { type: string }
+              type: { type: string }
+              messages: { type: integer, format: int64 }
+              unpriced: { type: integer, format: int64 }
+              cost: { type: string }
+              currency: { type: string }
+        reconciled:
+          type: array
+          description: Meta's own daily cost (pricing_analytics) of the campaign's number on the campaign's days — every message of the number, not only the campaign's.
+          items:
+            type: object
+            required: [day, category, volume, cost, currency]
+            properties:
+              day: { type: string, format: date }
+              category: { type: string }
+              volume: { type: integer, format: int64 }
+              cost: { type: [string, "null"] }
+              currency: { type: [string, "null"] }
+        number_quality: { type: string }
+        template_status: { type: string }
+        template_quality: { type: string }
+        timeline:
+          type: array
+          items:
+            type: object
+            required: [kind, occurred_at, payload]
+            properties:
+              kind: { type: string }
+              occurred_at: { type: string, format: date-time }
+              payload: { type: object, additionalProperties: true }
+        classes: { type: object, additionalProperties: { type: integer, format: int64 } }
+        hourly:
+          type: array
+          items:
+            type: object
+            required: [hour, sent, delivered, read, replied, failed]
+            properties:
+              hour: { type: string, format: date-time }
+              sent: { type: integer, format: int64 }
+              delivered: { type: integer, format: int64 }
+              read: { type: integer, format: int64 }
+              replied: { type: integer, format: int64 }
+              failed: { type: integer, format: int64 }
+
+    CampaignAnalyticsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/CampaignAnalytics" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    CampaignBreakdownBucket:
+      type: object
+      required: [key, label, recipients, sent, delivered, read, replied, positive, negative, opted_out, cost]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        recipients: { type: integer, format: int64 }
+        sent: { type: integer, format: int64 }
+        delivered: { type: integer, format: int64 }
+        read: { type: integer, format: int64 }
+        replied: { type: integer, format: int64 }
+        positive: { type: integer, format: int64 }
+        negative: { type: integer, format: int64 }
+        opted_out: { type: integer, format: int64 }
+        cost: { type: string }
+
+    CampaignBreakdownResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CampaignBreakdownBucket" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    CampaignRecipientFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        q: { type: string, maxLength: 100 }
+        status: { type: array, maxItems: 30, items: { type: string, maxLength: 40 } }
+        tag_id: { type: string, format: uuid }
+        group_id: { type: string, format: uuid }
+        segment_id: { type: string, format: uuid }
+        contact_type: { type: string, maxLength: 60, description: "\"\" = contacts without a type." }
+        attr_key: { type: string, maxLength: 100 }
+        attr_value: { type: string, maxLength: 200 }
+        ids: { type: array, maxItems: 1000, items: { type: string, format: uuid }, description: Only these recipients (a page selection). }
+
+    CampaignRecipientSearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        filter: { $ref: "#/components/schemas/CampaignRecipientFilter" }
+        sort: { type: string, description: "created, name, phone, sent_at, delivered_at, read_at, replied_at or cost; a leading - sorts descending." }
+        offset: { type: integer, minimum: 0, maximum: 10000000 }
+        limit: { type: integer, minimum: 1, maximum: 200, default: 50 }
+
+    CampaignRecipientRow:
+      type: object
+      required: [id, phone, name, contact_type, state, outcome, unreached_class, resends]
+      properties:
+        id: { type: string, format: uuid }
+        contact_id: { type: [string, "null"], format: uuid }
+        phone: { type: string }
+        name: { type: string }
+        contact_type: { type: string }
+        state: { type: string }
+        skip_reason: { type: [string, "null"] }
+        message_id: { type: [string, "null"], format: uuid }
+        message_status: { type: [string, "null"] }
+        outcome: { type: string }
+        unreached_class: { type: string, description: "\"\" = reached or in progress." }
+        failure_class: { type: [string, "null"] }
+        error_code: { type: [string, "null"] }
+        attempted_at: { type: [string, "null"], format: date-time }
+        sent_at: { type: [string, "null"], format: date-time }
+        delivered_at: { type: [string, "null"], format: date-time }
+        read_at: { type: [string, "null"], format: date-time }
+        failed_at: { type: [string, "null"], format: date-time }
+        replied_at: { type: [string, "null"], format: date-time }
+        reply_payload: { type: [string, "null"] }
+        reaction: { type: [string, "null"], enum: [positive, negative, neutral, null] }
+        reaction_source: { type: [string, "null"], enum: [quick_reply, ai, manual, null] }
+        opted_out_at: { type: [string, "null"], format: date-time }
+        cost: { type: [string, "null"] }
+        cost_currency: { type: [string, "null"] }
+        resends: { type: integer }
+
+    CampaignRecipientSearchResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CampaignRecipientRow" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    CampaignRecipientBulkRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        filter: { $ref: "#/components/schemas/CampaignRecipientFilter" }
+        action: { type: string, enum: [add_tag, add_to_group, follow_up] }
+        target_id: { type: string, format: uuid, description: The tag or group. }
+
+    CampaignRecipientBulkResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [affected]
+          properties:
+            affected: { type: integer, format: int64 }
+            campaign: { $ref: "#/components/schemas/Campaign" }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    CampaignExportRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, format]
+      properties:
+        kind: { type: string, enum: [recipients, report] }
+        format: { type: string, enum: [csv, xlsx, pdf] }
+        filter: { $ref: "#/components/schemas/CampaignRecipientFilter" }
+
+    CampaignExport:
+      type: object
+      required: [id, campaign_id, kind, format, status, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        campaign_id: { type: string, format: uuid }
+        kind: { type: string, enum: [recipients, report] }
+        format: { type: string, enum: [csv, xlsx, pdf] }
+        status: { type: string, enum: [queued, running, done, failed, expired] }
+        filename: { type: [string, "null"] }
+        size_bytes: { type: [integer, "null"], format: int64 }
+        rows: { type: [integer, "null"], format: int64 }
+        error: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+
+    CampaignExportResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/CampaignExport" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    CampaignExportListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CampaignExport" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    CampaignProtectionSettings:
+      type: object
+      additionalProperties: false
+      required: [enabled, stop_on_131048, stop_on_account_restriction, window, min_attempts, ecosystem_rate_pct, opt_out_rate_pct,
+                 quality_stop, stop_on_template_paused, attribution_days]
+      properties:
+        enabled: { type: boolean }
+        stop_on_131048: { type: boolean }
+        stop_on_account_restriction: { type: boolean }
+        window: { type: integer, minimum: 20, maximum: 10000, description: Latest attempts the rates are computed over. }
+        min_attempts: { type: integer, minimum: 1, maximum: 10000 }
+        ecosystem_rate_pct: { type: number, format: double, exclusiveMinimum: 0, maximum: 100, description: Pause when 131049+131050 exceed this share. }
+        opt_out_rate_pct: { type: number, format: double, exclusiveMinimum: 0, maximum: 100 }
+        quality_stop: { type: string, enum: [red, yellow, off] }
+        stop_on_template_paused: { type: boolean }
+        attribution_days: { type: integer, minimum: 1, maximum: 30 }
+
+    CampaignProtectionSettingsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/CampaignProtectionSettings" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     # ── Automations (Phase 8) ──────────────────────────────────────────────
     AutomationTriggerType:

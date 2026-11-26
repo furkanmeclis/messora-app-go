@@ -7,6 +7,7 @@ require (
 	github.com/centrifugal/gocent/v4 v4.0.0
 	github.com/getkin/kin-openapi v0.153.0
 	github.com/go-chi/chi/v5 v5.5.0
+	github.com/go-pdf/fpdf v0.9.0
 	github.com/google/uuid v1.6.0
 	github.com/hibiken/asynq v0.26.0
 	github.com/jackc/pgx/v5 v5.13.0
@@ -27,6 +28,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/crypto v0.59.0
+	golang.org/x/image v0.44.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/term v0.48.0
 	google.golang.org/genai v1.79.1
@@ -42,7 +44,7 @@ require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
+	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect

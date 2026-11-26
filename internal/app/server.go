@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
@@ -169,6 +170,14 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	camp := campaigns.New(pool, cts, log)
 	msg.SetCampaignProgress(camp.PublishProgress)
 	msg.SetCampaignWithheld(camp.ScheduleResend)
+	// Campaign analytics: replies, quick replies, opt-outs and spam signals
+	// are attributed in the transactions that record them.
+	msg.SetCampaignHooks(messaging.CampaignHooks{Inbound: camp.RecordInbound, MessageError: camp.MessageSignal,
+		Account: func(ctx context.Context, tx pgx.Tx, q *db.Queries, sig messaging.AccountSignal) error {
+			return camp.AccountSignal(ctx, tx, q, campaigns.AccountSignalInfo(sig))
+		}})
+	consent.ObserveOptOuts(camp.RecordOptOut)
+	camp.SetExportStore(campaigns.NewExportStore(cfg.MediaDir))
 	// The send scheduler: the worker paces sends with it, the dispatcher
 	// and the queue view read capacities and shares from it.
 	throttle := messaging.NewThrottle(rdb, messaging.DefaultThroughput).WithCeilings(msg.ThroughputCeiling).

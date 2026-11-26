@@ -3,6 +3,7 @@ package consent
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,24 @@ const (
 	SourceAutomation          = "automation"
 	SourceInbound             = "inbound"
 )
+
+// OptOutObserver is told, inside the transaction that records it, that a
+// contact stopped marketing at a moment: opted out with the business, or
+// chose Stop in WhatsApp (campaign analytics attributes it to the campaign
+// that reached them last). tx is nil when the caller has none at hand.
+type OptOutObserver func(ctx context.Context, tx pgx.Tx, q *db.Queries, contactID uuid.UUID, at time.Time) error
+
+var optOutObserver OptOutObserver
+
+// ObserveOptOuts installs the opt-out observer (one per process).
+func ObserveOptOuts(f OptOutObserver) { optOutObserver = f }
+
+func notifyOptOut(ctx context.Context, tx pgx.Tx, q *db.Queries, contactID uuid.UUID, at time.Time) error {
+	if optOutObserver == nil {
+		return nil
+	}
+	return optOutObserver(ctx, tx, q, contactID, at)
+}
 
 // Change sets the consent of one contact.
 type Change struct {
@@ -132,6 +151,11 @@ func Apply(ctx context.Context, tx pgx.Tx, q *db.Queries, ch Change) (Result, er
 		Source: ch.Source, Note: ch.Reason, ActorID: ch.ActorID, Category: cat, Status: &status}); err != nil {
 		return res, err
 	}
+	if ch.Status == OptedOut && slices.Contains(res.Changed, CatMarketing) {
+		if err := notifyOptOut(ctx, tx, q, ch.ContactID, time.Now()); err != nil {
+			return res, err
+		}
+	}
 	if changed, out := res.legacyChanged(); changed {
 		typ := webhooks.TypeContactOptedIn
 		if out {
@@ -158,9 +182,17 @@ func SetMetaMarketingStopped(ctx context.Context, q *db.Queries, contactID uuid.
 		kind = "meta_marketing_stopped"
 	}
 	cat := CatMarketing
-	_, err = q.InsertConsentEvent(ctx, db.InsertConsentEventParams{ContactID: contactID, Kind: kind, Source: source,
-		Note: truncate(note, 500), Category: &cat})
-	return err == nil, err
+	if _, err = q.InsertConsentEvent(ctx, db.InsertConsentEventParams{ContactID: contactID, Kind: kind, Source: source,
+		Note: truncate(note, 500), Category: &cat}); err != nil {
+		return false, err
+	}
+	// A 131050 only reveals an earlier Stop; the customer's own Stop counts.
+	if stopped && source != SourceMetaError {
+		if err := notifyOptOut(ctx, nil, q, contactID, at); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // SetUndeliverable flags a number Meta could not deliver to (131026).

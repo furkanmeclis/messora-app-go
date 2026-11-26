@@ -204,7 +204,18 @@ func (s *Service) applyChange(ctx context.Context, tx pgx.Tx, q *db.Queries, e w
 		}
 		_, err := q.UpdateTemplateStatusByMetaID(ctx, db.UpdateTemplateStatusByMetaIDParams{
 			Status: v.Event, Reason: v.Reason, MetaTemplateID: v.MessageTemplateID.String()})
-		return 0, nil, err
+		if err != nil || s.hooks.Account == nil {
+			return 0, nil, err
+		}
+		acc, err := q.GetWhatsAppAccountByWABA(ctx, e.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil, nil
+		}
+		if err != nil {
+			return 0, nil, err
+		}
+		return 0, nil, s.hooks.Account(ctx, tx, q, AccountSignal{AccountID: acc.ID, TemplateName: v.MessageTemplateName,
+			TemplateLanguage: v.MessageTemplateLanguage, TemplateStatus: v.Event})
 	case "phone_number_quality_update", "account_update", "message_template_quality_update",
 		"business_capability_update", "user_preferences":
 		return 0, nil, s.accountChange(ctx, tx, q, e, c)
@@ -267,6 +278,12 @@ func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.P
 	}
 	if err := s.inboundConsent(ctx, tx, q, pn, c, conv, row); err != nil {
 		return uuid.Nil, fmt.Errorf("consent: %w", err)
+	}
+	if s.hooks.Inbound != nil {
+		// After consent: an opt-out keyword is already attributed.
+		if err := s.hooks.Inbound(ctx, tx, q, row); err != nil {
+			return uuid.Nil, fmt.Errorf("campaign reply: %w", err)
+		}
 	}
 	if md := m.Media(); md != nil && md.ID != "" {
 		f, err := q.InsertMediaFile(ctx, db.InsertMediaFileParams{MessageID: &row.ID, MetaMediaID: &md.ID,
@@ -353,6 +370,11 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 		if m.CampaignID != nil && s.campaignWithheld != nil && updated.Status == "failed" &&
 			updated.FailureClass != nil && *updated.FailureClass == whatsapp.FailureEcosystemLimit {
 			if err := s.campaignWithheld(ctx, q, updated); err != nil {
+				return false, err
+			}
+		}
+		if m.CampaignID != nil && updated.ErrorCode != nil && updated.Status == "failed" && s.hooks.MessageError != nil {
+			if err := s.hooks.MessageError(ctx, tx, q, updated); err != nil {
 				return false, err
 			}
 		}
