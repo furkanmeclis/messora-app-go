@@ -258,8 +258,9 @@ conversation the caller cannot see answers 404.
    (a suggestion turn only shows `ai_status: error`): AI off / contact
    disabled / no active profile (`ai_error`), more AI requests in the last
    hour than `max_replies_per_hour` (company AI settings, default 20;
-   `ai_error`, `rate_limited`), the 24-hour window closed in auto reply
-   (`window_closed`; free text cannot be sent).
+   `ai_error`, `rate_limited`), the monthly AI budget used up
+   (`ai_budget`, see "Maliyet ve kullanım"), the 24-hour window closed in
+   auto reply (`window_closed`; free text cannot be sent).
 3. `ai.status: thinking` is announced; the request is built
    (`BuildTurn`): the profile's instructions and the platform rules, what
    the business knows about the customer (name, e-mail, var1–5, custom
@@ -287,9 +288,10 @@ conversation the caller cannot see answers 404.
    optional edited `body`) or rejected.
 7. What the reply asked for and the profile allows runs in the same
    transaction: collected fields are written to the contact (data
-   collection with *may update fields* and the `update_contact_fields`
-   action), automations allowed as `automation:<id>` start for the
-   conversation (`started_by: ai`). Refused actions are recorded.
+   collection with *may update fields*; types, provenance and the rules
+   in "Müşteri bilgisi toplama"), automations allowed as
+   `automation:<id>` start for the conversation (`started_by: ai`).
+   Refused actions are recorded.
 
 The turn claims the customer message (`ai_handled_message_id`) in the
 transaction that sends, drafts or escalates, so a retried or redelivered
@@ -340,6 +342,144 @@ items, oldest first; the cursor goes back), each new item is announced as
 conversation (`automation_runs.conversation_id`, set from the triggering
 event) are listed by `GET /conversations/{id}/automation-runs` and
 announced as `automation.run.updated` on every start, step and end.
+
+## Müşteri bilgisi toplama (customer information collection)
+
+> Phase 16C P7. Code: `internal/modules/conversations/leadcapture.go`
+> (storing and profile progress), `internal/modules/ai/fields.go` (types,
+> provenance rule, sensitive categories), `internal/modules/contacts/provenance.go`
+> (edits by people, verification). Migration `00020_ai_customer_intelligence.sql`.
+
+### Unknown numbers
+
+A message from a number nobody knew creates the contact (as before) and
+marks it: `created_by_inbound_at` and `profile_status = new`. Contacts
+created any other way (panel, import, API, an outbound send) have no
+status and are never treated as unknown numbers.
+
+When the number's AI profile has **data collection** on, lists fields and
+**may create contacts** (`may_create_contact`), each AI turn with such a
+contact carries extra rules (`ai.LeadCaptureInstructions`): greet, find
+out what the customer needs and help, and ask for the still missing
+required fields **one or two at a time**, after answering, never as a
+form. The status becomes `collecting`; when every required field is
+filled it becomes `complete`, the timeline gets `profile_completed`, and
+with **hand over when complete** (`handoff_when_complete`) the
+conversation goes to the team right after the AI's message (escalation
+reason `profile_complete`, with the collected fields), e.g. to sales.
+`contacts.profile_progress` keeps `{required, filled, missing}`. Consent
+and opt-out rules (docs/CONSENT.md) apply unchanged: the AI only answers
+inside the service window and a consent keyword is never answered by it.
+
+### What is stored
+
+The answer's `extracted_fields` (one key per configured field) are stored
+when the profile **may update fields** (`may_update_fields`; P6 also
+required the `update_contact_fields` action — no longer):
+
+- **Data minimisation:** only fields the profile lists are read; anything
+  else the model returns is ignored. Profiles cannot list special
+  categories of personal data or secrets (health, beliefs, ethnic origin,
+  political opinions, sex life, union membership, criminal records,
+  biometric/genetic data, identity and card numbers, passwords — Turkish
+  and English words, `ai.SensitiveField`), and the instructions tell the
+  model never to ask for or record them.
+- **Types:** a field has a `type` — `text` (default), `email` (always for
+  the e-mail field), `phone` (normalised to E.164), `select` (one of its
+  `options`, stored as configured), `number`, `date` (YYYY-MM-DD). A value
+  that does not fit is dropped and the timeline says so.
+- **Provenance:** `contact_field_sources` keeps per field `source`
+  (`ai | user | import | api`), `verified`, `collected_at`, the
+  `ai_usage_id` and the conversation. AI values are stored as **"AI
+  tarafından toplandı, doğrulanmadı"** (`source ai`, `verified false`).
+- **Never over people's data:** the AI fills empty fields and replaces only
+  its own unverified values (`ai.MayAIWrite`). A value a person, an import
+  or the API set — a field without a provenance row counts as such — or a
+  value a person verified is kept (timeline: `kept_existing`).
+- A person editing a field (panel or API) makes it theirs (`user`/`api`,
+  verified); clearing it removes the record. **Doğrula**
+  (`POST /contacts/{id}/verify-fields`, `contacts.update`, audited
+  `contact.verify_fields`) marks AI values as checked.
+
+The contact (`GET /contacts/{id}`) returns `profile_status`,
+`profile_progress` and `field_sources`; the panel shows a card with the
+completeness and a badge per AI value with **Doğrula**. The contacts list
+filters **AI tarafından oluşturulan** (`ai_profile=true`: status
+`collecting` or `complete`; also in bulk actions and export).
+
+## Maliyet ve kullanım (cost and usage)
+
+> Phase 16C P7. Code: `internal/modules/ai/attribution.go`, `budget.go`,
+> `usage.go`, `classify.go`.
+
+### Campaign attribution
+
+Every `ai_usage` row of a conversation gets a `campaign_id` when it is
+recorded (`ai.Attribute`): the campaign whose message reached the
+contact **last** on the conversation's number at or before the request
+(a message Meta accepted: `sent`, `delivered` or `read`), provided it is
+at most **N days** old (Settings → AI, `campaign_attribution_days`,
+default 7, 1–90). A later campaign reaching the same contact takes over
+from its send on. Each request belongs to **at most one** campaign (one
+column, never rewritten); rows without one are **kampanya dışı**.
+`ai:attribution_reconcile` (hourly, queue `ai`) retries rows of the last
+window + 1 day that have no campaign (a campaign message recorded late)
+and never changes an attributed row. A call may also name its campaign
+(classification does).
+
+> For P3: the same rule and window are exposed as `ai.CampaignAt` and
+> `ai.Settings.AttributionWindow()`; replies and reactions should use it so
+> AI cost and campaign results agree. If P3 introduces its own window
+> setting, `campaign_attribution_days` should move there.
+
+`GET /campaigns/{id}/ai-usage` (session, `campaigns.read`) returns the AI
+requests, failures, conversations, tokens and USD cost of the campaign,
+what Meta billed for its messages per currency (`messages.cost_amount`),
+the **total operational cost** (Meta + AI; `null` when Meta billed in
+another currency than USD) and the reply classification counts. P3's
+analysis page shows these figures.
+
+### Usage metrics
+
+`GET /ai/usage/summary?from&to&group_by=model|provider|purpose|campaign|day&tz`
+(session, `ai.read`) returns, for `[from, to)` (at most 400 days):
+requests, generated replies (successful `reply` and `suggest` requests),
+input/output/cached/cache-write tokens, USD cost (rows priced in another
+currency are left out), failed requests, average latency of successful
+requests, the conversations the AI answered, escalations (handoffs from
+the AI) and the **handoff rate** (escalations ÷ AI conversations), in
+total and per group, plus the month's spend against the budget. Settings
+→ AI → **Kullanım** shows KPI cards, the daily cost chart and tables by
+model, provider, campaign and purpose for a preset period (7/30/90 days,
+this month).
+
+### Monthly budget
+
+Settings → AI → **Aylık AI bütçesi** (`monthly_budget`, USD, optional).
+Spend is the USD cost recorded since the first day of the month (UTC).
+Once it reaches the budget, AI turns stop before calling the provider:
+a conversation the AI owns goes to a person (escalation `ai_budget`), a
+suggestion turn shows the error, and reply classification is skipped.
+The people with `ai.manage` get a notification (`ai.budget_exceeded`)
+once per month and the audit log records it. The Usage page shows the
+state; raising or removing the budget resumes AI on the next message.
+
+### Campaign reply classification
+
+With **Kampanya cevaplarını sınıflandır** (`classify_campaign_replies`,
+off by default) the first reply of a contact to the campaign that reached
+them last (same attribution window) is recorded in
+`campaign_reply_classifications` (one row per campaign and contact,
+`pending`) in the webhook transaction and `ai:classify` (queue `ai`)
+classifies it: purpose `classify`, structured output (`sentiment`
+positive | negative | neutral, `confidence`, `reason`), the number's
+profile provider/model, usage attributed to that campaign. Results:
+`done` with the sentiment, `failed` (provider error kind), `skipped` (AI
+off, budget used up, more than 10 classifications in an hour for the
+conversation, message deleted). Provider rate limits are retried by the
+queue. The reply text is treated as customer content. P3's reaction
+pipeline reads the table (system-computed reaction) or calls
+`ai.Service.ClassifyReply` directly.
 
 ## Development and tests
 
