@@ -1,0 +1,19 @@
+{
+  "key": "positive_feedback",
+  "version": 1,
+  "category": "feedback",
+  "title": {"tr": "Olumlu müşteri dönüşü", "en": "Positive customer response"},
+  "description": {
+    "tr": "Müşteri bir mesajınıza ya da kampanyanıza olumlu tepki verdiğinde (👍, ❤️ …, olumlu hızlı cevap butonu veya AI’ın olumlu bulduğu cevap) kişiyi \"olumlu-donus\" ile etiketler ve sohbeti seçtiğiniz satış temsilcisine atar.",
+    "en": "When a customer responds positively to a message or a campaign (👍, ❤️ …, a positive quick-reply button or a reply the AI finds positive), tags them \"olumlu-donus\" and assigns the conversation to the sales agent you choose."
+  },
+  "trigger_type": "reaction",
+  "trigger": {"reaction": "positive"},
+  "steps": [
+    {"id": "positive_tag", "type": "add_tag", "tag": "olumlu-donus"},
+    {"id": "positive_assign", "type": "assign"}
+  ],
+  "setup": [
+    {"step_id": "positive_assign", "field": "assignee_id", "label": {"tr": "Sohbetin atanacağı satış temsilcisini seçin", "en": "Choose the sales agent the conversation goes to"}}
+  ]
+}

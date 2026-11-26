@@ -110,6 +110,14 @@ const automations: Messages['automations'] = {
         muteFor: '{duration} boyunca',
         unknownType: 'Olduğu gibi korunur',
         more: '(+{count} daha)',
+        toPool: 'Ekibin havuzuna',
+        aiAutoReply: 'AI cevaplar',
+        aiApproval: 'AI taslak yazar, bir kişi onaylar',
+        aiOff: 'AI kapalı — bu adım çalışmaz.',
+        aiOffLong:
+            'Şirket için AI kapalı; açılana kadar bu adım “AI kapalı” hatasıyla başarısız olur.',
+        aiSettings: 'AI ayarları',
+        setupNeeded: 'Kurulum gerekli',
     },
     outputs: { out: 'Sonraki', yes: 'Evet', no: 'Hayır', next: 'Sonra' },
     categories: {
@@ -117,6 +125,7 @@ const automations: Messages['automations'] = {
         message: 'Mesaj',
         data: 'Kişi ve gelen kutusu',
         flow: 'Akış',
+        ai: 'AI',
         integration: 'Entegrasyon',
     },
     triggers: {
@@ -146,6 +155,29 @@ const automations: Messages['automations'] = {
             description:
                 'Müşteri bir durdurma kelimesi, çıkış talebi ya da yeniden abonelik kelimesi yazar (Ayarlar › Abonelik ve izin). Bu çalıştığında izin zaten güncellenmiştir; otomasyon abonelikten çıkan birine pazarlama mesajı gönderemez.',
         },
+        window_closing: {
+            label: 'Pencere kapanıyor',
+            description:
+                'Bir görüşmenin 24 saatlik müşteri hizmeti penceresi birazdan kapanıyor ve müşterinin mesajı hâlâ cevapsız. Her pencere için bir kez çalışır.',
+        },
+        no_reply: {
+            label: 'Cevap yok',
+            description:
+                'Bir süredir kimse cevap vermedi: mesajınızdan sonra müşteri ya da müşterinin mesajından sonra ekip.',
+        },
+        campaign_reply: {
+            label: 'Kampanya cevabı',
+            description: 'Bir müşteri bir kampanya mesajına cevap verir.',
+        },
+        reaction: {
+            label: 'Tepki',
+            description:
+                'Bir müşteri bir mesaja olumlu (👍, ❤️ …) ya da olumsuz (👎, 😡 …) tepki verir.',
+        },
+        ai_escalation: {
+            label: 'AI devri',
+            description: 'AI bir görüşmeyi bir kişiye devreder.',
+        },
     },
     trigger: {
         when: 'Ne zaman',
@@ -167,6 +199,42 @@ const automations: Messages['automations'] = {
         cooldown: 'Kişi başına bekleme süresi',
         cooldownHint:
             'Bu süre içinde kişi başına en fazla bir çalışma; 0 sınır yok demektir.',
+        windowMinutes: 'Pencere kapanmadan önce',
+        windowMinutesHint:
+            '24 saatlik pencere kapanmadan 5 dakika ile 23 saat önce (varsayılan {minutes} dakika).',
+        includeAnswered: 'Son cevabı ekip vermişse de',
+        includeAnsweredHint:
+            'Kapalıyken yalnızca müşterinin son mesajı cevapsızsa çalışır.',
+        windowGuidance:
+            'Meta kuralı: pencereyi yalnızca müşterinin mesajı yeniden açar. Bunu müşteriye gerçekten faydalı bir cevap vermek (ya da ekibinizi uyarmak) için kullanın — pencereyi “açık tutmak” için anlamsız mesaj göndermeyin.',
+        noReplyFrom: 'Kim cevap vermedi',
+        noReply: {
+            customer: 'Müşteri (mesajımızdan sonra)',
+            agent: 'Ekip (müşterinin mesajından sonra)',
+        },
+        noReplyMinutes: 'Bekleme süresi',
+        includeCampaigns: 'Kampanya mesajlarını da say',
+        includeCampaignsHint:
+            'Kapalıyken beklemeyi yalnızca görüşme mesajları başlatır, kampanya gönderimleri değil.',
+        reaction: 'Tepki',
+        reactionHint:
+            'Emoji tepkileri (👍 ❤️ 🙏 … olumlu, 👎 😡 💔 … olumsuz) ve kampanya tepkileri: eşlenmiş hızlı cevap butonu, cevabın AI sınıflandırması veya manuel etiket. Alıcı ve yön başına bir kez.',
+        reasons: 'Devir nedenleri',
+        reasonsHint: 'Hiçbiri seçilmezse: her neden.',
+    },
+    reactions: {
+        any: 'Olumlu ya da olumsuz',
+        positive: 'Olumlu',
+        negative: 'Olumsuz',
+    },
+    escalationReasons: {
+        customer_request: 'Müşteri bir kişi istedi',
+        no_answer: 'AI’ın cevabı yoktu',
+        low_confidence: 'AI emin değildi',
+        critical_intent: 'Kritik niyet',
+        unauthorized_action: 'İzin verilmeyen işlem',
+        window_closed: 'Pencere kapandı',
+        ai_error: 'AI hatası',
     },
     match: {
         any: 'Herhangi bir mesaj',
@@ -214,6 +282,19 @@ const automations: Messages['automations'] = {
         },
         unknown: '{type} olduğunda',
         cooldown: ' (kişi başına en fazla {duration} içinde bir kez)',
+        windowClosing:
+            '24 saatlik pencere {duration} içinde kapanacakken müşteri cevap beklediğinde',
+        noReplyCustomer: 'Müşteri {duration} boyunca cevap vermediğinde',
+        noReplyAgent: 'Ekip {duration} boyunca cevap vermediğinde',
+        campaignReply: 'Bir müşteri bir kampanya mesajına cevap verdiğinde',
+        reaction: {
+            any: 'Bir müşteri bir mesaja tepki verdiğinde',
+            positive: 'Bir müşteri olumlu tepki verdiğinde',
+            negative: 'Bir müşteri olumsuz tepki verdiğinde',
+        },
+        aiEscalation: 'AI bir görüşmeyi bir kişiye devrettiğinde',
+        aiEscalationFor:
+            'AI bir görüşmeyi bir kişiye devrettiğinde ({reasons})',
     },
     duration: {
         seconds: '{count} saniye|{count} saniye',
@@ -274,6 +355,50 @@ const automations: Messages['automations'] = {
             label: 'Koşul',
             hint: 'Evet ve hayır yollarına ayrıl.',
         },
+        handoff_to_human: {
+            label: 'Bir kişiye devret',
+            hint: 'Görüşmeyi bir ekip arkadaşına ya da ekibin havuzuna verir ve onları bilgilendirir.',
+        },
+        handoff_to_ai: {
+            label: 'AI’a devret',
+            hint: 'Görüşmeyi numaranın AI profili cevaplasın.',
+        },
+        add_internal_note: {
+            label: 'İç not',
+            hint: 'Ekip için bir not; müşteriye asla gönderilmez.',
+        },
+        ai_generate_message: {
+            label: 'AI: mesaj yaz',
+            hint: 'AI talimatınıza göre bir mesaj yazar.',
+        },
+        ai_analyze_message: {
+            label: 'AI: mesajı analiz et',
+            hint: 'Müşterinin mesajının duygu durumu ve kısa özeti.',
+        },
+        ai_detect_intent: {
+            label: 'AI: niyet tespit et',
+            hint: 'Niyetlerinizden birini (ya da “other”) seçer.',
+        },
+        ai_extract_fields: {
+            label: 'AI: bilgi topla',
+            hint: 'Müşterinin verdiği bilgileri kişiye yazar (AI, doğrulanmamış).',
+        },
+        ai_classify_segment: {
+            label: 'AI: segment belirle',
+            hint: 'Kişiyi etiketlerinizden ya da gruplarınızdan birine koyar.',
+        },
+        ai_auto_reply: {
+            label: 'AI: otomatik cevap',
+            hint: 'Numaranın AI profiliyle ve devir kurallarıyla tek bir cevap.',
+        },
+        ai_route_to_agent: {
+            label: 'AI: temsilciye yönlendir',
+            hint: 'Görüşmeyi AI özetiyle bir kişiye devreder.',
+        },
+        ai_build_profile: {
+            label: 'AI: müşteri profili oluştur',
+            hint: 'Kişide müşterinin kısa bir profilini tutar.',
+        },
     },
     contactFields: { name: 'Ad', email: 'E-posta' },
     conditionFields: {
@@ -288,6 +413,11 @@ const automations: Messages['automations'] = {
         conversation_window_open: '24 saatlik pencere açık',
         event_tag: 'Eklenen etiket (tetikleyici)',
         event_status: 'Mesaj durumu (tetikleyici)',
+        event_subscription: 'Abonelik talebi (tetikleyici)',
+        event_reaction: 'Tepki (tetikleyici)',
+        event_reason: 'Devir nedeni (tetikleyici)',
+        runVar: '{name} çalışma değişkeni',
+        runVarOption: 'Çalışma değişkeni (AI sonucu)',
     },
     operators: {
         contains: 'içerir',
@@ -368,6 +498,69 @@ const automations: Messages['automations'] = {
         bodyVariables: 'Gövde değişkenleri',
         templateHint:
             'Bir değişken boş çıkarsa ya da kişi abonelikten çıktıysa şablon atlanır.',
+        aiMode: 'AI',
+        aiModes: {
+            auto_reply: 'Kendisi cevaplar',
+            awaiting_approval: 'Onay için taslak yazar',
+        },
+        aiModeHint:
+            'Numaranın etkin AI profili yoksa ya da AI kapalıysa adım atlanır.',
+        note: 'Not',
+        noteHint: 'Yalnızca ekibiniz görür; görüşmenin zaman çizelgesinde.',
+        forAI: 'AI için talimat',
+        forAIHint: 'AI bu notu ekipten gelen bir talimat olarak okur.',
+        prompt: 'Mesajda ne yazsın?',
+        promptPlaceholder:
+            '{{first_name}} kişisine sipariş için teşekkür et ve her şeyin ulaşıp ulaşmadığını sor.',
+        output: 'Sonuç',
+        outputs: {
+            variable: 'Bir değişkende tut',
+            send: 'Cevap olarak gönder',
+        },
+        outputHint:
+            'Cevap yalnızca 24 saatlik pencere içinde gönderilir. Her durumda metin {{var:…}} olarak kullanılabilir.',
+        intents: 'Niyetler',
+        intentsHint:
+            '_ ile küçük harfli kelimeler (örn. order_status, human_request). “other” otomatik eklenir.',
+        intentBranchTip:
+            'İpucu: sonuca göre dallanmak için bu adımdan sonra {variable} üzerinde bir koşul kullanın.',
+        autoReplyHint:
+            'Numaranın AI profili tek bir cevap yazar (açıklama ve devir kuralları geçerlidir). Etkin profil yoksa adım başarısız olur.',
+        attribute: 'Kişi özelliği',
+        attributeHint:
+            'Profil bu özelliğe yazılır (varsayılan ai_profile), “AI, doğrulanmamış” olarak işaretlenir.',
+        handoffTo: 'Görüşmeyi ver',
+        pool: 'Ekibin havuzu (herkes)',
+        handoffHint: 'Bilgilendirilirler. Havuzdan herkes alabilir.',
+        handoffNote: 'Kişi için not (isteğe bağlı)',
+        routeHint:
+            'AI görüşmeyi kişi için özetler; özetleyemezse özet mesajlardan oluşturulur.',
+        variable: 'Değişken adı',
+        variableHint:
+            'Sonucu {{var:{name}}} olarak ya da bir koşulda kullanın.',
+        aiWrites: '{vars} yazar.',
+        extraPrompt: 'Ek talimat (isteğe bağlı)',
+        extraPromptHint: 'AI’ın bu adım için bilmesi gereken her şey.',
+        extractFields: 'Toplanacak bilgiler',
+        extractKey: '{n}. alan',
+        extractLabel: 'AI için açıklama',
+        removeField: '{n}. alanı kaldır',
+        addField: 'Alan ekle',
+        extractHint:
+            'Yalnızca müşterinin söylediği yazılır, “AI, doğrulanmamış” olarak işaretlenir. AI profilinin kişi alanlarını güncellemeye izin vermesi gerekir.',
+        segmentKind: 'Şunlardan seç',
+        byTags: 'Etiketler',
+        byGroups: 'Gruplar',
+        segmentGroups: 'Seçilecek gruplar',
+        segmentTags: 'Seçilecek etiketler',
+        segmentHint: 'AI en fazla birini seçer; hiçbiri uymuyorsa hiçbirini.',
+        retry: 'Hata olursa tekrar dene',
+        retryMax: 'Tekrar sayısı',
+        retryBackoff: 'İlk tekrardan önce bekle',
+        retryHint:
+            '0 = tekrar yok. Bekleme her tekrarda iki katına çıkar (en fazla 1 saat). Mesajlar asla iki kez gönderilmez.',
+        conditionVarHint:
+            'Bu çalışmada daha önce bir AI adımının yazdığı değişken (örn. intent, sentiment).',
     },
     inputs: {
         insert: 'Ekle',
@@ -393,6 +586,49 @@ const automations: Messages['automations'] = {
         delay: '1 saniye ile 30 gün arasında bekleyin.',
         mute: '1 dakika ile 90 gün arasında susturun.',
         conditionValue: 'Koşulun bir değere ihtiyacı var.',
+        windowMinutes:
+            'Pencere kapanmadan 5 dakika ile 23 saat önce arasında seçin.',
+        noReplyMinutes: '5 dakika ile 30 gün arasında bekleyin.',
+        retryMax: 'Tekrar sayısı 0 ile 10 arasındadır.',
+        retryBackoff: 'Tekrardan önce 1 saniye ile 1 saat arasında bekleyin.',
+        variable:
+            'Değişken adı küçük harf, rakam ve _ içerir (en fazla 40) ve harfle başlar.',
+        note: 'Notu yazın (en fazla 4000 karakter).',
+        handoffNote: 'Not en fazla 500 karakter olabilir.',
+        prompt: 'Mesajda ne yazacağını yazın.',
+        intents: '1 ile 20 arasında niyet girin.',
+        intentName:
+            'Niyet küçük harf, rakam ve _ içerir (en fazla 40); “other” otomatik eklenir.',
+        extractFields:
+            '1 ile 20 arasında alan seçin: ad, e-posta, var1–var5 ya da attr:<anahtar>.',
+        segment:
+            'Seçmek için 1 ile 20 arasında etiket ya da grup girin (ikisi birden değil).',
+        attribute: 'Özellik anahtarı harf, rakam, _ . - içerir (en fazla 64).',
+    },
+    setup: {
+        title: 'Bu otomasyonu açmak için kurulumu tamamlayın:',
+        blocksActive:
+            'Bu otomasyonun açılabilmesi için önce kurulumu tamamlanmalı (işaretli adımlara bakın).',
+    },
+    presets: {
+        title: 'Hazır otomasyonlar',
+        description:
+            'Denenmiş bir otomasyonu tek tıkla ekleyin; kapalı başlar ve her şeyini değiştirebilirsiniz.',
+        install: 'Ekle',
+        installed: 'Otomasyon eklendi. Kurulumu tamamlayıp açın.',
+        requiresAI: 'AI gerekli',
+        setup: 'Sizin seçecekleriniz',
+        aiOff: 'Şirket için AI kapalı; bu otomasyonu açmadan önce AI’ı açın.',
+        categories: {
+            engagement: 'Etkileşim',
+            consent: 'İzin',
+            ai: 'AI',
+            handoff: 'Devir',
+            window: '24 saatlik pencere',
+            follow_up: 'Takip',
+            campaign: 'Kampanyalar',
+            feedback: 'Geri bildirim',
+        },
     },
     runs: {
         metaTitle: 'Otomasyon çalışmaları',
@@ -421,7 +657,21 @@ const automations: Messages['automations'] = {
             skipped: 'Atlandı',
             failed: 'Başarısız',
             waiting: 'Bekliyor',
+            retrying: 'Tekrar deneniyor',
         },
+        reason: 'Neden',
+        errorCodes: {
+            ai_disabled: 'Şirket için AI kapalı.',
+            ai_not_configured: 'AI sağlayıcısı ya da modeli seçilmemiş.',
+            ai_not_allowed: 'AI profili bu adıma izin vermiyor.',
+            ai_no_profile: 'Numaranın etkin bir AI profili yok.',
+            ai_error: 'AI isteği başarısız oldu.',
+            retries_exhausted: 'Adım son tekrarda da başarısız oldu.',
+            step_failed: 'Bir adım başarısız oldu.',
+        },
+        retrying:
+            '{max} denemenin {attempt}. denemesi başarısız; {duration} sonra tekrar denenecek.',
+        attempt: '{attempt}. denemede başarılı oldu.',
         until: '{time} tarihine kadar',
         details: 'Ayrıntılar',
         detailsOf: '{time} tarihinde başlayan çalışmanın ayrıntıları',
@@ -447,6 +697,12 @@ const automations: Messages['automations'] = {
             assignee_unavailable: 'Kişi artık etkin değil.',
             email_not_configured: 'E-posta (SMTP) yapılandırılmamış.',
             http_not_configured: 'HTTP istekleri yapılandırılmamış.',
+            inbox_unavailable: 'Gelen kutusu kullanılamıyor.',
+            contact_ai_disabled: 'Bu kişi için AI kapalı.',
+            ai_unavailable: 'AI bu görüşme için kullanılamıyor.',
+            already_owner: 'Görüşmenin sahibi zaten bu.',
+            empty_note: 'Not boştu.',
+            no_groups: 'Grupların hiçbiri artık yok.',
             missing: 'Bir şablon değişkeni boş çıktı ({name}).',
         },
     },

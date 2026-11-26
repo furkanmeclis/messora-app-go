@@ -271,6 +271,9 @@ func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.P
 			return uuid.Nil, err
 		}
 	}
+	if err := s.engagementTriggers(ctx, tx, q, pn, c, conv, row, m); err != nil {
+		return uuid.Nil, err
+	}
 	if opensWindow(m.Type) {
 		if err := q.TouchContactInbound(ctx, db.TouchContactInboundParams{ID: c.ID, At: &at}); err != nil {
 			return uuid.Nil, err

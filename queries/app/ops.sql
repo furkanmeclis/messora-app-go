@@ -115,7 +115,7 @@ LIMIT @lim;
 
 -- name: OpsFailedRuns :many
 -- Automation runs that failed since since, newest first.
-SELECT r.id, r.automation_id, a.name AS automation_name, coalesce(r.error, '')::text AS error, r.finished_at, r.created_at,
+SELECT r.id, r.automation_id, a.name AS automation_name, coalesce(r.error, '')::text AS error, r.error_code, r.attempt, r.finished_at, r.created_at,
     r.conversation_id, c.assignee_id AS conversation_assignee_id,
     count(*) OVER ()::bigint AS total
 FROM automation_runs r

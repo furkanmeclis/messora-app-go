@@ -134,19 +134,22 @@ type AuditLog struct {
 }
 
 type Automation struct {
-	ID          uuid.UUID
-	Name        string
-	Description string
-	Active      bool
-	TriggerType string
-	Trigger     []byte
-	Steps       []byte
-	Program     []byte
-	Version     int32
-	CreatedBy   *uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Layout      []byte
+	ID            uuid.UUID
+	Name          string
+	Description   string
+	Active        bool
+	TriggerType   string
+	Trigger       []byte
+	Steps         []byte
+	Program       []byte
+	Version       int32
+	CreatedBy     *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Layout        []byte
+	Setup         []byte
+	PresetKey     *string
+	PresetVersion *int32
 }
 
 type AutomationRun struct {
@@ -167,6 +170,9 @@ type AutomationRun struct {
 	Visited           []byte
 	ConversationID    *uuid.UUID
 	StartedBy         string
+	Vars              []byte
+	Attempt           int32
+	ErrorCode         *string
 }
 
 type AutomationRunStep struct {
@@ -176,6 +182,13 @@ type AutomationRunStep struct {
 	Action    string
 	Outcome   string
 	Detail    []byte
+	CreatedAt time.Time
+}
+
+type AutomationSend struct {
+	RunID     uuid.UUID
+	Pc        int32
+	MessageID uuid.UUID
 	CreatedAt time.Time
 }
 

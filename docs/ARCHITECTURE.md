@@ -302,7 +302,7 @@ worker webhook:process (idempotent):
 | `webhook:fanout`, `webhook:deliver` | `default` | 10 | Teslim denemeleri ve backoff `webhook_deliveries` tablosundadır; bu bütçe yalnızca kayıt yazılamadığında harcanır. |
 | `contacts:import` | `bulk` | 3 | |
 | `campaign:export` (büyük alıcı dışa aktarmaları ve rapor XLSX/PDF) | `bulk` | 3 | Dosya 7 gün saklanır; takılan iş 30 dk sonra `failed` olur. |
-| Zamanlanmış işler (`maintenance:*`, `campaign:start_due`, `campaign:reaper`, `offers:tick`, `automation:reaper`, `webhook:cleanup`, `channels:token_check`, `license:check_in`) | `default` | 2 | Bir sonraki dilimde zaten yeniden çalışır. |
+| Zamanlanmış işler (`maintenance:*`, `campaign:start_due`, `campaign:reaper`, `offers:tick`, `automation:reaper`, `automation:scan`, `webhook:cleanup`, `channels:token_check`, `license:check_in`) | `default` | 2 | Bir sonraki dilimde zaten yeniden çalışır. |
 | `ai:model_sync` (günlük AI model kataloğu senkronu) | `ai` | 2 | Sağlayıcı başına hata loglanır; ertesi gün tekrar çalışır. |
 | `ai:reply` (sohbette bir AI turu, bkz. docs/AI.md "Sohbet devri") | `ai` | 3 | Gelen mesaj başına en fazla bir kez gönderir veya devreder (`ai_handled_message_id`); tekrar güvenlidir. |
 | `ai:classify` (kampanya cevabının AI sınıflandırması, bkz. docs/AI.md "Maliyet ve kullanım") | `ai` | 5 | Kampanya ve kişi başına bir kayıt (`campaign_reply_classifications`, `pending` iken çalışır); sağlayıcı 429'u `Retry-After` ile tekrar denenir, diğer hatalar `failed` olarak saklanır. |
@@ -324,6 +324,7 @@ worker webhook:process (idempotent):
 | Kampanya/gönderim reaper'ı: `sending`'de kalan mesajlar `unknown` olur, kuyruğu kaybolmuş `pending` mesajlar yeniden kuyruğa alınır, boşta kalan kampanya dispatcher'ı yeniden tetiklenir | `campaign:reaper` | 1 dk |
 | Süreli teklifler: `scheduled` → `active` → `expired`; biten teklifin kampanyaları `offer_expired` ile duraklar, `offer.updated` yayınlanır | `offers:tick` | 1 dk |
 | Otomasyon reaper'ı: süresi dolan beklemeler ve takılan koşular | `automation:reaper` | 1 dk |
+| Zamana bağlı otomasyon tetikleyicileri (`window_closing`, `no_reply`; docs/AUTOMATIONS.md) | `automation:scan` | 1 dk |
 | Yayınlanmış outbox kayıtlarının temizliği (7 gün) | `maintenance:outbox_cleanup` | 1 sa |
 | Süresi dolmuş oturum ve idempotency anahtarı temizliği | `maintenance:identity_cleanup` | 1 sa |
 | Giden webhook olay/teslim kayıtlarının temizliği | `webhook:cleanup` | 6 sa |

@@ -95,6 +95,32 @@ export async function deleteAutomationAction(
     return res;
 }
 
+const PRESET_KEY = /^[a-z0-9_]{1,64}$/;
+
+/**
+ * Installs a preset of the library as a new, disabled automation (names and
+ * setup labels in the given language) and returns it.
+ */
+export async function installPresetAction(
+    key: string,
+    lang: 'tr' | 'en',
+): Promise<ActionResult<Automation>> {
+    if (!PRESET_KEY.test(key)) throw new Error('invalid preset');
+    const t = await getT();
+    const res = await runAction(
+        async () =>
+            (
+                await api<Automation>(
+                    `/automations/presets/${key}/install?lang=${lang === 'tr' ? 'tr' : 'en'}`,
+                    { method: 'POST' },
+                )
+            ).data,
+        t('automations.presets.installed'),
+    );
+    revalidatePath('/automations');
+    return res;
+}
+
 /** Older runs, for "Load more". */
 export async function moreRunsAction(
     id: string,

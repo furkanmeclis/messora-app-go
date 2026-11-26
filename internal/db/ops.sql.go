@@ -416,7 +416,7 @@ func (q *Queries) OpsCampaignStatusCounts(ctx context.Context, dayStart time.Tim
 }
 
 const opsFailedRuns = `-- name: OpsFailedRuns :many
-SELECT r.id, r.automation_id, a.name AS automation_name, coalesce(r.error, '')::text AS error, r.finished_at, r.created_at,
+SELECT r.id, r.automation_id, a.name AS automation_name, coalesce(r.error, '')::text AS error, r.error_code, r.attempt, r.finished_at, r.created_at,
     r.conversation_id, c.assignee_id AS conversation_assignee_id,
     count(*) OVER ()::bigint AS total
 FROM automation_runs r
@@ -437,6 +437,8 @@ type OpsFailedRunsRow struct {
 	AutomationID           uuid.UUID
 	AutomationName         string
 	Error                  string
+	ErrorCode              *string
+	Attempt                int32
 	FinishedAt             *time.Time
 	CreatedAt              time.Time
 	ConversationID         *uuid.UUID
@@ -459,6 +461,8 @@ func (q *Queries) OpsFailedRuns(ctx context.Context, arg OpsFailedRunsParams) ([
 			&i.AutomationID,
 			&i.AutomationName,
 			&i.Error,
+			&i.ErrorCode,
+			&i.Attempt,
 			&i.FinishedAt,
 			&i.CreatedAt,
 			&i.ConversationID,

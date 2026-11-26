@@ -10,23 +10,35 @@ import {
     type NodeProps,
     Position,
 } from '@xyflow/react';
+import Link from 'next/link';
 import {
     AlertCircle,
     BellOff,
+    Bot,
     CircleCheck,
     Clock,
     FileText,
     GitBranch,
     Globe,
+    Hand,
     Hourglass,
+    IdCard,
+    ListChecks,
     Mail,
     MessageSquare,
     PenLine,
     Puzzle,
+    Route,
+    ScanSearch,
+    Sparkles,
+    StickyNote,
     Tag,
     TagsIcon,
+    Target,
     UserCheck,
     UsersRound,
+    Wrench,
+    BotOff,
     X,
     XCircle,
     Zap,
@@ -36,7 +48,9 @@ import { cn } from '@/lib/utils';
 import type { FlowEdge, Output, StepNode, TriggerNode } from './graph';
 import {
     type Category,
+    isAIStep,
     mk,
+    type SetupItem,
     stepCategory,
     stepLabel,
     summarizeStep,
@@ -59,6 +73,17 @@ export const STEP_ICONS: Record<
     assign: UserCheck,
     close_conversation: CircleCheck,
     mute: BellOff,
+    handoff_to_ai: Bot,
+    handoff_to_human: Hand,
+    add_internal_note: StickyNote,
+    ai_generate_message: Sparkles,
+    ai_analyze_message: ScanSearch,
+    ai_detect_intent: Target,
+    ai_extract_fields: ListChecks,
+    ai_classify_segment: TagsIcon,
+    ai_auto_reply: Bot,
+    ai_route_to_agent: Route,
+    ai_build_profile: IdCard,
 };
 
 export function StepIcon({
@@ -97,6 +122,11 @@ export const CATEGORY_STYLE: Record<
         bar: 'bg-amber-500',
         dot: 'bg-amber-500',
     },
+    ai: {
+        chip: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300',
+        bar: 'bg-fuchsia-500',
+        dot: 'bg-fuchsia-500',
+    },
     integration: {
         chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
         bar: 'bg-emerald-500',
@@ -121,6 +151,10 @@ export type CanvasContextValue = {
     readOnly: boolean;
     trace?: TraceState;
     onDeleteEdge?: (id: string) => void;
+    /** Company AI switch; null/undefined = unknown (no warning). */
+    aiEnabled?: boolean | null;
+    /** Open setup items of an installed preset, by step id. */
+    setup?: Map<string, SetupItem[]>;
 };
 
 export const CanvasContext = createContext<CanvasContextValue | null>(null);
@@ -158,9 +192,24 @@ function TraceBadge({ id }: { id: string }) {
     if (!order?.length) return null;
     return (
         <span className="absolute -top-2.5 -right-2.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground tabular-nums shadow-sm">
-            {order.join(', ')}
+            {compressOrder(order)}
         </span>
     );
+}
+
+/**
+ * Execution numbers of a node, consecutive ones as a range: a retried step
+ * runs several times in a row ("3–5").
+ */
+export function compressOrder(order: number[]): string {
+    const parts: string[] = [];
+    for (let i = 0; i < order.length; i++) {
+        let j = i;
+        while (j + 1 < order.length && order[j + 1] === order[j]! + 1) j++;
+        parts.push(j > i ? `${order[i]}–${order[j]}` : String(order[i]));
+        i = j;
+    }
+    return parts.join(', ');
 }
 
 function Shell({
@@ -299,6 +348,54 @@ const OUTPUT_STYLE: Record<Output, { handle: string; label: string }> = {
     next: { handle: 'bg-muted-foreground!', label: 'text-muted-foreground' },
 };
 
+/**
+ * Configuration warnings on a step node: AI steps while the company's AI is
+ * off, and values an installed preset still needs.
+ */
+function StepBadges({ id, type }: { id: string; type: string }) {
+    const { t, aiEnabled, setup, trace } = useCanvas();
+    if (trace) return null;
+    const open = setup?.get(id) ?? [];
+    const aiOff = aiEnabled === false && isAIStep(type);
+    if (!open.length && !aiOff) return null;
+    return (
+        <div className="space-y-1 border-t px-3 py-1.5 text-xs">
+            {aiOff && (
+                <p
+                    data-testid="ai-off-badge"
+                    className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400"
+                >
+                    <BotOff className="mt-px size-3.5 shrink-0" />
+                    <span>
+                        {t('automations.node.aiOff')}{' '}
+                        <Link
+                            href="/settings/ai"
+                            className="nodrag font-medium underline underline-offset-2"
+                        >
+                            {t('automations.node.aiSettings')}
+                        </Link>
+                    </span>
+                </p>
+            )}
+            {open.map((s) => (
+                <p
+                    key={s.field}
+                    data-testid="setup-badge"
+                    className="flex items-start gap-1.5 text-sky-700 dark:text-sky-300"
+                >
+                    <Wrench className="mt-px size-3.5 shrink-0" />
+                    <span>
+                        <span className="font-medium">
+                            {t('automations.node.setupNeeded')}
+                        </span>
+                        {s.label ? `: ${s.label}` : ''}
+                    </span>
+                </p>
+            ))}
+        </div>
+    );
+}
+
 export const StepNodeView = memo(function StepNodeView({
     id,
     data,
@@ -327,6 +424,7 @@ export const StepNodeView = memo(function StepNodeView({
                 summary={summarizeStep(step, t, lookup)}
                 testType={step.type}
             >
+                <StepBadges id={id} type={step.type} />
                 {isCondition && (
                     <div className="grid grid-cols-3 border-t px-1 py-1 text-center text-[10px] font-semibold tracking-wide uppercase">
                         {(['yes', 'next', 'no'] as const).map((o) => (

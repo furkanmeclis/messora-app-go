@@ -2,13 +2,17 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Field, FieldLabel } from '@/components/ui/field';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { NumberField } from '@/components/ui/number-field';
+import { Switch } from '@/components/ui/switch';
 import { useT } from '@/i18n/client';
 import type { AutomationTriggerType } from '@/lib/types';
 import type { EditorOptions } from './data';
 import {
     DurationInput,
+    FieldMessage,
     KeywordsInput,
     PlaceholderText,
     SelectField,
@@ -19,9 +23,24 @@ import {
     CONTACT_FIELDS,
     conditionFieldLabel,
     contactFieldLabel,
+    DEFAULT_VARIABLES,
+    DEFAULT_WINDOW_MINUTES,
     type EditorStep,
+    ESCALATION_REASONS,
     HTTP_METHODS,
+    isRetryable,
+    isVarField,
     MATCH_MODES,
+    MAX_BACKOFF_SECONDS,
+    MAX_NO_REPLY_MINUTES,
+    MAX_RETRIES,
+    MAX_WINDOW_MINUTES,
+    MIN_NO_REPLY_MINUTES,
+    MIN_WINDOW_MINUTES,
+    NO_REPLY_FROM,
+    REACTIONS,
+    triggerMinutes,
+    triggerProblems,
     MAX_DELAY_SECONDS,
     MAX_KEYWORDS,
     MAX_MUTE_SECONDS,
@@ -62,8 +81,17 @@ function useErr(errors: StepError[]) {
         errors.find((e) => fields.includes(e.field))?.message;
 }
 
-/** The form of one step in the inspector. */
+/** The form of one step in the inspector (with its retry policy). */
 export function StepFields(props: Props) {
+    return (
+        <div className="grid gap-4">
+            <StepForm {...props} />
+            {isRetryable(props.step.type) && <RetryFields {...props} />}
+        </div>
+    );
+}
+
+function StepForm(props: Props) {
     const { step, edit, errors, options, readOnly } = props;
     const t = useT();
     const set = (patch: Partial<EditorStep>, group?: string) =>
@@ -277,6 +305,154 @@ export function StepFields(props: Props) {
                     {t('automations.fields.closeHint')}
                 </p>
             );
+        case 'handoff_to_human':
+        case 'ai_route_to_agent':
+            return <HandoffFields {...props} />;
+        case 'handoff_to_ai':
+            return (
+                <SelectField
+                    id={id('mode')}
+                    label={t('automations.fields.aiMode')}
+                    value={step.mode || 'auto_reply'}
+                    onChange={(mode) => set({ mode })}
+                    disabled={readOnly}
+                    options={(['auto_reply', 'awaiting_approval'] as const).map(
+                        (m) => ({
+                            value: m,
+                            label: t(mk(`automations.fields.aiModes.${m}`)),
+                        }),
+                    )}
+                    error={err('mode')}
+                    hint={t('automations.fields.aiModeHint')}
+                />
+            );
+        case 'add_internal_note':
+            return (
+                <div className="grid gap-4">
+                    <PlaceholderText
+                        id={id('text')}
+                        label={t('automations.fields.note')}
+                        multiline
+                        maxLength={4000}
+                        value={step.text ?? ''}
+                        onChange={(text) => set({ text }, 'text')}
+                        error={err('text')}
+                        readOnly={readOnly}
+                        hint={t('automations.fields.noteHint')}
+                    />
+                    <SwitchField
+                        id={id('for-ai')}
+                        label={t('automations.fields.forAI')}
+                        hint={t('automations.fields.forAIHint')}
+                        checked={!!step.for_ai}
+                        onChange={(for_ai) => set({ for_ai })}
+                        disabled={readOnly}
+                    />
+                </div>
+            );
+        case 'ai_generate_message':
+            return (
+                <div className="grid gap-4">
+                    <PlaceholderText
+                        id={id('prompt')}
+                        label={t('automations.fields.prompt')}
+                        multiline
+                        maxLength={4000}
+                        value={step.prompt ?? ''}
+                        onChange={(prompt) => set({ prompt }, 'prompt')}
+                        error={err('prompt')}
+                        readOnly={readOnly}
+                        placeholder={t('automations.fields.promptPlaceholder')}
+                    />
+                    <SelectField
+                        id={id('output')}
+                        label={t('automations.fields.output')}
+                        value={step.output === 'send' ? 'send' : 'variable'}
+                        onChange={(output) => set({ output })}
+                        disabled={readOnly}
+                        options={(['variable', 'send'] as const).map((o) => ({
+                            value: o,
+                            label: t(mk(`automations.fields.outputs.${o}`)),
+                        }))}
+                        hint={t('automations.fields.outputHint')}
+                    />
+                    <VariableInput {...props} />
+                </div>
+            );
+        case 'ai_analyze_message':
+            return (
+                <div className="grid gap-4">
+                    <AIWrites names={['sentiment', 'summary']} />
+                    <ExtraPrompt {...props} />
+                </div>
+            );
+        case 'ai_detect_intent':
+            return (
+                <div className="grid gap-4">
+                    <KeywordsInput
+                        id={id('intents')}
+                        label={t('automations.fields.intents')}
+                        value={step.intents ?? []}
+                        onChange={(intents) =>
+                            set({
+                                intents: intents.map((x) =>
+                                    x.trim().toLowerCase().replace(/\s+/g, '_'),
+                                ),
+                            })
+                        }
+                        max={20}
+                        readOnly={readOnly}
+                        error={err('intents')}
+                        hint={t('automations.fields.intentsHint')}
+                    />
+                    <VariableInput {...props} />
+                    <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+                        {t('automations.fields.intentBranchTip', {
+                            variable: `var.${step.variable || 'intent'}`,
+                        })}
+                    </p>
+                    <ExtraPrompt {...props} />
+                </div>
+            );
+        case 'ai_extract_fields':
+            return <ExtractFields {...props} />;
+        case 'ai_classify_segment':
+            return <SegmentFields {...props} />;
+        case 'ai_auto_reply':
+            return (
+                <p className="text-sm text-muted-foreground">
+                    {t('automations.fields.autoReplyHint')}
+                </p>
+            );
+        case 'ai_build_profile':
+            return (
+                <div className="grid gap-4">
+                    <Field data-invalid={err('attribute') ? true : undefined}>
+                        <FieldLabel htmlFor={id('attribute')}>
+                            {t('automations.fields.attribute')}
+                        </FieldLabel>
+                        <Input
+                            id={id('attribute')}
+                            value={step.attribute ?? ''}
+                            placeholder="ai_profile"
+                            maxLength={64}
+                            readOnly={readOnly}
+                            aria-invalid={err('attribute') ? true : undefined}
+                            onChange={(e) =>
+                                set({ attribute: e.target.value }, 'attribute')
+                            }
+                        />
+                        <FieldMessage
+                            id={id('attribute')}
+                            error={err('attribute')}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            {t('automations.fields.attributeHint')}
+                        </p>
+                    </Field>
+                    <ExtraPrompt {...props} />
+                </div>
+            );
         default:
             return (
                 <div className="space-y-2 text-sm">
@@ -304,9 +480,10 @@ function ConditionFields({ step, edit, errors, options, readOnly }: Props) {
             <SelectField
                 id={id('if-field')}
                 label={t('automations.fields.if')}
-                value={cond.field}
+                value={isVarField(cond.field) ? 'var.' : cond.field}
                 disabled={readOnly}
-                onChange={(field) => {
+                onChange={(v) => {
+                    const field = v === 'var.' ? 'var.intent' : v;
                     const next = operatorsFor(field);
                     setIf({
                         field,
@@ -315,12 +492,41 @@ function ConditionFields({ step, edit, errors, options, readOnly }: Props) {
                             : next[0]!,
                     });
                 }}
-                options={CONDITION_FIELDS.map((f) => ({
-                    value: f.value,
-                    label: conditionFieldLabel(f.value, t),
-                }))}
-                error={err('if.field', 'if')}
+                options={[
+                    ...CONDITION_FIELDS.map((f) => ({
+                        value: f.value,
+                        label: conditionFieldLabel(f.value, t),
+                    })),
+                    {
+                        value: 'var.',
+                        label: t('automations.conditionFields.runVarOption'),
+                    },
+                ]}
+                error={
+                    isVarField(cond.field) ? undefined : err('if.field', 'if')
+                }
             />
+            {isVarField(cond.field) && (
+                <Field data-invalid={err('if.field') ? true : undefined}>
+                    <FieldLabel htmlFor={id('if-var')}>
+                        {t('automations.fields.variable')}
+                    </FieldLabel>
+                    <Input
+                        id={id('if-var')}
+                        value={cond.field.slice(4)}
+                        maxLength={40}
+                        readOnly={readOnly}
+                        aria-invalid={err('if.field') ? true : undefined}
+                        onChange={(e) =>
+                            setIf({ field: `var.${e.target.value}` }, 'if.var')
+                        }
+                    />
+                    <FieldMessage id={id('if-var')} error={err('if.field')} />
+                    <p className="text-xs text-muted-foreground">
+                        {t('automations.fields.conditionVarHint')}
+                    </p>
+                </Field>
+            )}
             <SelectField
                 id={id('if-operator')}
                 label={t('automations.fields.operator')}
@@ -393,6 +599,433 @@ function ConditionFields({ step, edit, errors, options, readOnly }: Props) {
                 </li>
             </ul>
         </div>
+    );
+}
+
+function SwitchField({
+    id,
+    label,
+    hint,
+    checked,
+    onChange,
+    disabled,
+}: {
+    id: string;
+    label: string;
+    hint?: string;
+    checked: boolean;
+    onChange: (v: boolean) => void;
+    disabled?: boolean;
+}) {
+    return (
+        <Field orientation="horizontal">
+            <Switch
+                id={id}
+                checked={checked}
+                onCheckedChange={onChange}
+                disabled={disabled}
+            />
+            <div>
+                <FieldLabel htmlFor={id}>{label}</FieldLabel>
+                {hint && <FieldDescription>{hint}</FieldDescription>}
+            </div>
+        </Field>
+    );
+}
+
+/** Teammates to pick, plus a "none" entry and an unknown current one. */
+function assigneeOptions(
+    options: EditorOptions,
+    t: ReturnType<typeof useT>,
+    current: string | undefined,
+    none: string,
+) {
+    const opts = [{ value: 'none', label: none }];
+    for (const u of options.users ?? [options.me]) {
+        opts.push({
+            value: u.id,
+            label:
+                u.id === options.me.id
+                    ? t('automations.fields.me', { name: u.label })
+                    : u.label,
+        });
+    }
+    if (current && !opts.some((o) => o.value === current)) {
+        opts.push({
+            value: current,
+            label: t('automations.fields.anotherUser'),
+        });
+    }
+    return opts;
+}
+
+function HandoffFields({ step, edit, errors, options, readOnly }: Props) {
+    const t = useT();
+    const err = useErr(errors);
+    const set = (patch: Partial<EditorStep>, group?: string) =>
+        edit((s) => ({ ...s, ...patch }), group);
+    const id = (f: string) => `${step.id}-${f}`;
+    return (
+        <div className="grid gap-4">
+            <SelectField
+                id={id('assignee')}
+                label={t('automations.fields.handoffTo')}
+                value={step.assignee_id || 'none'}
+                onChange={(v) => set({ assignee_id: v === 'none' ? '' : v })}
+                disabled={readOnly}
+                options={assigneeOptions(
+                    options,
+                    t,
+                    step.assignee_id,
+                    t('automations.fields.pool'),
+                )}
+                error={err('assignee_id')}
+                hint={t('automations.fields.handoffHint')}
+            />
+            <PlaceholderText
+                id={id('text')}
+                label={t('automations.fields.handoffNote')}
+                multiline
+                maxLength={500}
+                value={step.text ?? ''}
+                onChange={(text) => set({ text }, 'text')}
+                error={err('text')}
+                readOnly={readOnly}
+            />
+            {step.type === 'ai_route_to_agent' && (
+                <p className="text-xs text-muted-foreground">
+                    {t('automations.fields.routeHint')}
+                </p>
+            )}
+        </div>
+    );
+}
+
+/** The run variable an AI step writes ({{var:<name>}}). */
+function VariableInput({ step, edit, errors, readOnly }: Props) {
+    const t = useT();
+    const err = useErr(errors);
+    const id = `${step.id}-variable`;
+    const fallback = DEFAULT_VARIABLES[step.type] ?? '';
+    return (
+        <Field data-invalid={err('variable') ? true : undefined}>
+            <FieldLabel htmlFor={id}>
+                {t('automations.fields.variable')}
+            </FieldLabel>
+            <Input
+                id={id}
+                value={step.variable ?? ''}
+                placeholder={fallback}
+                maxLength={40}
+                readOnly={readOnly}
+                aria-invalid={err('variable') ? true : undefined}
+                onChange={(e) =>
+                    edit(
+                        (s) => ({ ...s, variable: e.target.value }),
+                        'variable',
+                    )
+                }
+            />
+            <FieldMessage id={id} error={err('variable')} />
+            <p className="text-xs text-muted-foreground">
+                {t('automations.fields.variableHint', {
+                    name: step.variable || fallback,
+                })}
+            </p>
+        </Field>
+    );
+}
+
+function AIWrites({ names }: { names: string[] }) {
+    const t = useT();
+    return (
+        <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+            {t('automations.fields.aiWrites', {
+                vars: names.map((n) => `{{var:${n}}}`).join(', '),
+            })}
+        </p>
+    );
+}
+
+/** An optional extra instruction for an AI step. */
+function ExtraPrompt({ step, edit, errors, readOnly }: Props) {
+    const t = useT();
+    const err = useErr(errors);
+    return (
+        <PlaceholderText
+            id={`${step.id}-prompt`}
+            label={t('automations.fields.extraPrompt')}
+            multiline
+            maxLength={4000}
+            value={step.prompt ?? ''}
+            onChange={(prompt) => edit((s) => ({ ...s, prompt }), 'prompt')}
+            error={err('prompt')}
+            readOnly={readOnly}
+            hint={t('automations.fields.extraPromptHint')}
+        />
+    );
+}
+
+function ExtractFields({ step, edit, errors, options, readOnly }: Props) {
+    const t = useT();
+    const err = useErr(errors);
+    const rows = step.fields ?? [];
+    const setRows = (fields: NonNullable<EditorStep['fields']>, g?: string) =>
+        edit((s) => ({ ...s, fields }), g);
+    const keyOptions = [
+        ...CONTACT_FIELDS.map((f) => ({
+            value: f,
+            label: contactFieldLabel(f, t),
+        })),
+        ...options.attributeKeys.map((k) => ({
+            value: `attr:${k}`,
+            label: `attr:${k}`,
+        })),
+    ];
+    for (const r of rows) {
+        if (r.key && !keyOptions.some((o) => o.value === r.key)) {
+            keyOptions.push({ value: r.key, label: r.key });
+        }
+    }
+    return (
+        <fieldset className="space-y-2">
+            <legend className="mb-1 text-sm font-medium">
+                {t('automations.fields.extractFields')}
+            </legend>
+            {rows.map((r, i) => (
+                <div key={r.rowKey} className="flex gap-2">
+                    <div className="w-36 shrink-0">
+                        <SelectField
+                            id={`${step.id}-fkey-${r.rowKey}`}
+                            label={t('automations.fields.extractKey', {
+                                n: i + 1,
+                            })}
+                            value={r.key}
+                            disabled={readOnly}
+                            onChange={(key) =>
+                                setRows(
+                                    rows.map((x) =>
+                                        x.rowKey === r.rowKey
+                                            ? { ...x, key }
+                                            : x,
+                                    ),
+                                )
+                            }
+                            options={keyOptions}
+                        />
+                    </div>
+                    <Field className="min-w-0 flex-1">
+                        <FieldLabel htmlFor={`${step.id}-flabel-${r.rowKey}`}>
+                            {t('automations.fields.extractLabel')}
+                        </FieldLabel>
+                        <Input
+                            id={`${step.id}-flabel-${r.rowKey}`}
+                            value={r.label}
+                            maxLength={120}
+                            readOnly={readOnly}
+                            onChange={(e) =>
+                                setRows(
+                                    rows.map((x) =>
+                                        x.rowKey === r.rowKey
+                                            ? { ...x, label: e.target.value }
+                                            : x,
+                                    ),
+                                    `flabel-${r.rowKey}`,
+                                )
+                            }
+                        />
+                    </Field>
+                    {!readOnly && (
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="mt-6"
+                            aria-label={t('automations.fields.removeField', {
+                                n: i + 1,
+                            })}
+                            onClick={() =>
+                                setRows(
+                                    rows.filter((x) => x.rowKey !== r.rowKey),
+                                )
+                            }
+                        >
+                            <Trash2 />
+                        </Button>
+                    )}
+                </div>
+            ))}
+            {err('fields') && (
+                <p role="alert" className="text-sm text-destructive">
+                    {err('fields')}
+                </p>
+            )}
+            {!readOnly && (
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={rows.length >= 20}
+                    onClick={() =>
+                        setRows([
+                            ...rows,
+                            { key: 'email', label: '', rowKey: newKey() },
+                        ])
+                    }
+                >
+                    <Plus /> {t('automations.fields.addField')}
+                </Button>
+            )}
+            <p className="text-xs text-muted-foreground">
+                {t('automations.fields.extractHint')}
+            </p>
+            <ExtraPrompt
+                step={step}
+                edit={edit}
+                errors={errors}
+                options={options}
+                readOnly={readOnly}
+            />
+        </fieldset>
+    );
+}
+
+function SegmentFields(props: Props) {
+    const { step, edit, errors, options, readOnly } = props;
+    const t = useT();
+    const err = useErr(errors);
+    const byGroup = (step.group_ids?.length ?? 0) > 0 || step.mode === 'groups';
+    const id = (f: string) => `${step.id}-${f}`;
+    return (
+        <div className="grid gap-4">
+            <SelectField
+                id={id('segment-kind')}
+                label={t('automations.fields.segmentKind')}
+                value={byGroup ? 'groups' : 'tags'}
+                disabled={readOnly}
+                onChange={(v) =>
+                    edit((s) => ({
+                        ...s,
+                        tags: [],
+                        group_ids: [],
+                        // Remembered only in the editor (not sent).
+                        mode: v === 'groups' ? 'groups' : undefined,
+                    }))
+                }
+                options={[
+                    { value: 'tags', label: t('automations.fields.byTags') },
+                    {
+                        value: 'groups',
+                        label: t('automations.fields.byGroups'),
+                    },
+                ]}
+            />
+            {byGroup ? (
+                <fieldset className="space-y-1.5">
+                    <legend className="mb-1 text-sm font-medium">
+                        {t('automations.fields.segmentGroups')}
+                    </legend>
+                    {options.groups.length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                            {t('automations.fields.noGroups')}
+                        </p>
+                    )}
+                    {options.groups.map((g) => {
+                        const on = step.group_ids?.includes(g.id) ?? false;
+                        return (
+                            <label
+                                key={g.id}
+                                className="flex items-center gap-2 text-sm"
+                            >
+                                <Checkbox
+                                    checked={on}
+                                    disabled={readOnly}
+                                    onCheckedChange={(v) =>
+                                        edit((s) => ({
+                                            ...s,
+                                            group_ids: v
+                                                ? [...(s.group_ids ?? []), g.id]
+                                                : (s.group_ids ?? []).filter(
+                                                      (x) => x !== g.id,
+                                                  ),
+                                        }))
+                                    }
+                                />
+                                {g.label}
+                            </label>
+                        );
+                    })}
+                    {err('tags', 'group_ids') && (
+                        <p role="alert" className="text-sm text-destructive">
+                            {err('tags', 'group_ids')}
+                        </p>
+                    )}
+                </fieldset>
+            ) : (
+                <KeywordsInput
+                    id={id('tags')}
+                    label={t('automations.fields.segmentTags')}
+                    value={step.tags ?? []}
+                    onChange={(tags) => edit((s) => ({ ...s, tags }))}
+                    max={20}
+                    readOnly={readOnly}
+                    error={err('tags')}
+                    hint={t('automations.fields.segmentHint')}
+                />
+            )}
+            <VariableInput {...props} />
+            <ExtraPrompt {...props} />
+        </div>
+    );
+}
+
+/** Per-step retry policy: up to N more attempts, doubling the wait. */
+function RetryFields({ step, edit, errors, readOnly }: Props) {
+    const t = useT();
+    const err = useErr(errors);
+    const r = step.retry ?? { max: 0, backoff: 30 };
+    const setRetry = (patch: Partial<typeof r>, group?: string) =>
+        edit((s) => ({ ...s, retry: { ...r, ...patch } }), group);
+    const id = (f: string) => `${step.id}-${f}`;
+    return (
+        <fieldset className="space-y-3 rounded-lg border p-3">
+            <legend className="px-1 text-sm font-medium">
+                {t('automations.fields.retry')}
+            </legend>
+            <Field data-invalid={err('retry.max') ? true : undefined}>
+                <FieldLabel htmlFor={id('retry-max')}>
+                    {t('automations.fields.retryMax')}
+                </FieldLabel>
+                <NumberField
+                    id={id('retry-max')}
+                    min={0}
+                    max={MAX_RETRIES}
+                    value={r.max}
+                    disabled={readOnly}
+                    aria-invalid={err('retry.max') ? true : undefined}
+                    onValueChange={(v) =>
+                        setRetry({ max: v ?? 0 }, 'retry-max')
+                    }
+                />
+                <FieldMessage id={id('retry-max')} error={err('retry.max')} />
+            </Field>
+            {r.max > 0 && (
+                <DurationInput
+                    key={`${step.id}-backoff`}
+                    id={id('retry-backoff')}
+                    label={t('automations.fields.retryBackoff')}
+                    seconds={r.backoff}
+                    onChange={(backoff) => setRetry({ backoff }, 'backoff')}
+                    min={1}
+                    max={MAX_BACKOFF_SECONDS}
+                    disabled={readOnly}
+                    error={err('retry.backoff')}
+                />
+            )}
+            <p className="text-xs text-muted-foreground">
+                {t('automations.fields.retryHint')}
+            </p>
+        </fieldset>
     );
 }
 
@@ -772,6 +1405,11 @@ const TRIGGER_FIELDS = [
     'trigger.tag',
     'trigger.status',
     'trigger.campaign_id',
+    'trigger.subscription',
+    'trigger.minutes',
+    'trigger.no_reply_from',
+    'trigger.reaction',
+    'trigger.reasons',
     'trigger.cooldown_seconds',
 ];
 
@@ -795,7 +1433,9 @@ export function TriggerFields({
     readOnly: boolean;
 }) {
     const t = useT();
-    const tErr = (f: string) => errors[`trigger.${f}`];
+    const local = triggerProblems(type, trigger, t);
+    const tErr = (f: string) =>
+        errors[`trigger.${f}`] ?? local.find((p) => p.field === f)?.message;
     const other = Object.entries(errors)
         .filter(
             ([k]) =>
@@ -877,7 +1517,156 @@ export function TriggerFields({
                     )}
                 </>
             )}
-            {(type === 'message_received' || type === 'new_contact') && (
+            {type === 'window_closing' && (
+                <>
+                    <DurationInput
+                        key="window-minutes"
+                        id="trigger-minutes"
+                        label={t('automations.trigger.windowMinutes')}
+                        seconds={triggerMinutes(type, trigger) * 60}
+                        onChange={(s) =>
+                            onChange({ minutes: Math.round(s / 60) }, 'minutes')
+                        }
+                        min={MIN_WINDOW_MINUTES * 60}
+                        max={MAX_WINDOW_MINUTES * 60}
+                        disabled={readOnly}
+                        error={tErr('minutes')}
+                        hint={t('automations.trigger.windowMinutesHint', {
+                            minutes: DEFAULT_WINDOW_MINUTES,
+                        })}
+                    />
+                    <SwitchField
+                        id="trigger-include-answered"
+                        label={t('automations.trigger.includeAnswered')}
+                        hint={t('automations.trigger.includeAnsweredHint')}
+                        checked={trigger.include_answered}
+                        onChange={(include_answered) =>
+                            onChange({ include_answered })
+                        }
+                        disabled={readOnly}
+                    />
+                    <p
+                        className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300"
+                        data-testid="window-guidance"
+                    >
+                        {t('automations.trigger.windowGuidance')}
+                    </p>
+                </>
+            )}
+            {type === 'no_reply' && (
+                <>
+                    <SelectField
+                        id="trigger-no-reply-from"
+                        label={t('automations.trigger.noReplyFrom')}
+                        value={trigger.no_reply_from || 'customer'}
+                        disabled={readOnly}
+                        onChange={(no_reply_from) =>
+                            onChange({ no_reply_from })
+                        }
+                        options={NO_REPLY_FROM.map((w) => ({
+                            value: w,
+                            label: t(mk(`automations.trigger.noReply.${w}`)),
+                        }))}
+                        error={tErr('no_reply_from')}
+                    />
+                    <DurationInput
+                        key="no-reply-minutes"
+                        id="trigger-minutes"
+                        label={t('automations.trigger.noReplyMinutes')}
+                        seconds={triggerMinutes(type, trigger) * 60}
+                        onChange={(s) =>
+                            onChange({ minutes: Math.round(s / 60) }, 'minutes')
+                        }
+                        min={MIN_NO_REPLY_MINUTES * 60}
+                        max={MAX_NO_REPLY_MINUTES * 60}
+                        disabled={readOnly}
+                        error={tErr('minutes')}
+                    />
+                    {trigger.no_reply_from !== 'agent' && (
+                        <SwitchField
+                            id="trigger-include-campaigns"
+                            label={t('automations.trigger.includeCampaigns')}
+                            hint={t('automations.trigger.includeCampaignsHint')}
+                            checked={trigger.include_campaigns}
+                            onChange={(include_campaigns) =>
+                                onChange({ include_campaigns })
+                            }
+                            disabled={readOnly}
+                        />
+                    )}
+                </>
+            )}
+            {type === 'reaction' && (
+                <SelectField
+                    id="trigger-reaction"
+                    label={t('automations.trigger.reaction')}
+                    value={trigger.reaction || 'any'}
+                    disabled={readOnly}
+                    onChange={(v) =>
+                        onChange({ reaction: v === 'any' ? '' : v })
+                    }
+                    options={(['any', ...REACTIONS] as const).map((r) => ({
+                        value: r,
+                        label: t(mk(`automations.reactions.${r}`)),
+                    }))}
+                    error={tErr('reaction')}
+                    hint={t('automations.trigger.reactionHint')}
+                />
+            )}
+            {(type === 'campaign_reply' || type === 'reaction') && (
+                <SelectField
+                    id="trigger-campaign"
+                    label={t('automations.trigger.campaign')}
+                    value={trigger.campaign_id || 'any'}
+                    disabled={readOnly}
+                    onChange={(v) =>
+                        onChange({ campaign_id: v === 'any' ? '' : v })
+                    }
+                    options={campaignOptions}
+                    error={tErr('campaign_id')}
+                    hint={t('automations.trigger.campaignHint')}
+                />
+            )}
+            {type === 'ai_escalation' && (
+                <fieldset className="space-y-1.5">
+                    <legend className="mb-1 text-sm font-medium">
+                        {t('automations.trigger.reasons')}
+                    </legend>
+                    {ESCALATION_REASONS.map((r) => (
+                        <label
+                            key={r}
+                            className="flex items-center gap-2 text-sm"
+                        >
+                            <Checkbox
+                                checked={trigger.reasons.includes(r)}
+                                disabled={readOnly}
+                                onCheckedChange={(v) =>
+                                    onChange({
+                                        reasons: v
+                                            ? [...trigger.reasons, r]
+                                            : trigger.reasons.filter(
+                                                  (x) => x !== r,
+                                              ),
+                                    })
+                                }
+                            />
+                            {t(mk(`automations.escalationReasons.${r}`))}
+                        </label>
+                    ))}
+                    <p className="text-xs text-muted-foreground">
+                        {t('automations.trigger.reasonsHint')}
+                    </p>
+                    {tErr('reasons') && (
+                        <p role="alert" className="text-sm text-destructive">
+                            {tErr('reasons')}
+                        </p>
+                    )}
+                </fieldset>
+            )}
+            {(type === 'message_received' ||
+                type === 'new_contact' ||
+                type === 'window_closing' ||
+                type === 'no_reply') && (
                 <SelectField
                     id="trigger-phone"
                     label={t('automations.trigger.onNumber')}

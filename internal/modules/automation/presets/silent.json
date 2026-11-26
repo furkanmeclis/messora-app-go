@@ -1,0 +1,16 @@
+{
+  "key": "detect_silent_customers",
+  "version": 1,
+  "category": "follow_up",
+  "title": {"tr": "Belirli süre cevap vermeyen müşterileri tespit etme", "en": "Detect customers who went silent"},
+  "description": {
+    "tr": "Mesajınıza 3 gün boyunca cevap vermeyen müşterileri \"sessiz\" etiketiyle işaretler; bu etiketle segment ya da kampanya kitlesi oluşturabilirsiniz. Süreyi tetikleyiciden değiştirebilirsiniz.",
+    "en": "Tags customers who have not answered your message for 3 days with \"sessiz\", so you can build a segment or campaign audience from them. Change the time on the trigger."
+  },
+  "trigger_type": "no_reply",
+  "trigger": {"no_reply_from": "customer", "minutes": 4320},
+  "steps": [
+    {"id": "silent_tag", "type": "add_tag", "tag": "sessiz"}
+  ],
+  "setup": []
+}

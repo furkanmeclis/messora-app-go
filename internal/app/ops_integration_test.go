@@ -119,7 +119,7 @@ func TestOpsOverview(t *testing.T) {
 	auto := h.sqlOne(`INSERT INTO automations (name, trigger_type, steps, program) VALUES ('Karşılama', 'message_received', '[]', '[]')
 	                  RETURNING id::text`)
 	hintsBefore := opsHints(h, "automations")
-	h.sqlOne(`INSERT INTO automation_runs (automation_id, automation_version, event_key, event, status, error, finished_at, conversation_id)
+	h.sqlOne(`INSERT INTO automation_runs (automation_id, automation_version, event_key, event, status, error, finished_at, conversation_id, error_code, attempt)
 	          VALUES ($1, 1, 'e1', '{}', 'failed', 'HTTP step: 500', now(), $2),
 	                 ($1, 1, 'e2', '{}', 'running', NULL, NULL, NULL)`, auto, mine)
 	if got := opsHints(h, "automations"); got != hintsBefore+2 {
@@ -177,7 +177,7 @@ func TestOpsOverview(t *testing.T) {
 		t.Fatalf("automations: %v", au)
 	}
 	failed := au["failed"].([]any)[0].(map[string]any)
-	if failed["automation_name"] != "Karşılama" || failed["error"] != "HTTP step: 500" || failed["conversation_id"] != mine {
+	if failed["automation_name"] != "Karşılama" || failed["error"] != "HTTP step: 500" || failed["error_code"] != "retries_exhausted" || failed["attempt"] != float64(3) || failed["conversation_id"] != mine {
 		t.Fatalf("failed run: %v", failed)
 	}
 

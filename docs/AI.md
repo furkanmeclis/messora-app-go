@@ -401,6 +401,13 @@ required the `update_contact_fields` action — no longer):
   (`POST /contacts/{id}/verify-fields`, `contacts.update`, audited
   `contact.verify_fields`) marks AI values as checked.
 
+Automation AI steps (`ai_extract_fields`, `ai_build_profile`, the fields an
+`ai_auto_reply` collects) store values through the same rules
+(`conversations.Service.SetFieldsWithSource`, docs/AUTOMATIONS.md "AI
+steps"): they need an AI profile on the number with **may update fields**,
+never overwrite a person's, an import's, the API's or a verified value, and
+are recorded as source `ai`, not verified, with the automation's AI request.
+
 The contact (`GET /contacts/{id}`) returns `profile_status`,
 `profile_progress` and `field_sources`; the panel shows a card with the
 completeness and a badge per AI value with **Doğrula**. The contacts list

@@ -91,6 +91,9 @@ func (h *harness) pump(ctx context.Context, workers int) int {
 			retry(e, r.After)
 			return
 		}
+		if errors.Is(err, automation.ErrRetriesExhausted) {
+			return // the worker archives the task (failed jobs page)
+		}
 		if err != nil {
 			h.t.Errorf("%s: %v", e.topic, err)
 		}

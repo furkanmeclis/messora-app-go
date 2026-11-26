@@ -204,9 +204,17 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	inbox.SetAI(aiSvc)
 	msg.SetInboundHook(inbox.OnInbound)
 	wireCampaignAI(aiSvc, camp, inbox, q)
+	// Automations: AI steps use the AI module, handoff and note steps the
+	// conversations module.
+	auto := automation.New(pool, msg, mail, automationHTTP(cfg), log)
+	auto.SetAI(aiSvc)
+	auto.SetInbox(inbox)
+	// AI field steps store values with their provenance (never over a
+	// person's or verified value).
+	auto.SetFieldWriter(inbox)
 	return &services{cfg: cfg, ai: aiSvc, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
-		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
+		automation: auto}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.

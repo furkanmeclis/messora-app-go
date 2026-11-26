@@ -193,9 +193,9 @@ func automationsToAPI(p *principal.Principal, a Automations) *api.OpsAutomations
 		out.RunningTotal = r.Total
 	}
 	for i, r := range a.Failed {
-		e := r.Error
+		e, attempt := r.Error, int(r.Attempt)
 		out.Failed[i] = api.OpsAutomationRun{Id: r.ID, AutomationId: r.AutomationID, AutomationName: r.AutomationName,
-			Status: api.OpsAutomationRunStatus("failed"), Error: &e, At: at(r.FinishedAt),
+			Status: api.OpsAutomationRunStatus("failed"), Error: &e, ErrorCode: r.ErrorCode, Attempt: &attempt, At: at(r.FinishedAt),
 			ConversationId: conv(r.ConversationID, r.ConversationAssigneeID)}
 		out.FailedTotal = r.Total
 	}

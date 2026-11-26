@@ -223,6 +223,11 @@ func (s *Service) RecordInbound(ctx context.Context, tx pgx.Tx, q *db.Queries, m
 	if err != nil {
 		return err
 	}
+	if first > 0 {
+		if err := emitCampaignReply(ctx, tx, q, *a, m); err != nil {
+			return err
+		}
+	}
 	payload, text := quickReply(m)
 	switch {
 	case payload != "" || text != "":
@@ -234,9 +239,15 @@ func (s *Service) RecordInbound(ctx context.Context, tx pgx.Tx, q *db.Queries, m
 			return err
 		}
 		if r := ReactionFor(row.ReactionMap, payload, text); r != "" {
-			if _, err := q.SetRecipientReaction(ctx, db.SetRecipientReactionParams{ID: a.RecipientID, CampaignID: a.CampaignID,
-				Reaction: &r, Source: ReactionSourceQuickReply}); err != nil {
+			n, err := q.SetRecipientReaction(ctx, db.SetRecipientReactionParams{ID: a.RecipientID, CampaignID: a.CampaignID,
+				Reaction: &r, Source: ReactionSourceQuickReply})
+			if err != nil {
 				return err
+			}
+			if n > 0 {
+				if err := emitReaction(ctx, tx, q, a.CampaignID, a.RecipientID, r, ReactionSourceQuickReply); err != nil {
+					return err
+				}
 			}
 		}
 	case first > 0 && s.classifier != nil && strings.TrimSpace(m.Body) != "":
@@ -326,7 +337,8 @@ func (s *Service) RecordOptOut(ctx context.Context, tx pgx.Tx, q *db.Queries, co
 // SetReaction labels a recipient's reaction (nil clears it). source is
 // manual (an operator; overrides everything), ai (P7) or quick_reply. A
 // system label never replaces a manual one; it reports whether the row
-// changed.
+// changed. A positive or negative label raises the automation reaction
+// trigger (once per recipient and polarity, see trigger.RecipientReactionKey).
 func (s *Service) SetReaction(ctx context.Context, campaignID, recipientID uuid.UUID, reaction *string, source string) (bool, error) {
 	changed := false
 	err := s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
@@ -335,6 +347,11 @@ func (s *Service) SetReaction(ctx context.Context, campaignID, recipientID uuid.
 			return err
 		}
 		changed = true
+		if reaction != nil {
+			if err := emitReaction(ctx, tx, q, campaignID, recipientID, *reaction, source); err != nil {
+				return err
+			}
+		}
 		return s.PublishProgress(ctx, tx, q, campaignID)
 	})
 	return changed, err
