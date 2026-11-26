@@ -57,11 +57,54 @@ import {
 const fmt = (n: number) => n.toLocaleString(NUMBER_LOCALE);
 
 /** Why the campaign is paused and when it resumes by itself. */
-export function PauseNotice({ campaign: c }: { campaign: Campaign }) {
+/** Why campaign protection stopped a campaign, from its pause detail. */
+export function spamRuleText(
+    t: ReturnType<typeof useT>,
+    detail: Record<string, unknown> | undefined,
+): string | null {
+    const rule = typeof detail?.rule === 'string' ? detail.rule : '';
+    const s = (v: unknown) => (v == null ? '' : String(v));
+    switch (rule) {
+        case 'error_131048':
+            return t('analytics.spam.rules.error_131048');
+        case 'account_restriction':
+            return t('analytics.spam.rules.account_restriction', {
+                event: s(detail?.event),
+            });
+        case 'ecosystem_rate':
+        case 'opt_out_rate':
+            return t(`analytics.spam.rules.${rule}`, {
+                rate: s(detail?.rate_pct),
+                attempts: s(detail?.attempts),
+                threshold: s(detail?.threshold_pct),
+            });
+        case 'number_quality':
+        case 'template_quality':
+            return t(`analytics.spam.rules.${rule}`, {
+                quality: s(detail?.quality),
+            });
+        case 'template_paused':
+            return t('analytics.spam.rules.template_paused', {
+                status: s(detail?.status),
+            });
+    }
+    return null;
+}
+
+export function PauseNotice({
+    campaign: c,
+    pauses,
+}: {
+    campaign: Campaign;
+    pauses?: CampaignPause[];
+}) {
     const t = useT();
     const formatDateTime = useFormatDateTime();
     if (!isPaused(c.status) || !c.paused_reason) return null;
     const limit = c.status === 'paused_limit';
+    const spam = c.paused_reason === 'spam_protection';
+    const open = pauses?.find((p) => !p.resumed_at);
+    const why = spam ? spamRuleText(t, open?.detail) : null;
     return (
         <Alert data-testid="pause-notice" data-reason={c.paused_reason}>
             {limit ? <Hourglass /> : <PauseCircle />}
@@ -74,6 +117,11 @@ export function PauseNotice({ campaign: c }: { campaign: Campaign }) {
             </AlertTitle>
             <AlertDescription>
                 {limit && <p>{t('campaigns.engine.pausedLimitBody')}</p>}
+                {spam && (
+                    <p data-testid="spam-reason">
+                        {why ?? t('analytics.spam.title')}
+                    </p>
+                )}
                 {c.resume_at && (
                     <p data-testid="resume-at">
                         {t('campaigns.engine.resumesAt', {
@@ -275,6 +323,16 @@ export function ResumeDialog({
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4" data-testid="resume-preview">
+                    {c.paused_reason === 'spam_protection' && (
+                        <Alert
+                            variant="destructive"
+                            data-testid="spam-resume-warning"
+                        >
+                            <AlertDescription>
+                                {t('analytics.spam.resumeWarning')}
+                            </AlertDescription>
+                        </Alert>
+                    )}
                     {!preview ? (
                         <p
                             className="flex items-center gap-2 text-sm text-muted-foreground"

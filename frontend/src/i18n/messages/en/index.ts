@@ -31,6 +31,7 @@ import webhooks from './webhooks';
 import consent from './consent';
 import offers from './offers';
 import ai from './ai';
+import analytics from './analytics';
 
 /**
  * The English dictionary defines the shape every language must match.
@@ -64,6 +65,7 @@ export const en = {
     consent,
     offers,
     ai,
+    analytics,
     auth,
     overview,
     inbox,

@@ -122,3 +122,22 @@ export async function saveConsentSettingsAction(
     if (res.ok) revalidatePath('/settings/consent');
     return res;
 }
+
+/** Replaces the campaign protection settings (spam thresholds, attribution). */
+export async function saveCampaignProtectionAction(
+    input: Schemas['CampaignProtectionSettings'],
+): Promise<ActionResult<Schemas['CampaignProtectionSettings']>> {
+    const t = await getT();
+    const res = await runAction(
+        async () =>
+            (
+                await api<Schemas['CampaignProtectionSettings']>(
+                    '/settings/campaign-protection',
+                    { method: 'PUT', body: input },
+                )
+            ).data,
+        t('analytics.settings.saved'),
+    );
+    if (res.ok) revalidatePath('/settings/campaign-protection');
+    return res;
+}

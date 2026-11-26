@@ -158,6 +158,10 @@ export function audienceLabel(
     names: Record<string, string> = {},
 ): string {
     if (a.all) return t('campaigns.audience.all');
+    if (Array.isArray(a.contact_ids))
+        return t('campaigns.audience.contacts', {
+            count: a.contact_ids.length,
+        });
     if (typeof a.segment_id === 'string')
         return t('campaigns.audience.segment', {
             name: names[a.segment_id] ?? t('campaigns.audience.savedSegment'),
@@ -199,6 +203,7 @@ const PAUSE_REASONS = [
     'messaging_limit',
     'license_restricted',
     'offer_expired',
+    'spam_protection',
 ] as const;
 
 /** Why a campaign was paused (unknown reasons are shown as they are). */

@@ -37,6 +37,11 @@ export default async function SettingsLayout({
             icon: 'consent',
         },
         has('settings.read') && {
+            href: '/settings/campaign-protection',
+            label: t('analytics.settings.title'),
+            icon: 'protection',
+        },
+        has('settings.read') && {
             href: '/settings/security',
             label: t('settings.tabs.security'),
             icon: 'security',

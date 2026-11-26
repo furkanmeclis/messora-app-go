@@ -86,6 +86,7 @@ import {
 } from './engine';
 import { NUMBER_LOCALE } from '@/lib/format';
 import { ClientDataTable } from '@/components/client-data-table';
+import { CampaignAnalysis } from './analysis';
 
 type Perms = { edit: boolean; start: boolean; pause: boolean; del: boolean };
 
@@ -220,7 +221,7 @@ export function CampaignDashboard({
                 <Controls campaign={c} perms={perms} timezone={timezone} />
             </div>
 
-            <PauseNotice campaign={c} />
+            <PauseNotice campaign={c} pauses={pauses} />
 
             {c.last_error && (
                 <Alert variant="destructive">
@@ -303,6 +304,14 @@ export function CampaignDashboard({
                     </p>
                 </CardContent>
             </Card>
+
+            {!notStarted && (
+                <CampaignAnalysis
+                    campaign={c}
+                    counts={c.counts}
+                    perms={{ edit: perms.edit, start: perms.start }}
+                />
+            )}
 
             <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
                 <Card className="min-w-0">

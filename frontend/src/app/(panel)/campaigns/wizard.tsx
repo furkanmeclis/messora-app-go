@@ -86,11 +86,15 @@ import {
 } from './campaign-ui';
 import { PreviousAudience } from './previous-audience';
 import { PreflightPanel } from './preflight';
+import { ForecastPanel, quickRepliesOf } from './forecast';
+import { ReactionMapEditor } from './[id]/analysis';
 import type { WizardData } from './wizard-data';
 import { NUMBER_LOCALE } from '@/lib/format';
 
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
-type AudienceKind = 'segment' | 'group' | 'tag' | 'all' | 'previous';
+type AudienceKind =
+    'segment' | 'group' | 'tag' | 'all' | 'previous' | 'contacts';
+type Reaction = 'positive' | 'negative' | 'neutral';
 
 type State = {
     name: string;
@@ -110,11 +114,16 @@ type State = {
     priority: Priority;
     /** Rate cap in messages per second ('' = none). */
     maxMps: string;
+    /** An explicit contact list (a follow-up to selected recipients). */
+    contactIds: string[];
+    /** Quick reply button → positive / negative / neutral. */
+    reactionMap: Record<string, Reaction>;
 };
 
 /** The audience the API expects for the chosen kind. */
 function audienceOf(s: State): CampaignInput['audience'] {
     if (s.audienceKind === 'all') return { all: true };
+    if (s.audienceKind === 'contacts') return { contact_ids: s.contactIds };
     if (s.audienceKind === 'previous')
         return {
             previous_campaign: {
@@ -180,18 +189,22 @@ function initialState(
             prevClasses: ['temporary', 'ecosystem_limit', 'never_sent'],
             priority: 'normal',
             maxMps: '',
+            contactIds: [],
+            reactionMap: {},
         };
     }
     const a = c.audience;
     const kind: AudienceKind = a.all
         ? 'all'
-        : a.previous_campaign
-          ? 'previous'
-          : a.group_id
-            ? 'group'
-            : a.tag_id
-              ? 'tag'
-              : 'segment';
+        : a.contact_ids
+          ? 'contacts'
+          : a.previous_campaign
+            ? 'previous'
+            : a.group_id
+              ? 'group'
+              : a.tag_id
+                ? 'tag'
+                : 'segment';
     const tpl = templates.find(
         (x) => x.name === c.template_name && x.language === c.template_language,
     );
@@ -220,6 +233,8 @@ function initialState(
         prevClasses: a.previous_campaign?.classes ?? [],
         priority: c.priority,
         maxMps: c.max_mps ? String(c.max_mps) : '',
+        contactIds: a.contact_ids ?? [],
+        reactionMap: (c.reaction_map ?? {}) as Record<string, Reaction>,
     };
 }
 
@@ -316,15 +331,18 @@ export function CampaignWizard({
     const audienceKey =
         s.audienceKind === 'all'
             ? 'all'
-            : s.audienceKind === 'previous'
-              ? `previous:${s.audienceId}:${[...s.prevClasses].sort().join(',')}`
-              : `${s.audienceKind}:${s.audienceId}`;
+            : s.audienceKind === 'contacts'
+              ? `contacts:${s.contactIds.length}`
+              : s.audienceKind === 'previous'
+                ? `previous:${s.audienceId}:${[...s.prevClasses].sort().join(',')}`
+                : `${s.audienceKind}:${s.audienceId}`;
     const estimate: number | null | undefined = (() => {
         if (s.audienceKind === 'group')
             return data.groups?.find((g) => g.id === s.audienceId)
                 ?.member_count;
         if (s.audienceKind === 'tag')
             return data.tags?.find((t) => t.id === s.audienceId)?.contact_count;
+        if (s.audienceKind === 'contacts') return s.contactIds.length;
         return estimates[audienceKey];
     })();
 
@@ -360,6 +378,7 @@ export function CampaignWizard({
     // template and audience (cached per combination).
     const audienceChosen =
         s.audienceKind === 'all' ||
+        (s.audienceKind === 'contacts' && s.contactIds.length > 0) ||
         (!!s.audienceId &&
             (s.audienceKind !== 'previous' || s.prevClasses.length > 0));
     const preflightKey =
@@ -415,6 +434,9 @@ export function CampaignWizard({
                     e.audience = t('campaigns.engine.previous.chooseCampaign');
                 else if (s.prevClasses.length === 0)
                     e.audience = t('campaigns.engine.previous.chooseClasses');
+            } else if (s.audienceKind === 'contacts') {
+                if (s.contactIds.length === 0)
+                    e.audience = t('campaigns.wizard.errors.chooseSegment');
             } else if (s.audienceKind !== 'all' && !s.audienceId)
                 e.audience = t(
                     s.audienceKind === 'segment'
@@ -473,6 +495,7 @@ export function CampaignWizard({
             audience,
             window_size: s.windowSize ? Number(s.windowSize) : 0,
             priority: s.priority,
+            reaction_map: s.reactionMap,
             ...(s.maxMps
                 ? { max_mps: Number(s.maxMps) }
                 : savedId
@@ -1018,6 +1041,9 @@ export function CampaignWizard({
                                             ['tag', data.tags],
                                             ['all', []],
                                             ['previous', data.finished],
+                                            ...(s.contactIds.length > 0
+                                                ? ([['contacts', []]] as const)
+                                                : []),
                                         ] as const
                                     ).map(([kind, list]) => (
                                         <RadioCard
@@ -1050,8 +1076,16 @@ export function CampaignWizard({
                                     }
                                 />
                             )}
+                            {s.audienceKind === 'contacts' && (
+                                <p className="text-sm text-muted-foreground">
+                                    {t('campaigns.audience.contacts', {
+                                        count: s.contactIds.length,
+                                    })}
+                                </p>
+                            )}
                             {s.audienceKind !== 'all' &&
-                                s.audienceKind !== 'previous' && (
+                                s.audienceKind !== 'previous' &&
+                                s.audienceKind !== 'contacts' && (
                                     <AudiencePicker
                                         kind={s.audienceKind}
                                         value={s.audienceId}
@@ -1080,16 +1114,17 @@ export function CampaignWizard({
                             {s.audienceKind === 'all' &&
                                 errors.audience &&
                                 err('audience')}
-                            {s.audienceKind !== 'previous' && (
-                                <EstimateLine
-                                    estimate={estimate}
-                                    kind={s.audienceKind}
-                                    chosen={
-                                        s.audienceKind === 'all' ||
-                                        !!s.audienceId
-                                    }
-                                />
-                            )}
+                            {s.audienceKind !== 'previous' &&
+                                s.audienceKind !== 'contacts' && (
+                                    <EstimateLine
+                                        estimate={estimate}
+                                        kind={s.audienceKind}
+                                        chosen={
+                                            s.audienceKind === 'all' ||
+                                            !!s.audienceId
+                                        }
+                                    />
+                                )}
                         </FieldGroup>
                     )}
 
@@ -1175,6 +1210,45 @@ export function CampaignWizard({
                                 <PreflightPanel
                                     result={preflight}
                                     canManageSettings={data.canConsentSettings}
+                                />
+                            )}
+
+                            {preflightKey && template && (
+                                <ForecastPanel
+                                    input={{
+                                        audience: audienceOf(s),
+                                        ...((sender?.id ?? s.phoneNumberId)
+                                            ? {
+                                                  phone_number_id:
+                                                      sender?.id ??
+                                                      s.phoneNumberId,
+                                              }
+                                            : {}),
+                                        template_name: template.name,
+                                        template_language: template.language,
+                                        priority: s.priority,
+                                        ...(s.maxMps
+                                            ? { max_mps: Number(s.maxMps) }
+                                            : {}),
+                                        ...(s.when === 'schedule' &&
+                                        s.scheduledAt
+                                            ? {
+                                                  scheduled_at: zonedToUtc(
+                                                      s.scheduledAt,
+                                                      data.timezone,
+                                                  )?.toISOString(),
+                                              }
+                                            : {}),
+                                    }}
+                                />
+                            )}
+
+                            {template && (
+                                <ReactionMapEditor
+                                    buttons={quickRepliesOf(template)}
+                                    value={s.reactionMap}
+                                    canEdit
+                                    onChange={(m) => set('reactionMap', m)}
                                 />
                             )}
 
@@ -1508,7 +1582,7 @@ function AudiencePicker({
     error,
     onChange,
 }: {
-    kind: Exclude<AudienceKind, 'all' | 'previous'>;
+    kind: Exclude<AudienceKind, 'all' | 'previous' | 'contacts'>;
     value: string;
     options: { id: string; name: string }[];
     error?: string;
