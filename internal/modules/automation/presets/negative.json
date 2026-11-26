@@ -4,8 +4,8 @@
   "category": "feedback",
   "title": {"tr": "Olumsuz müşteri dönüşü", "en": "Negative customer response"},
   "description": {
-    "tr": "Müşteri bir mesajınıza olumsuz tepki verdiğinde (👎, 😡 …) kişiyi \"olumsuz-donus\" ile etiketler, ekibe iç not bırakır ve sohbeti bir temsilciye devreder.",
-    "en": "When a customer reacts negatively to a message (👎, 😡 …), tags them \"olumsuz-donus\", leaves the team an internal note and hands the conversation to an agent."
+    "tr": "Müşteri bir mesajınıza ya da kampanyanıza olumsuz tepki verdiğinde (👎, 😡 …, olumsuz hızlı cevap butonu veya AI’ın olumsuz bulduğu cevap) kişiyi \"olumsuz-donus\" ile etiketler, ekibe iç not bırakır ve sohbeti bir temsilciye devreder.",
+    "en": "When a customer responds negatively to a message or a campaign (👎, 😡 …, a negative quick-reply button or a reply the AI finds negative), tags them \"olumsuz-donus\", leaves the team an internal note and hands the conversation to an agent."
   },
   "trigger_type": "reaction",
   "trigger": {"reaction": "negative"},

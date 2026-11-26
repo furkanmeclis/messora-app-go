@@ -218,7 +218,7 @@ const automations: Messages['automations'] = {
             'Kapalıyken beklemeyi yalnızca görüşme mesajları başlatır, kampanya gönderimleri değil.',
         reaction: 'Tepki',
         reactionHint:
-            'Tepkiler emojiye göre sınıflanır (👍 ❤️ 🙏 … olumlu, 👎 😡 💔 … olumsuz).',
+            'Emoji tepkileri (👍 ❤️ 🙏 … olumlu, 👎 😡 💔 … olumsuz) ve kampanya tepkileri: eşlenmiş hızlı cevap butonu, cevabın AI sınıflandırması veya manuel etiket. Alıcı ve yön başına bir kez.',
         reasons: 'Devir nedenleri',
         reasonsHint: 'Hiçbiri seçilmezse: her neden.',
     },

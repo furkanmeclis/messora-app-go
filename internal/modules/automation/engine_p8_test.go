@@ -114,6 +114,7 @@ func TestCompileNewSteps(t *testing.T) {
 		"intent other":  {Type: "ai_detect_intent", Intents: []string{"other"}},
 		"intent case":   {Type: "ai_detect_intent", Intents: []string{"Price"}},
 		"fields":        {Type: "ai_extract_fields", Fields: []ExtractField{{Key: "phone"}}},
+		"sensitive":     {Type: "ai_extract_fields", Fields: []ExtractField{{Key: "attr:tckn", Label: "TC kimlik"}}},
 		"both choices":  {Type: "ai_classify_segment", Tags: []string{"a"}, GroupIDs: []uuid.UUID{g}},
 		"no choices":    {Type: "ai_classify_segment"},
 		"mode":          {Type: "handoff_to_ai", Mode: "off"},

@@ -214,7 +214,7 @@ const automations = {
             'Off: only conversation messages start the wait, not campaign sends.',
         reaction: 'Reaction',
         reactionHint:
-            'Reactions are classified by emoji (👍 ❤️ 🙏 … positive, 👎 😡 💔 … negative).',
+            'Emoji reactions (👍 ❤️ 🙏 … positive, 👎 😡 💔 … negative) and campaign reactions: a mapped quick-reply button, the AI’s classification of the reply or a manual label. Once per recipient and polarity.',
         reasons: 'Escalation reasons',
         reasonsHint: 'None selected: any reason.',
     },
