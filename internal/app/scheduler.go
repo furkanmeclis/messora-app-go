@@ -37,6 +37,7 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "whatsapp_signal_sync", Every: time.Hour, TaskType: channels.TypeSignalSync},
 		{Name: "meta_cost_reconcile", Every: 24 * time.Hour, TaskType: channels.TypeCostReconcile},
 		{Name: "ai_model_sync", Every: 24 * time.Hour, TaskType: ai.TypeModelSync},
+		{Name: "ai_attribution_reconcile", Every: time.Hour, TaskType: ai.TypeAttributionReconcile},
 	}
 }
 

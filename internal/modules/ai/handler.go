@@ -83,7 +83,8 @@ func actorID(r *http.Request) *uuid.UUID {
 func (h *Handler) settingsToAPI(s Settings) api.AISettings {
 	return api.AISettings{Enabled: s.Enabled, DefaultProviderId: s.DefaultProviderID, DefaultModel: s.DefaultModel,
 		Disclosure: api.AITexts{Tr: s.Disclosure.TR, En: s.Disclosure.EN}, DataSharingNotice: api.AITexts{Tr: s.DataSharingNotice.TR, En: s.DataSharingNotice.EN},
-		FakeProviderAvailable: h.svc.FakeAllowed(), MaxRepliesPerHour: s.RepliesPerHour(), ContextMessages: s.ContextSize()}
+		FakeProviderAvailable: h.svc.FakeAllowed(), MaxRepliesPerHour: s.RepliesPerHour(), ContextMessages: s.ContextSize(),
+		ClassifyCampaignReplies: s.ClassifyCampaignReplies, CampaignAttributionDays: s.AttributionDays(), MonthlyBudget: nonEmpty(s.MonthlyBudget)}
 }
 
 // GetAISettings implements api.ServerInterface.
@@ -112,6 +113,16 @@ func (h *Handler) UpdateAISettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.MaxRepliesPerHour, in.ContextMessages = old.MaxRepliesPerHour, old.ContextMessages
+	in.MonthlyBudget, in.ClassifyCampaignReplies, in.CampaignAttributionDays = old.MonthlyBudget, old.ClassifyCampaignReplies, old.CampaignAttributionDays
+	if req.MonthlyBudget != nil {
+		in.MonthlyBudget = *req.MonthlyBudget // "" removes the budget
+	}
+	if req.ClassifyCampaignReplies != nil {
+		in.ClassifyCampaignReplies = *req.ClassifyCampaignReplies
+	}
+	if req.CampaignAttributionDays != nil {
+		in.CampaignAttributionDays = *req.CampaignAttributionDays
+	}
 	if req.MaxRepliesPerHour != nil {
 		in.MaxRepliesPerHour = *req.MaxRepliesPerHour
 	}
@@ -481,7 +492,11 @@ func profileToAPI(p Profile) api.AIProfile {
 	}
 	fields := make([]api.AIDataField, len(p.DataCollection.Fields))
 	for i, f := range p.DataCollection.Fields {
-		fields[i] = api.AIDataField{Key: f.Key, Label: f.Label, Required: f.Required}
+		fields[i] = api.AIDataField{Key: f.Key, Label: f.Label, Required: f.Required, Type: ptr(api.AIDataFieldType(f.TypeOf()))}
+		if len(f.Options) > 0 {
+			opts := f.Options
+			fields[i].Options = &opts
+		}
 	}
 	var low *float32
 	if p.Handoff.OnLowConfidence != nil {
@@ -494,7 +509,8 @@ func profileToAPI(p Profile) api.AIProfile {
 			OnCriticalIntents: p.Handoff.OnCriticalIntents, OnUnauthorizedAction: p.Handoff.OnUnauthorizedAction,
 			OnHumanTakeover: ptr(api.AIHandoffOnHumanTakeover(takeoverOf(p.Handoff)))},
 		DataCollection: api.AIDataCollection{Enabled: p.DataCollection.Enabled, Fields: fields,
-			MayCreateContact: p.DataCollection.MayCreateContact, MayUpdateFields: p.DataCollection.MayUpdateFields},
+			MayCreateContact: p.DataCollection.MayCreateContact, MayUpdateFields: p.DataCollection.MayUpdateFields,
+			HandoffWhenComplete: ptr(p.DataCollection.HandoffWhenComplete)},
 		AllowedActions: p.AllowedActions, DisclosureMode: api.AIDisclosureMode(p.DisclosureMode), Status: api.AIProfileStatus(p.Status),
 		Warnings: warnings, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
@@ -520,8 +536,18 @@ func profileFromAPI(in api.AIProfileInput) Profile {
 	if in.DataCollection != nil {
 		p.DataCollection = DataCollection{Enabled: in.DataCollection.Enabled, MayCreateContact: in.DataCollection.MayCreateContact,
 			MayUpdateFields: in.DataCollection.MayUpdateFields}
+		if in.DataCollection.HandoffWhenComplete != nil {
+			p.DataCollection.HandoffWhenComplete = *in.DataCollection.HandoffWhenComplete
+		}
 		for _, f := range in.DataCollection.Fields {
-			p.DataCollection.Fields = append(p.DataCollection.Fields, DataField{Key: f.Key, Label: f.Label, Required: f.Required})
+			df := DataField{Key: f.Key, Label: f.Label, Required: f.Required}
+			if f.Type != nil {
+				df.Type = string(*f.Type)
+			}
+			if f.Options != nil {
+				df.Options = *f.Options
+			}
+			p.DataCollection.Fields = append(p.DataCollection.Fields, df)
 		}
 	}
 	if in.AllowedActions != nil {

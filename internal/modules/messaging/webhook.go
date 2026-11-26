@@ -220,7 +220,7 @@ func (s *Service) inbound(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.P
 		s.log.WarnContext(ctx, "inbound message without a usable sender", "wamid", m.ID)
 		return uuid.Nil, nil
 	}
-	c, err := q.UpsertContactByPhone(ctx, db.UpsertContactByPhoneParams{PhoneE164: phone, WaID: &m.From, ProfileName: names[m.From]})
+	c, err := q.UpsertInboundContact(ctx, db.UpsertInboundContactParams{PhoneE164: phone, WaID: &m.From, ProfileName: names[m.From]})
 	if err != nil {
 		return uuid.Nil, err
 	}

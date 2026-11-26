@@ -47,7 +47,32 @@ func contactToAPI(c db.Contact, tags []db.Tag, groups []uuid.UUID) api.Contact {
 	return api.Contact{Id: c.ID, Phone: c.PhoneE164, Name: c.Name, ProfileName: c.ProfileName, Email: c.Email,
 		Var1: c.Var1, Var2: c.Var2, Var3: c.Var3, Var4: c.Var4, Var5: c.Var5, Attributes: attrs, Tags: refs,
 		GroupIds: groups, OptedOut: c.OptedOutAt != nil, OptedOutAt: c.OptedOutAt, LastInboundAt: c.LastInboundAt,
-		Consent: ConsentToAPI(c), Source: api.ContactSource(c.Source), CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
+		Consent: ConsentToAPI(c), Source: api.ContactSource(c.Source), CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+		CreatedByInboundAt: c.CreatedByInboundAt, ProfileStatus: (*api.ContactProfileStatus)(c.ProfileStatus),
+		ProfileProgress: progressToAPI(c.ProfileProgress)}
+}
+
+func progressToAPI(raw []byte) *api.ContactProfileProgress {
+	if len(raw) == 0 {
+		return nil
+	}
+	var p api.ContactProfileProgress
+	if json.Unmarshal(raw, &p) != nil {
+		return nil
+	}
+	if p.Missing == nil {
+		p.Missing = []string{}
+	}
+	return &p
+}
+
+func sourcesToAPI(rows []db.ContactFieldSource) []api.ContactFieldSource {
+	out := make([]api.ContactFieldSource, len(rows))
+	for i, r := range rows {
+		out[i] = api.ContactFieldSource{Field: r.Field, Source: api.ContactFieldSourceSource(r.Source), Verified: r.Verified,
+			CollectedAt: r.CollectedAt, VerifiedAt: r.VerifiedAt, ConversationId: r.ConversationID}
+	}
+	return out
 }
 
 // ConsentToAPI is a contact's consent as the API shows it (the legacy
@@ -77,7 +102,34 @@ func (h *Handler) writeContact(w http.ResponseWriter, r *http.Request, status in
 		h.fail(w, r, err)
 		return
 	}
-	httpx.JSON(w, r, status, contactToAPI(c, tags, groups))
+	sources, err := h.svc.FieldSources(r.Context(), id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	out := contactToAPI(c, tags, groups)
+	fs := sourcesToAPI(sources)
+	out.FieldSources = &fs
+	httpx.JSON(w, r, status, out)
+}
+
+// VerifyContactFields implements api.ServerInterface.
+func (h *Handler) VerifyContactFields(w http.ResponseWriter, r *http.Request, id api.ContactId) {
+	var req api.VerifyContactFieldsRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	var actor *uuid.UUID
+	if p := principal.From(r.Context()); p != nil && p.Kind == principal.KindUser {
+		uid := p.ID
+		actor = &uid
+	}
+	if _, err := h.svc.VerifyFields(r.Context(), id, req.Fields, actor); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.writeContact(w, r, http.StatusOK, id)
 }
 
 // segmentFilter loads a saved segment into a filter.
@@ -120,6 +172,7 @@ func (h *Handler) ListContacts(w http.ResponseWriter, r *http.Request, p api.Lis
 		h.fail(w, r, err)
 		return
 	}
+	f.AIProfile = p.AiProfile
 	limit := 50
 	if p.Limit != nil {
 		limit = *p.Limit
@@ -378,6 +431,7 @@ func (h *Handler) ExportContacts(w http.ResponseWriter, r *http.Request, p api.E
 		h.fail(w, r, err)
 		return
 	}
+	f.AIProfile = p.AiProfile
 	// Validate before the first byte so errors can still be JSON.
 	if _, _, err := f.where(); err != nil {
 		h.fail(w, r, err)
@@ -863,6 +917,7 @@ func (h *Handler) BulkContacts(w http.ResponseWriter, r *http.Request) {
 			h.fail(w, r, err)
 			return
 		}
+		f.AIProfile = fl.AiProfile
 		br.Filter = &f
 	}
 	res, err := h.svc.Bulk(r.Context(), br)

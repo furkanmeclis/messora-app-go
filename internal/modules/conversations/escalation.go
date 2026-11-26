@@ -22,6 +22,11 @@ const (
 	ReasonWindowClosed       Reason = "window_closed"
 	ReasonAIError            Reason = "ai_error"
 	ReasonManual             Reason = "manual"
+	// ReasonAIBudget: the company's monthly AI budget is used up.
+	ReasonAIBudget Reason = "ai_budget"
+	// ReasonProfileComplete: the AI collected every required field of a
+	// new contact and the profile hands such conversations to the team.
+	ReasonProfileComplete Reason = "profile_complete"
 )
 
 // IntentHumanRequest is the intent the model uses for "I want a person".

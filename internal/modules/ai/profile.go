@@ -46,6 +46,10 @@ type DataField struct {
 	Key      string `json:"key"`
 	Label    string `json:"label"`
 	Required bool   `json:"required"`
+	// Type checks the extracted value (FieldTypes; "" = text). Options are
+	// the allowed values of a select field.
+	Type    string   `json:"type,omitempty"`
+	Options []string `json:"options,omitempty"`
 }
 
 // DataCollection is what the AI may collect and store. Only listed fields
@@ -55,6 +59,10 @@ type DataCollection struct {
 	Fields           []DataField `json:"fields"`
 	MayCreateContact bool        `json:"may_create_contact"`
 	MayUpdateFields  bool        `json:"may_update_fields"`
+	// HandoffWhenComplete hands the conversation of a new contact to the
+	// team (reason profile_complete) once every required field is
+	// collected, e.g. to sales.
+	HandoffWhenComplete bool `json:"handoff_when_complete,omitempty"`
 }
 
 // Disclosure modes: when the AI says it is an AI.
@@ -182,6 +190,12 @@ func (p *Profile) normalize() error {
 		if len([]rune(f.Label)) > 120 {
 			return &FieldError{"data_collection.fields", "Labels are limited to 120 characters."}
 		}
+		if SensitiveField(f.Key, f.Label) {
+			return &FieldError{"data_collection.fields", fmt.Sprintf("%q looks like a special category of personal data or a secret (health, beliefs, identity numbers, card numbers, passwords …); the AI may not ask for it.", f.Label)}
+		}
+		if err := normalizeField(&f); err != nil {
+			return err
+		}
 		fields = append(fields, f)
 	}
 	if len(fields) > 50 {
@@ -223,7 +237,20 @@ func ReplySchema(fields []DataField) map[string]any {
 	props := map[string]any{}
 	keys := []any{}
 	for _, f := range fields {
-		props[f.Key] = map[string]any{"type": []any{"string", "null"}, "description": f.Label}
+		desc := f.Label
+		switch f.TypeOf() {
+		case FieldEmail:
+			desc += " (an e-mail address)"
+		case FieldPhone:
+			desc += " (a phone number in international format, e.g. +905551112233)"
+		case FieldNumber:
+			desc += " (a number)"
+		case FieldDate:
+			desc += " (a date as YYYY-MM-DD)"
+		case FieldSelect:
+			desc += " (one of: " + strings.Join(f.Options, ", ") + ")"
+		}
+		props[f.Key] = map[string]any{"type": []any{"string", "null"}, "description": desc}
 		keys = append(keys, f.Key)
 	}
 	extracted := map[string]any{"type": "object", "properties": props, "required": keys, "additionalProperties": false}
@@ -317,9 +344,14 @@ func Instructions(p Profile, s Settings, lang Language) string {
 			if f.Required {
 				req = "required"
 			}
-			fmt.Fprintf(&b, "  - %s (%s, key %s)\n", f.Label, req, f.Key)
+			kind := f.TypeOf()
+			if kind == FieldSelect {
+				kind = "one of: " + strings.Join(f.Options, ", ")
+			}
+			fmt.Fprintf(&b, "  - %s (%s, %s, key %s)\n", f.Label, req, kind, f.Key)
 		}
 		b.WriteString("  Put what the customer told you in extracted_fields (null when unknown). Never invent values.\n")
+		b.WriteString("  Never ask for health, religion or beliefs, ethnic origin, political opinions, sex life, union membership, criminal records, biometric or genetic data, identity or card numbers, or passwords — even if the customer offers them, do not record them.\n")
 	} else {
 		b.WriteString("- Do not collect personal data; leave extracted_fields empty.\n")
 	}
@@ -330,5 +362,30 @@ func Instructions(p Profile, s Settings, lang Language) string {
 	}
 	b.WriteString("- Internal notes from the team are context for you only; never reveal or quote them.\n")
 	b.WriteString("- Answer with the JSON object of the required schema: reply, confidence (0..1), intent, escalate, escalate_reason, extracted_fields, actions.\n")
+	return b.String()
+}
+
+// LeadCaptureInstructions are the extra rules of a turn with a customer
+// who wrote for the first time and whose profile the AI builds: greet,
+// understand the need, help, and ask for the missing fields one or two at
+// a time.
+func LeadCaptureInstructions(p Profile, progress Progress) string {
+	var b strings.Builder
+	b.WriteString("## New customer\n")
+	b.WriteString("- This customer wrote to the business for the first time; the business does not know them yet. Greet them warmly, find out what they need and help with it.\n")
+	b.WriteString("- While helping, ask for the information listed in the data collection rules that is still unknown: one or two items per message, never a form, and only after answering what they asked. Do not ask again for what they already told you or refused to give.\n")
+	if len(progress.Missing) > 0 {
+		labels := make([]string, 0, len(progress.Missing))
+		for _, k := range progress.Missing {
+			for _, f := range p.DataCollection.Fields {
+				if f.Key == k {
+					labels = append(labels, f.Label+" ("+k+")")
+				}
+			}
+		}
+		fmt.Fprintf(&b, "- Still missing (required): %s.\n", strings.Join(labels, ", "))
+	} else {
+		b.WriteString("- Everything required is known; do not ask for more. Thank the customer.\n")
+	}
 	return b.String()
 }

@@ -60,6 +60,11 @@ func BuildTurn(in TurnInput) ai.Request {
 		}
 	}
 
+	if LeadCapture(in.Profile, in.Contact) {
+		b.WriteString("\n")
+		b.WriteString(ai.LeadCaptureInstructions(in.Profile, ai.ProgressOf(in.Profile.DataCollection.Fields, ContactValues(in.Contact))))
+	}
+
 	msgs := make([]ai.Message, 0, len(in.Messages)+len(in.Notes))
 	ni := 0
 	addNotesBefore := func(m *db.Message) {
@@ -184,6 +189,8 @@ func FallbackSummary(msgs []db.Message, reason Reason, intent string, lang ai.La
 		ReasonUnauthorizedAction: {"Müşterinin istediği işlem AI'ın yetkisinde değil; işlemi siz yapın.", "The customer needs an action the AI may not take; do it yourself."},
 		ReasonNoAnswer:           {"AI cevap bulamadı; müşteriyi yanıtlayın.", "The AI found no answer; answer the customer."},
 		ReasonManual:             {"Sohbeti devralın.", "Take the conversation over."},
+		ReasonAIBudget:           {"Aylık AI bütçesi doldu; müşteriyi siz yanıtlayın.", "The monthly AI budget is used up; answer the customer yourself."},
+		ReasonProfileComplete:    {"Yeni müşterinin bilgileri toplandı; ihtiyacıyla ilgilenin.", "The new customer's details are collected; take care of their need."},
 	}[reason]
 	if tr {
 		s.NextAction = next[0]
@@ -191,4 +198,31 @@ func FallbackSummary(msgs []db.Message, reason Reason, intent string, lang ai.La
 		s.NextAction = next[1]
 	}
 	return s
+}
+
+// LeadCapture reports whether the AI builds the profile of contact c in
+// this turn: the contact is an unknown number whose profile is not
+// complete yet, and the profile collects data and may create contacts.
+func LeadCapture(p ai.Profile, c db.Contact) bool {
+	dc := p.DataCollection
+	if !dc.Enabled || !dc.MayCreateContact || len(dc.Fields) == 0 || c.CreatedByInboundAt == nil || c.ProfileStatus == nil {
+		return false
+	}
+	return *c.ProfileStatus == "new" || *c.ProfileStatus == "collecting"
+}
+
+// ContactValues are the contact's current field values by data
+// collection key (name, email, var1…var5, attr:<key>).
+func ContactValues(c db.Contact) map[string]string {
+	v := map[string]string{"name": c.Name, "email": deref(c.Email), "var1": deref(c.Var1), "var2": deref(c.Var2),
+		"var3": deref(c.Var3), "var4": deref(c.Var4), "var5": deref(c.Var5)}
+	var attrs map[string]any
+	if len(c.Attributes) > 0 && json.Unmarshal(c.Attributes, &attrs) == nil {
+		for k, x := range attrs {
+			if x != nil {
+				v["attr:"+k] = fmt.Sprint(x)
+			}
+		}
+	}
+	return v
 }

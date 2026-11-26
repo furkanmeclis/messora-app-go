@@ -658,6 +658,8 @@ type Result struct {
 	Cost         *string // nil = no price known for the model
 	Currency     string
 	Estimated    bool
+	// CampaignID is the campaign the request was attributed to (nil = none).
+	CampaignID *uuid.UUID
 }
 
 var purposes = []string{PurposeReply, PurposeSuggest, PurposeClassify, PurposeExtract, PurposeSummarize, PurposeAutomation, PurposeTest}
@@ -783,6 +785,18 @@ func (s *Service) record(ctx context.Context, c Call, model string, at time.Time
 			}
 		}
 	}
+	if params.CampaignID == nil && c.ConversationID != nil {
+		// Campaign attribution at insert time; the reconcile job retries
+		// rows left without one.
+		if st, err := s.Settings(ctx); err == nil {
+			if cid, err := attributeCampaign(ctx, s.q, *c.ConversationID, at, st.AttributionWindow()); err == nil {
+				params.CampaignID = cid
+			} else {
+				s.log.WarnContext(ctx, "ai usage campaign attribution", "err", err)
+			}
+		}
+	}
+	res.CampaignID = params.CampaignID
 	id, err := s.q.InsertAIUsage(ctx, params)
 	if err != nil {
 		s.log.ErrorContext(ctx, "record ai usage", "err", err, "purpose", c.Purpose)

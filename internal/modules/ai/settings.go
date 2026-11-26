@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -51,6 +53,18 @@ type Settings struct {
 	// ContextMessages is how many recent messages an AI turn sees.
 	// 0 = DefaultContextMessages.
 	ContextMessages int `json:"context_messages,omitempty"`
+	// MonthlyBudget is the company's AI budget per calendar month (UTC) in
+	// USD, a decimal string; "" = no budget. Once the month's recorded cost
+	// reaches it, AI auto replies pause: conversations the AI owns go to a
+	// person (reason ai_budget) and admins are told once per month.
+	MonthlyBudget string `json:"monthly_budget,omitempty"`
+	// ClassifyCampaignReplies lets the AI read a customer's first reply to
+	// a campaign as positive, negative or neutral (off by default).
+	ClassifyCampaignReplies bool `json:"classify_campaign_replies,omitempty"`
+	// CampaignAttributionDays is how long after a campaign reached a
+	// contact the contact's AI usage (and replies) count for the campaign.
+	// 0 = DefaultCampaignAttributionDays. P3 reads the same window.
+	CampaignAttributionDays int `json:"campaign_attribution_days,omitempty"`
 }
 
 // Defaults and bounds of the conversation AI settings.
@@ -58,7 +72,23 @@ const (
 	DefaultMaxRepliesPerHour = 20
 	DefaultContextMessages   = 20
 	MaxContextMessages       = 100
+	// DefaultCampaignAttributionDays is the campaign attribution window.
+	DefaultCampaignAttributionDays = 7
+	MaxCampaignAttributionDays     = 90
 )
+
+// AttributionWindow is the effective campaign attribution window.
+func (s Settings) AttributionWindow() time.Duration {
+	return time.Duration(s.AttributionDays()) * 24 * time.Hour
+}
+
+// AttributionDays is the effective campaign attribution window in days.
+func (s Settings) AttributionDays() int {
+	if s.CampaignAttributionDays <= 0 {
+		return DefaultCampaignAttributionDays
+	}
+	return min(s.CampaignAttributionDays, MaxCampaignAttributionDays)
+}
 
 // RepliesPerHour is the effective per-conversation hourly cap.
 func (s Settings) RepliesPerHour() int {
@@ -132,6 +162,17 @@ func (s *Service) SaveSettings(ctx context.Context, in Settings, actor *uuid.UUI
 	if in.ContextMessages < 0 || in.ContextMessages > MaxContextMessages {
 		return Settings{}, &FieldError{"context_messages", fmt.Sprintf("Between 2 and %d messages.", MaxContextMessages)}
 	}
+	if in.CampaignAttributionDays < 0 || in.CampaignAttributionDays > MaxCampaignAttributionDays {
+		return Settings{}, &FieldError{"campaign_attribution_days", fmt.Sprintf("Between 1 and %d days.", MaxCampaignAttributionDays)}
+	}
+	in.MonthlyBudget = strings.TrimSpace(in.MonthlyBudget)
+	if in.MonthlyBudget != "" {
+		b, err := ParseAmount(in.MonthlyBudget)
+		if err != nil || b.Sign() <= 0 || b.Cmp(big.NewRat(10_000_000, 1)) > 0 {
+			return Settings{}, &FieldError{"monthly_budget", "The monthly budget is an amount in USD above 0, e.g. 50 or 12.5."}
+		}
+		in.MonthlyBudget = trimZeros(b.FloatString(6))
+	}
 	if len(in.DefaultModel) > 200 {
 		return Settings{}, &FieldError{"default_model", "Model id is too long."}
 	}
@@ -185,6 +226,15 @@ func settingsDiff(a, b Settings) map[string]any {
 	}
 	if a.RepliesPerHour() != b.RepliesPerHour() {
 		ch["max_replies_per_hour"] = []any{a.RepliesPerHour(), b.RepliesPerHour()}
+	}
+	if a.MonthlyBudget != b.MonthlyBudget {
+		ch["monthly_budget"] = []any{a.MonthlyBudget, b.MonthlyBudget}
+	}
+	if a.ClassifyCampaignReplies != b.ClassifyCampaignReplies {
+		ch["classify_campaign_replies"] = []any{a.ClassifyCampaignReplies, b.ClassifyCampaignReplies}
+	}
+	if a.AttributionDays() != b.AttributionDays() {
+		ch["campaign_attribution_days"] = []any{a.AttributionDays(), b.AttributionDays()}
 	}
 	if a.ContextSize() != b.ContextSize() {
 		ch["context_messages"] = []any{a.ContextSize(), b.ContextSize()}
