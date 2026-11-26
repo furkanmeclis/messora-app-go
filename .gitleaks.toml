@@ -26,6 +26,8 @@ regexes = [
   '''msl1\.forged\.key''',
   # Made-up Meta tokens of the token lifecycle test.
   '''EAAG-[a-z0-9-]+-0123456789''',
+  # A made-up webhook secret once used in an OpenAPI example (in history).
+  '''whsec_5f0d3c8e2a9b4e17a6c1d0f97e3b7b9a''',
   # Example UUIDs used throughout the OpenAPI examples.
   '''019a8c2e-4f1b-7a10-9c3d-[0-9a-f]{12}''',
   # Made-up AI provider keys of the AI module tests.
