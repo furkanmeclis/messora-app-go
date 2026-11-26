@@ -8,6 +8,8 @@ const PUBLIC = [
     '/forgot-password',
     '/reset-password',
     '/logout',
+    // The public API reference and the document it renders.
+    '/docs/api',
     '/api/health',
     // The organisation logo appears on the sign-in page.
     '/bff/logo',

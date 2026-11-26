@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { useTheme } from 'next-themes';
 import {
+    BookOpen,
     Check,
     Download,
     ChevronsUpDown,
@@ -151,6 +152,14 @@ export function AppSidebar({
             </SidebarContent>
             <SidebarFooter>
                 <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild tooltip={t('apiDocs.link')}>
+                            <Link href="/docs/api" target="_blank">
+                                <BookOpen />
+                                <span>{t('apiDocs.link')}</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
                     <SidebarMenuItem>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>

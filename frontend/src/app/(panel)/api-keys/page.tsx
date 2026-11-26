@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
+import { BookOpen } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
@@ -30,7 +33,17 @@ export default async function ApiKeysPage() {
             <PageHeading
                 title={t('apiKeys.title')}
                 description={t('apiKeys.description')}
-                actions={<CreateKeyDialog scopes={scopes} />}
+                actions={
+                    <>
+                        <Button variant="outline" asChild>
+                            <Link href="/docs/api" target="_blank">
+                                <BookOpen />
+                                {t('apiDocs.link')}
+                            </Link>
+                        </Button>
+                        <CreateKeyDialog scopes={scopes} />
+                    </>
+                }
             />
             <ApiKeyTable keys={keys} />
         </>

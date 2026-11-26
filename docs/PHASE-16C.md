@@ -193,4 +193,4 @@ Aşağıdaki önerilerin hepsi kabul edildi: (1) yetki izolasyonu 16C'de, firmal
 | P7 AI müşteri zekâsı ve maliyet | bekliyor |
 | P8 Otomasyon ve presetler | bekliyor |
 | P9 Operasyon merkezi | bekliyor |
-| P10 API dokümantasyonu | bekliyor |
+| P10 API dokümantasyonu | ✅ tamamlandı (2026-11-25) — public spec `internal/platform/apidocs` ile `apiKey` kabul eden işlemlerden türetilir, `GET /api/v1/openapi.json` (anonim) ve `/docs/api` (Scalar, `@scalar/api-reference-react` 0.9.82, MIT, kendi origin'imizden; font/telemetri/AI/MCP kapalı); `RateLimit-*` başlıkları; envanter `docs/API.md` (`make api-docs`, CI `make api-docs-check`); lint + rota birebir testi (kabul 21). Not: Scalar ≥ 0.9.83 `@unhead/bundler` üzerinden lightningcss (MPL-2.0) getirdiği için lisans kontrolünü geçmiyor; yükseltme lisans kararı bekliyor |

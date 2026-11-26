@@ -33,16 +33,36 @@ tags:
   - name: settings
   - name: audit
   - name: api-keys
+    x-displayName: API keys
+    description: Check the key used for the request and its scopes.
   - name: system
   - name: channels
+    x-displayName: Channels
+    description: Connected WhatsApp Business accounts and their phone numbers (the senders).
   - name: templates
+    x-displayName: Templates & offers
+    description: Message templates approved by Meta, and time-limited offers that fill them.
   - name: messages
+    x-displayName: Messages
+    description: Send WhatsApp messages and media, and follow their delivery.
   - name: conversations
+    x-displayName: Conversations
+    description: "The shared inbox: conversations, history, replies, assignment and closing."
   - name: contacts
+    x-displayName: Contacts
+    description: Contacts with custom fields, tags, groups and consent; bulk changes and exports.
   - name: segments
+    x-displayName: Segments
+    description: Saved rule-based audiences.
   - name: campaigns
+    x-displayName: Campaigns
+    description: "Bulk template sends to an audience: preflight, create, start, pause, resume, cancel and follow-up."
   - name: automations
+    x-displayName: Automations
+    description: Trigger-and-steps flows built in the panel (read-only for API keys).
   - name: webhooks
+    x-displayName: Webhooks
+    description: Endpoints that receive signed event notifications, and their delivery log.
   - name: ai
 
 paths:
@@ -1151,6 +1171,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiKeyResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /system/status:
@@ -1327,6 +1350,9 @@ paths:
       operationId: listPhoneNumbers
       tags: [channels]
       summary: Phone numbers of every connected account
+      description: >-
+        WhatsApp phone numbers of every connected Business account, with Meta's quality rating,
+        messaging limit and throughput. Use the `id` as `phone_number_id` when sending.
       security: [{ session: [channels.read] }, { apiKey: [messages.send] }]
       responses:
         "200":
@@ -1334,6 +1360,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PhoneNumberListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /channels/phone-numbers/{phoneNumberId}/default:
@@ -1367,6 +1396,9 @@ paths:
       operationId: listTemplates
       tags: [templates]
       summary: Message templates mirrored from Meta
+      description: >-
+        Message templates mirrored from Meta, with their approval status, category, language and
+        components. Filter by account and status. Only `APPROVED` templates can be sent.
       security: [{ session: [templates.read] }, { apiKey: [templates.read] }]
       parameters:
         - name: account_id
@@ -1381,6 +1413,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TemplateListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createTemplate
@@ -1419,6 +1455,9 @@ paths:
       operationId: listOffers
       tags: [templates]
       summary: Time-limited offers
+      description: >-
+        Time-limited offers (title, discount, coupon, start and end), latest end first; filter
+        with `status`. A campaign linked to an offer fills limited-time offer templates from it.
       security: [{ session: [templates.read] }, { apiKey: [templates.read] }]
       parameters:
         - name: status
@@ -1430,6 +1469,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OfferListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createOffer
@@ -1461,6 +1504,8 @@ paths:
       operationId: getOffer
       tags: [templates]
       summary: One offer
+      description: >-
+        One offer with its template, coupon code, image and validity window.
       security: [{ session: [templates.read] }, { apiKey: [templates.read] }]
       parameters:
         - { $ref: "#/components/parameters/OfferId" }
@@ -1470,6 +1515,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OfferResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateOffer
@@ -1522,12 +1572,18 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/SendMessageRequest" }
+            examples: {"text": {"summary": "Text (inside the 24-hour window)", "value": {"to": "+905321234567", "type": "text", "text": {"body": "Siparişiniz yola çıktı."}}}, "template": {"summary": "Approved template", "value": {"to": "+905321234567", "type": "template", "template": {"name": "order_shipped", "language": "tr", "components": [{"type": "body", "parameters": [{"type": "text", "text": "Ayşe"}, {"type": "text", "text": "TR123456789"}]}]}}}, "image": {"summary": "Image by link", "value": {"to": "+905321234567", "type": "image", "media": {"link": "https://shop.example.com/img/invoice.jpg", "caption": "Faturanız"}}}}
       responses:
         "202":
           description: Queued
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MessageResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /templates/samples:
@@ -1583,6 +1639,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UploadedMediaResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /messages/{messageId}:
@@ -1590,6 +1651,9 @@ paths:
       operationId: getMessage
       tags: [messages]
       summary: A message and its delivery state
+      description: >-
+        One message and its delivery state (sent, delivered, read or failed with the WhatsApp
+        error), plus pricing once Meta has reported it.
       security: [{ session: [messages.send] }, { apiKey: [messages.send] }]
       parameters:
         - { $ref: "#/components/parameters/MessageId" }
@@ -1599,6 +1663,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MessageResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts:
@@ -1606,6 +1675,9 @@ paths:
       operationId: listContacts
       tags: [contacts]
       summary: Contacts, newest first
+      description: >-
+        Contacts matching the filters, newest first (or by `sort`). Paged with `cursor`, or with
+        `page` for numbered pages (then `meta.total` is set).
       security: [{ session: [contacts.read] }, { apiKey: [contacts.read] }]
       parameters:
         - { name: q, in: query, schema: { type: string, maxLength: 100 }, description: "Name, phone or e-mail contains" }
@@ -1632,11 +1704,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ContactListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createContact
       tags: [contacts]
       summary: Add a contact
+      description: >-
+        Adds a contact by phone number (international format; it is normalised to E.164). Tags
+        given by name are created when they do not exist. A phone number that already exists
+        answers 409.
       security: [{ session: [contacts.create] }, { apiKey: [contacts.create] }]
       parameters:
         - { $ref: "#/components/parameters/IdempotencyKey" }
@@ -1651,6 +1731,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ContactResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/attribute-keys:
@@ -1658,6 +1743,9 @@ paths:
       operationId: listContactAttributeKeys
       tags: [contacts]
       summary: Custom attribute keys in use (for {{attr:key}} placeholders)
+      description: >-
+        The keys of custom contact attributes in use, most used first, for building `{{attr:key}}`
+        template placeholders.
       security: [{ session: [contacts.read] }, { apiKey: [contacts.read] }]
       responses:
         "200":
@@ -1670,6 +1758,10 @@ paths:
                 properties:
                   data: { type: array, items: { type: string } }
                   meta: { $ref: "#/components/schemas/Meta" }
+              example: { "data": ["city", "customer_no", "plan"], "meta": { "request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/bulk:
@@ -1693,6 +1785,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ContactBulkResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}:
@@ -1700,6 +1797,8 @@ paths:
       operationId: getContact
       tags: [contacts]
       summary: A contact with tags and groups
+      description: >-
+        One contact with tags, groups, custom attributes and per-category consent.
       security: [{ session: [contacts.read] }, { apiKey: [contacts.read] }]
       parameters:
         - { $ref: "#/components/parameters/ContactId" }
@@ -1709,11 +1808,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ContactResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateContact
       tags: [contacts]
       summary: Edit a contact; an empty string clears an optional field
+      description: >-
+        Changes the given fields only. An empty string clears an optional field; `tags` and
+        `group_ids`, when given, replace the current lists.
       security: [{ session: [contacts.update] }, { apiKey: [contacts.update] }]
       parameters:
         - { $ref: "#/components/parameters/ContactId" }
@@ -1728,16 +1835,28 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ContactResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     delete:
       operationId: deleteContact
       tags: [contacts]
       summary: Delete a contact and its message history
+      description: >-
+        Deletes the contact and its message history. This cannot be undone.
       security: [{ session: [contacts.delete] }, { apiKey: [contacts.delete] }]
       parameters:
         - { $ref: "#/components/parameters/ContactId" }
       responses:
         "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}/consent:
@@ -1765,6 +1884,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ContactResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}/consent-events:
@@ -1772,6 +1897,9 @@ paths:
       operationId: listConsentEvents
       tags: [contacts]
       summary: The contact's consent history, newest first (at most 100)
+      description: >-
+        Every consent change of the contact (opt-in, opt-out, requests detected from keywords,
+        Meta stops) with its source and note, newest first, at most 100.
       security: [{ session: [contacts.read] }, { apiKey: [contacts.read] }]
       parameters:
         - { $ref: "#/components/parameters/ContactId" }
@@ -1781,6 +1909,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConsentEventListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}/notes:
@@ -1841,6 +1974,10 @@ paths:
       operationId: exportContacts
       tags: [contacts]
       summary: Download matching contacts as CSV or Excel
+      description: >-
+        Streams every contact matching the filters (the same filters as GET /contacts) as a CSV
+        file (UTF-8 with a header row) or an Excel workbook. Large exports are streamed, not
+        buffered.
       security: [{ session: [contacts.export] }, { apiKey: [contacts.export] }]
       parameters:
         - { name: format, in: query, schema: { type: string, enum: [csv, xlsx], default: csv } }
@@ -1860,6 +1997,10 @@ paths:
               schema: { type: string }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /contact-imports:
@@ -1976,6 +2117,8 @@ paths:
       operationId: listTags
       tags: [contacts]
       summary: Tags with contact counts
+      description: >-
+        Tags with the number of contacts that carry them.
       security: [{ session: [contacts.read] }, { apiKey: [contacts.read] }]
       responses:
         "200":
@@ -1983,6 +2126,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TagListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createTag
@@ -2059,6 +2205,9 @@ paths:
       operationId: listGroups
       tags: [contacts]
       summary: Contact groups with member counts
+      description: >-
+        Contact groups with their member counts. Use a group as a campaign audience or to filter
+        contacts.
       security: [{ session: [contacts.read] }, { apiKey: [contacts.read] }]
       responses:
         "200":
@@ -2066,6 +2215,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/GroupListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createGroup
@@ -2142,6 +2294,9 @@ paths:
       operationId: changeGroupMembers
       tags: [contacts]
       summary: Add or remove contacts
+      description: >-
+        Adds contacts to the group or removes them from it, up to 1000 per request. Returns how
+        many memberships changed.
       security: [{ session: [contacts.update] }, { apiKey: [contacts.update] }]
       parameters:
         - { $ref: "#/components/parameters/GroupId" }
@@ -2156,6 +2311,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CountResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /segments:
@@ -2163,6 +2324,8 @@ paths:
       operationId: listSegments
       tags: [segments]
       summary: Saved segments
+      description: >-
+        Saved segments (dynamic audiences defined by rules on contact fields, tags and groups).
       security: [{ session: [segments.read] }, { apiKey: [segments.read] }]
       responses:
         "200":
@@ -2170,6 +2333,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SegmentListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createSegment
@@ -2239,6 +2405,8 @@ paths:
       operationId: getSegment
       tags: [segments]
       summary: A segment with its current size
+      description: >-
+        One segment with its rule definition and the number of contacts that match it now.
       security: [{ session: [segments.read] }, { apiKey: [segments.read] }]
       parameters:
         - { $ref: "#/components/parameters/SegmentId" }
@@ -2248,6 +2416,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SegmentResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateSegment
@@ -2359,6 +2532,9 @@ paths:
       operationId: listCampaigns
       tags: [campaigns]
       summary: Campaigns, newest first
+      description: >-
+        Campaigns of every status, newest first; filter with `status`. `counts` holds live
+        recipient and message counts. Paged with `cursor`.
       security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
       parameters:
         - { name: status, in: query, schema: { $ref: "#/components/schemas/CampaignStatus" } }
@@ -2370,11 +2546,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createCampaign
       tags: [campaigns]
       summary: Create a draft campaign
+      description: >-
+        Creates a campaign in `draft` status: a template, its parameters and exactly one audience
+        (segment, group, tag or all contacts). Nothing is sent until you start it. Check the
+        audience first with POST /campaigns/preflight.
       security: [{ session: [campaigns.create] }, { apiKey: [campaigns.create] }]
       parameters:
         - { $ref: "#/components/parameters/IdempotencyKey" }
@@ -2389,6 +2573,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/queue:
@@ -2434,6 +2623,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignPreflightResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}:
@@ -2441,6 +2635,8 @@ paths:
       operationId: getCampaign
       tags: [campaigns]
       summary: A campaign with live counts
+      description: >-
+        The campaign with live counts: recipients by state and messages by delivery status.
       security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2450,11 +2646,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateCampaign
       tags: [campaigns]
       summary: Edit a draft or scheduled campaign
+      description: >-
+        Changes a campaign that has not started yet (`draft` or `scheduled`). Only the given
+        fields change. A running or finished campaign answers 409.
       security: [{ session: [campaigns.create] }, { apiKey: [campaigns.create] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2469,6 +2673,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     delete:
       operationId: deleteCampaign
@@ -2486,6 +2696,9 @@ paths:
       operationId: startCampaign
       tags: [campaigns]
       summary: Start now, or schedule with `scheduled_at`
+      description: >-
+        Starts a draft campaign now, or schedules it when `scheduled_at` (a future time) is given.
+        Consent rules are checked again for every message right before it is sent.
       security: [{ session: [campaigns.start] }, { apiKey: [campaigns.start] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2499,12 +2712,19 @@ paths:
               additionalProperties: false
               properties:
                 scheduled_at: { type: string, format: date-time }
+            example: { "scheduled_at": "2026-11-26T07:00:00Z" }
       responses:
         "200":
           description: Campaign
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/pause:
@@ -2512,6 +2732,9 @@ paths:
       operationId: pauseCampaign
       tags: [campaigns]
       summary: Pause sending; unsent messages are held
+      description: >-
+        Pauses a running campaign. Messages not handed to WhatsApp yet are held and go out after
+        POST /campaigns/{campaignId}/resume; nothing is sent twice.
       security: [{ session: [campaigns.pause] }, { apiKey: [campaigns.pause] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2521,6 +2744,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/resume:
@@ -2531,7 +2760,8 @@ paths:
       description: >-
         Resumes any pause (manual, messaging limit, expired offer …). Recipients
         already sent to are never sent again. Name, priority and rate cap may be
-        changed; with resume_at the campaign stays paused until then.
+        changed; with resume_at the campaign stays paused until then. Refused when the linked
+        offer has ended.
       security: [{ session: [campaigns.start] }, { apiKey: [campaigns.start] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2546,6 +2776,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/cancel:
@@ -2553,6 +2789,9 @@ paths:
       operationId: cancelCampaign
       tags: [campaigns]
       summary: Stop for good; unsent messages are cancelled
+      description: >-
+        Stops the campaign for good. Messages already sent stay sent; recipients that were not
+        sent yet are cancelled. A cancelled campaign cannot be resumed.
       security: [{ session: [campaigns.pause] }, { apiKey: [campaigns.pause] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2562,6 +2801,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/settings:
@@ -2633,6 +2878,9 @@ paths:
       operationId: listCampaignEvents
       tags: [campaigns]
       summary: Lifecycle events (started, paused, resumed, completed …)
+      description: >-
+        The lifecycle of the campaign (created, scheduled, started, paused with reason, resumed,
+        completed …), newest first, with who triggered each step.
       security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2642,6 +2890,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignEventListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/recipients:
@@ -2649,6 +2902,10 @@ paths:
       operationId: listCampaignRecipients
       tags: [campaigns]
       summary: Recipients with their message state
+      description: >-
+        The recipients of the campaign with each recipient's state (pending, queued, skipped,
+        cancelled), the message status and the failure reason. Filter with `state`; paged with
+        `cursor`.
       security: [{ session: [campaigns.read] }, { apiKey: [campaigns.read] }]
       parameters:
         - { $ref: "#/components/parameters/CampaignId" }
@@ -2662,6 +2919,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CampaignRecipientListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   # ── Inbox (Phase 7) ─────────────────────────────────────────────────────────
@@ -2673,6 +2935,10 @@ paths:
       operationId: listConversations
       tags: [conversations]
       summary: Conversations visible to the caller, most recent activity first
+      description: >-
+        Conversations the caller may see, most recent activity first. Filter by status, assignee
+        (`me`, `unassigned` or a user ID), unread, phone number or a contact search. Paged with
+        `cursor`.
       security:
         - { session: [conversations.read] }
         - { session: [conversations.read_all] }
@@ -2695,6 +2961,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}:
@@ -2702,6 +2972,9 @@ paths:
       operationId: getConversation
       tags: [conversations]
       summary: A conversation with its contact and 24-hour window
+      description: >-
+        One conversation with its contact, phone number, assignee and whether the 24-hour customer
+        service window is open.
       security:
         - { session: [conversations.read] }
         - { session: [conversations.read_all] }
@@ -2715,6 +2988,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/messages:
@@ -2722,6 +3000,9 @@ paths:
       operationId: listConversationMessages
       tags: [conversations]
       summary: Message history, newest first
+      description: >-
+        Messages of the conversation in both directions, newest first, with delivery state and
+        media. Paged with `cursor`.
       security:
         - { session: [conversations.read] }
         - { session: [conversations.read_all] }
@@ -2737,6 +3018,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/InboxMessageListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: replyToConversation
@@ -2764,6 +3050,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/InboxMessageResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/assignment:
@@ -2771,6 +3063,9 @@ paths:
       operationId: assignConversation
       tags: [conversations]
       summary: Assign the conversation to a user, or unassign it with null
+      description: >-
+        Assigns the conversation to a user, or unassigns it with `"assignee_id": null`. The
+        assignee must be an active user who may work the inbox.
       security:
         - { session: [conversations.assign] }
         - { apiKey: [conversations.assign] }
@@ -2787,6 +3082,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/close:
@@ -2794,6 +3094,9 @@ paths:
       operationId: closeConversation
       tags: [conversations]
       summary: Close the conversation; the next customer message reopens it
+      description: >-
+        Marks the conversation closed. The next message from the customer reopens it
+        automatically.
       security:
         - { session: [conversations.assign] }
         - { apiKey: [conversations.assign] }
@@ -2805,6 +3108,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/reopen:
@@ -2812,6 +3121,8 @@ paths:
       operationId: reopenConversation
       tags: [conversations]
       summary: Reopen a closed conversation
+      description: >-
+        Reopens a closed conversation without waiting for a customer message.
       security:
         - { session: [conversations.assign] }
         - { apiKey: [conversations.assign] }
@@ -2823,6 +3134,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/read:
@@ -2848,6 +3165,9 @@ paths:
       operationId: listConversationEvents
       tags: [conversations]
       summary: Assignment and status history, newest first (last 100)
+      description: >-
+        Assignment and status changes of the conversation (assigned, closed, reopened, opt-out
+        requests …), newest first, the last 100.
       security:
         - { session: [conversations.read] }
         - { session: [conversations.read_all] }
@@ -2861,6 +3181,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConversationEventListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /conversations/{conversationId}/media/{mediaId}:
@@ -2887,6 +3212,11 @@ paths:
           content:
             application/octet-stream:
               schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   # ── Automations (Phase 8) ────────────────────────────────────────────────
@@ -2895,6 +3225,9 @@ paths:
       operationId: listAutomations
       tags: [automations]
       summary: Automations with run counts
+      description: >-
+        All automations with their trigger, steps and how often they ran. Automations are built in
+        the panel; the API reads them, for example to show an integration which flows are active.
       security: [{ session: [automations.read] }, { apiKey: [automations.read] }]
       responses:
         "200":
@@ -2902,6 +3235,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AutomationListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createAutomation
@@ -2926,6 +3262,8 @@ paths:
       operationId: getAutomation
       tags: [automations]
       summary: An automation
+      description: >-
+        One automation with its trigger options, steps (each with a stable id) and canvas layout.
       security: [{ session: [automations.read] }, { apiKey: [automations.read] }]
       parameters:
         - { $ref: "#/components/parameters/AutomationId" }
@@ -2935,6 +3273,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AutomationResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateAutomation
@@ -3009,6 +3352,9 @@ paths:
       operationId: listWebhookEventTypes
       tags: [webhooks]
       summary: Event types an endpoint can subscribe to
+      description: >-
+        Every event type an endpoint can subscribe to, with a short description. See the webhooks
+        guide for the payload of each.
       security: [{ session: [webhooks.manage] }, { apiKey: [webhooks.manage] }]
       responses:
         "200":
@@ -3016,6 +3362,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookEventTypeListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /webhook-endpoints:
@@ -3023,6 +3372,9 @@ paths:
       operationId: listWebhookEndpoints
       tags: [webhooks]
       summary: Registered endpoints, newest first
+      description: >-
+        Registered webhook endpoints with their event types and status, newest first. Secrets are
+        never returned here.
       security: [{ session: [webhooks.manage] }, { apiKey: [webhooks.manage] }]
       responses:
         "200":
@@ -3030,6 +3382,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookEndpointListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createWebhookEndpoint
@@ -3053,6 +3408,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookEndpointSecretResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /webhook-endpoints/{endpointId}:
@@ -3060,6 +3420,8 @@ paths:
       operationId: getWebhookEndpoint
       tags: [webhooks]
       summary: One endpoint
+      description: >-
+        One webhook endpoint; the signing secret is not included (only its last four characters).
       security: [{ session: [webhooks.manage] }, { apiKey: [webhooks.manage] }]
       parameters:
         - { $ref: "#/components/parameters/EndpointId" }
@@ -3069,6 +3431,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookEndpointResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateWebhookEndpoint
@@ -3089,16 +3456,28 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookEndpointResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
     delete:
       operationId: deleteWebhookEndpoint
       tags: [webhooks]
       summary: Delete an endpoint and its delivery log
+      description: >-
+        Deletes the endpoint and its delivery log. Pending deliveries are dropped.
       security: [{ session: [webhooks.manage] }, { apiKey: [webhooks.manage] }]
       parameters:
         - { $ref: "#/components/parameters/EndpointId" }
       responses:
         "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /webhook-endpoints/{endpointId}/rotate-secret:
@@ -3116,6 +3495,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookEndpointSecretResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /webhook-endpoints/{endpointId}/test:
@@ -3133,6 +3518,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookDeliveryResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /webhook-endpoints/{endpointId}/deliveries:
@@ -3140,6 +3531,9 @@ paths:
       operationId: listWebhookDeliveries
       tags: [webhooks]
       summary: Delivery log of an endpoint, newest first
+      description: >-
+        Deliveries to the endpoint, newest first, with attempts, the last HTTP status, duration,
+        error and the start of the receiver's answer. Filter with `status`; paged with `cursor`.
       security: [{ session: [webhooks.manage] }, { apiKey: [webhooks.manage] }]
       parameters:
         - { $ref: "#/components/parameters/EndpointId" }
@@ -3152,6 +3546,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookDeliveryListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
   /webhook-deliveries/{deliveryId}/redeliver:
@@ -3171,6 +3570,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WebhookDeliveryResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
 components:
@@ -3344,12 +3749,71 @@ components:
         remembered, so a corrected request may reuse the key.
       schema: { type: string, minLength: 8, maxLength: 200 }
 
+  headers:
+    RateLimit-Limit:
+      description: Requests allowed in a burst (the per-minute budget of the caller).
+      schema: { type: integer, example: 300 }
+    RateLimit-Remaining:
+      description: Requests the caller can still make right now.
+      schema: { type: integer, example: 287 }
+    RateLimit-Reset:
+      description: Seconds until the full budget is available again.
+      schema: { type: integer, example: 3 }
+    RateLimit-Policy:
+      description: 'The quota policy: `<limit>;w=<window seconds>`.'
+      schema: { type: string, example: "300;w=60" }
+    Retry-After:
+      description: Seconds to wait before the next request is allowed.
+      schema: { type: integer, example: 1 }
+
   responses:
     Error:
       description: Error
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Unauthorized:
+      description: Missing, invalid, expired or revoked credentials.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          example: {"error": {"code": "UNAUTHORIZED", "message": "Authentication required", "details": []}, "meta": {"request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"}}
+    Forbidden:
+      description: The credentials lack the required scope (or cannot be used for this operation).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          example: {"error": {"code": "FORBIDDEN", "message": "Missing permission: contacts.read", "details": []}, "meta": {"request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"}}
+    NotFound:
+      description: The resource does not exist (or is not visible to the caller).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          example: {"error": {"code": "NOT_FOUND", "message": "Contact not found", "details": []}, "meta": {"request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"}}
+    Conflict:
+      description: The request conflicts with the current state (e.g. a duplicate, a campaign in the wrong status, or an Idempotency-Key reused with a different body).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          example: {"error": {"code": "IDEMPOTENCY_KEY_REUSED", "message": "This Idempotency-Key was used with a different request", "details": []}, "meta": {"request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"}}
+    ValidationFailed:
+      description: The request does not match the schema or a business rule; `details` names the fields.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          example: {"error": {"code": "VALIDATION_ERROR", "message": "Invalid request", "details": [{"field": "to", "code": "invalid", "message": "must be in E.164 format"}]}, "meta": {"request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"}}
+    RateLimited:
+      description: Too many requests; the per-key budget is used up. Wait `Retry-After` seconds.
+      headers:
+        Retry-After: { $ref: "#/components/headers/Retry-After" }
+        RateLimit-Limit: { $ref: "#/components/headers/RateLimit-Limit" }
+        RateLimit-Remaining: { $ref: "#/components/headers/RateLimit-Remaining" }
+        RateLimit-Reset: { $ref: "#/components/headers/RateLimit-Reset" }
+        RateLimit-Policy: { $ref: "#/components/headers/RateLimit-Policy" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          example: {"error": {"code": "RATE_LIMITED", "message": "Too many requests", "details": []}, "meta": {"request_id": "019a8c2e-4f1b-7fff-9c3d-5e7a1000ffff"}}
 
   schemas:
     Meta:
@@ -3931,6 +4395,10 @@ components:
         service_consent: { $ref: "#/components/schemas/ConsentStatus" }
         reachability: { $ref: "#/components/schemas/Reachability" }
     ContactBulkRequest:
+      example:
+        action: add_tag
+        ids: [019a8c2e-4f1b-7a09-9c3d-5e7a10000009, 019a8c2e-4f1b-7a18-9c3d-5e7a10000018]
+        tag_name: winter-2026
       type: object
       additionalProperties: false
       required: [action]
@@ -3949,6 +4417,9 @@ components:
         tag_name: { type: string, minLength: 1, maxLength: 50, description: "For add_tag: creates the tag when it does not exist." }
         group_id: { type: string, format: uuid }
     ContactBulkResult:
+      example:
+        matched: 120
+        affected: 117
       type: object
       required: [matched, affected]
       properties:
@@ -3984,6 +4455,15 @@ components:
           additionalProperties: true
 
     ApiKey:
+      example:
+        id: 019a8c2e-4f1b-7a01-9c3d-5e7a10000001
+        name: CRM integration
+        prefix: msk_live_3f9a
+        scopes: [messages.send, contacts.read, contacts.update]
+        created_by: Ayşe Yılmaz
+        created_at: "2026-11-02T08:15:00Z"
+        last_used_at: "2026-11-25T09:29:41Z"
+        expires_at: null
       type: object
       required: [id, name, prefix, scopes, created_at]
       properties:
@@ -4227,6 +4707,19 @@ components:
         templates: { type: integer }
 
     PhoneNumber:
+      example:
+        id: 019a8c2e-4f1b-7a04-9c3d-5e7a10000004
+        account_id: 019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f
+        account_name: Messora Demo
+        phone_number_id: "106540352242922"
+        display_phone_number: "+90 212 555 01 23"
+        verified_name: Messora Demo
+        quality_rating: GREEN
+        messaging_limit: TIER_10K
+        throughput_level: STANDARD
+        throughput_mps: 80
+        signals_checked_at: "2026-11-25T09:00:00Z"
+        is_default: true
       type: object
       required: [id, account_id, account_name, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, is_default]
       properties:
@@ -4266,6 +4759,22 @@ components:
           items: { type: string }
 
     Template:
+      example:
+        id: 019a8c2e-4f1b-7a14-9c3d-5e7a10000014
+        account_id: 019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f
+        account_name: Messora Demo
+        meta_template_id: "1204587366452271"
+        name: winter_sale
+        language: tr
+        category: MARKETING
+        status: APPROVED
+        parameter_format: POSITIONAL
+        components:
+          - {type: BODY, text: "Merhaba {{1}}, kış indirimi başladı: tüm ürünlerde {{2}} indirim!"}
+          - {type: BUTTONS, buttons: [{type: URL, text: Alışverişe başla, url: "https://shop.example.com/{{1}}"}]}
+        rejected_reason: NONE
+        quality_score: GREEN
+        synced_at: "2026-11-25T06:00:00Z"
       type: object
       required: [id, account_id, name, language, category, status, parameter_format, components, rejected_reason]
       properties:
@@ -4316,6 +4825,23 @@ components:
       enum: [draft, scheduled, active, expired]
 
     Offer:
+      example:
+        id: 019a8c2e-4f1b-7a13-9c3d-5e7a10000013
+        title: Winter sale
+        description: All coats and boots
+        discount_text: 25% off
+        product: Winter collection
+        starts_at: "2026-11-25T00:00:00Z"
+        ends_at: "2026-11-30T21:00:00Z"
+        image_url: https://shop.example.com/img/winter.jpg
+        image_media_id: null
+        cta_url: https://shop.example.com/winter
+        coupon_code: WINTER25
+        template_id: 019a8c2e-4f1b-7a14-9c3d-5e7a10000014
+        status: active
+        created_by: 019a8c2e-4f1b-7a07-9c3d-5e7a10000007
+        created_at: "2026-11-20T10:00:00Z"
+        updated_at: "2026-11-20T10:00:00Z"
       type: object
       required: [id, title, description, discount_text, product, starts_at, ends_at, status, created_at, updated_at]
       properties:
@@ -4443,6 +4969,29 @@ components:
           description: Meta's interactive object (button, list or cta_url).
 
     Message:
+      example:
+        id: 019a8c2e-4f1b-7a12-9c3d-5e7a10000012
+        phone_number_id: 019a8c2e-4f1b-7a04-9c3d-5e7a10000004
+        contact_id: 019a8c2e-4f1b-7a09-9c3d-5e7a10000009
+        to: "+905321234567"
+        direction: outbound
+        wamid: wamid.HBgMOTA1MzIxMjM0NTY3FQIAERgSMjU0RkJBQ0E4QjM3QzFGRTlGAA==
+        type: text
+        body: Siparişiniz yola çıktı.
+        status: delivered
+        error_code: null
+        error_title: null
+        failure_class: null
+        next_attempt_at: null
+        sent_at: "2026-11-25T09:30:01Z"
+        delivered_at: "2026-11-25T09:30:04Z"
+        read_at: null
+        failed_at: null
+        created_at: "2026-11-25T09:30:00Z"
+        pricing_category: service
+        pricing_type: free_customer_service
+        cost_amount: "0"
+        cost_currency: TRY
       type: object
       required: [id, phone_number_id, contact_id, to, direction, type, body, status, created_at]
       properties:
@@ -4976,6 +5525,33 @@ components:
         color: { type: string }
 
     Contact:
+      example:
+        id: 019a8c2e-4f1b-7a09-9c3d-5e7a10000009
+        phone: "+905321234567"
+        name: Ayşe Yılmaz
+        profile_name: Ayşe
+        email: ayse@example.com
+        var1: Gold
+        var2: null
+        var3: null
+        var4: null
+        var5: null
+        attributes: {city: İstanbul, customer_no: "C-10293"}
+        tags: [{id: 019a8c2e-4f1b-7a0c-9c3d-5e7a1000000c, name: vip, color: "#16a34a"}]
+        group_ids: [019a8c2e-4f1b-7a0d-9c3d-5e7a1000000d]
+        opted_out: false
+        opted_out_at: null
+        consent:
+          marketing: {status: opted_in, updated_at: "2026-10-01T10:00:00Z", source: import,
+            reason: null}
+          service: {status: unknown, updated_at: null, source: null, reason: null}
+          meta_marketing_stopped_at: null
+          undeliverable_at: null
+          undeliverable_code: null
+        last_inbound_at: "2026-11-25T08:41:00Z"
+        source: api
+        created_at: "2026-09-12T07:30:00Z"
+        updated_at: "2026-11-25T08:41:00Z"
       type: object
       required: [id, phone, name, profile_name, tags, group_ids, attributes, opted_out, consent, source, created_at, updated_at]
       properties:
@@ -5030,6 +5606,13 @@ components:
           items: { type: string, format: uuid }
 
     CreateContactRequest:
+      example:
+        phone: "+905321234567"
+        name: Ayşe Yılmaz
+        email: ayse@example.com
+        var1: Gold
+        attributes: {city: İstanbul, customer_no: "C-10293"}
+        tags: [vip]
       allOf:
         - { $ref: "#/components/schemas/ContactFields" }
         - type: object
@@ -5038,12 +5621,19 @@ components:
             phone: { type: string, minLength: 7, maxLength: 24 }
 
     UpdateContactRequest:
+      example:
+        email: ayse.yilmaz@example.com
+        attributes: {city: Ankara}
       allOf:
         - { $ref: "#/components/schemas/ContactFields" }
         - type: object
           minProperties: 1
 
     ConsentRequest:
+      example:
+        status: opted_out
+        category: marketing
+        note: Asked by phone not to receive promotions
       type: object
       additionalProperties: false
       description: Give kind (legacy, both categories) or status.
@@ -5091,6 +5681,15 @@ components:
         undeliverable_code: { type: [string, "null"] }
 
     ConsentEvent:
+      example:
+        id: 019a8c2e-4f1b-7a0b-9c3d-5e7a1000000b
+        kind: opt_out
+        category: marketing
+        status: opted_out
+        source: keyword
+        note: 'Customer wrote "STOP"'
+        actor_name: null
+        created_at: "2026-11-24T18:02:11Z"
       type: object
       required: [id, kind, category, status, source, note, actor_name, created_at]
       properties:
@@ -5175,6 +5774,11 @@ components:
         created_at: { type: string, format: date-time }
 
     Tag:
+      example:
+        id: 019a8c2e-4f1b-7a0c-9c3d-5e7a1000000c
+        name: vip
+        color: "#16a34a"
+        contact_count: 312
       type: object
       required: [id, name, color, contact_count]
       properties:
@@ -5192,6 +5796,12 @@ components:
         color: { type: string, pattern: "^[a-z]{3,12}$" }
 
     Group:
+      example:
+        id: 019a8c2e-4f1b-7a0d-9c3d-5e7a1000000d
+        name: Newsletter
+        description: Subscribed on the website
+        member_count: 1520
+        created_at: "2026-08-01T09:00:00Z"
       type: object
       required: [id, name, description, member_count, created_at]
       properties:
@@ -5210,6 +5820,9 @@ components:
         description: { type: string, maxLength: 500 }
 
     GroupMembersRequest:
+      example:
+        action: add
+        contact_ids: [019a8c2e-4f1b-7a09-9c3d-5e7a10000009]
       type: object
       additionalProperties: false
       required: [action, contact_ids]
@@ -5222,6 +5835,8 @@ components:
           items: { type: string, format: uuid }
 
     Count:
+      example:
+        count: 25
       type: object
       required: [count]
       properties:
@@ -5236,6 +5851,18 @@ components:
       additionalProperties: true
 
     Segment:
+      example:
+        id: 019a8c2e-4f1b-7a05-9c3d-5e7a10000005
+        name: Active VIPs
+        description: VIP customers who wrote in the last 90 days
+        definition:
+          op: and
+          rules:
+            - {field: tag, operator: has, value: vip}
+            - {field: last_inbound_at, operator: within_days, value: 90}
+        contact_count: 4200
+        created_at: "2026-10-01T09:00:00Z"
+        updated_at: "2026-11-10T14:00:00Z"
       type: object
       required: [id, name, description, definition, created_at, updated_at]
       properties:
@@ -5430,6 +6057,23 @@ components:
         body: { type: string }
         status: { type: string }
     Conversation:
+      example:
+        id: 019a8c2e-4f1b-7a0e-9c3d-5e7a1000000e
+        contact: {id: 019a8c2e-4f1b-7a09-9c3d-5e7a10000009, phone: "+905321234567", name: Ayşe
+            Yılmaz, profile_name: Ayşe, opted_out: false}
+        phone_number: {id: 019a8c2e-4f1b-7a04-9c3d-5e7a10000004, account_id: 019a8c2e-4f1b-7a0f-9c3d-5e7a1000000f,
+          display_phone_number: "+90 212 555 01 23", verified_name: Messora Demo}
+        status: open
+        assignee: {id: 019a8c2e-4f1b-7a07-9c3d-5e7a10000007, name: Mehmet Kaya}
+        unread_count: 2
+        last_message_at: "2026-11-25T08:41:00Z"
+        last_inbound_at: "2026-11-25T08:41:00Z"
+        window_open: true
+        window_expires_at: "2026-11-26T08:41:00Z"
+        last_message: {direction: inbound, type: text, body: 'Siparişim ne zaman gelir?',
+          status: received}
+        closed_at: null
+        created_at: "2026-11-20T12:00:00Z"
       type: object
       required: [id, contact, phone_number, status, assignee, unread_count, last_message_at, last_inbound_at,
                  window_open, window_expires_at, last_message, closed_at, created_at]
@@ -5473,6 +6117,25 @@ components:
         size_bytes: { type: [integer, "null"], format: int64 }
         status: { type: string, enum: [pending, stored, failed] }
     InboxMessage:
+      example:
+        id: 019a8c2e-4f1b-7a11-9c3d-5e7a10000011
+        direction: outbound
+        type: text
+        body: Kargonuz yarın teslim edilecek.
+        status: delivered
+        failure_class: null
+        wamid: wamid.HBgMOTA1MzIxMjM0NTY3FQIAERgSMjU0RkJBQ0E4QjM3QzFGRTlGAA==
+        reply_to_wamid: null
+        source: api
+        error_code: null
+        error_title: null
+        media: null
+        occurred_at: "2026-11-25T08:45:00Z"
+        sent_at: "2026-11-25T08:45:01Z"
+        delivered_at: "2026-11-25T08:45:03Z"
+        read_at: null
+        failed_at: null
+        created_at: "2026-11-25T08:45:00Z"
       type: object
       required: [id, direction, type, body, status, wamid, reply_to_wamid, source, error_code, error_title, media,
                  occurred_at, sent_at, delivered_at, read_at, failed_at, created_at]
@@ -5509,6 +6172,9 @@ components:
         data: { type: array, items: { $ref: "#/components/schemas/InboxMessage" } }
         meta: { $ref: "#/components/schemas/Meta" }
     ReplyRequest:
+      example:
+        type: text
+        text: {body: Kargonuz yarın teslim edilecek.}
       type: object
       additionalProperties: false
       required: [type]
@@ -5543,12 +6209,21 @@ components:
                 Checked against the template before sending.
         media: { $ref: "#/components/schemas/MediaRef" }
     AssignConversationRequest:
+      example:
+        assignee_id: 019a8c2e-4f1b-7a07-9c3d-5e7a10000007
       type: object
       additionalProperties: false
       required: [assignee_id]
       properties:
         assignee_id: { type: [string, "null"], format: uuid, description: The user to assign; null unassigns. }
     ConversationEvent:
+      example:
+        id: 019a8c2e-4f1b-7a10-9c3d-5e7a10000010
+        kind: assigned
+        actor_type: api_key
+        actor_name: null
+        assignee: {id: 019a8c2e-4f1b-7a07-9c3d-5e7a10000007, name: Mehmet Kaya}
+        created_at: "2026-11-25T08:42:00Z"
       type: object
       required: [id, kind, actor_type, actor_name, assignee, created_at]
       properties:
@@ -5728,6 +6403,26 @@ components:
         filename: { type: string, maxLength: 240 }
 
     Campaign:
+      example:
+        id: 019a8c2e-4f1b-7a03-9c3d-5e7a10000003
+        name: Winter sale
+        status: running
+        phone_number_id: 019a8c2e-4f1b-7a04-9c3d-5e7a10000004
+        template_name: winter_sale
+        template_language: tr
+        template_params: {body: ["{{first_name}}", "25%"]}
+        audience: {segment_id: 019a8c2e-4f1b-7a05-9c3d-5e7a10000005}
+        window_size: 0
+        total_recipients: 4200
+        counts: {recipients_pending: 1800, recipients_skipped: 35, sent: 2365, delivered: 2290,
+          read: 1410, failed: 12}
+        scheduled_at: null
+        started_at: "2026-11-25T09:00:00Z"
+        finished_at: null
+        last_error: null
+        offer_id: null
+        created_at: "2026-11-24T15:20:00Z"
+        updated_at: "2026-11-25T09:00:00Z"
       type: object
       required: [id, name, status, phone_number_id, template_name, template_language, template_params, audience,
                  window_size, total_recipients, counts, priority, created_at, updated_at]
@@ -5763,6 +6458,12 @@ components:
         updated_at: { type: string, format: date-time }
 
     CreateCampaignRequest:
+      example:
+        name: Winter sale
+        template_name: winter_sale
+        template_language: tr
+        template_params: {body: ["{{first_name}}", "25%"]}
+        audience: {segment_id: 019a8c2e-4f1b-7a05-9c3d-5e7a10000005}
       type: object
       additionalProperties: false
       required: [name, template_name, template_language, audience]
@@ -5788,6 +6489,9 @@ components:
         max_mps: { type: number, format: double, exclusiveMinimum: 0, maximum: 1000, description: Rate cap in messages per second. }
 
     UpdateCampaignRequest:
+      example:
+        name: Winter sale (final week)
+        audience: {tag_id: 019a8c2e-4f1b-7a0c-9c3d-5e7a1000000c}
       type: object
       additionalProperties: false
       minProperties: 1
@@ -5806,6 +6510,12 @@ components:
         clear_max_mps: { type: boolean }
 
     CampaignEventItem:
+      example:
+        id: 019a8c2e-4f1b-7a06-9c3d-5e7a10000006
+        kind: paused
+        detail: {reason: manual}
+        actor_id: 019a8c2e-4f1b-7a07-9c3d-5e7a10000007
+        created_at: "2026-11-25T09:20:00Z"
       type: object
       required: [id, kind, detail, created_at]
       properties:
@@ -5816,6 +6526,17 @@ components:
         created_at: { type: string, format: date-time }
 
     CampaignRecipient:
+      example:
+        id: 019a8c2e-4f1b-7a08-9c3d-5e7a10000008
+        contact_id: 019a8c2e-4f1b-7a09-9c3d-5e7a10000009
+        phone: "+905321234567"
+        state: queued
+        skip_reason: null
+        message_id: 019a8c2e-4f1b-7a0a-9c3d-5e7a1000000a
+        message_status: delivered
+        error_code: null
+        error_title: null
+        failure_class: null
       type: object
       required: [id, phone, state]
       properties:
@@ -5841,6 +6562,10 @@ components:
         next_attempt_at: { type: [string, "null"], format: date-time, description: When a withheld recipient gets its new message. }
 
     CampaignPreflightRequest:
+      example:
+        audience: {segment_id: 019a8c2e-4f1b-7a05-9c3d-5e7a10000005}
+        template_name: winter_sale
+        template_language: tr
       type: object
       additionalProperties: false
       required: [audience, template_name, template_language]
@@ -5861,6 +6586,17 @@ components:
         hard: { type: boolean, description: A hard block cannot be overridden by any setting. }
 
     CampaignPreflight:
+      example:
+        category: marketing
+        unknown_marketing: allow
+        total: 4200
+        eligible: 4165
+        warned: 610
+        blocked: 35
+        hard_blocked: 35
+        blocked_reasons: [{reason: opted_out, count: 30, hard: true}, {reason: undeliverable,
+            count: 5, hard: true}]
+        warned_reasons: [{reason: consent_unknown, count: 610, hard: false}]
       type: object
       required: [category, unknown_marketing, total, eligible, warned, blocked, hard_blocked, blocked_reasons, warned_reasons]
       properties:
@@ -6104,6 +6840,26 @@ components:
       additionalProperties: { $ref: "#/components/schemas/AutomationPoint" }
 
     Automation:
+      example:
+        id: 019a8c2e-4f1b-7a02-9c3d-5e7a10000002
+        name: Order status reply
+        description: Answers "kargo" questions with the tracking link.
+        active: true
+        trigger_type: message_received
+        trigger: {match: contains, keywords: [kargo, sipariş]}
+        steps:
+          - {id: s1, type: reply, text: "Merhaba {{first_name}}, siparişinizi https://shop.example.com/track
+              adresinden izleyebilirsiniz."}
+          - {id: s2, type: add_tag, tag: order-question}
+        layout:
+          trigger: {x: 0, "y": 0}
+          s1: {x: 0, "y": 140}
+          s2: {x: 0, "y": 280}
+        version: 3
+        run_count: 1284
+        last_run_at: "2026-11-25T09:12:08Z"
+        created_at: "2026-10-14T11:00:00Z"
+        updated_at: "2026-11-20T16:45:00Z"
       type: object
       required: [id, name, description, active, trigger_type, trigger, steps, layout, version, run_count, created_at, updated_at]
       properties:
@@ -6223,6 +6979,9 @@ components:
                         WebhookContactCreated, WebhookContactUpdated, WebhookContactOptedOut, WebhookContactOptedIn]
 
     WebhookEventTypeInfo:
+      example:
+        type: message.received
+        description: A customer sent a message.
       type: object
       required: [type, description]
       properties:
@@ -6230,6 +6989,16 @@ components:
         description: { type: string }
 
     WebhookEndpoint:
+      example:
+        id: 019a8c2e-4f1b-7a17-9c3d-5e7a10000017
+        url: https://crm.example.com/hooks/messora
+        description: CRM sync
+        event_types: [message.received, conversation.closed]
+        active: true
+        secret_last4: 7b9a
+        disabled_reason: null
+        created_at: "2026-11-01T10:00:00Z"
+        updated_at: "2026-11-01T10:00:00Z"
       type: object
       required: [id, url, description, event_types, active, secret_last4, created_at, updated_at]
       properties:
@@ -6246,6 +7015,18 @@ components:
         updated_at: { type: string, format: date-time }
 
     WebhookEndpointSecret:
+      example:
+        endpoint:
+          id: 019a8c2e-4f1b-7a17-9c3d-5e7a10000017
+          url: https://crm.example.com/hooks/messora
+          description: CRM sync
+          event_types: [message.received, conversation.closed]
+          active: true
+          secret_last4: 7b9a
+          disabled_reason: null
+          created_at: "2026-11-01T10:00:00Z"
+          updated_at: "2026-11-01T10:00:00Z"
+        secret: whsec_5f0d3c8e2a9b4e17a6c1d0f97e3b7b9a
       type: object
       required: [endpoint, secret]
       properties:
@@ -6255,6 +7036,10 @@ components:
           description: Signing secret (`whsec_…`). Shown once; store it securely.
 
     CreateWebhookEndpointRequest:
+      example:
+        url: https://crm.example.com/hooks/messora
+        description: CRM sync
+        event_types: [message.received, conversation.closed]
       type: object
       additionalProperties: false
       required: [url, event_types]
@@ -6270,6 +7055,9 @@ components:
         active: { type: boolean, default: true }
 
     UpdateWebhookEndpointRequest:
+      example:
+        event_types: [message.received, message.status, conversation.closed]
+        active: true
       type: object
       additionalProperties: false
       minProperties: 1
@@ -6289,6 +7077,21 @@ components:
       enum: [pending, delivering, retrying, succeeded, failed]
 
     WebhookDelivery:
+      example:
+        id: 019a8c2e-4f1b-7a15-9c3d-5e7a10000015
+        event_id: 019a8c2e-4f1b-7a16-9c3d-5e7a10000016
+        event_type: message.received
+        endpoint_id: 019a8c2e-4f1b-7a17-9c3d-5e7a10000017
+        status: succeeded
+        attempts: 1
+        next_attempt_at: null
+        last_attempt_at: "2026-11-25T08:41:01Z"
+        last_status_code: 200
+        last_duration_ms: 84
+        last_error: null
+        last_response_body: '{"ok":true}'
+        delivered_at: "2026-11-25T08:41:01Z"
+        created_at: "2026-11-25T08:41:00Z"
       type: object
       required: [id, event_id, event_type, endpoint_id, status, attempts, created_at]
       properties:
@@ -6339,6 +7142,12 @@ components:
         meta: { $ref: "#/components/schemas/Meta" }
 
     UploadedMedia:
+      example:
+        id: "1013859600285441"
+        mime_type: image/jpeg
+        filename: invoice.jpg
+        size: 184320
+        expires_at: "2026-12-25T09:30:00Z"
       type: object
       required: [id, mime_type, filename, size, expires_at]
       properties:

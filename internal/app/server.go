@@ -32,6 +32,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/apidocs"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/apiguard"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
@@ -202,9 +203,9 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		Queries:         svc.queries,
 		Logger:          log,
 		MFAEnrolmentOps: mfaEnrolmentOps,
-		SessionLimit:    ratelimit.PerMinute(600),
-		APIKeyLimit:     ratelimit.PerMinute(300),
-		AnonymousLimit:  ratelimit.PerMinute(120),
+		SessionLimit:    ratelimit.PerMinute(apiguard.SessionPerMinute),
+		APIKeyLimit:     ratelimit.PerMinute(apiguard.APIKeyPerMinute),
+		AnonymousLimit:  ratelimit.PerMinute(apiguard.AnonymousPerMinute),
 	})
 	if err != nil {
 		return err
@@ -234,6 +235,17 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		offersHandler:     offers.NewHandler(svc.offers, log),
 		aiHandler:         ai.NewHandler(svc.ai, log),
 	}
+	// The public API description (only what an API key can call), anonymous.
+	raw, err := api.GetSpecJSON()
+	if err != nil {
+		return fmt.Errorf("load embedded spec: %w", err)
+	}
+	public, err := apidocs.PublicJSON(raw, apidocs.Options{Version: Version, APIKeyPerMinute: apiguard.APIKeyPerMinute})
+	if err != nil {
+		return err
+	}
+	r.Method(http.MethodGet, apidocs.Path, apidocs.Handler(public))
+	r.Method(http.MethodHead, apidocs.Path, apidocs.Handler(public))
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
 	r.Group(func(g chi.Router) {
