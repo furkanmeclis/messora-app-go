@@ -127,7 +127,7 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** görselli ve değişkenli şablonla kampanya ve gelen kutusu gönderimi uçtan uca testli (E2E ve Meta sözleşme testi); süresi dolan veya iptal edilen token'da hesap durumu ve bildirim testli.
 
-## Phase 16C — Gelişmiş kampanya yönetimi, AI otomasyonu ve sohbet zekâsı (planlandı)
+## Phase 16C — Gelişmiş kampanya yönetimi, AI otomasyonu ve sohbet zekâsı ✅ (v0.12.0, 2026-11-26)
 Teknik analiz, doğrulanmış Meta/AI sağlayıcı gerçekleri, mimari riskler ve iş paketleri (P0–P10): **docs/PHASE-16C.md**. Phase 17 bu faz tamamlanmadan başlamaz.
 
 ## Sonraki sürümler (v1.x)

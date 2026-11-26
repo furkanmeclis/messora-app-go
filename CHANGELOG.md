@@ -6,6 +6,88 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-26
+
+Phase 16C: advanced campaign management, AI automation and conversation
+intelligence. Plan, verified Meta and AI-provider facts and decisions:
+docs/PHASE-16C.md.
+
+### Added — Phase 16C P0: real-time, queues, Meta cost and signals
+
+- Inbox events follow conversation visibility (`inbox:all` for read_all,
+  `inbox:unassigned`, the assignee's personal channel); versioned event
+  envelope with IDs, de-duplication on the client and a targeted
+  `GET /realtime/sync` after a missed reconnect; 10-minute history.
+- Campaign sends run on their own queue; an `ai` queue; per-task retry
+  budgets; System → Failed jobs (list, retry, delete, audited).
+- Message pricing from Meta status webhooks (category, type, country) with
+  cost from an importable rate card (Settings → Meta rate card) and a daily
+  reconciliation against Meta's `pricing_analytics`.
+- Number throughput, quality and portfolio messaging limit read from Meta;
+  the send ceiling follows the number's real throughput. `user_preferences`,
+  quality, account and template-quality webhooks are handled.
+
+### Added — Phase 16C P2: send scheduler and targeting
+
+- One send scheduler per number: campaigns share capacity by priority
+  (high/normal/low), 20% stays reserved for inbox, API and automations.
+- The portfolio messaging limit (unique users per 24 h) is counted; a
+  campaign pauses as `paused_limit` and resumes by itself.
+- New audience: customers a previous campaign did not reach, by failure
+  class; hard consent blocks are never selectable.
+- Pause history with snapshots, a pre-resume summary, edit on resume;
+  131049 from the status webhook is resent after at least 24 h.
+
+### Added — Phase 16C P3: campaign analytics, forecast and protection
+
+- Analysis centre: Meta vs system-computed metrics, hourly chart, cost,
+  quality and spam section, breakdowns by group, segment, tag, contact type
+  and attribute; recipients table with server-side filters, bulk actions,
+  CSV/XLSX export; XLSX/PDF report.
+- Pre-launch forecast (duration with real capacity, Meta cost from the rate
+  card with the 2026-10-01 rules, rates only with enough history) and
+  forecast vs actual.
+- Positive/negative replies from quick-reply mapping, AI or manual labels.
+- Campaign protection: thresholds on 131048/131049/131050, opt-outs,
+  quality and template pausing stop a campaign automatically.
+
+### Added — Phase 16C P4: template builder and time-limited offers
+
+- Full-page template builder with Meta's limits enforced server-side:
+  location headers, copy code, voice call, OTP, Flow buttons, carousels and
+  limited-time offer templates; richer WhatsApp preview.
+- Offers with start/end, coupon and image; LTO campaigns send the offer's
+  expiry; expired offers block or pause campaigns.
+
+### Added — Phase 16C P5–P7: AI
+
+- AI providers per installation (OpenAI, Anthropic, Gemini, DeepSeek):
+  sealed keys, validation, model catalogue sync, a price table with
+  effective dates, usage recording; AI profiles per number with a test
+  console. Human handoff cannot be disabled (Meta policy).
+- Conversation ownership (human / AI), AI modes (off, suggest, auto reply,
+  awaiting approval), internal notes for the AI, escalation with summary,
+  live activity timeline and automation runs in the inbox.
+- Lead capture for unknown numbers with field provenance ("collected by
+  the AI, not verified"), AI cost attributed to one campaign, usage page,
+  monthly AI budget.
+
+### Added — Phase 16C P8: automations
+
+- Triggers: customer service window closing, no reply, campaign reply,
+  reaction, AI escalation; AI steps (generate, analyse, intent, extract
+  fields, segment, auto reply, route to agent, build profile), handoff and
+  note steps; per-step retries with idempotent sends; 11 one-click presets.
+
+### Added — Phase 16C P9 and P10
+
+- Operations centre on the overview: live campaigns with capacity, ETA and
+  cost, escalations, waiting customers, recent messages, automations,
+  alerts and quick actions; system health on its own tab.
+- Public API reference at `/docs/api` (Scalar, served locally) generated
+  from the OpenAPI document; every public operation documented and linted
+  in CI; `RateLimit-*` headers; `docs/API.md` inventory.
+
 ### Added — Phase 16C P1: subscription, consent and send blocking
 
 - Consent per category for every contact: marketing and service (utility,
