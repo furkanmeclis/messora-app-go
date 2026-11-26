@@ -163,6 +163,7 @@ const inbox: Messages['inbox'] = {
             manual: 'Bir temsilci devretti',
             ai_budget: 'Aylık AI bütçesi doldu',
             profile_complete: 'Yeni müşterinin bilgileri toplandı',
+            automation: 'Bir otomasyon devretti',
         },
         draft: {
             suggestion: 'AI önerisi',

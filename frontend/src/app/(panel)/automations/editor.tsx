@@ -30,6 +30,7 @@ import {
     Redo2,
     Trash2,
     Undo2,
+    Wrench,
     Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -91,17 +92,22 @@ import { FieldMessage } from './inputs';
 import {
     cloneStep,
     describeTrigger,
+    isAIStep,
     MAX_STEPS,
     mapErrors,
     mk,
     newStep,
+    pendingSetup,
+    setupByStep,
     type StepError,
     stepLabel,
     stepProblems,
+    STEP_TYPES,
     type StepType,
     type TriggerForm,
     triggerFromApi,
     triggerLabel,
+    triggerProblems,
     triggerToApi,
 } from './model';
 import { CanvasContext, type CanvasContextValue, StepIcon } from './nodes';
@@ -232,9 +238,31 @@ function Editor({
         return () => window.removeEventListener('beforeunload', onBeforeUnload);
     }, [dirty, readOnly]);
 
+    // ── Setup of an installed preset (values still to choose) ──────────────
+    const setup = useMemo(
+        () =>
+            pendingSetup(
+                automation?.setup,
+                nodes.flatMap((n) => (n.type === 'step' ? [n.data.step] : [])),
+            ),
+        [automation?.setup, nodes],
+    );
+    const setupMap = useMemo(() => setupByStep(setup), [setup]);
+    const openFields = useMemo(
+        () =>
+            new Map(
+                [...setupMap].map(([id, items]) => [
+                    id,
+                    new Set(items.map((i) => i.field)),
+                ]),
+            ),
+        [setupMap],
+    );
+    const setupBlocks = setup.length > 0;
+
     // ── Problems (client checks plus the last save's API errors) ───────────
     const problems = useMemo(() => {
-        const p = validateGraph(nodes, edges, t);
+        const p = validateGraph(nodes, edges, t, openFields);
         for (const [id, e] of Object.entries(server.steps)) {
             if (nodes.some((n) => n.id === id)) {
                 const list = (p.nodes[id] ??= []);
@@ -242,7 +270,7 @@ function Editor({
             }
         }
         return p;
-    }, [nodes, edges, t, server.steps]);
+    }, [nodes, edges, t, server.steps, openFields]);
 
     // ── Editing ────────────────────────────────────────────────────────────
     const { set, checkpoint, undo, redo } = history;
@@ -573,8 +601,19 @@ function Editor({
     };
 
     const save = () => {
-        const local = validateGraph(nodes, edges, t);
+        const local = validateGraph(nodes, edges, t, openFields);
         const firstBad = Object.keys(local.nodes)[0];
+        const badTrigger = triggerProblems(triggerType, trigger, t)[0];
+        if (badTrigger) {
+            toast.error(badTrigger.message);
+            select(TRIGGER_ID);
+            return;
+        }
+        if (active && setupBlocks) {
+            toast.error(t('automations.setup.blocksActive'));
+            select(null);
+            return;
+        }
         if (!name.trim()) {
             select(null);
             setServer((s) => ({
@@ -634,7 +673,7 @@ function Editor({
                 }
             }
             const shown = (k: string) =>
-                ['name', 'description', 'trigger_type'].includes(k) ||
+                ['name', 'description', 'trigger_type', 'active'].includes(k) ||
                 k === 'trigger' ||
                 k.startsWith('trigger.');
             const unshown = Object.entries(mapped.other)
@@ -684,10 +723,21 @@ function Editor({
             },
             readOnly,
             onDeleteEdge: (id) => remove([], [id]),
+            aiEnabled: options.aiEnabled,
+            setup: setupMap,
         }),
         // apiTrigger is derived from trigger and triggerType.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [t, problems.nodes, triggerType, trigger, options, readOnly, remove],
+        [
+            t,
+            problems.nodes,
+            triggerType,
+            trigger,
+            options,
+            readOnly,
+            remove,
+            setupMap,
+        ],
     );
 
     const selectedNodes = nodes.filter((n) => n.selected);
@@ -822,23 +872,7 @@ function Editor({
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start">
-                                    {(
-                                        [
-                                            'reply',
-                                            'send_template',
-                                            'add_tag',
-                                            'remove_tag',
-                                            'add_to_group',
-                                            'set_field',
-                                            'assign',
-                                            'close_conversation',
-                                            'condition',
-                                            'delay',
-                                            'mute',
-                                            'http_request',
-                                            'send_email',
-                                        ] as StepType[]
-                                    ).map((type) => (
+                                    {STEP_TYPES.map(({ type }) => (
                                         <DropdownMenuItem
                                             key={type}
                                             onSelect={() => addStep(type)}
@@ -1063,6 +1097,8 @@ function Editor({
                                     edit={editStep(selected.id)}
                                     serverError={server.steps[selected.id]}
                                     problems={problems.nodes[selected.id] ?? []}
+                                    open={openFields.get(selected.id)}
+                                    setupItems={setupMap.get(selected.id)}
                                     options={options}
                                     readOnly={readOnly}
                                     t={t}
@@ -1157,11 +1193,35 @@ function Editor({
                                                 error={server.other.description}
                                             />
                                         </Field>
-                                        <Field orientation="horizontal">
+                                        <Field
+                                            orientation="horizontal"
+                                            data-invalid={
+                                                server.other.active
+                                                    ? true
+                                                    : undefined
+                                            }
+                                        >
                                             <Switch
                                                 id="automation-active"
                                                 checked={active}
-                                                onCheckedChange={setActive}
+                                                disabled={
+                                                    setupBlocks && !active
+                                                }
+                                                onCheckedChange={(v) => {
+                                                    setActive(v);
+                                                    if (server.other.active) {
+                                                        setServer((s) => {
+                                                            const other = {
+                                                                ...s.other,
+                                                            };
+                                                            delete other.active;
+                                                            return {
+                                                                ...s,
+                                                                other,
+                                                            };
+                                                        });
+                                                    }
+                                                }}
                                             />
                                             <div>
                                                 <FieldLabel htmlFor="automation-active">
@@ -1170,12 +1230,51 @@ function Editor({
                                                     )}
                                                 </FieldLabel>
                                                 <FieldDescription>
-                                                    {t(
-                                                        'automations.inspector.activeHint',
-                                                    )}
+                                                    {setupBlocks
+                                                        ? t(
+                                                              'automations.setup.blocksActive',
+                                                          )
+                                                        : t(
+                                                              'automations.inspector.activeHint',
+                                                          )}
                                                 </FieldDescription>
+                                                <FieldMessage
+                                                    id="automation-active"
+                                                    error={server.other.active}
+                                                />
                                             </div>
                                         </Field>
+                                        {setup.length > 0 && (
+                                            <div
+                                                className="space-y-1 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3 text-xs text-sky-800 dark:text-sky-300"
+                                                data-testid="setup-list"
+                                            >
+                                                <p className="font-medium">
+                                                    {t(
+                                                        'automations.setup.title',
+                                                    )}
+                                                </p>
+                                                <ul className="list-disc space-y-0.5 pl-4">
+                                                    {setup.map((s) => (
+                                                        <li
+                                                            key={`${s.step_id}-${s.field}`}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                className="text-left underline-offset-2 hover:underline"
+                                                                onClick={() =>
+                                                                    focusNode(
+                                                                        s.step_id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                {s.label}
+                                                            </button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
                                     </FieldGroup>
                                 </fieldset>
                                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -1268,6 +1367,8 @@ function StepInspector({
     edit,
     serverError,
     problems,
+    open,
+    setupItems,
     options,
     readOnly,
     t,
@@ -1276,6 +1377,8 @@ function StepInspector({
     edit: StepPatch;
     serverError?: StepError;
     problems: string[];
+    open?: ReadonlySet<string>;
+    setupItems?: { field: string; label: string }[];
     options: EditorOptions;
     readOnly: boolean;
     t: Translate;
@@ -1283,7 +1386,7 @@ function StepInspector({
     const step = node.data.step;
     const fieldErrors: StepError[] = [
         ...(serverError ? [serverError] : []),
-        ...stepProblems(step, t),
+        ...stepProblems(step, t, open),
     ];
     // Problems no field shows (not connected, nesting, no branch …).
     const shownByFields = new Set(fieldErrors.map((e) => e.message));
@@ -1296,6 +1399,31 @@ function StepInspector({
             <p className="text-xs text-muted-foreground">
                 {t(mk(`automations.steps.${step.type}.hint`))}
             </p>
+            {isAIStep(step.type) && options.aiEnabled === false && (
+                <Alert>
+                    <AlertTriangle />
+                    <AlertDescription>
+                        {t('automations.node.aiOffLong')}{' '}
+                        <Link
+                            href="/settings/ai"
+                            className="font-medium underline underline-offset-2"
+                        >
+                            {t('automations.node.aiSettings')}
+                        </Link>
+                    </AlertDescription>
+                </Alert>
+            )}
+            {setupItems?.map((s) => (
+                <Alert key={s.field}>
+                    <Wrench />
+                    <AlertDescription>
+                        <span className="font-medium">
+                            {t('automations.node.setupNeeded')}
+                        </span>
+                        {`: ${s.label}`}
+                    </AlertDescription>
+                </Alert>
+            ))}
             {general.length > 0 && (
                 <Alert variant="destructive">
                     <AlertCircle />

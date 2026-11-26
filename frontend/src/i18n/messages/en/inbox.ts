@@ -161,6 +161,7 @@ const inbox = {
             manual: 'Handed over by a person',
             ai_budget: 'The monthly AI budget is used up',
             profile_complete: 'The new customer’s details are collected',
+            automation: 'Handed over by an automation',
         },
         draft: {
             suggestion: 'AI suggestion',

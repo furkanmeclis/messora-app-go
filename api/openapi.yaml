@@ -4200,6 +4200,51 @@ paths:
               schema: { $ref: "#/components/schemas/AutomationRunResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /automations/presets:
+    get:
+      operationId: listAutomationPresets
+      tags: [automations]
+      summary: The library of ready-made automations
+      description: >-
+        Built-in presets (versioned definitions shipped with Messora): title, description,
+        trigger, steps and the values the user must choose after installing (setup).
+      security: [{ session: [automations.read] }]
+      responses:
+        "200":
+          description: Presets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationPresetListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /automations/presets/{presetKey}/install:
+    post:
+      operationId: installAutomationPreset
+      tags: [automations]
+      summary: Install a preset as a new, disabled automation
+      description: >-
+        Creates a normal, freely editable automation from the preset (inactive). Values the
+        preset cannot know (which template, which agent) are listed in the automation's setup;
+        it cannot be enabled until they are filled.
+      security: [{ session: [automations.manage] }]
+      parameters:
+        - name: presetKey
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-z0-9_]{1,64}$" }
+        - name: lang
+          in: query
+          required: false
+          description: Language of the name and setup labels (tr or en; default the workspace language).
+          schema: { type: string, enum: [tr, en] }
+      responses:
+        "201":
+          description: Installed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   # ── Outgoing webhooks (Phase 8) ─────────────────────────────────────────────
   # Receivers integrators register. Payloads, signatures and the retry policy
   # are documented in docs/WEBHOOKS.md.
@@ -7269,7 +7314,7 @@ components:
     HandoffReason:
       type: string
       enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error, manual,
-             ai_budget, profile_complete]
+             ai_budget, profile_complete, automation]
     ConversationHandoff:
       type: object
       required: [id, from_type, from_user, to_type, to_user, reason, reason_detail, summary, summary_source, detected_need,
@@ -8712,8 +8757,10 @@ components:
     # ── Automations (Phase 8) ──────────────────────────────────────────────
     AutomationTriggerType:
       type: string
-      enum: [message_received, new_contact, tag_added, message_status, conversation_closed, subscription_request]
-      x-enum-varnames: [TriggerMessageReceived, TriggerNewContact, TriggerTagAdded, TriggerMessageStatus, TriggerConversationClosed, TriggerSubscriptionRequest]
+      enum: [message_received, new_contact, tag_added, message_status, conversation_closed, subscription_request,
+        window_closing, no_reply, campaign_reply, reaction, ai_escalation]
+      x-enum-varnames: [TriggerMessageReceived, TriggerNewContact, TriggerTagAdded, TriggerMessageStatus, TriggerConversationClosed, TriggerSubscriptionRequest,
+        TriggerWindowClosing, TriggerNoReply, TriggerCampaignReply, TriggerReaction, TriggerAIEscalation]
 
     AutomationTrigger:
       type: object
@@ -8733,6 +8780,34 @@ components:
           type: string
           enum: [stop, request, resume]
           description: "subscription_request: only this kind (stop word, opt-out request phrase, resubscribe word); omitted = any."
+        minutes:
+          type: integer
+          minimum: 0
+          maximum: 43200
+          description: >-
+            window_closing: minutes before the 24-hour customer service window closes (5–1380,
+            default 60). no_reply: minutes without an answer (5–43200).
+        include_answered:
+          type: boolean
+          description: "window_closing: also when the team answered last (default: only an unanswered customer message)."
+        no_reply_from:
+          type: string
+          enum: [customer, agent]
+          description: "no_reply: customer = the customer has not answered our message; agent = the team has not answered the customer."
+        include_campaigns:
+          type: boolean
+          description: "no_reply from customer: campaign messages count as our message too (default: conversation messages only)."
+        reaction:
+          type: string
+          enum: [positive, negative]
+          description: "reaction: only this polarity; omitted = both."
+        reasons:
+          type: array
+          maxItems: 7
+          description: "ai_escalation: only these handoff reasons; omitted = any."
+          items:
+            type: string
+            enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error]
         cooldown_seconds: { type: integer, minimum: 0, maximum: 7776000 }
 
     AutomationStep:
@@ -8740,8 +8815,12 @@ components:
       description: >-
         One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field,
         condition (with if/then/else), http_request, send_email, delay, assign,
-        close_conversation, mute. Text values accept placeholders such as {{name}},
-        {{first_name}}, {{var1}} and {{message}}. See docs/AUTOMATIONS.md.
+        close_conversation, mute, handoff_to_ai, handoff_to_human, add_internal_note, and the
+        AI steps ai_generate_message, ai_analyze_message, ai_detect_intent, ai_extract_fields,
+        ai_classify_segment, ai_auto_reply, ai_route_to_agent, ai_build_profile. HTTP, e-mail,
+        message and AI steps accept retry {max, backoff}. Text values accept placeholders such
+        as {{name}}, {{first_name}}, {{var1}}, {{message}} and {{var:<name>}} (run variables AI
+        steps produce). See docs/AUTOMATIONS.md.
       required: [type]
       additionalProperties: true
       properties:
@@ -8786,13 +8865,15 @@ components:
           trigger: {x: 0, "y": 0}
           s1: {x: 0, "y": 140}
           s2: {x: 0, "y": 280}
+        setup: []
+        preset: null
         version: 3
         run_count: 1284
         last_run_at: "2026-11-25T09:12:08Z"
         created_at: "2026-10-14T11:00:00Z"
         updated_at: "2026-11-20T16:45:00Z"
       type: object
-      required: [id, name, description, active, trigger_type, trigger, steps, layout, version, run_count, created_at, updated_at]
+      required: [id, name, description, active, trigger_type, trigger, steps, layout, setup, version, run_count, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -8805,6 +8886,17 @@ components:
           description: Every step has an id (automations saved before ids existed get ids derived from their position).
           items: { $ref: "#/components/schemas/AutomationStep" }
         layout: { $ref: "#/components/schemas/AutomationLayout" }
+        setup:
+          type: array
+          description: >-
+            Values still to choose (an installed preset's template, agent …). An automation with
+            open setup items cannot be enabled; the list empties as the steps are filled.
+          items: { $ref: "#/components/schemas/AutomationSetupItem" }
+        preset:
+          description: The preset this automation was installed from (null when built by hand).
+          oneOf:
+            - { $ref: "#/components/schemas/AutomationPresetRef" }
+            - { type: "null" }
         version: { type: integer }
         run_count: { type: integer, format: int64 }
         last_run_at: { type: [string, "null"], format: date-time }
@@ -8845,13 +8937,72 @@ components:
           items: { $ref: "#/components/schemas/AutomationStep" }
         layout: { $ref: "#/components/schemas/AutomationLayout" }
 
+    AutomationSetupItem:
+      type: object
+      required: [step_id, field, label]
+      example: {step_id: follow_template, field: template, label: Choose the approved template of the follow-up}
+      properties:
+        step_id: { type: string }
+        field: { type: string, description: "The step's field to fill (template, assignee_id, group_id …)." }
+        label: { type: string }
+
+    AutomationPresetRef:
+      type: object
+      required: [key, version]
+      example: {key: follow_up_unanswered, version: 1}
+      properties:
+        key: { type: string }
+        version: { type: integer }
+
+    AutomationPresetSetup:
+      type: object
+      required: [step_id, field, label]
+      properties:
+        step_id: { type: string }
+        field: { type: string }
+        label: { $ref: "#/components/schemas/LocalizedText" }
+
+    AutomationPreset:
+      type: object
+      required: [key, version, category, title, description, requires_ai, trigger_type, trigger, steps, setup]
+      properties:
+        key: { type: string }
+        version: { type: integer }
+        category: { type: string, description: "engagement, consent, ai, handoff, window, follow_up, campaign or feedback." }
+        title: { $ref: "#/components/schemas/LocalizedText" }
+        description: { $ref: "#/components/schemas/LocalizedText" }
+        guidance:
+          description: Advice shown with the preset (for example Meta's window rule).
+          oneOf:
+            - { $ref: "#/components/schemas/LocalizedText" }
+            - { type: "null" }
+        requires_ai: { type: boolean }
+        trigger_type: { $ref: "#/components/schemas/AutomationTriggerType" }
+        trigger: { $ref: "#/components/schemas/AutomationTrigger" }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationStep" }
+        setup:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationPresetSetup" }
+
+    AutomationPresetListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AutomationPreset" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
     AutomationRunStep:
       type: object
       required: [pc, action, outcome, detail, created_at]
       properties:
         pc: { type: integer }
         action: { type: string }
-        outcome: { type: string, enum: [ok, skipped, failed, waiting] }
+        outcome:
+          type: string
+          enum: [ok, skipped, failed, waiting, retrying]
+          description: "retrying: the attempt failed and the step runs again after detail.retry_in_seconds."
         detail: { type: object, additionalProperties: true }
         created_at: { type: string, format: date-time }
 
@@ -8866,6 +9017,16 @@ components:
         status: { type: string, enum: [queued, running, waiting, completed, failed, cancelled] }
         event: { type: object, additionalProperties: true }
         error: { type: [string, "null"] }
+        error_code:
+          type: [string, "null"]
+          description: >-
+            Why a failed run failed: ai_disabled, ai_not_configured, ai_not_allowed, ai_no_profile,
+            ai_error, retries_exhausted or step_failed.
+        attempt: { type: integer, description: "Retries of the current step so far (0 = first attempt)." }
+        vars:
+          type: object
+          additionalProperties: { type: string }
+          description: Run variables the AI steps produced ({{var:<name>}}).
         resume_at: { type: [string, "null"], format: date-time }
         steps:
           type: array

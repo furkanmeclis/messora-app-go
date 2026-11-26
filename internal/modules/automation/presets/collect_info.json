@@ -1,0 +1,22 @@
+{
+  "key": "collect_customer_info",
+  "version": 1,
+  "category": "ai",
+  "requires_ai": true,
+  "title": {"tr": "Müşteri bilgisi toplama", "en": "Collect customer details"},
+  "description": {
+    "tr": "Müşterinin mesajlarında geçen ad ve e-posta gibi bilgileri AI ile çıkarır ve kişi kartına \"AI, doğrulanmamış\" kaynağıyla yazar. Günde en fazla bir kez çalışır.",
+    "en": "Uses the AI to pick up details such as name and e-mail from the customer's messages and writes them to the contact, marked \"AI, unverified\". Runs at most once a day per contact."
+  },
+  "trigger_type": "message_received",
+  "trigger": {"cooldown_seconds": 86400},
+  "steps": [
+    {"id": "collect_extract", "type": "ai_extract_fields", "fields": [
+      {"key": "name", "label": "Ad soyad"},
+      {"key": "email", "label": "E-posta"},
+      {"key": "attr:city", "label": "Şehir"}
+    ], "retry": {"max": 2, "backoff": 30}},
+    {"id": "collect_tag", "type": "add_tag", "tag": "bilgi-toplandi"}
+  ],
+  "setup": []
+}

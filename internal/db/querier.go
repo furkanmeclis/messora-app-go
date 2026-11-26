@@ -58,10 +58,16 @@ type Querier interface {
 	CampaignHourly(ctx context.Context, campaignID uuid.UUID) ([]CampaignHourlyRow, error)
 	CampaignMessageStats(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMessageStatsRow, error)
 	CampaignNames(ctx context.Context, ids []uuid.UUID) ([]CampaignNamesRow, error)
+	CampaignOfWAMID(ctx context.Context, wamid *string) (*uuid.UUID, error)
 	// Campaigns that are sending or waiting for the portfolio limit, with what
 	// is left (the queue view per number).
 	CampaignQueue(ctx context.Context) ([]CampaignQueueRow, error)
 	CampaignRecipientStats(ctx context.Context, campaignID uuid.UUID) ([]CampaignRecipientStatsRow, error)
+	// The campaign an inbound message answers: the campaign message it quotes,
+	// else the thread's latest outbound message when that is a campaign
+	// message of the last 72 hours and the customer has not written since.
+	// The nil uuid means none.
+	CampaignRepliedTo(ctx context.Context, arg CampaignRepliedToParams) (uuid.UUID, error)
 	// The campaign's template on its sender's account (category, status,
 	// quality, buttons).
 	CampaignTemplate(ctx context.Context, campaignID uuid.UUID) (MessageTemplate, error)
@@ -208,6 +214,7 @@ type Querier interface {
 	GetAutomation(ctx context.Context, id uuid.UUID) (Automation, error)
 	GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
 	GetAutomationRunSummary(ctx context.Context, id uuid.UUID) (GetAutomationRunSummaryRow, error)
+	GetAutomationSend(ctx context.Context, arg GetAutomationSendParams) (uuid.UUID, error)
 	GetAutomationWithStats(ctx context.Context, id uuid.UUID) (GetAutomationWithStatsRow, error)
 	GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	// Campaign analytics (Phase 16C P3, docs/CAMPAIGN_ANALYTICS.md).
@@ -269,6 +276,7 @@ type Querier interface {
 	// No row when this automation already ran for this event.
 	InsertAutomationRun(ctx context.Context, arg InsertAutomationRunParams) (uuid.UUID, error)
 	InsertAutomationRunStep(ctx context.Context, arg InsertAutomationRunStepParams) error
+	InsertAutomationSend(ctx context.Context, arg InsertAutomationSendParams) error
 	InsertCampaign(ctx context.Context, arg InsertCampaignParams) (Campaign, error)
 	InsertCampaignEvent(ctx context.Context, arg InsertCampaignEventParams) error
 	InsertCampaignExport(ctx context.Context, arg InsertCampaignExportParams) (CampaignExport, error)
@@ -355,6 +363,7 @@ type Querier interface {
 	// The LEFT JOIN makes run statistics nullable: an automation may never
 	// have run.
 	ListAutomations(ctx context.Context) ([]ListAutomationsRow, error)
+	ListAutomationsByTypes(ctx context.Context, triggerTypes []string) ([]Automation, error)
 	ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) ([]CampaignEvent, error)
 	ListCampaignExports(ctx context.Context, campaignID uuid.UUID) ([]CampaignExport, error)
 	ListCampaignPauses(ctx context.Context, campaignID uuid.UUID) ([]CampaignPause, error)
@@ -450,10 +459,17 @@ type Querier interface {
 	MarkWhatsAppAccountError(ctx context.Context, arg MarkWhatsAppAccountErrorParams) error
 	MarkWhatsAppAccountSynced(ctx context.Context, id uuid.UUID) error
 	MarkWhatsAppTokenNotified(ctx context.Context, id uuid.UUID) error
+	MergeAutomationRunVars(ctx context.Context, arg MergeAutomationRunVarsParams) error
 	// The rates that can price a message to country in category: its own
 	// market's and the "Other" market's.
 	MetaRateCandidates(ctx context.Context, arg MetaRateCandidatesParams) ([]MetaRateCandidatesRow, error)
 	MuteContactAutomations(ctx context.Context, arg MuteContactAutomationsParams) error
+	// Conversations whose latest message (reactions, system notices and failed
+	// sends aside) went in @direction between @after and @before: outbound =
+	// the customer has not answered us, inbound = the team has not answered
+	// the customer. Campaign messages count as ours only with
+	// @include_campaigns; for outbound the customer must have written before.
+	NoReplyCandidates(ctx context.Context, arg NoReplyCandidatesParams) ([]NoReplyCandidatesRow, error)
 	// Waiting runs whose resume task may have been lost.
 	OverdueWaitingRuns(ctx context.Context) ([]uuid.UUID, error)
 	PhoneNumberExists(ctx context.Context, id uuid.UUID) (bool, error)
@@ -501,6 +517,8 @@ type Querier interface {
 	RequestImportCancel(ctx context.Context, id uuid.UUID) (ContactImport, error)
 	// Manual redelivery: a fresh attempt budget, due now.
 	ResetWebhookDelivery(ctx context.Context, id uuid.UUID) (WebhookDelivery, error)
+	// A failed attempt of the current step: wait, then run the same step again.
+	RetryAutomationRun(ctx context.Context, arg RetryAutomationRunParams) error
 	RevokeApiKey(ctx context.Context, id uuid.UUID) (string, error)
 	RevokeInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
@@ -641,6 +659,15 @@ type Querier interface {
 	WaitAutomationRun(ctx context.Context, arg WaitAutomationRunParams) error
 	// Asked by emitters on every domain event; served by a partial GIN index.
 	WebhookTypeSubscribed(ctx context.Context, eventType string) (bool, error)
+	// Conversations whose customer service window (24 hours after the
+	// customer's last window-opening message) closes soon: the window opened
+	// between @opened_after (now - 24 h) and @opened_before (now - 24 h + the
+	// automation's minutes).
+	// last_message_* is the latest message of the thread, reactions, system
+	// notices and failed sends aside: inbound means the customer is waiting
+	// for an answer. inbound_message_id (the message that opened the window)
+	// identifies the window.
+	WindowClosingCandidates(ctx context.Context, arg WindowClosingCandidatesParams) ([]WindowClosingCandidatesRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

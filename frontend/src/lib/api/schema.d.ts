@@ -2903,6 +2903,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/automations/presets': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The library of ready-made automations
+         * @description Built-in presets (versioned definitions shipped with Messora): title, description, trigger, steps and the values the user must choose after installing (setup).
+         */
+        get: operations['listAutomationPresets'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/automations/presets/{presetKey}/install': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Install a preset as a new, disabled automation
+         * @description Creates a normal, freely editable automation from the preset (inactive). Values the preset cannot know (which template, which agent) are listed in the automation's setup; it cannot be enabled until they are filled.
+         */
+        post: operations['installAutomationPreset'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/webhook-event-types': {
         parameters: {
             query?: never;
@@ -5617,7 +5657,8 @@ export interface components {
             | 'ai_error'
             | 'manual'
             | 'ai_budget'
-            | 'profile_complete';
+            | 'profile_complete'
+            | 'automation';
         /**
          * @example {
          *       "id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
@@ -7791,7 +7832,12 @@ export interface components {
             | 'tag_added'
             | 'message_status'
             | 'conversation_closed'
-            | 'subscription_request';
+            | 'subscription_request'
+            | 'window_closing'
+            | 'no_reply'
+            | 'campaign_reply'
+            | 'reaction'
+            | 'ai_escalation';
         /** @description Options for the trigger type; see docs/AUTOMATIONS.md. */
         AutomationTrigger: {
             /** @enum {string} */
@@ -7809,9 +7855,35 @@ export interface components {
              * @enum {string}
              */
             subscription?: 'stop' | 'request' | 'resume';
+            /** @description window_closing: minutes before the 24-hour customer service window closes (5–1380, default 60). no_reply: minutes without an answer (5–43200). */
+            minutes?: number;
+            /** @description window_closing: also when the team answered last (default: only an unanswered customer message). */
+            include_answered?: boolean;
+            /**
+             * @description no_reply: customer = the customer has not answered our message; agent = the team has not answered the customer.
+             * @enum {string}
+             */
+            no_reply_from?: 'customer' | 'agent';
+            /** @description no_reply from customer: campaign messages count as our message too (default: conversation messages only). */
+            include_campaigns?: boolean;
+            /**
+             * @description reaction: only this polarity; omitted = both.
+             * @enum {string}
+             */
+            reaction?: 'positive' | 'negative';
+            /** @description ai_escalation: only these handoff reasons; omitted = any. */
+            reasons?: (
+                | 'customer_request'
+                | 'no_answer'
+                | 'low_confidence'
+                | 'critical_intent'
+                | 'unauthorized_action'
+                | 'window_closed'
+                | 'ai_error'
+            )[];
             cooldown_seconds?: number;
         };
-        /** @description One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field, condition (with if/then/else), http_request, send_email, delay, assign, close_conversation, mute. Text values accept placeholders such as {{name}}, {{first_name}}, {{var1}} and {{message}}. See docs/AUTOMATIONS.md. */
+        /** @description One step: reply, send_template, add_tag, remove_tag, add_to_group, set_field, condition (with if/then/else), http_request, send_email, delay, assign, close_conversation, mute, handoff_to_ai, handoff_to_human, add_internal_note, and the AI steps ai_generate_message, ai_analyze_message, ai_detect_intent, ai_extract_fields, ai_classify_segment, ai_auto_reply, ai_route_to_agent, ai_build_profile. HTTP, e-mail, message and AI steps accept retry {max, backoff}. Text values accept placeholders such as {{name}}, {{first_name}}, {{var1}}, {{message}} and {{var:<name>}} (run variables AI steps produce). See docs/AUTOMATIONS.md. */
         AutomationStep: {
             type: string;
             /** @description Stable id of the step (unique within the automation; "trigger" is reserved). Optional: the server assigns one to steps without it. The canvas layout and run traces refer to steps by this id. */
@@ -7869,6 +7941,8 @@ export interface components {
          *           "y": 280
          *         }
          *       },
+         *       "setup": [],
+         *       "preset": null,
          *       "version": 3,
          *       "run_count": 1284,
          *       "last_run_at": "2026-11-25T09:12:08Z",
@@ -7887,6 +7961,10 @@ export interface components {
             /** @description Every step has an id (automations saved before ids existed get ids derived from their position). */
             steps: components['schemas']['AutomationStep'][];
             layout: components['schemas']['AutomationLayout'];
+            /** @description Values still to choose (an installed preset's template, agent …). An automation with open setup items cannot be enabled; the list empties as the steps are filled. */
+            setup: components['schemas']['AutomationSetupItem'][];
+            /** @description The preset this automation was installed from (null when built by hand). */
+            preset?: components['schemas']['AutomationPresetRef'] | null;
             version: number;
             /** Format: int64 */
             run_count: number;
@@ -7915,11 +7993,61 @@ export interface components {
             steps?: components['schemas']['AutomationStep'][];
             layout?: components['schemas']['AutomationLayout'];
         };
+        /**
+         * @example {
+         *       "step_id": "follow_template",
+         *       "field": "template",
+         *       "label": "Choose the approved template of the follow-up"
+         *     }
+         */
+        AutomationSetupItem: {
+            step_id: string;
+            /** @description The step's field to fill (template, assignee_id, group_id …). */
+            field: string;
+            label: string;
+        };
+        /**
+         * @example {
+         *       "key": "follow_up_unanswered",
+         *       "version": 1
+         *     }
+         */
+        AutomationPresetRef: {
+            key: string;
+            version: number;
+        };
+        AutomationPresetSetup: {
+            step_id: string;
+            field: string;
+            label: components['schemas']['LocalizedText'];
+        };
+        AutomationPreset: {
+            key: string;
+            version: number;
+            /** @description engagement, consent, ai, handoff, window, follow_up, campaign or feedback. */
+            category: string;
+            title: components['schemas']['LocalizedText'];
+            description: components['schemas']['LocalizedText'];
+            /** @description Advice shown with the preset (for example Meta's window rule). */
+            guidance?: components['schemas']['LocalizedText'] | null;
+            requires_ai: boolean;
+            trigger_type: components['schemas']['AutomationTriggerType'];
+            trigger: components['schemas']['AutomationTrigger'];
+            steps: components['schemas']['AutomationStep'][];
+            setup: components['schemas']['AutomationPresetSetup'][];
+        };
+        AutomationPresetListResponse: {
+            data: components['schemas']['AutomationPreset'][];
+            meta: components['schemas']['Meta'];
+        };
         AutomationRunStep: {
             pc: number;
             action: string;
-            /** @enum {string} */
-            outcome: 'ok' | 'skipped' | 'failed' | 'waiting';
+            /**
+             * @description retrying: the attempt failed and the step runs again after detail.retry_in_seconds.
+             * @enum {string}
+             */
+            outcome: 'ok' | 'skipped' | 'failed' | 'waiting' | 'retrying';
             detail: {
                 [key: string]: unknown;
             };
@@ -7946,6 +8074,14 @@ export interface components {
                 [key: string]: unknown;
             };
             error?: string | null;
+            /** @description Why a failed run failed: ai_disabled, ai_not_configured, ai_not_allowed, ai_no_profile, ai_error, retries_exhausted or step_failed. */
+            error_code?: string | null;
+            /** @description Retries of the current step so far (0 = first attempt). */
+            attempt?: number;
+            /** @description Run variables the AI steps produced ({{var:<name>}}). */
+            vars?: {
+                [key: string]: string;
+            };
             /** Format: date-time */
             resume_at?: string | null;
             steps?: components['schemas']['AutomationRunStep'][];
@@ -13626,6 +13762,53 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['AutomationRunResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAutomationPresets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Presets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationPresetListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    installAutomationPreset: {
+        parameters: {
+            query?: {
+                /** @description Language of the name and setup labels (tr or en; default the workspace language). */
+                lang?: 'tr' | 'en';
+            };
+            header?: never;
+            path: {
+                presetKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AutomationResponse'];
                 };
             };
             default: components['responses']['Error'];

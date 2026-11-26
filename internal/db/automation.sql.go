@@ -13,7 +13,7 @@ import (
 )
 
 const activeAutomationsFor = `-- name: ActiveAutomationsFor :many
-SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout FROM automations WHERE active AND trigger_type = $1 ORDER BY created_at
+SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version FROM automations WHERE active AND trigger_type = $1 ORDER BY created_at
 `
 
 func (q *Queries) ActiveAutomationsFor(ctx context.Context, triggerType string) ([]Automation, error) {
@@ -39,6 +39,9 @@ func (q *Queries) ActiveAutomationsFor(ctx context.Context, triggerType string) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Layout,
+			&i.Setup,
+			&i.PresetKey,
+			&i.PresetVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -51,7 +54,7 @@ func (q *Queries) ActiveAutomationsFor(ctx context.Context, triggerType string) 
 }
 
 const advanceAutomationRun = `-- name: AdvanceAutomationRun :exec
-UPDATE automation_runs SET pc = $1, steps_executed = steps_executed + 1, status = 'running', updated_at = now() WHERE id = $2
+UPDATE automation_runs SET pc = $1, steps_executed = steps_executed + 1, status = 'running', attempt = 0, updated_at = now() WHERE id = $2
 `
 
 type AdvanceAutomationRunParams struct {
@@ -78,6 +81,53 @@ type AppendAutomationRunVisitedParams struct {
 func (q *Queries) AppendAutomationRunVisited(ctx context.Context, arg AppendAutomationRunVisitedParams) error {
 	_, err := q.db.Exec(ctx, appendAutomationRunVisited, arg.StepID, arg.ID)
 	return err
+}
+
+const campaignOfWAMID = `-- name: CampaignOfWAMID :one
+SELECT campaign_id FROM messages WHERE wamid = $1
+`
+
+func (q *Queries) CampaignOfWAMID(ctx context.Context, wamid *string) (*uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, campaignOfWAMID, wamid)
+	var campaign_id *uuid.UUID
+	err := row.Scan(&campaign_id)
+	return campaign_id, err
+}
+
+const campaignRepliedTo = `-- name: CampaignRepliedTo :one
+SELECT coalesce(
+    (SELECT q.campaign_id FROM messages q WHERE $1::text IS NOT NULL AND q.wamid = $1::text),
+    (SELECT o.campaign_id FROM messages o
+     WHERE o.contact_id = $2 AND o.phone_number_id = $3 AND o.direction = 'outbound'
+       AND o.id < $4 AND o.created_at > now() - interval '72 hours'
+       AND NOT EXISTS (SELECT 1 FROM messages i WHERE i.contact_id = o.contact_id AND i.phone_number_id = o.phone_number_id
+                       AND i.direction = 'inbound' AND i.id > o.id AND i.id < $4)
+     ORDER BY o.id DESC LIMIT 1),
+    '00000000-0000-0000-0000-000000000000'
+)::uuid AS campaign_id
+`
+
+type CampaignRepliedToParams struct {
+	ReplyToWamid  *string
+	ContactID     uuid.UUID
+	PhoneNumberID uuid.UUID
+	MessageID     uuid.UUID
+}
+
+// The campaign an inbound message answers: the campaign message it quotes,
+// else the thread's latest outbound message when that is a campaign
+// message of the last 72 hours and the customer has not written since.
+// The nil uuid means none.
+func (q *Queries) CampaignRepliedTo(ctx context.Context, arg CampaignRepliedToParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, campaignRepliedTo,
+		arg.ReplyToWamid,
+		arg.ContactID,
+		arg.PhoneNumberID,
+		arg.MessageID,
+	)
+	var campaign_id uuid.UUID
+	err := row.Scan(&campaign_id)
+	return campaign_id, err
 }
 
 const cancelRunsOfAutomation = `-- name: CancelRunsOfAutomation :execrows
@@ -123,23 +173,30 @@ func (q *Queries) DeleteAutomation(ctx context.Context, id uuid.UUID) (int64, er
 }
 
 const finishAutomationRun = `-- name: FinishAutomationRun :exec
-UPDATE automation_runs SET status = $1, error = $2, finished_at = now(), updated_at = now(), resume_at = NULL
-WHERE id = $3
+UPDATE automation_runs SET status = $1, error = $2, error_code = $3, finished_at = now(),
+    updated_at = now(), resume_at = NULL
+WHERE id = $4
 `
 
 type FinishAutomationRunParams struct {
-	Status string
-	Error  *string
-	ID     uuid.UUID
+	Status    string
+	Error     *string
+	ErrorCode *string
+	ID        uuid.UUID
 }
 
 func (q *Queries) FinishAutomationRun(ctx context.Context, arg FinishAutomationRunParams) error {
-	_, err := q.db.Exec(ctx, finishAutomationRun, arg.Status, arg.Error, arg.ID)
+	_, err := q.db.Exec(ctx, finishAutomationRun,
+		arg.Status,
+		arg.Error,
+		arg.ErrorCode,
+		arg.ID,
+	)
 	return err
 }
 
 const getAutomation = `-- name: GetAutomation :one
-SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout FROM automations WHERE id = $1
+SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version FROM automations WHERE id = $1
 `
 
 func (q *Queries) GetAutomation(ctx context.Context, id uuid.UUID) (Automation, error) {
@@ -159,12 +216,15 @@ func (q *Queries) GetAutomation(ctx context.Context, id uuid.UUID) (Automation, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Layout,
+		&i.Setup,
+		&i.PresetKey,
+		&i.PresetVersion,
 	)
 	return i, err
 }
 
 const getAutomationRun = `-- name: GetAutomationRun :one
-SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by FROM automation_runs WHERE id = $1
+SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by, vars, attempt, error_code FROM automation_runs WHERE id = $1
 `
 
 func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error) {
@@ -188,12 +248,31 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (Automatio
 		&i.Visited,
 		&i.ConversationID,
 		&i.StartedBy,
+		&i.Vars,
+		&i.Attempt,
+		&i.ErrorCode,
 	)
 	return i, err
 }
 
+const getAutomationSend = `-- name: GetAutomationSend :one
+SELECT message_id FROM automation_sends WHERE run_id = $1 AND pc = $2
+`
+
+type GetAutomationSendParams struct {
+	RunID uuid.UUID
+	Pc    int32
+}
+
+func (q *Queries) GetAutomationSend(ctx context.Context, arg GetAutomationSendParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getAutomationSend, arg.RunID, arg.Pc)
+	var message_id uuid.UUID
+	err := row.Scan(&message_id)
+	return message_id, err
+}
+
 const getAutomationWithStats = `-- name: GetAutomationWithStats :one
-SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, a.setup, a.preset_key, a.preset_version, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
        coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
 FROM automations a
 LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
@@ -202,22 +281,25 @@ WHERE a.id = $1
 `
 
 type GetAutomationWithStatsRow struct {
-	ID          uuid.UUID
-	Name        string
-	Description string
-	Active      bool
-	TriggerType string
-	Trigger     []byte
-	Steps       []byte
-	Program     []byte
-	Version     int32
-	CreatedBy   *uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Layout      []byte
-	RunCount    int64
-	HasRun      bool
-	LastRunAt   time.Time
+	ID            uuid.UUID
+	Name          string
+	Description   string
+	Active        bool
+	TriggerType   string
+	Trigger       []byte
+	Steps         []byte
+	Program       []byte
+	Version       int32
+	CreatedBy     *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Layout        []byte
+	Setup         []byte
+	PresetKey     *string
+	PresetVersion *int32
+	RunCount      int64
+	HasRun        bool
+	LastRunAt     time.Time
 }
 
 func (q *Queries) GetAutomationWithStats(ctx context.Context, id uuid.UUID) (GetAutomationWithStatsRow, error) {
@@ -237,6 +319,9 @@ func (q *Queries) GetAutomationWithStats(ctx context.Context, id uuid.UUID) (Get
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Layout,
+		&i.Setup,
+		&i.PresetKey,
+		&i.PresetVersion,
 		&i.RunCount,
 		&i.HasRun,
 		&i.LastRunAt,
@@ -256,21 +341,25 @@ func (q *Queries) HasActiveAutomation(ctx context.Context, triggerType string) (
 }
 
 const insertAutomation = `-- name: InsertAutomation :one
-INSERT INTO automations (name, description, active, trigger_type, trigger, steps, program, layout, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout
+INSERT INTO automations (name, description, active, trigger_type, trigger, steps, program, layout, created_by, setup, preset_key, preset_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12)
+RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version
 `
 
 type InsertAutomationParams struct {
-	Name        string
-	Description string
-	Active      bool
-	TriggerType string
-	Trigger     []byte
-	Steps       []byte
-	Program     []byte
-	Layout      []byte
-	CreatedBy   *uuid.UUID
+	Name          string
+	Description   string
+	Active        bool
+	TriggerType   string
+	Trigger       []byte
+	Steps         []byte
+	Program       []byte
+	Layout        []byte
+	CreatedBy     *uuid.UUID
+	Setup         []byte
+	PresetKey     *string
+	PresetVersion *int32
 }
 
 func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationParams) (Automation, error) {
@@ -284,6 +373,9 @@ func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationPara
 		arg.Program,
 		arg.Layout,
 		arg.CreatedBy,
+		arg.Setup,
+		arg.PresetKey,
+		arg.PresetVersion,
 	)
 	var i Automation
 	err := row.Scan(
@@ -300,6 +392,9 @@ func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Layout,
+		&i.Setup,
+		&i.PresetKey,
+		&i.PresetVersion,
 	)
 	return i, err
 }
@@ -360,6 +455,21 @@ func (q *Queries) InsertAutomationRunStep(ctx context.Context, arg InsertAutomat
 	return err
 }
 
+const insertAutomationSend = `-- name: InsertAutomationSend :exec
+INSERT INTO automation_sends (run_id, pc, message_id) VALUES ($1, $2, $3)
+`
+
+type InsertAutomationSendParams struct {
+	RunID     uuid.UUID
+	Pc        int32
+	MessageID uuid.UUID
+}
+
+func (q *Queries) InsertAutomationSend(ctx context.Context, arg InsertAutomationSendParams) error {
+	_, err := q.db.Exec(ctx, insertAutomationSend, arg.RunID, arg.Pc, arg.MessageID)
+	return err
+}
+
 const listAutomationRunSteps = `-- name: ListAutomationRunSteps :many
 SELECT id, run_id, pc, action, outcome, detail, created_at FROM automation_run_steps WHERE run_id = $1 ORDER BY id
 `
@@ -393,7 +503,7 @@ func (q *Queries) ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) (
 }
 
 const listAutomationRuns = `-- name: ListAutomationRuns :many
-SELECT r.id, r.automation_id, r.automation_version, r.event_key, r.event, r.contact_id, r.status, r.pc, r.steps_executed, r.resume_at, r.error, r.created_at, r.updated_at, r.finished_at, r.visited, r.conversation_id, r.started_by, coalesce(c.phone_e164, '')::text AS phone
+SELECT r.id, r.automation_id, r.automation_version, r.event_key, r.event, r.contact_id, r.status, r.pc, r.steps_executed, r.resume_at, r.error, r.created_at, r.updated_at, r.finished_at, r.visited, r.conversation_id, r.started_by, r.vars, r.attempt, r.error_code, coalesce(c.phone_e164, '')::text AS phone
 FROM automation_runs r LEFT JOIN contacts c ON c.id = r.contact_id
 WHERE r.automation_id = $1
   AND ($2::uuid IS NULL OR r.id < $2::uuid)
@@ -424,6 +534,9 @@ type ListAutomationRunsRow struct {
 	Visited           []byte
 	ConversationID    *uuid.UUID
 	StartedBy         string
+	Vars              []byte
+	Attempt           int32
+	ErrorCode         *string
 	Phone             string
 }
 
@@ -454,6 +567,9 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 			&i.Visited,
 			&i.ConversationID,
 			&i.StartedBy,
+			&i.Vars,
+			&i.Attempt,
+			&i.ErrorCode,
 			&i.Phone,
 		); err != nil {
 			return nil, err
@@ -467,7 +583,7 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 }
 
 const listAutomations = `-- name: ListAutomations :many
-SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, a.setup, a.preset_key, a.preset_version, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
        coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
 FROM automations a
 LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
@@ -476,22 +592,25 @@ ORDER BY a.created_at
 `
 
 type ListAutomationsRow struct {
-	ID          uuid.UUID
-	Name        string
-	Description string
-	Active      bool
-	TriggerType string
-	Trigger     []byte
-	Steps       []byte
-	Program     []byte
-	Version     int32
-	CreatedBy   *uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Layout      []byte
-	RunCount    int64
-	HasRun      bool
-	LastRunAt   time.Time
+	ID            uuid.UUID
+	Name          string
+	Description   string
+	Active        bool
+	TriggerType   string
+	Trigger       []byte
+	Steps         []byte
+	Program       []byte
+	Version       int32
+	CreatedBy     *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Layout        []byte
+	Setup         []byte
+	PresetKey     *string
+	PresetVersion *int32
+	RunCount      int64
+	HasRun        bool
+	LastRunAt     time.Time
 }
 
 // The LEFT JOIN makes run statistics nullable: an automation may never
@@ -519,6 +638,9 @@ func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, er
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Layout,
+			&i.Setup,
+			&i.PresetKey,
+			&i.PresetVersion,
 			&i.RunCount,
 			&i.HasRun,
 			&i.LastRunAt,
@@ -533,8 +655,49 @@ func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, er
 	return items, nil
 }
 
+const listAutomationsByTypes = `-- name: ListAutomationsByTypes :many
+SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version FROM automations WHERE active AND trigger_type = ANY($1::text[]) ORDER BY created_at
+`
+
+func (q *Queries) ListAutomationsByTypes(ctx context.Context, triggerTypes []string) ([]Automation, error) {
+	rows, err := q.db.Query(ctx, listAutomationsByTypes, triggerTypes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Automation{}
+	for rows.Next() {
+		var i Automation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Active,
+			&i.TriggerType,
+			&i.Trigger,
+			&i.Steps,
+			&i.Program,
+			&i.Version,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Layout,
+			&i.Setup,
+			&i.PresetKey,
+			&i.PresetVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockAutomationRun = `-- name: LockAutomationRun :one
-SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by FROM automation_runs WHERE id = $1 FOR UPDATE
+SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by, vars, attempt, error_code FROM automation_runs WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error) {
@@ -558,8 +721,25 @@ func (q *Queries) LockAutomationRun(ctx context.Context, id uuid.UUID) (Automati
 		&i.Visited,
 		&i.ConversationID,
 		&i.StartedBy,
+		&i.Vars,
+		&i.Attempt,
+		&i.ErrorCode,
 	)
 	return i, err
+}
+
+const mergeAutomationRunVars = `-- name: MergeAutomationRunVars :exec
+UPDATE automation_runs SET vars = vars || $1::jsonb, updated_at = now() WHERE id = $2
+`
+
+type MergeAutomationRunVarsParams struct {
+	Vars []byte
+	ID   uuid.UUID
+}
+
+func (q *Queries) MergeAutomationRunVars(ctx context.Context, arg MergeAutomationRunVarsParams) error {
+	_, err := q.db.Exec(ctx, mergeAutomationRunVars, arg.Vars, arg.ID)
+	return err
 }
 
 const muteContactAutomations = `-- name: MuteContactAutomations :exec
@@ -575,6 +755,75 @@ type MuteContactAutomationsParams struct {
 func (q *Queries) MuteContactAutomations(ctx context.Context, arg MuteContactAutomationsParams) error {
 	_, err := q.db.Exec(ctx, muteContactAutomations, arg.Seconds, arg.ID)
 	return err
+}
+
+const noReplyCandidates = `-- name: NoReplyCandidates :many
+SELECT c.id, c.contact_id, c.phone_number_id, lm.id AS message_id
+FROM conversations c
+CROSS JOIN LATERAL (
+    SELECT m.id, m.direction, m.campaign_id, m.created_at FROM messages m
+    WHERE m.contact_id = c.contact_id AND m.phone_number_id = c.phone_number_id
+      AND m.type NOT IN ('reaction', 'unsupported', 'system')
+      AND NOT (m.direction = 'outbound' AND m.status IN ('failed', 'cancelled'))
+    ORDER BY m.id DESC LIMIT 1) lm
+WHERE c.last_message_at > $1::timestamptz AND c.last_message_at <= $2::timestamptz
+  AND lm.direction = $3::text
+  AND lm.created_at <= $2::timestamptz
+  AND ($3::text = 'inbound' OR (c.last_inbound_at IS NOT NULL AND ($4::boolean OR lm.campaign_id IS NULL)))
+  AND ($5::uuid IS NULL OR c.phone_number_id = $5::uuid)
+ORDER BY c.last_message_at
+LIMIT 1000
+`
+
+type NoReplyCandidatesParams struct {
+	After            time.Time
+	Before           time.Time
+	Direction        string
+	IncludeCampaigns bool
+	PhoneNumberID    *uuid.UUID
+}
+
+type NoReplyCandidatesRow struct {
+	ID            uuid.UUID
+	ContactID     uuid.UUID
+	PhoneNumberID uuid.UUID
+	MessageID     uuid.UUID
+}
+
+// Conversations whose latest message (reactions, system notices and failed
+// sends aside) went in @direction between @after and @before: outbound =
+// the customer has not answered us, inbound = the team has not answered
+// the customer. Campaign messages count as ours only with
+// @include_campaigns; for outbound the customer must have written before.
+func (q *Queries) NoReplyCandidates(ctx context.Context, arg NoReplyCandidatesParams) ([]NoReplyCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, noReplyCandidates,
+		arg.After,
+		arg.Before,
+		arg.Direction,
+		arg.IncludeCampaigns,
+		arg.PhoneNumberID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NoReplyCandidatesRow{}
+	for rows.Next() {
+		var i NoReplyCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContactID,
+			&i.PhoneNumberID,
+			&i.MessageID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const overdueWaitingRuns = `-- name: OverdueWaitingRuns :many
@@ -638,6 +887,23 @@ func (q *Queries) RemoveContactTagByName(ctx context.Context, arg RemoveContactT
 	return result.RowsAffected(), nil
 }
 
+const retryAutomationRun = `-- name: RetryAutomationRun :exec
+UPDATE automation_runs SET status = 'waiting', attempt = attempt + 1,
+    resume_at = now() + make_interval(secs => $1::double precision), updated_at = now()
+WHERE id = $2
+`
+
+type RetryAutomationRunParams struct {
+	WaitSeconds float64
+	ID          uuid.UUID
+}
+
+// A failed attempt of the current step: wait, then run the same step again.
+func (q *Queries) RetryAutomationRun(ctx context.Context, arg RetryAutomationRunParams) error {
+	_, err := q.db.Exec(ctx, retryAutomationRun, arg.WaitSeconds, arg.ID)
+	return err
+}
+
 const staleRunningRuns = `-- name: StaleRunningRuns :many
 SELECT id FROM automation_runs WHERE status IN ('queued', 'running') AND updated_at < now() - interval '5 minutes' LIMIT 500
 `
@@ -673,10 +939,11 @@ UPDATE automations SET
     program = coalesce($7, program),
     -- Moving nodes on the canvas is not a new version: runs continue.
     layout = coalesce($8, layout),
+    setup = coalesce($9, setup),
     version = CASE WHEN $7::jsonb IS NOT NULL OR $5::jsonb IS NOT NULL THEN version + 1 ELSE version END,
     updated_at = now()
-WHERE id = $9
-RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout
+WHERE id = $10
+RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version
 `
 
 type UpdateAutomationParams struct {
@@ -688,6 +955,7 @@ type UpdateAutomationParams struct {
 	Steps       []byte
 	Program     []byte
 	Layout      []byte
+	Setup       []byte
 	ID          uuid.UUID
 }
 
@@ -701,6 +969,7 @@ func (q *Queries) UpdateAutomation(ctx context.Context, arg UpdateAutomationPara
 		arg.Steps,
 		arg.Program,
 		arg.Layout,
+		arg.Setup,
 		arg.ID,
 	)
 	var i Automation
@@ -718,12 +987,15 @@ func (q *Queries) UpdateAutomation(ctx context.Context, arg UpdateAutomationPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Layout,
+		&i.Setup,
+		&i.PresetKey,
+		&i.PresetVersion,
 	)
 	return i, err
 }
 
 const waitAutomationRun = `-- name: WaitAutomationRun :exec
-UPDATE automation_runs SET pc = $1, status = 'waiting', steps_executed = steps_executed + 1,
+UPDATE automation_runs SET pc = $1, status = 'waiting', steps_executed = steps_executed + 1, attempt = 0,
     resume_at = now() + make_interval(secs => $2::double precision), updated_at = now()
 WHERE id = $3
 `
@@ -737,4 +1009,79 @@ type WaitAutomationRunParams struct {
 func (q *Queries) WaitAutomationRun(ctx context.Context, arg WaitAutomationRunParams) error {
 	_, err := q.db.Exec(ctx, waitAutomationRun, arg.Pc, arg.WaitSeconds, arg.ID)
 	return err
+}
+
+const windowClosingCandidates = `-- name: WindowClosingCandidates :many
+SELECT c.id, c.contact_id, c.phone_number_id, lm.id AS last_message_id, lm.direction AS last_direction,
+       li.id AS inbound_message_id, c.last_inbound_at
+FROM conversations c
+CROSS JOIN LATERAL (
+    SELECT m.id, m.direction FROM messages m
+    WHERE m.contact_id = c.contact_id AND m.phone_number_id = c.phone_number_id
+      AND m.type NOT IN ('reaction', 'unsupported', 'system')
+      AND NOT (m.direction = 'outbound' AND m.status IN ('failed', 'cancelled'))
+    ORDER BY m.id DESC LIMIT 1) lm
+CROSS JOIN LATERAL (
+    SELECT m.id FROM messages m
+    WHERE m.contact_id = c.contact_id AND m.phone_number_id = c.phone_number_id AND m.direction = 'inbound'
+      AND m.type NOT IN ('reaction', 'unsupported', 'system')
+    ORDER BY m.id DESC LIMIT 1) li
+WHERE c.last_inbound_at IS NOT NULL
+  AND c.last_inbound_at > $1::timestamptz
+  AND c.last_inbound_at <= $2::timestamptz
+  AND ($3::uuid IS NULL OR c.phone_number_id = $3::uuid)
+ORDER BY c.last_inbound_at
+LIMIT 1000
+`
+
+type WindowClosingCandidatesParams struct {
+	OpenedAfter   time.Time
+	OpenedBefore  time.Time
+	PhoneNumberID *uuid.UUID
+}
+
+type WindowClosingCandidatesRow struct {
+	ID               uuid.UUID
+	ContactID        uuid.UUID
+	PhoneNumberID    uuid.UUID
+	LastMessageID    uuid.UUID
+	LastDirection    string
+	InboundMessageID uuid.UUID
+	LastInboundAt    *time.Time
+}
+
+// Conversations whose customer service window (24 hours after the
+// customer's last window-opening message) closes soon: the window opened
+// between @opened_after (now - 24 h) and @opened_before (now - 24 h + the
+// automation's minutes).
+// last_message_* is the latest message of the thread, reactions, system
+// notices and failed sends aside: inbound means the customer is waiting
+// for an answer. inbound_message_id (the message that opened the window)
+// identifies the window.
+func (q *Queries) WindowClosingCandidates(ctx context.Context, arg WindowClosingCandidatesParams) ([]WindowClosingCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, windowClosingCandidates, arg.OpenedAfter, arg.OpenedBefore, arg.PhoneNumberID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WindowClosingCandidatesRow{}
+	for rows.Next() {
+		var i WindowClosingCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContactID,
+			&i.PhoneNumberID,
+			&i.LastMessageID,
+			&i.LastDirection,
+			&i.InboundMessageID,
+			&i.LastInboundAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

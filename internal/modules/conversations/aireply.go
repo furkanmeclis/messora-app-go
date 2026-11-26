@@ -503,6 +503,11 @@ func (s *Service) escalateTx(ctx context.Context, tx pgx.Tx, q *db.Queries, c db
 		"reason": string(reason), "detail": detail, "to": to}); err != nil {
 		return updated, err
 	}
+	// Automations may react to the escalation (trigger ai_escalation).
+	if err := trigger.Emit(ctx, tx, q, trigger.Event{Type: trigger.AIEscalation, Key: "escalation:" + h.ID.String(), ContactID: c.ContactID,
+		ConversationID: &c.ID, PhoneNumberID: &c.PhoneNumberID, Reason: string(reason), Body: sum.Text}); err != nil {
+		return updated, err
+	}
 	if err := audit.Record(ctx, q, audit.Entry{Action: "conversation.escalate", EntityType: "conversation", EntityID: &c.ID,
 		Changes: map[string]any{"reason": string(reason), "handoff_id": h.ID, "owner_type": []any{c.OwnerType, updated.OwnerType}}}); err != nil {
 		return updated, err

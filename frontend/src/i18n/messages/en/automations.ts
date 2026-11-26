@@ -107,6 +107,14 @@ const automations = {
         muteFor: 'For {duration}',
         unknownType: 'Kept as it is',
         more: '(+{count} more)',
+        toPool: 'To the team’s pool',
+        aiAutoReply: 'The AI answers',
+        aiApproval: 'The AI drafts, a person approves',
+        aiOff: 'AI is off — this step will not run.',
+        aiOffLong:
+            'AI is turned off for the company, so this step fails with “AI disabled” until it is turned on.',
+        aiSettings: 'AI settings',
+        setupNeeded: 'Setup needed',
     },
     outputs: { out: 'Next', yes: 'Yes', no: 'No', next: 'Then' },
     categories: {
@@ -114,6 +122,7 @@ const automations = {
         message: 'Message',
         data: 'Contact & inbox',
         flow: 'Flow',
+        ai: 'AI',
         integration: 'Integration',
     },
     triggers: {
@@ -142,6 +151,29 @@ const automations = {
             description:
                 'A customer writes a stop word, an opt-out request or a resubscribe word (see Settings › Subscription & consent). Consent is already updated when this runs; an automation cannot send marketing to someone who opted out.',
         },
+        window_closing: {
+            label: 'Window closing',
+            description:
+                'The 24-hour customer service window of a conversation closes soon and the customer’s message is still unanswered. Fires once per window.',
+        },
+        no_reply: {
+            label: 'No reply',
+            description:
+                'Nobody answered for a while: the customer after your message, or the team after the customer’s.',
+        },
+        campaign_reply: {
+            label: 'Campaign reply',
+            description: 'A customer answers a campaign message.',
+        },
+        reaction: {
+            label: 'Reaction',
+            description:
+                'A customer reacts to a message, positively (👍, ❤️ …) or negatively (👎, 😡 …).',
+        },
+        ai_escalation: {
+            label: 'AI escalation',
+            description: 'The AI hands a conversation to a person.',
+        },
     },
     trigger: {
         when: 'When',
@@ -163,6 +195,42 @@ const automations = {
         cooldown: 'Cooldown per contact',
         cooldownHint:
             'At most one run per contact within this time; 0 means no limit.',
+        windowMinutes: 'Before the window closes',
+        windowMinutesHint:
+            '5 minutes to 23 hours before the 24-hour window closes (default {minutes} minutes).',
+        includeAnswered: 'Also when the team answered last',
+        includeAnsweredHint:
+            'Off: only when the customer’s last message is unanswered.',
+        windowGuidance:
+            'Meta’s rule: only a message from the customer reopens the window. Use this to give the customer a genuinely useful answer (or to alert your team) — never send filler to “keep the window open”.',
+        noReplyFrom: 'Who did not reply',
+        noReply: {
+            customer: 'The customer (after our message)',
+            agent: 'The team (after the customer’s message)',
+        },
+        noReplyMinutes: 'Waiting time',
+        includeCampaigns: 'Count campaign messages as ours',
+        includeCampaignsHint:
+            'Off: only conversation messages start the wait, not campaign sends.',
+        reaction: 'Reaction',
+        reactionHint:
+            'Reactions are classified by emoji (👍 ❤️ 🙏 … positive, 👎 😡 💔 … negative).',
+        reasons: 'Escalation reasons',
+        reasonsHint: 'None selected: any reason.',
+    },
+    reactions: {
+        any: 'Positive or negative',
+        positive: 'Positive',
+        negative: 'Negative',
+    },
+    escalationReasons: {
+        customer_request: 'Customer asked for a person',
+        no_answer: 'AI had no answer',
+        low_confidence: 'AI was unsure',
+        critical_intent: 'Critical intent',
+        unauthorized_action: 'Action not allowed',
+        window_closed: 'Window closed',
+        ai_error: 'AI error',
     },
     match: {
         any: 'Any message',
@@ -206,6 +274,19 @@ const automations = {
         },
         unknown: 'When {type} happens',
         cooldown: ' (at most once per contact every {duration})',
+        windowClosing:
+            'When the 24-hour window closes within {duration} and the customer waits for an answer',
+        noReplyCustomer: 'When the customer has not replied for {duration}',
+        noReplyAgent: 'When the team has not replied for {duration}',
+        campaignReply: 'When a customer answers a campaign message',
+        reaction: {
+            any: 'When a customer reacts to a message',
+            positive: 'When a customer reacts positively',
+            negative: 'When a customer reacts negatively',
+        },
+        aiEscalation: 'When the AI hands a conversation to a person',
+        aiEscalationFor:
+            'When the AI hands a conversation to a person ({reasons})',
     },
     duration: {
         seconds: '{count} second|{count} seconds',
@@ -263,6 +344,50 @@ const automations = {
             label: 'Condition',
             hint: 'Branch into yes and no paths.',
         },
+        handoff_to_human: {
+            label: 'Hand to a person',
+            hint: 'Give the conversation to a teammate or the team’s pool and notify them.',
+        },
+        handoff_to_ai: {
+            label: 'Hand to the AI',
+            hint: 'Let the number’s AI profile answer the conversation.',
+        },
+        add_internal_note: {
+            label: 'Internal note',
+            hint: 'A note for the team; never sent to the customer.',
+        },
+        ai_generate_message: {
+            label: 'AI: write a message',
+            hint: 'The AI writes a message from your instruction.',
+        },
+        ai_analyze_message: {
+            label: 'AI: analyse message',
+            hint: 'Sentiment and a short summary of the customer’s message.',
+        },
+        ai_detect_intent: {
+            label: 'AI: detect intent',
+            hint: 'Picks one of your intents (or “other”).',
+        },
+        ai_extract_fields: {
+            label: 'AI: collect details',
+            hint: 'Writes details the customer gave to the contact (AI, unverified).',
+        },
+        ai_classify_segment: {
+            label: 'AI: choose segment',
+            hint: 'Puts the contact into one of your tags or groups.',
+        },
+        ai_auto_reply: {
+            label: 'AI: auto reply',
+            hint: 'One reply with the number’s AI profile and its handoff rules.',
+        },
+        ai_route_to_agent: {
+            label: 'AI: route to an agent',
+            hint: 'Hands the conversation to a person with an AI summary.',
+        },
+        ai_build_profile: {
+            label: 'AI: build customer profile',
+            hint: 'Keeps a short profile of the customer on the contact.',
+        },
     },
     contactFields: { name: 'Name', email: 'E-mail' },
     conditionFields: {
@@ -277,6 +402,11 @@ const automations = {
         conversation_window_open: '24-hour window open',
         event_tag: 'Added tag (trigger)',
         event_status: 'Message status (trigger)',
+        event_subscription: 'Subscription request (trigger)',
+        event_reaction: 'Reaction (trigger)',
+        event_reason: 'Escalation reason (trigger)',
+        runVar: 'Run variable {name}',
+        runVarOption: 'Run variable (AI result)',
     },
     operators: {
         contains: 'contains',
@@ -358,6 +488,68 @@ const automations = {
         bodyVariables: 'Body variables',
         templateHint:
             'A template is skipped when a variable resolves to an empty value or the contact opted out.',
+        aiMode: 'The AI',
+        aiModes: {
+            auto_reply: 'Answers by itself',
+            awaiting_approval: 'Drafts replies for approval',
+        },
+        aiModeHint:
+            'Skipped when the number has no active AI profile or AI is off.',
+        note: 'Note',
+        noteHint: 'Only your team sees it, on the conversation’s timeline.',
+        forAI: 'Instruction for the AI',
+        forAIHint: 'The AI reads this note as an instruction from the team.',
+        prompt: 'What should the message say?',
+        promptPlaceholder:
+            'Thank {{first_name}} for the order and ask if everything arrived.',
+        output: 'Result',
+        outputs: {
+            variable: 'Keep it in a variable',
+            send: 'Send it as a reply',
+        },
+        outputHint:
+            'A reply is only sent inside the 24-hour window. Either way the text is available as {{var:…}}.',
+        intents: 'Intents',
+        intentsHint:
+            'Lower-case words with _ (e.g. order_status, human_request). “other” is added automatically.',
+        intentBranchTip:
+            'Tip: branch on the result with a condition on {variable} after this step.',
+        autoReplyHint:
+            'The number’s AI profile writes one reply (its disclosure and handoff rules apply). Without an active profile the step fails.',
+        attribute: 'Contact attribute',
+        attributeHint:
+            'The profile goes to this attribute (default ai_profile), marked “AI, unverified”.',
+        handoffTo: 'Give the conversation to',
+        pool: 'The team’s pool (anyone)',
+        handoffHint: 'They are notified. A person can take it from the pool.',
+        handoffNote: 'Note for the person (optional)',
+        routeHint:
+            'The AI summarises the conversation for the person; when it cannot, a summary is built from the messages.',
+        variable: 'Variable name',
+        variableHint: 'Use the result as {{var:{name}}} or in a condition.',
+        aiWrites: 'Writes {vars}.',
+        extraPrompt: 'Extra instruction (optional)',
+        extraPromptHint: 'Anything the AI should know for this step.',
+        extractFields: 'Details to collect',
+        extractKey: 'Field {n}',
+        extractLabel: 'Description for the AI',
+        removeField: 'Remove field {n}',
+        addField: 'Add field',
+        extractHint:
+            'Only what the customer stated is written, marked “AI, unverified”. Needs the AI profile to allow updating contact fields.',
+        segmentKind: 'Choose from',
+        byTags: 'Tags',
+        byGroups: 'Groups',
+        segmentGroups: 'Groups to choose from',
+        segmentTags: 'Tags to choose from',
+        segmentHint: 'The AI picks at most one; nothing when none fits.',
+        retry: 'Retry on failure',
+        retryMax: 'Retries',
+        retryBackoff: 'Wait before the first retry',
+        retryHint:
+            '0 = no retry. The wait doubles with each retry (at most 1 hour). Messages are never sent twice.',
+        conditionVarHint:
+            'A variable an AI step wrote earlier in this run (e.g. intent, sentiment).',
     },
     inputs: {
         insert: 'Insert',
@@ -383,6 +575,47 @@ const automations = {
         delay: 'Wait between 1 second and 30 days.',
         mute: 'Mute between 1 minute and 90 days.',
         conditionValue: 'The condition needs a value.',
+        windowMinutes: 'Choose 5 minutes to 23 hours before the window closes.',
+        noReplyMinutes: 'Wait 5 minutes to 30 days.',
+        retryMax: 'Retries are 0 to 10.',
+        retryBackoff: 'Wait 1 second to 1 hour before a retry.',
+        variable:
+            'A variable name is lower-case letters, digits and _ (up to 40), starting with a letter.',
+        note: 'Write the note (up to 4000 characters).',
+        handoffNote: 'The note is limited to 500 characters.',
+        prompt: 'Write what the message should say.',
+        intents: 'Give 1 to 20 intents.',
+        intentName:
+            'An intent is lower-case letters, digits and _ (up to 40); “other” is implied.',
+        extractFields:
+            'Choose 1 to 20 fields: name, e-mail, var1–var5 or attr:<key>.',
+        segment: 'Give 1 to 20 tags or groups to choose from (not both).',
+        attribute: 'The attribute key is letters, digits, _ . - (up to 64).',
+    },
+    setup: {
+        title: 'Finish the setup to turn this automation on:',
+        blocksActive:
+            'This automation still needs setup (see the marked steps) before it can be turned on.',
+    },
+    presets: {
+        title: 'Ready-made automations',
+        description:
+            'Add a proven automation with one click; it starts disabled and you can change everything.',
+        install: 'Add',
+        installed: 'Automation added. Finish the setup and turn it on.',
+        requiresAI: 'Needs AI',
+        setup: 'You will choose',
+        aiOff: 'AI is off for the company; turn it on before enabling this automation.',
+        categories: {
+            engagement: 'Engagement',
+            consent: 'Consent',
+            ai: 'AI',
+            handoff: 'Handoff',
+            window: '24-hour window',
+            follow_up: 'Follow-up',
+            campaign: 'Campaigns',
+            feedback: 'Feedback',
+        },
     },
     runs: {
         metaTitle: 'Automation runs',
@@ -411,7 +644,20 @@ const automations = {
             skipped: 'Skipped',
             failed: 'Failed',
             waiting: 'Waiting',
+            retrying: 'Retrying',
         },
+        reason: 'Reason',
+        errorCodes: {
+            ai_disabled: 'AI is turned off for the company.',
+            ai_not_configured: 'No AI provider or model is chosen.',
+            ai_not_allowed: 'The AI profile does not allow this step.',
+            ai_no_profile: 'The number has no active AI profile.',
+            ai_error: 'The AI request failed.',
+            retries_exhausted: 'The step failed after its last retry.',
+            step_failed: 'A step failed.',
+        },
+        retrying: 'Attempt {attempt} of {max} failed; retrying in {duration}.',
+        attempt: 'Succeeded on attempt {attempt}.',
         until: 'until {time}',
         details: 'Details',
         detailsOf: 'Details of the run started {time}',
@@ -437,6 +683,12 @@ const automations = {
             assignee_unavailable: 'The person is not active any more.',
             email_not_configured: 'E-mail (SMTP) is not configured.',
             http_not_configured: 'HTTP requests are not configured.',
+            inbox_unavailable: 'The inbox is not available.',
+            contact_ai_disabled: 'AI is disabled for this contact.',
+            ai_unavailable: 'The AI is not available for this conversation.',
+            already_owner: 'The conversation already has this owner.',
+            empty_note: 'The note was empty.',
+            no_groups: 'None of the groups exists any more.',
             missing: 'A template variable resolved to nothing ({name}).',
         },
     },

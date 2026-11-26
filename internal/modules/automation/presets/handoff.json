@@ -1,0 +1,18 @@
+{
+  "key": "handoff_to_agent",
+  "version": 1,
+  "category": "handoff",
+  "title": {"tr": "Temsilciye devir", "en": "Hand over to an agent"},
+  "description": {
+    "tr": "Müşteri \"temsilci\", \"yetkili\", \"canlı destek\" gibi bir ifadeyle insan istediğinde sohbeti ekibe devreder, müşteriye bilgi verir ve iç not bırakır.",
+    "en": "When the customer asks for a person (\"temsilci\", \"yetkili\", \"canlı destek\" …), hands the conversation to the team, tells the customer and leaves an internal note."
+  },
+  "trigger_type": "message_received",
+  "trigger": {"match": "contains", "keywords": ["temsilci", "yetkili", "canlı destek", "müşteri hizmetleri", "insanla görüş", "gerçek biri"], "cooldown_seconds": 3600},
+  "steps": [
+    {"id": "handoff_human", "type": "handoff_to_human", "text": "Müşteri bir temsilci istedi."},
+    {"id": "handoff_reply", "type": "reply", "text": "Sizi hemen bir müşteri temsilcimize aktarıyoruz, kısa süre içinde size dönüş yapılacak."},
+    {"id": "handoff_note", "type": "add_internal_note", "text": "Müşteri temsilci istedi: \"{{message}}\""}
+  ],
+  "setup": []
+}

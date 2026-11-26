@@ -1,0 +1,18 @@
+{
+  "key": "negative_feedback",
+  "version": 1,
+  "category": "feedback",
+  "title": {"tr": "Olumsuz müşteri dönüşü", "en": "Negative customer response"},
+  "description": {
+    "tr": "Müşteri bir mesajınıza olumsuz tepki verdiğinde (👎, 😡 …) kişiyi \"olumsuz-donus\" ile etiketler, ekibe iç not bırakır ve sohbeti bir temsilciye devreder.",
+    "en": "When a customer reacts negatively to a message (👎, 😡 …), tags them \"olumsuz-donus\", leaves the team an internal note and hands the conversation to an agent."
+  },
+  "trigger_type": "reaction",
+  "trigger": {"reaction": "negative"},
+  "steps": [
+    {"id": "negative_tag", "type": "add_tag", "tag": "olumsuz-donus"},
+    {"id": "negative_note", "type": "add_internal_note", "text": "Müşteri bir mesajımıza olumsuz tepki verdi ({{message}}). Lütfen ilgilenin."},
+    {"id": "negative_handoff", "type": "handoff_to_human", "text": "Olumsuz tepki veren müşteri."}
+  ],
+  "setup": []
+}

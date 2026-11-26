@@ -38,6 +38,11 @@ export type EditorOptions = {
     users: Option[] | null;
     me: Option;
     canReadTemplates: boolean;
+    /**
+     * The company's AI switch (AI steps fail while it is off); null when
+     * the user cannot read the AI settings.
+     */
+    aiEnabled: boolean | null;
 };
 
 function optional<T>(
@@ -78,7 +83,7 @@ export async function loadNames(me: Me) {
 
 export async function loadEditorOptions(me: Me): Promise<EditorOptions> {
     const contacts = can(me, 'contacts.read');
-    const [names, tags, groups, templates, users, attributeKeys] =
+    const [names, tags, groups, templates, users, attributeKeys, aiEnabled] =
         await Promise.all([
             loadNames(me),
             optional(
@@ -127,9 +132,17 @@ export async function loadEditorOptions(me: Me): Promise<EditorOptions> {
                     (await api<string[]>('/contacts/attribute-keys')).data,
                 [] as string[],
             ),
+            optional<boolean | null>(
+                can(me, 'ai.read'),
+                async () =>
+                    (await api<Schemas['AISettings']>('/ai/settings')).data
+                        .enabled,
+                null,
+            ),
         ]);
     return {
         ...names,
+        aiEnabled,
         tags,
         groups,
         templates,

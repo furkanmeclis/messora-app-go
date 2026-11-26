@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { LibraryBig, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
@@ -30,13 +30,23 @@ export default async function AutomationsPage() {
                 title={t('automations.list.title')}
                 description={t('automations.list.description')}
                 actions={
-                    canManage && (
-                        <Button asChild>
-                            <Link href="/automations/new">
-                                <Plus /> {t('automations.new.title')}
+                    <>
+                        <Button asChild variant="outline">
+                            <Link
+                                href="/automations/presets"
+                                data-testid="presets-link"
+                            >
+                                <LibraryBig /> {t('automations.presets.title')}
                             </Link>
                         </Button>
-                    )
+                        {canManage && (
+                            <Button asChild>
+                                <Link href="/automations/new">
+                                    <Plus /> {t('automations.new.title')}
+                                </Link>
+                            </Button>
+                        )}
+                    </>
                 }
             />
             <AutomationTable

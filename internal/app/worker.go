@@ -386,10 +386,23 @@ func registerAutomations(mux *asynq.ServeMux, a *automation.Service, log *slog.L
 		if err != nil {
 			return err
 		}
-		return a.Run(ctx, id)
+		err = a.Run(ctx, id)
+		if errors.Is(err, automation.ErrRetriesExhausted) {
+			// The run is marked failed; archiving the task puts it on the
+			// failed jobs page (dead-letter queue).
+			return fmt.Errorf("%w: run %s: %w", asynq.SkipRetry, id, err)
+		}
+		return err
 	}
 	mux.HandleFunc(automation.TypeRun, run)
 	mux.HandleFunc(automation.TypeResume, run)
+	mux.HandleFunc(automation.TypeScan, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := a.Scan(ctx)
+		if n > 0 {
+			log.InfoContext(ctx, "time-based automation triggers fired", "runs", n)
+		}
+		return err
+	})
 	mux.HandleFunc(automation.TypeReaper, func(ctx context.Context, _ *asynq.Task) error {
 		n, err := a.Reap(ctx)
 		if n > 0 {

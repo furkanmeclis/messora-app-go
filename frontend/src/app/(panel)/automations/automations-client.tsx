@@ -223,7 +223,8 @@ export function ActiveSwitch({
     automation,
     disabled,
 }: {
-    automation: Pick<Automation, 'id' | 'name' | 'active'>;
+    automation: Pick<Automation, 'id' | 'name' | 'active'> &
+        Partial<Pick<Automation, 'setup'>>;
     disabled?: boolean;
 }) {
     const t = useT();
@@ -235,10 +236,14 @@ export function ActiveSwitch({
         setSeen(automation.active);
         setChecked(automation.active);
     }
+    // An installed preset cannot be turned on before its setup is done.
+    const needsSetup = (automation.setup?.length ?? 0) > 0 && !checked;
     return (
         <Switch
             checked={checked}
-            disabled={disabled || pending}
+            disabled={disabled || pending || needsSetup}
+            title={needsSetup ? t('automations.setup.blocksActive') : undefined}
+            data-testid={needsSetup ? 'needs-setup-switch' : undefined}
             aria-label={t('automations.list.activeLabel', {
                 name: automation.name,
             })}
