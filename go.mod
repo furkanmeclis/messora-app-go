@@ -28,7 +28,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/crypto v0.59.0
-	golang.org/x/image v0.44.0
+	golang.org/x/image v0.48.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/term v0.48.0
 	google.golang.org/genai v1.79.1
