@@ -239,9 +239,15 @@ export function EngineSummary({
 export function ResumeDialog({
     campaign: c,
     timezone,
+    onResumed,
 }: {
-    campaign: Campaign;
+    campaign: Pick<
+        Campaign,
+        'id' | 'name' | 'priority' | 'max_mps' | 'paused_reason'
+    >;
     timezone: string;
+    /** Called after a resume; the page re-renders without it. */
+    onResumed?: () => void;
 }) {
     const t = useT();
     const router = useRouter();
@@ -295,7 +301,8 @@ export function ResumeDialog({
             );
             if (notify(r)) {
                 setOpen(false);
-                router.refresh();
+                if (onResumed) onResumed();
+                else router.refresh();
             }
         });
 

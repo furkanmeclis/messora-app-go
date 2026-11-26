@@ -1042,6 +1042,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/ops/overview': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The operations center
+         * @description What needs attention now, in one call. Each section is present only when the caller may read it: `campaigns` with campaigns.read (counts by state, the active, paused and scheduled campaigns with progress, rate, estimated time left, cost so far and spam signals, and the send queue per number); `conversations` with conversations.read or conversations.read_all, limited to the conversations the caller may open (escalations no one accepted, unassigned conversations waiting, conversations waiting for a reply, the AI's open conversations, the newest messages); `activity` (messages per hour of the last 24 hours) with conversations.read_all; `automations` with automations.read (runs in progress and runs that failed in the last 24 hours); `alerts` with settings.read (failed jobs, Meta account and number problems, the AI budget, the licence). `sections` limits the answer to some of them (the page re-reads a section when a realtime event says it changed). Lists are bounded; `*_total` fields count everything.
+         */
+        get: operations['getOpsOverview'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/channels/accounts': {
         parameters: {
             query?: never;
@@ -3785,6 +3805,273 @@ export interface components {
         };
         FailedJobListResponse: {
             data: components['schemas']['FailedJob'][];
+            meta: components['schemas']['Meta'];
+        };
+        OpsOverview: {
+            /** Format: date-time */
+            generated_at: string;
+            campaigns?: components['schemas']['OpsCampaigns'];
+            conversations?: components['schemas']['OpsConversations'];
+            activity?: components['schemas']['OpsActivity'];
+            automations?: components['schemas']['OpsAutomations'];
+            alerts?: components['schemas']['OpsAlerts'];
+        };
+        OpsCampaigns: {
+            counts: components['schemas']['OpsCampaignCounts'];
+            /** @description Running, preparing, paused and scheduled campaigns (at most 30), sending ones first. */
+            active: components['schemas']['OpsCampaign'][];
+            /** @description The send queue per number (as GET /campaigns/queue). */
+            queue: components['schemas']['CampaignQueueNumber'][];
+        };
+        OpsCampaignCounts: {
+            /** Format: int64 */
+            running: number;
+            /** Format: int64 */
+            preparing: number;
+            /** Format: int64 */
+            scheduled: number;
+            /**
+             * Format: int64
+             * @description Every pause, the messaging limit included.
+             */
+            paused: number;
+            /**
+             * Format: int64
+             * @description Waiting for the portfolio messaging limit.
+             */
+            paused_limit: number;
+            /**
+             * Format: int64
+             * @description Stopped by campaign protection.
+             */
+            paused_spam: number;
+            /**
+             * Format: int64
+             * @description Stopped because the offer expired.
+             */
+            paused_offer: number;
+            /** Format: int64 */
+            completed_today: number;
+            /** Format: int64 */
+            failed_today: number;
+        };
+        OpsCampaign: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components['schemas']['CampaignStatus'];
+            priority: components['schemas']['CampaignPriority'];
+            /** Format: uuid */
+            phone_number_id: string;
+            display_phone_number: string;
+            /** Format: int64 */
+            total_recipients: number;
+            /** @description The campaign's counters, as in Campaign.counts. */
+            counts: {
+                [key: string]: number;
+            };
+            /** Format: double */
+            max_mps?: number | null;
+            /** Format: double */
+            send_rate?: number | null;
+            /** Format: int64 */
+            eta_seconds?: number | null;
+            /** Format: date-time */
+            scheduled_at?: string | null;
+            /** Format: date-time */
+            started_at?: string | null;
+            paused_reason?: string | null;
+            /** Format: date-time */
+            resume_at?: string | null;
+            last_error?: string | null;
+            /**
+             * Format: int64
+             * @description Meta cost of the messages so far, in millionths of the currency.
+             */
+            cost_micros: number;
+            /** @description The sending account's currency; empty when unknown. */
+            currency: string;
+            /**
+             * Format: int64
+             * @description Messages that failed with 131048, 131049 or 131050 (spam and quality signals).
+             */
+            spam_errors: number;
+        };
+        OpsConversations: {
+            /** @description Oldest first (at most 20). */
+            awaiting_human: components['schemas']['OpsEscalation'][];
+            /** Format: int64 */
+            awaiting_human_total: number;
+            /** @description Open, nobody assigned, not with the AI, last message from the customer; longest waiting first (at most 20). */
+            unassigned: components['schemas']['OpsWaitingConversation'][];
+            /** Format: int64 */
+            unassigned_total: number;
+            /** @description Open conversations whose last message is the customer's (at most 20). */
+            waiting_reply: components['schemas']['OpsWaitingConversation'][];
+            /** Format: int64 */
+            waiting_reply_total: number;
+            /**
+             * Format: int64
+             * @description Open conversations the AI answers.
+             */
+            ai_active: number;
+            /** @description Newest received messages of the last 24 hours (at most 20). */
+            recent_inbound: components['schemas']['OpsMessage'][];
+            /** @description Newest sent messages of the last 24 hours (at most 20). */
+            recent_outbound: components['schemas']['OpsMessage'][];
+        };
+        OpsEscalation: {
+            /** Format: uuid */
+            conversation_id: string;
+            /** Format: uuid */
+            handoff_id: string;
+            /** Format: uuid */
+            contact_id: string;
+            contact_name: string;
+            phone_e164: string;
+            /** @description Why the AI handed over (as ConversationHandoff.reason). */
+            reason: string;
+            reason_detail: string;
+            /** Format: date-time */
+            escalated_at: string;
+            /** Format: uuid */
+            assignee_id: string | null;
+        };
+        OpsWaitingConversation: {
+            /** Format: uuid */
+            conversation_id: string;
+            /** Format: uuid */
+            contact_id: string;
+            contact_name: string;
+            phone_e164: string;
+            /**
+             * Format: date-time
+             * @description The customer's last message.
+             */
+            waiting_since: string;
+            unread_count: number;
+            /** @enum {string} */
+            owner_type: 'human' | 'ai' | 'none';
+            /** Format: uuid */
+            assignee_id: string | null;
+            assignee_name: string | null;
+        };
+        OpsMessage: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            conversation_id: string | null;
+            /** Format: uuid */
+            contact_id: string;
+            contact_name: string;
+            phone_e164: string;
+            /** @enum {string} */
+            direction: 'inbound' | 'outbound';
+            type: string;
+            status: string;
+            source: string;
+            /** @description The first 120 characters of a text message. */
+            preview: string;
+            error_code: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        OpsActivity: {
+            /** @description Messages per hour of the last 24 hours (hours without messages are left out). */
+            hours: components['schemas']['OpsActivityHour'][];
+        };
+        OpsActivityHour: {
+            /** Format: date-time */
+            hour: string;
+            /** Format: int64 */
+            outbound: number;
+            /** Format: int64 */
+            inbound: number;
+        };
+        OpsAutomations: {
+            /** @description Runs in progress, newest first (at most 20). */
+            running: components['schemas']['OpsAutomationRun'][];
+            /** Format: int64 */
+            running_total: number;
+            /** @description Runs that failed in the last 24 hours, newest first (at most 20). */
+            failed: components['schemas']['OpsAutomationRun'][];
+            /** Format: int64 */
+            failed_total: number;
+        };
+        OpsAutomationRun: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            automation_id: string;
+            automation_name: string;
+            /** @enum {string} */
+            status: 'queued' | 'running' | 'waiting' | 'failed';
+            /** @description Why it failed. */
+            error?: string;
+            /** @description Why a failed run failed (as AutomationRun.error_code): ai_disabled, ai_not_configured, ai_not_allowed, ai_no_profile, ai_error, retries_exhausted or step_failed; null for runs in progress. */
+            error_code?: string | null;
+            /** @description Retries of the failing step (0 = first attempt). */
+            attempt?: number;
+            steps_done?: number;
+            started_by?: string;
+            /**
+             * Format: date-time
+             * @description When it started (in progress) or failed.
+             */
+            at: string;
+            /**
+             * Format: uuid
+             * @description Only when the caller may open the conversation.
+             */
+            conversation_id: string | null;
+        };
+        OpsAlerts: {
+            /** @description Background jobs that ran out of retries. */
+            failed_jobs: number;
+            accounts: components['schemas']['OpsAccountAlert'][];
+            numbers: components['schemas']['OpsNumberAlert'][];
+            /** @description Meta's account alerts of the last 7 days (at most 10). */
+            events: components['schemas']['OpsAccountEvent'][];
+            ai_budget?: components['schemas']['AIBudget'];
+            license: components['schemas']['LicenseSummary'];
+        };
+        OpsAccountAlert: {
+            /** Format: uuid */
+            account_id: string;
+            name: string;
+            /** @enum {string} */
+            status: 'active' | 'error' | 'disabled';
+            last_error: string | null;
+            token_warning: string | null;
+            /** Format: date-time */
+            token_expires_at: string | null;
+        };
+        OpsNumberAlert: {
+            /** Format: uuid */
+            phone_number_id: string;
+            /** Format: uuid */
+            account_id: string;
+            display_phone_number: string;
+            verified_name: string;
+            /** @enum {string} */
+            quality_rating: 'RED' | 'YELLOW';
+        };
+        OpsAccountEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            account_id: string;
+            account_name: string;
+            /** Format: uuid */
+            phone_number_id: string | null;
+            display_phone_number: string | null;
+            /** @description The webhook field and event, e.g. account_update.account_restriction. */
+            kind: string;
+            /** Format: date-time */
+            occurred_at: string;
+        };
+        OpsOverviewResponse: {
+            data: components['schemas']['OpsOverview'];
             meta: components['schemas']['Meta'];
         };
         WhatsAppAccount: {
@@ -10321,6 +10608,41 @@ export interface operations {
                 };
                 content?: never;
             };
+            default: components['responses']['Error'];
+        };
+    };
+    getOpsOverview: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated sections to return (default all the caller may read). */
+                sections?: (
+                    | 'campaigns'
+                    | 'conversations'
+                    | 'activity'
+                    | 'automations'
+                    | 'alerts'
+                )[];
+                /** @description IANA time zone that starts "today" (default UTC). */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Overview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['OpsOverviewResponse'];
+                };
+            };
+            401: components['responses']['Unauthorized'];
+            422: components['responses']['ValidationFailed'];
+            429: components['responses']['RateLimited'];
             default: components['responses']['Error'];
         };
     };

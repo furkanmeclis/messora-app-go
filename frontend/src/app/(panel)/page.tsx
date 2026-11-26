@@ -1,128 +1,57 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-    Database,
-    HardDrive,
-    Radio,
-    Server,
-    ServerCrash,
-    ShieldAlert,
-    Timer,
-    Workflow,
-} from 'lucide-react';
+import { Activity, ServerCog, ShieldAlert } from 'lucide-react';
+import { TabNav } from '@/components/tab-nav';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import { getT } from '@/i18n/server';
-import type { MessageKey, Translate } from '@/i18n/translate';
 import { api, ApiError } from '@/lib/server/api';
 import { errorMessage } from '@/lib/server/actions';
 import { can, requireMe } from '@/lib/server/auth';
 import type { SystemStatus } from '@/lib/types';
-import { LiveActivity } from './live-activity';
+import { OpsCenter } from './ops-center';
+import type { OpsOverview } from './ops-actions';
 import { PageHeading } from './panel-header';
 import { RefreshButton } from './refresh-button';
+import { SystemStatusSection } from './system-status';
 
 export async function generateMetadata(): Promise<Metadata> {
     const t = await getT();
     return { title: t('overview.title') };
 }
 
-type Component = SystemStatus['components'][string];
-
-const COMPONENTS: {
-    key: string;
-    /** A product name, or a key for a translated name. */
-    label: string | MessageKey;
-    description: MessageKey;
-    icon: React.ComponentType<{ className?: string }>;
-}[] = [
-    {
-        key: 'postgres',
-        label: 'PostgreSQL',
-        description: 'overview.components.postgres',
-        icon: Database,
-    },
-    {
-        key: 'schema',
-        label: 'overview.components.schemaLabel',
-        description: 'overview.components.schema',
-        icon: HardDrive,
-    },
-    {
-        key: 'redis',
-        label: 'Redis',
-        description: 'overview.components.redis',
-        icon: Server,
-    },
-    {
-        key: 'worker',
-        label: 'overview.components.workerLabel',
-        description: 'overview.components.worker',
-        icon: Workflow,
-    },
-    {
-        key: 'scheduler',
-        label: 'overview.components.schedulerLabel',
-        description: 'overview.components.scheduler',
-        icon: Timer,
-    },
-    {
-        key: 'centrifugo',
-        label: 'Centrifugo',
-        description: 'overview.components.centrifugo',
-        icon: Radio,
-    },
-];
-
-function describe(t: Translate, key: string, c: Component | undefined): string {
-    if (!c) return t('overview.status.noResult');
-    if (c.status === 'fail') return c.error ?? t('overview.status.failed');
-    const d = c.detail as Record<string, unknown> | Record<string, unknown>[];
-    switch (key) {
-        case 'schema':
-            return t('overview.status.version', {
-                version: (d as { current: number }).current,
-            });
-        case 'worker': {
-            const w = d as { servers: number; active_tasks: number };
-            return `${t('overview.status.worker', { count: w.servers })} · ${t('overview.status.running', { count: w.active_tasks })}`;
-        }
-        case 'centrifugo': {
-            const n = (d as { version: string }[])[0];
-            return n ? `v${n.version}` : t('overview.status.connected');
-        }
-        case 'postgres': {
-            const p = d as { total_conns: number; max_conns: number };
-            return t('overview.status.connections', {
-                used: p.total_conns,
-                max: p.max_conns,
-            });
-        }
-        default:
-            return t('overview.status.connected');
-    }
-}
-
-export default async function OverviewPage() {
+/**
+ * The operations center: what needs attention now, live (ops-center.tsx).
+ * The health of the installation is on the System tab.
+ */
+export default async function OverviewPage({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | undefined>>;
+}) {
     const me = await requireMe();
     const t = await getT();
+    const sp = await searchParams;
+    const canSystem = can(me, 'settings.read');
+    const tab = sp.tab === 'system' && canSystem ? 'system' : 'ops';
+    const tz = me.user.timezone || 'UTC';
+
     let status: SystemStatus | null = null;
-    let statusError: string | null = null;
-    if (can(me, 'settings.read')) {
-        try {
+    let overview: OpsOverview | null = null;
+    let loadError: string | null = null;
+    try {
+        if (tab === 'system') {
             status = (await api<SystemStatus>('/system/status')).data;
-        } catch (err) {
-            if (!(err instanceof ApiError)) throw err;
-            statusError = await errorMessage(err);
+        } else {
+            overview = (
+                await api<OpsOverview>(
+                    `/ops/overview?tz=${encodeURIComponent(tz)}`,
+                )
+            ).data;
         }
+    } catch (err) {
+        if (!(err instanceof ApiError)) throw err;
+        loadError = await errorMessage(err);
     }
     const firstName = me.user.name.split(' ')[0] ?? '';
 
@@ -131,7 +60,7 @@ export default async function OverviewPage() {
             <PageHeading
                 title={t('overview.welcome', { name: firstName })}
                 description={t('overview.description')}
-                actions={status && <RefreshButton />}
+                actions={tab === 'system' && status && <RefreshButton />}
             />
 
             {!me.user.mfa_enabled && (
@@ -149,103 +78,57 @@ export default async function OverviewPage() {
                 </Alert>
             )}
 
-            {(can(me, 'conversations.read') ||
-                can(me, 'conversations.read_all') ||
-                can(me, 'campaigns.read')) && <LiveActivity />}
+            {canSystem && (
+                <TabNav
+                    className="mb-6"
+                    label={t('overview.ops.tabs.label')}
+                    items={[
+                        {
+                            href: '/',
+                            label: t('overview.ops.tabs.ops'),
+                            icon: Activity,
+                            active: tab === 'ops',
+                        },
+                        {
+                            href: '/?tab=system',
+                            label: t('overview.ops.tabs.system'),
+                            icon: ServerCog,
+                            active: tab === 'system',
+                            count: status?.failed_jobs || undefined,
+                        },
+                    ]}
+                />
+            )}
 
-            {statusError && (
+            {loadError && (
                 <Alert variant="destructive" className="mb-6">
-                    <AlertTitle>{t('overview.status.unavailable')}</AlertTitle>
-                    <AlertDescription>{statusError}</AlertDescription>
+                    <AlertTitle>
+                        {tab === 'system'
+                            ? t('overview.status.unavailable')
+                            : t('overview.ops.unavailable')}
+                    </AlertTitle>
+                    <AlertDescription>{loadError}</AlertDescription>
                 </Alert>
             )}
 
-            {status && (
-                <section aria-labelledby="system-status">
-                    <div className="mb-3 flex items-center gap-3">
-                        <h2 id="system-status" className="font-medium">
-                            {t('overview.status.title')}
-                        </h2>
-                        <Badge
-                            variant={
-                                status.healthy ? 'secondary' : 'destructive'
-                            }
-                        >
-                            {status.healthy
-                                ? t('overview.status.allHealthy')
-                                : t('overview.status.attention')}
-                        </Badge>
-                        {status.failed_jobs > 0 && (
-                            <Badge variant="destructive" asChild>
-                                <Link
-                                    href="/system/failed-jobs"
-                                    data-testid="failed-jobs-badge"
-                                >
-                                    <ServerCrash />
-                                    {t('overview.status.failedJobs', {
-                                        count: status.failed_jobs,
-                                    })}
-                                </Link>
-                            </Badge>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                            v{status.version}
-                        </span>
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {COMPONENTS.map(
-                            ({ key, label, description, icon: Icon }) => {
-                                const c = status.components[key];
-                                const ok = c?.status === 'ok';
-                                return (
-                                    <Card key={key}>
-                                        <CardHeader className="flex flex-row items-start justify-between gap-2">
-                                            <div className="space-y-1">
-                                                <CardTitle className="flex items-center gap-2 text-base">
-                                                    <Icon className="size-4 text-muted-foreground" />
-                                                    {label.startsWith(
-                                                        'overview.',
-                                                    )
-                                                        ? t(label as MessageKey)
-                                                        : label}
-                                                </CardTitle>
-                                                <CardDescription>
-                                                    {t(description)}
-                                                </CardDescription>
-                                            </div>
-                                            <Badge
-                                                variant={
-                                                    ok
-                                                        ? 'secondary'
-                                                        : 'destructive'
-                                                }
-                                            >
-                                                {ok
-                                                    ? t(
-                                                          'overview.status.healthy',
-                                                      )
-                                                    : t(
-                                                          'overview.status.failing',
-                                                      )}
-                                            </Badge>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <p
-                                                className={
-                                                    ok
-                                                        ? 'text-sm text-muted-foreground'
-                                                        : 'text-sm text-destructive'
-                                                }
-                                            >
-                                                {describe(t, key, c)}
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            },
-                        )}
-                    </div>
-                </section>
+            {tab === 'system' && status && (
+                <SystemStatusSection status={status} t={t} />
+            )}
+            {tab === 'ops' && overview && (
+                <OpsCenter
+                    initial={overview}
+                    userId={me.user.id}
+                    timezone={tz}
+                    perms={{
+                        pause: can(me, 'campaigns.pause'),
+                        start: can(me, 'campaigns.start'),
+                        reply: can(me, 'conversations.reply'),
+                        assign: can(me, 'conversations.assign'),
+                        automations: can(me, 'automations.read'),
+                        channels: can(me, 'channels.read'),
+                        aiUsage: can(me, 'ai.read'),
+                    }}
+                />
             )}
         </>
     );

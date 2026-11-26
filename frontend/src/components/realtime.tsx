@@ -164,6 +164,11 @@ export function RealtimeProvider({
         // state of what the channel announces since it was last current,
         // and reload the page only when that is too much or too long ago.
         const resync = async (channel: string, last: Position | undefined) => {
+            // Hints of the operations center are not replayed: its page
+            // re-reads every section on RESYNCED.
+            if (channel === 'system:ops') {
+                return emit(channel, { type: RESYNCED, v: 1, synced: true });
+            }
             if (channel.startsWith('system:')) return;
             const plan = planResync(last, Date.now());
             if (plan.kind === 'reload') return reload();
