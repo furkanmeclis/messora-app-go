@@ -16,6 +16,9 @@ type Querier interface {
 	// scheduled → active once starts_at passed (and the offer has not ended).
 	ActivateDueOffers(ctx context.Context) ([]Offer, error)
 	ActiveAutomationsFor(ctx context.Context, triggerType string) ([]Automation, error)
+	ActiveCampaignIDs(ctx context.Context) ([]uuid.UUID, error)
+	// Campaigns that are sending (or about to) through the account's numbers.
+	ActiveCampaignsOfAccount(ctx context.Context, accountID uuid.UUID) ([]ActiveCampaignsOfAccountRow, error)
 	AddContactTag(ctx context.Context, arg AddContactTagParams) error
 	AddGroupMembers(ctx context.Context, arg AddGroupMembersParams) (int64, error)
 	AdvanceAutomationRun(ctx context.Context, arg AdvanceAutomationRunParams) error
@@ -25,18 +28,39 @@ type Querier interface {
 	ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatusParams) (Message, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
 	AutomationExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// AI usage attributed to the campaign (P7 sets ai_usage.campaign_id), by
+	// currency.
+	CampaignAICost(ctx context.Context, campaignID *uuid.UUID) ([]CampaignAICostRow, error)
+	// Account events of the campaign's account in a period: quality and
+	// template changes, restrictions (the spam and quality section).
+	CampaignAccountEvents(ctx context.Context, arg CampaignAccountEventsParams) ([]WhatsappAccountEvent, error)
 	// Recipients of a campaign by why they were not reached (unique contacts;
 	// class NULL = reached).
 	CampaignClassCounts(ctx context.Context, campaignID uuid.UUID) ([]CampaignClassCountsRow, error)
+	// The campaign's per-message cost by pricing category and type.
+	CampaignCostByCategory(ctx context.Context, campaignID *uuid.UUID) ([]CampaignCostByCategoryRow, error)
+	// Meta's own (approximate) cost for the campaign's number and days: the
+	// reconciled total, which covers every message of the number on those
+	// days, not only the campaign's.
+	CampaignCostDaily(ctx context.Context, arg CampaignCostDailyParams) ([]CampaignCostDailyRow, error)
+	// Sends, deliveries, reads and replies per hour, from the recipient rows.
+	CampaignHourly(ctx context.Context, campaignID uuid.UUID) ([]CampaignHourlyRow, error)
 	CampaignMessageStats(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMessageStatsRow, error)
 	// Campaigns that are sending or waiting for the portfolio limit, with what
 	// is left (the queue view per number).
 	CampaignQueue(ctx context.Context) ([]CampaignQueueRow, error)
 	CampaignRecipientStats(ctx context.Context, campaignID uuid.UUID) ([]CampaignRecipientStatsRow, error)
+	// The campaign's template on its sender's account (category, status,
+	// quality, buttons).
+	CampaignTemplate(ctx context.Context, campaignID uuid.UUID) (MessageTemplate, error)
+	// Active campaigns and those finished within the attribution horizon
+	// (replies and opt-outs still arrive).
+	CampaignsToReconcile(ctx context.Context, horizonDays int32) ([]uuid.UUID, error)
 	CampaignsUsingOffer(ctx context.Context, offerID *uuid.UUID) ([]CampaignsUsingOfferRow, error)
 	CancelPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
 	CancelRunsOfAutomation(ctx context.Context, automationID uuid.UUID) (int64, error)
 	CancelUnsentMessages(ctx context.Context, campaignID *uuid.UUID) (int64, error)
+	ClaimCampaignExport(ctx context.Context, id uuid.UUID) (CampaignExport, error)
 	// Returns the campaign when its progress may be published now; otherwise
 	// marks it dirty for the reaper and returns no row.
 	ClaimCampaignProgress(ctx context.Context, id uuid.UUID) (ClaimCampaignProgressRow, error)
@@ -135,14 +159,20 @@ type Querier interface {
 	ExpireDueOffers(ctx context.Context) ([]Offer, error)
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
+	ExpiredCampaignExports(ctx context.Context) ([]ExpiredCampaignExportsRow, error)
+	FailCampaignExport(ctx context.Context, arg FailCampaignExportParams) error
 	// One delivery per subscribed active endpoint; running it again for the
 	// same event inserts nothing.
 	FanOutWebhookEvent(ctx context.Context, arg FanOutWebhookEventParams) ([]uuid.UUID, error)
 	FindApprovedTemplate(ctx context.Context, arg FindApprovedTemplateParams) (MessageTemplate, error)
 	FindPhoneNumberByDisplay(ctx context.Context, arg FindPhoneNumberByDisplayParams) (PhoneNumber, error)
 	FinishAutomationRun(ctx context.Context, arg FinishAutomationRunParams) error
+	FinishCampaignExport(ctx context.Context, arg FinishCampaignExportParams) error
 	FinishContactImport(ctx context.Context, arg FinishContactImportParams) error
 	FinishWebhookDelivery(ctx context.Context, arg FinishWebhookDeliveryParams) (int64, error)
+	// Completed campaigns whose template has the given category, newest first,
+	// with their counters: the basis of forecast rates.
+	ForecastHistory(ctx context.Context, arg ForecastHistoryParams) ([]ForecastHistoryRow, error)
 	GetAIModel(ctx context.Context, arg GetAIModelParams) (AiModel, error)
 	GetAIPrice(ctx context.Context, id uuid.UUID) (GetAIPriceRow, error)
 	GetAIProfile(ctx context.Context, id uuid.UUID) (AiProfile, error)
@@ -156,6 +186,10 @@ type Querier interface {
 	GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
 	GetAutomationWithStats(ctx context.Context, id uuid.UUID) (GetAutomationWithStatsRow, error)
 	GetCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
+	// Campaign analytics (Phase 16C P3, docs/CAMPAIGN_ANALYTICS.md).
+	GetCampaignCounters(ctx context.Context, campaignID uuid.UUID) (GetCampaignCountersRow, error)
+	GetCampaignExport(ctx context.Context, id uuid.UUID) (CampaignExport, error)
+	GetCampaignForecast(ctx context.Context, campaignID uuid.UUID) (CampaignForecast, error)
 	GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 	GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error)
 	GetContactGroup(ctx context.Context, id uuid.UUID) (ContactGroup, error)
@@ -210,6 +244,8 @@ type Querier interface {
 	InsertAutomationRunStep(ctx context.Context, arg InsertAutomationRunStepParams) error
 	InsertCampaign(ctx context.Context, arg InsertCampaignParams) (Campaign, error)
 	InsertCampaignEvent(ctx context.Context, arg InsertCampaignEventParams) error
+	InsertCampaignExport(ctx context.Context, arg InsertCampaignExportParams) (CampaignExport, error)
+	InsertCampaignForecast(ctx context.Context, arg InsertCampaignForecastParams) (int64, error)
 	InsertCampaignMessage(ctx context.Context, arg InsertCampaignMessageParams) (Message, error)
 	InsertCampaignPause(ctx context.Context, arg InsertCampaignPauseParams) (CampaignPause, error)
 	InsertConsentEvent(ctx context.Context, arg InsertConsentEventParams) (ConsentEvent, error)
@@ -246,9 +282,15 @@ type Querier interface {
 	InsertWhatsAppAccount(ctx context.Context, arg InsertWhatsAppAccountParams) (WhatsappAccount, error)
 	InsertWhatsAppAccountEvent(ctx context.Context, arg InsertWhatsAppAccountEventParams) error
 	InvalidatePasswordResets(ctx context.Context, userID uuid.UUID) error
+	// When an operator last resumed the campaign from a spam protection pause.
+	LastSpamResume(ctx context.Context, campaignID uuid.UUID) (time.Time, error)
 	// The newest recorded preference of a number for a category: webhooks may
 	// arrive out of order, only the latest choice counts.
 	LatestMetaUserPreference(ctx context.Context, arg LatestMetaUserPreferenceParams) (MetaUserPreference, error)
+	// The contact's most recent campaign recipient reached (sent) at or before
+	// at, with its campaign's number and reaction map: the only campaign an
+	// inbound message or opt-out at that moment may be attributed to.
+	LatestReachedRecipient(ctx context.Context, arg LatestReachedRecipientParams) (LatestReachedRecipientRow, error)
 	ListAIModels(ctx context.Context) ([]ListAIModelsRow, error)
 	ListAIPrices(ctx context.Context) ([]ListAIPricesRow, error)
 	ListAIPricesForKind(ctx context.Context, providerKind string) ([]ListAIPricesForKindRow, error)
@@ -265,6 +307,7 @@ type Querier interface {
 	// have run.
 	ListAutomations(ctx context.Context) ([]ListAutomationsRow, error)
 	ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) ([]CampaignEvent, error)
+	ListCampaignExports(ctx context.Context, campaignID uuid.UUID) ([]CampaignExport, error)
 	ListCampaignPauses(ctx context.Context, campaignID uuid.UUID) ([]CampaignPause, error)
 	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
 	// Realtime re-sync after missed events: campaigns changed at or after since,
@@ -276,6 +319,7 @@ type Querier interface {
 	ListContactGroups(ctx context.Context) ([]ListContactGroupsRow, error)
 	ListContactImports(ctx context.Context) ([]ContactImport, error)
 	ListContactNotes(ctx context.Context, contactID uuid.UUID) ([]ListContactNotesRow, error)
+	ListContactTypes(ctx context.Context) ([]ListContactTypesRow, error)
 	ListConversationEvents(ctx context.Context, arg ListConversationEventsParams) ([]ListConversationEventsRow, error)
 	// see_all is false for users who may only read conversations assigned to
 	// them or to nobody (conversations.read without conversations.read_all).
@@ -330,6 +374,7 @@ type Querier interface {
 	// Consent blocked the message right before it was sent.
 	MarkMessageSkipped(ctx context.Context, arg MarkMessageSkippedParams) error
 	MarkMessageUnknown(ctx context.Context, arg MarkMessageUnknownParams) error
+	// The recipient now mirrors the new message (pending).
 	MarkRecipientQueued(ctx context.Context, arg MarkRecipientQueuedParams) error
 	MarkRecipientSkipped(ctx context.Context, arg MarkRecipientSkippedParams) error
 	MarkSessionReauthenticated(ctx context.Context, id uuid.UUID) (*time.Time, error)
@@ -361,6 +406,7 @@ type Querier interface {
 	// A working token was stored: an account flagged by Meta errors is usable again.
 	ReactivateWhatsAppAccount(ctx context.Context, id uuid.UUID) error
 	RecentRunForContact(ctx context.Context, arg RecentRunForContactParams) (bool, error)
+	RecomputeCampaignCounters(ctx context.Context, campaignID uuid.UUID) (bool, error)
 	// Counts messages a dispatcher tick queued and, every two seconds, turns
 	// them into the measured rate; rolled = true when a new rate was computed
 	// (live progress is published then).
@@ -379,6 +425,9 @@ type Querier interface {
 	// resend, and held messages) grouped by their contacts' consent, for the
 	// pre-resume summary.
 	RemainingConsentGroups(ctx context.Context, campaignID uuid.UUID) ([]RemainingConsentGroupsRow, error)
+	// After the mapping changed: recipients who tapped a quick reply take its
+	// label (none when unmapped); AI labels give way, manual ones stay.
+	RemapQuickReplyReactions(ctx context.Context, arg RemapQuickReplyReactionsParams) (int64, error)
 	RemoveContactTagByName(ctx context.Context, arg RemoveContactTagByNameParams) (int64, error)
 	RemoveGroupMembers(ctx context.Context, arg RemoveGroupMembersParams) (int64, error)
 	ReplaceRole(ctx context.Context, arg ReplaceRoleParams) error
@@ -399,12 +448,14 @@ type Querier interface {
 	SetAccountMessagingLimit(ctx context.Context, arg SetAccountMessagingLimitParams) error
 	SetCampaignOffer(ctx context.Context, arg SetCampaignOfferParams) error
 	SetCampaignPauseInfo(ctx context.Context, arg SetCampaignPauseInfoParams) (Campaign, error)
+	SetCampaignReactionMap(ctx context.Context, arg SetCampaignReactionMapParams) (Campaign, error)
 	SetCampaignResumeAt(ctx context.Context, arg SetCampaignResumeAtParams) (Campaign, error)
 	// Generic transition guarded by the allowed source states.
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
 	// Sets the consent status of the chosen categories and keeps the legacy
 	// opted_out_at flag equal to "both categories opted out".
 	SetContactConsent(ctx context.Context, arg SetContactConsentParams) (Contact, error)
+	SetContactType(ctx context.Context, arg SetContactTypeParams) error
 	SetContactUndeliverable(ctx context.Context, arg SetContactUndeliverableParams) (int64, error)
 	SetConversationAssignee(ctx context.Context, arg SetConversationAssigneeParams) (Conversation, error)
 	SetConversationStatus(ctx context.Context, arg SetConversationStatusParams) (Conversation, error)
@@ -419,6 +470,12 @@ type Querier interface {
 	SetMetaMarketingStopped(ctx context.Context, arg SetMetaMarketingStoppedParams) (int64, error)
 	// Values from a webhook; NULL keeps what is stored.
 	SetPhoneNumberSignals(ctx context.Context, arg SetPhoneNumberSignalsParams) error
+	SetRecipientOptedOut(ctx context.Context, arg SetRecipientOptedOutParams) (int64, error)
+	// A manual label is never overwritten by the system (quick reply mapping
+	// or AI); a manual label replaces anything. reaction NULL clears.
+	SetRecipientReaction(ctx context.Context, arg SetRecipientReactionParams) (int64, error)
+	SetRecipientReplied(ctx context.Context, arg SetRecipientRepliedParams) (int64, error)
+	SetRecipientReplyPayload(ctx context.Context, arg SetRecipientReplyPayloadParams) error
 	SetTemplateQualityByMetaID(ctx context.Context, arg SetTemplateQualityByMetaIDParams) (int64, error)
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
@@ -427,6 +484,11 @@ type Querier interface {
 	SetWhatsAppAccountCurrency(ctx context.Context, arg SetWhatsAppAccountCurrencyParams) error
 	// Records what Meta's debug_token said about the stored token.
 	SetWhatsAppTokenInfo(ctx context.Context, arg SetWhatsAppTokenInfoParams) (WhatsappAccount, error)
+	// The campaign's last n attempts (recipients whose message reached Meta)
+	// and how many of them hit 131049/131050 or opted out.
+	SpamWindow(ctx context.Context, arg SpamWindowParams) (SpamWindowRow, error)
+	// Exports whose job was lost (queued or running for long).
+	StaleCampaignExports(ctx context.Context) ([]uuid.UUID, error)
 	// Pending for longer than expected: its send task may have been lost.
 	StalePendingMessages(ctx context.Context, olderThanSeconds float64) ([]StalePendingMessagesRow, error)
 	StalePreparingCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)

@@ -207,6 +207,53 @@ type Campaign struct {
 	SendRate            *float64
 	RateWindowStart     pgtype.Timestamptz
 	RateWindowQueued    int64
+	ReactionMap         []byte
+}
+
+type CampaignCounter struct {
+	CampaignID   pgtype.UUID
+	Recipients   int64
+	RPending     int64
+	RQueued      int64
+	RSkipped     int64
+	RCancelled   int64
+	RRetry       int64
+	OPending     int64
+	OSent        int64
+	ODelivered   int64
+	ORead        int64
+	OFailed      int64
+	OUnknown     int64
+	OBlocked     int64
+	OCancelled   int64
+	Sent         int64
+	Delivered    int64
+	Read         int64
+	Rejected     int64
+	Replied      int64
+	Positive     int64
+	Negative     int64
+	Neutral      int64
+	OptedOut     int64
+	MPending     int64
+	MSending     int64
+	MUnknown     int64
+	MSent        int64
+	MDelivered   int64
+	MRead        int64
+	MFailed      int64
+	MHeld        int64
+	MCancelled   int64
+	MDeferred    int64
+	MSkipped     int64
+	Err131048    int64
+	Err131049    int64
+	Err131050    int64
+	Priced       int64
+	Unpriced     int64
+	Cost         pgtype.Numeric
+	ReconciledAt pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
 }
 
 type CampaignEvent struct {
@@ -215,6 +262,30 @@ type CampaignEvent struct {
 	Kind       string
 	Detail     []byte
 	ActorID    pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+}
+
+type CampaignExport struct {
+	ID          pgtype.UUID
+	CampaignID  pgtype.UUID
+	Kind        string
+	Format      string
+	Filters     []byte
+	Status      string
+	FileKey     *string
+	Filename    *string
+	SizeBytes   *int64
+	RowsWritten *int64
+	Error       *string
+	RequestedBy pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	FinishedAt  pgtype.Timestamptz
+	ExpiresAt   pgtype.Timestamptz
+}
+
+type CampaignForecast struct {
+	CampaignID pgtype.UUID
+	Forecast   []byte
 	CreatedAt  pgtype.Timestamptz
 }
 
@@ -234,17 +305,34 @@ type CampaignPause struct {
 }
 
 type CampaignRecipient struct {
-	ID            pgtype.UUID
-	CampaignID    pgtype.UUID
-	ContactID     pgtype.UUID
-	PhoneE164     string
-	State         string
-	SkipReason    *string
-	MessageID     pgtype.UUID
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	NextAttemptAt pgtype.Timestamptz
-	Resends       int32
+	ID             pgtype.UUID
+	CampaignID     pgtype.UUID
+	ContactID      pgtype.UUID
+	PhoneE164      string
+	State          string
+	SkipReason     *string
+	MessageID      pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	NextAttemptAt  pgtype.Timestamptz
+	Resends        int32
+	MsgStatus      *string
+	AttemptedAt    pgtype.Timestamptz
+	SentAt         pgtype.Timestamptz
+	DeliveredAt    pgtype.Timestamptz
+	ReadAt         pgtype.Timestamptz
+	FailedAt       pgtype.Timestamptz
+	ErrorCode      *string
+	FailureClass   *string
+	CostAmount     pgtype.Numeric
+	CostCurrency   *string
+	RepliedAt      pgtype.Timestamptz
+	ReplyMessageID pgtype.UUID
+	ReplyPayload   *string
+	Reaction       *string
+	ReactionSource *string
+	ReactionAt     pgtype.Timestamptz
+	OptedOutAt     pgtype.Timestamptz
 }
 
 type ConsentEvent struct {
@@ -290,6 +378,7 @@ type Contact struct {
 	MetaMarketingStoppedAt pgtype.Timestamptz
 	UndeliverableAt        pgtype.Timestamptz
 	UndeliverableCode      *string
+	ContactType            *string
 }
 
 type ContactGroup struct {
