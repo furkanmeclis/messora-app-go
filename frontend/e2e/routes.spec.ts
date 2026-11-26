@@ -146,6 +146,7 @@ const routes: [string, () => string][] = [
     ['/channels', () => '/channels'],
     ['/automations', () => '/automations'],
     ['/automations/new', () => '/automations/new'],
+    ['/automations/presets', () => '/automations/presets'],
     ['/automations/[id]', () => `/automations/${ids.automation}`],
     ['/automations/[id]/runs', () => `/automations/${ids.automation}/runs`],
     ['/users', () => '/users'],

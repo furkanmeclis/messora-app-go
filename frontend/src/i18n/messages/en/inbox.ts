@@ -159,6 +159,7 @@ const inbox = {
             window_closed: 'The 24-hour window is closed',
             ai_error: 'The AI failed',
             manual: 'Handed over by a person',
+            automation: 'Handed over by an automation',
         },
         draft: {
             suggestion: 'AI suggestion',

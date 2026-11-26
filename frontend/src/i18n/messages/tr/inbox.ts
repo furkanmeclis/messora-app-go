@@ -161,6 +161,7 @@ const inbox: Messages['inbox'] = {
             window_closed: '24 saatlik pencere kapalı',
             ai_error: 'AI hata verdi',
             manual: 'Bir temsilci devretti',
+            automation: 'Bir otomasyon devretti',
         },
         draft: {
             suggestion: 'AI önerisi',

@@ -64,6 +64,10 @@ const OUTCOME: Record<
         className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
         dot: 'bg-amber-500',
     },
+    retrying: {
+        className: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
+        dot: 'bg-orange-500',
+    },
 };
 
 const REASONS = [
@@ -71,6 +75,23 @@ const REASONS = [
     'assignee_unavailable',
     'email_not_configured',
     'http_not_configured',
+    'inbox_unavailable',
+    'contact_ai_disabled',
+    'ai_unavailable',
+    'already_owner',
+    'empty_note',
+    'no_groups',
+];
+
+/** Failure codes of a run (automation_runs.error_code). */
+export const ERROR_CODES = [
+    'ai_disabled',
+    'ai_not_configured',
+    'ai_not_allowed',
+    'ai_no_profile',
+    'ai_error',
+    'retries_exhausted',
+    'step_failed',
 ];
 
 export function StatusBadge({ status }: { status: AutomationRun['status'] }) {
@@ -419,6 +440,31 @@ export function RunSummary({ run }: { run: AutomationRun }) {
                     <dd>{formatPrecise(run.resume_at)}</dd>
                 </>
             )}
+            {run.error_code && ERROR_CODES.includes(run.error_code) && (
+                <>
+                    <dt className="text-muted-foreground">
+                        {t('automations.runs.reason')}
+                    </dt>
+                    <dd
+                        className="text-destructive"
+                        data-testid="run-error-code"
+                    >
+                        {t(mk(`automations.runs.errorCodes.${run.error_code}`))}
+                        {run.error_code.startsWith('ai_') &&
+                            run.error_code !== 'ai_error' && (
+                                <>
+                                    {' '}
+                                    <Link
+                                        href="/settings/ai"
+                                        className="font-medium underline underline-offset-2"
+                                    >
+                                        {t('automations.node.aiSettings')}
+                                    </Link>
+                                </>
+                            )}
+                    </dd>
+                </>
+            )}
             {run.error && (
                 <>
                     <dt className="text-muted-foreground">
@@ -509,6 +555,37 @@ export function TimelineItem({
         );
         delete detail.seconds;
     }
+    if (
+        step.outcome === 'retrying' &&
+        typeof detail.attempt === 'number' &&
+        typeof detail.max_retries === 'number'
+    ) {
+        note = t('automations.runs.retrying', {
+            attempt: detail.attempt,
+            max: detail.max_retries,
+            duration: formatDuration(
+                typeof detail.retry_in_seconds === 'number'
+                    ? detail.retry_in_seconds
+                    : 0,
+                t,
+            ),
+        });
+        delete detail.attempt;
+        delete detail.max_retries;
+        delete detail.retry_in_seconds;
+    } else if (typeof detail.attempt === 'number' && detail.attempt > 1) {
+        note = t('automations.runs.attempt', { attempt: detail.attempt });
+        delete detail.attempt;
+    }
+    if (typeof detail.code === 'string') {
+        const c = detail.code;
+        if (ERROR_CODES.includes(c)) {
+            note = [note, t(mk(`automations.runs.errorCodes.${c}`))]
+                .filter(Boolean)
+                .join(' ');
+            delete detail.code;
+        }
+    }
     if (typeof detail.reason === 'string') {
         const r = detail.reason;
         note = REASONS.includes(r)
@@ -520,7 +597,7 @@ export function TimelineItem({
     }
     const label = stepLabel(step.action, t);
     return (
-        <li data-testid="run-step">
+        <li data-testid="run-step" data-outcome={step.outcome}>
             <span
                 className={cn(
                     'absolute -left-[5px] mt-1.5 size-2.5 rounded-full',

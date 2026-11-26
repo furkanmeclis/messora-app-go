@@ -386,6 +386,8 @@ export function validateGraph(
     nodes: FlowNode[],
     edges: FlowEdge[],
     t: Translate,
+    /** Open setup fields by step id (their missing values are allowed). */
+    open?: ReadonlyMap<string, ReadonlySet<string>>,
 ): Problems {
     const tree = graphToSteps(nodes, edges);
     const problems: Problems = { nodes: {}, global: [] };
@@ -413,7 +415,8 @@ export function validateGraph(
                 add(n.id, t('automations.problems.noBranch'));
             }
         }
-        for (const p of stepProblems(step, t)) add(n.id, p.message);
+        for (const p of stepProblems(step, t, open?.get(n.id)))
+            add(n.id, p.message);
     }
     return problems;
 }
