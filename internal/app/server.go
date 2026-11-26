@@ -200,19 +200,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// schedule an ai:reply turn (see conversations.HandleAIReply).
 	inbox.SetAI(aiSvc)
 	msg.SetInboundHook(inbox.OnInbound)
-	// One campaign attribution window (campaign protection settings) for
-	// replies, opt-outs and AI usage.
-	aiSvc.SetAttributionWindow(func(ctx context.Context) (time.Duration, error) {
-		st, err := campaigns.CachedAnalyticsSettings(ctx, q)
-		return st.AttributionWindow(), err
-	})
-	// Free-text campaign replies go to the AI classifier; its result is the
-	// recipient's reaction (source ai) that counters and analysis read.
-	camp.SetReplyClassifier(inbox.CampaignReplyClassifier())
-	aiSvc.SetClassificationSink(func(ctx context.Context, campaignID, recipientID uuid.UUID, sentiment string) error {
-		_, err := camp.SetReaction(ctx, campaignID, recipientID, &sentiment, campaigns.ReactionSourceAI)
-		return err
-	})
+	wireCampaignAI(aiSvc, camp, inbox, q)
 	return &services{cfg: cfg, ai: aiSvc, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
 		automation: automation.New(pool, msg, mail, automationHTTP(cfg), log)}, nil
@@ -297,4 +285,21 @@ func newSystemHandler(pool *pgxpool.Pool, rdb goredis.UniversalClient, insp *asy
 // SSRF-safe client as outgoing webhooks (plain http only in development).
 func automationHTTP(cfg *config.Config) automation.Doer {
 	return webhooks.NewClient(cfg.Env == config.EnvDevelopment)
+}
+
+// wireCampaignAI connects the AI module and campaign analytics: one
+// campaign attribution window (the campaign protection setting) for
+// replies, opt-outs and AI usage, and free-text campaign replies classified
+// by the AI with the result stored as the recipient's reaction (source ai)
+// that counters and analysis read.
+func wireCampaignAI(aiSvc *ai.Service, camp *campaigns.Service, inbox *conversations.Service, q *db.Queries) {
+	aiSvc.SetAttributionWindow(func(ctx context.Context) (time.Duration, error) {
+		st, err := campaigns.CachedAnalyticsSettings(ctx, q)
+		return st.AttributionWindow(), err
+	})
+	camp.SetReplyClassifier(inbox.CampaignReplyClassifier())
+	aiSvc.SetClassificationSink(func(ctx context.Context, campaignID, recipientID uuid.UUID, sentiment string) error {
+		_, err := camp.SetReaction(ctx, campaignID, recipientID, &sentiment, campaigns.ReactionSourceAI)
+		return err
+	})
 }
