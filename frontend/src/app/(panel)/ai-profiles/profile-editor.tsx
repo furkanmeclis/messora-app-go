@@ -46,6 +46,16 @@ const ACTION_KINDS = [
     'assign_conversation',
     'add_internal_note',
 ] as const;
+const FIELD_TYPES = [
+    'text',
+    'email',
+    'phone',
+    'select',
+    'number',
+    'date',
+] as const;
+type FieldType = (typeof FIELD_TYPES)[number];
+
 const CONTACT_FIELDS = [
     'name',
     'email',
@@ -524,7 +534,8 @@ export function ProfileEditor({
                                 {v.data_collection.fields.map((f, i) => (
                                     <div
                                         key={i}
-                                        className="grid gap-2 sm:grid-cols-[12rem_1fr_auto_auto] sm:items-center"
+                                        className="grid gap-2 sm:grid-cols-[12rem_1fr_8rem_auto_auto] sm:items-center"
+                                        data-testid="data-field"
                                     >
                                         <Select
                                             value={f.key}
@@ -624,6 +635,52 @@ export function ProfileEditor({
                                                 })
                                             }
                                         />
+                                        <Select
+                                            value={
+                                                f.key === 'email'
+                                                    ? 'email'
+                                                    : (f.type ?? 'text')
+                                            }
+                                            disabled={
+                                                readOnly ||
+                                                f.key === 'email' ||
+                                                f.key === 'name'
+                                            }
+                                            onValueChange={(type) =>
+                                                setData({
+                                                    fields: v.data_collection.fields.map(
+                                                        (x, j) =>
+                                                            j === i
+                                                                ? {
+                                                                      ...x,
+                                                                      type: type as FieldType,
+                                                                  }
+                                                                : x,
+                                                    ),
+                                                })
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                className="w-full"
+                                                aria-label={t(
+                                                    'ai.profiles.fieldType',
+                                                )}
+                                            >
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {FIELD_TYPES.map((ft) => (
+                                                    <SelectItem
+                                                        key={ft}
+                                                        value={ft}
+                                                    >
+                                                        {t(
+                                                            `ai.profiles.fieldTypes.${ft}`,
+                                                        )}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                         <label className="flex items-center gap-2 text-sm">
                                             <Checkbox
                                                 checked={f.required}
@@ -664,6 +721,48 @@ export function ProfileEditor({
                                         >
                                             <Trash2 />
                                         </Button>
+                                        {f.type === 'select' && (
+                                            <Input
+                                                className="sm:col-span-full"
+                                                value={(f.options ?? []).join(
+                                                    ', ',
+                                                )}
+                                                disabled={readOnly}
+                                                placeholder={t(
+                                                    'ai.profiles.optionsHint',
+                                                )}
+                                                aria-label={t(
+                                                    'ai.profiles.options',
+                                                )}
+                                                onChange={(e) =>
+                                                    setData({
+                                                        fields: v.data_collection.fields.map(
+                                                            (x, j) =>
+                                                                j === i
+                                                                    ? {
+                                                                          ...x,
+                                                                          options:
+                                                                              e.target.value
+                                                                                  .split(
+                                                                                      ',',
+                                                                                  )
+                                                                                  .map(
+                                                                                      (
+                                                                                          o,
+                                                                                      ) =>
+                                                                                          o.trimStart(),
+                                                                                  )
+                                                                                  .slice(
+                                                                                      0,
+                                                                                      50,
+                                                                                  ),
+                                                                      }
+                                                                    : x,
+                                                        ),
+                                                    })
+                                                }
+                                            />
+                                        )}
                                     </div>
                                 ))}
                                 {err('data_collection.fields')}
@@ -698,6 +797,10 @@ export function ProfileEditor({
                                             'may_update_fields',
                                             'ai.profiles.mayUpdate',
                                         ],
+                                        [
+                                            'handoff_when_complete',
+                                            'ai.profiles.handoffWhenComplete',
+                                        ],
                                     ] as const
                                 ).map(([k, label]) => (
                                     <label
@@ -706,7 +809,7 @@ export function ProfileEditor({
                                     >
                                         {t(label)}
                                         <Switch
-                                            checked={v.data_collection[k]}
+                                            checked={!!v.data_collection[k]}
                                             disabled={readOnly}
                                             onCheckedChange={(c) =>
                                                 setData({ [k]: c })

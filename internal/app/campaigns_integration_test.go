@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
@@ -75,6 +76,8 @@ func (h *harness) pump(ctx context.Context, workers int) int {
 			err = h.svc.automation.Run(ctx, id("run_id"))
 		case "task:" + conversations.TypeAIReply:
 			err = h.svc.inbox.HandleAIReply(ctx, id("conversation_id"), id("message_id"))
+		case "task:" + ai.TypeClassifyReply:
+			err = h.svc.ai.RunClassification(ctx, id("classification_id"))
 		case "task:" + messaging.TypeUserPreference:
 			var up messaging.UserPreferenceEvent
 			raw, _ := json.Marshal(e.payload)

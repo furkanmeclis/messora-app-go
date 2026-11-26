@@ -22,6 +22,7 @@ import type {
     Tag,
 } from '@/lib/types';
 import { PageHeading } from '../../panel-header';
+import { AIProfileCard } from './ai-profile-card';
 import { contactName, UUID_RE as UUID } from '../shared';
 import {
     ConsentCard,
@@ -146,6 +147,7 @@ export default async function ContactPage({
                     canUpdate={canUpdate}
                 />
                 <div className="space-y-6">
+                    <AIProfileCard contact={contact} canUpdate={canUpdate} />
                     <ContactFacts contact={contact} />
                     <ConsentCard
                         key={contact.updated_at}

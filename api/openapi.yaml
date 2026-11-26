@@ -888,6 +888,38 @@ paths:
         "204": { description: Deleted }
         default: { $ref: "#/components/responses/Error" }
 
+  /ai/usage/summary:
+    get:
+      operationId: getAIUsageSummary
+      tags: [ai]
+      summary: AI usage and cost between two dates
+      description: >-
+        Requests, generated replies, tokens, cost (USD), failed requests,
+        average latency and the handoff rate (AI escalations divided by
+        conversations the AI answered) between `from` (inclusive) and `to`
+        (exclusive), in total and grouped by `group_by`. Rows of the
+        `campaign` group without a campaign are AI work outside campaigns
+        ("kampanya dışı"). Also returns the month's spend against the
+        monthly AI budget.
+      security: [{ session: [ai.read] }]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - name: group_by
+          in: query
+          schema: { type: string, enum: [model, provider, purpose, campaign, day], default: day }
+        - name: tz
+          in: query
+          description: IANA time zone of the day groups (default UTC).
+          schema: { type: string, maxLength: 64 }
+      responses:
+        "200":
+          description: Usage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIUsageSummaryResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /ai/profiles/{profileId}/test:
     parameters: [{ $ref: "#/components/parameters/ProfileId" }]
     post:
@@ -1691,6 +1723,10 @@ paths:
           in: query
           description: "meta_marketing_stopped: stopped marketing in WhatsApp; undeliverable: Meta could not deliver to the number."
           schema: { $ref: "#/components/schemas/Reachability" }
+        - name: ai_profile
+          in: query
+          description: "true: contacts whose profile the AI built from an unknown number (profile_status collecting or complete)."
+          schema: { type: boolean }
         - { name: sort, in: query, schema: { $ref: "#/components/schemas/ContactSort" } }
         - name: page
           in: query
@@ -1822,6 +1858,31 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "422": { $ref: "#/components/responses/ValidationFailed" }
         "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /contacts/{contactId}/verify-fields:
+    post:
+      operationId: verifyContactFields
+      tags: [contacts]
+      summary: Mark values the AI collected as verified
+      description: >-
+        A person confirms values the AI collected ("AI tarafından toplandı,
+        doğrulanmadı"). Verified values are never overwritten by the AI.
+        Audited.
+      security: [{ session: [contacts.update] }]
+      parameters:
+        - { $ref: "#/components/parameters/ContactId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyContactFieldsRequest" }
+      responses:
+        "200":
+          description: The contact
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContactResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /contacts/{contactId}:
@@ -2017,6 +2078,7 @@ paths:
         - { name: marketing_consent, in: query, schema: { $ref: "#/components/schemas/ConsentStatus" } }
         - { name: service_consent, in: query, schema: { $ref: "#/components/schemas/ConsentStatus" } }
         - { name: reachability, in: query, schema: { $ref: "#/components/schemas/Reachability" } }
+        - { name: ai_profile, in: query, description: "true: contacts whose profile the AI built from an unknown number.", schema: { type: boolean } }
         - { name: q, in: query, schema: { type: string, maxLength: 100 } }
         - { name: tag_id, in: query, schema: { type: string, format: uuid } }
         - { name: group_id, in: query, schema: { type: string, format: uuid } }
@@ -2904,6 +2966,30 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationFailed" }
         "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /campaigns/{campaignId}/ai-usage:
+    get:
+      operationId: getCampaignAIUsage
+      tags: [campaigns]
+      summary: AI usage, AI cost and total operational cost of a campaign
+      description: >-
+        The AI requests attributed to the campaign (a request belongs to the
+        campaign that reached the contact last within the attribution
+        window, never to two), their tokens and USD cost, what Meta billed
+        for the campaign's messages, and the total operational cost (Meta +
+        AI) when both are in the same currency. Also the AI's reading of
+        the replies (positive / negative / neutral) when reply
+        classification is on.
+      security: [{ session: [campaigns.read] }]
+      parameters:
+        - { $ref: "#/components/parameters/CampaignId" }
+      responses:
+        "200":
+          description: Usage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CampaignAIUsageResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /campaigns/{campaignId}/pauses:
@@ -5193,6 +5279,7 @@ components:
         marketing_consent: { $ref: "#/components/schemas/ConsentStatus" }
         service_consent: { $ref: "#/components/schemas/ConsentStatus" }
         reachability: { $ref: "#/components/schemas/Reachability" }
+        ai_profile: { type: boolean, description: "true: contacts whose profile the AI built from an unknown number." }
     ContactBulkRequest:
       example:
         action: add_tag
@@ -6064,7 +6151,7 @@ components:
     AISettings:
       type: object
       required: [enabled, default_provider_id, default_model, disclosure, data_sharing_notice, fake_provider_available,
-                 max_replies_per_hour, context_messages]
+                 max_replies_per_hour, context_messages, monthly_budget, classify_campaign_replies, campaign_attribution_days]
       properties:
         enabled: { type: boolean, description: Master switch; while off no AI work runs. }
         default_provider_id: { type: [string, "null"], format: uuid }
@@ -6073,6 +6160,11 @@ components:
         data_sharing_notice: { $ref: "#/components/schemas/AITexts" }
         max_replies_per_hour: { type: integer, description: AI requests per conversation and hour; above it the conversation goes to a person. }
         context_messages: { type: integer, description: Recent messages an AI turn sees. }
+        monthly_budget:
+          type: [string, "null"]
+          description: Monthly AI budget in USD (calendar month, UTC); null = none. When used up, AI auto replies pause (escalation ai_budget).
+        classify_campaign_replies: { type: boolean, description: "Whether the AI classifies the first reply to a campaign as positive, negative or neutral." }
+        campaign_attribution_days: { type: integer, description: Days after a campaign reached a contact during which the contact's AI usage and replies count for it. }
         fake_provider_available: { type: boolean, description: Whether the fake provider kind can be connected (development and test only). }
     UpdateAISettingsRequest:
       type: object
@@ -6086,6 +6178,9 @@ components:
         data_sharing_notice: { $ref: "#/components/schemas/AITexts" }
         max_replies_per_hour: { type: integer, minimum: 1, maximum: 1000, description: "Default 20." }
         context_messages: { type: integer, minimum: 2, maximum: 100, description: "Default 20." }
+        monthly_budget: { type: [string, "null"], pattern: '^$|^[0-9]{1,8}(\.[0-9]{1,6})?$', description: "USD; an empty string removes the budget. Left out or null: unchanged." }
+        classify_campaign_replies: { type: boolean, description: "Default false. Left out: unchanged." }
+        campaign_attribution_days: { type: integer, minimum: 1, maximum: 90, description: "Default 7. Left out: unchanged." }
     AISettingsResponse:
       type: object
       required: [data, meta]
@@ -6116,6 +6211,11 @@ components:
         key: { type: string, description: "A contact field (name, email, var1…var5) or a custom attribute as attr:<key>." }
         label: { type: string, maxLength: 120 }
         required: { type: boolean }
+        type:
+          type: string
+          enum: [text, email, phone, select, number, date]
+          description: How the extracted value is checked before it is stored (default text; the email field is always email).
+        options: { type: array, maxItems: 50, items: { type: string, maxLength: 100 }, description: Allowed values of a select field. }
 
     AIDataCollection:
       type: object
@@ -6124,8 +6224,9 @@ components:
       properties:
         enabled: { type: boolean }
         fields: { type: array, maxItems: 50, items: { $ref: "#/components/schemas/AIDataField" } }
-        may_create_contact: { type: boolean }
-        may_update_fields: { type: boolean }
+        may_create_contact: { type: boolean, description: "The AI builds the profile of contacts created by a message from an unknown number (greets, asks for the fields)." }
+        may_update_fields: { type: boolean, description: "The AI may store the fields it collected (never over values people set or verified)." }
+        handoff_when_complete: { type: boolean, description: "Hand a new contact's conversation to the team (reason profile_complete) once every required field is collected." }
 
     AIDisclosureMode:
       type: string
@@ -6358,6 +6459,8 @@ components:
           undeliverable_code: null
         last_inbound_at: "2026-11-25T08:41:00Z"
         source: api
+        profile_status: null
+        created_by_inbound_at: null
         created_at: "2026-09-12T07:30:00Z"
         updated_at: "2026-11-25T08:41:00Z"
       type: object
@@ -6388,8 +6491,135 @@ components:
         last_inbound_at: { type: [string, "null"], format: date-time }
         contact_type: { type: [string, "null"], description: "What kind of customer (free text, e.g. bireysel, kurumsal), for campaign breakdowns." }
         source: { type: string, enum: [webhook, manual, import, api] }
+        created_by_inbound_at:
+          type: [string, "null"]
+          format: date-time
+          description: Set when the contact was created by a message from a number nobody knew.
+        profile_status:
+          type: [string, "null"]
+          enum: [new, collecting, complete, null]
+          description: "The profile the AI builds for a contact from an unknown number: new, collecting (asking for the fields), complete (every required field known); null = not built by the AI."
+        profile_progress: { $ref: "#/components/schemas/ContactProfileProgress" }
+        field_sources:
+          type: array
+          description: "Where field values came from (single contact reads only). A field without an entry was set by people, an import or the API."
+          items: { $ref: "#/components/schemas/ContactFieldSource" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+
+    ContactProfileProgress:
+      type: [object, "null"]
+      required: [required, filled, missing]
+      properties:
+        required: { type: integer }
+        filled: { type: integer }
+        missing: { type: array, items: { type: string } }
+
+    ContactFieldSource:
+      type: object
+      required: [field, source, verified, collected_at]
+      properties:
+        field: { type: string, description: "name, email, var1…var5 or attr:<key>." }
+        source: { type: string, enum: [ai, user, import, api] }
+        verified: { type: boolean, description: "false = collected by the AI and not checked by a person." }
+        collected_at: { type: string, format: date-time }
+        verified_at: { type: [string, "null"], format: date-time }
+        conversation_id: { type: [string, "null"], format: uuid }
+
+    VerifyContactFieldsRequest:
+      type: object
+      additionalProperties: false
+      required: [fields]
+      properties:
+        fields: { type: array, minItems: 1, maxItems: 60, items: { type: string } }
+
+    AIUsageTotals:
+      type: object
+      required: [requests, replies, failed, input_tokens, output_tokens, cached_tokens, cache_write_tokens, cost, avg_latency_ms]
+      properties:
+        requests: { type: integer, format: int64 }
+        replies: { type: integer, format: int64, description: Successful reply and suggestion requests. }
+        failed: { type: integer, format: int64 }
+        input_tokens: { type: integer, format: int64 }
+        output_tokens: { type: integer, format: int64 }
+        cached_tokens: { type: integer, format: int64 }
+        cache_write_tokens: { type: integer, format: int64 }
+        cost: { type: string, description: USD (requests priced in another currency are left out). }
+        avg_latency_ms: { type: number }
+
+    AIUsageGroup:
+      allOf:
+        - { $ref: "#/components/schemas/AIUsageTotals" }
+        - type: object
+          required: [key, label]
+          properties:
+            key: { type: string, description: "The model (kind/model), provider id, purpose, campaign id (empty = outside campaigns) or day (YYYY-MM-DD)." }
+            label: { type: string }
+
+    AIUsageSummary:
+      type: object
+      required: [from, to, group_by, currency, totals, ai_conversations, escalations, handoff_rate, groups, budget]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        group_by: { type: string }
+        currency: { type: string, enum: [USD] }
+        totals: { $ref: "#/components/schemas/AIUsageTotals" }
+        ai_conversations: { type: integer, format: int64, description: Conversations with an AI reply request. }
+        escalations: { type: integer, format: int64, description: Handoffs from the AI to people. }
+        handoff_rate: { type: [number, "null"], description: "escalations / ai_conversations (null without AI conversations)." }
+        groups: { type: array, items: { $ref: "#/components/schemas/AIUsageGroup" } }
+        budget: { $ref: "#/components/schemas/AIBudget" }
+
+    AIBudget:
+      type: object
+      required: [limit, spent, month_start, exceeded]
+      properties:
+        limit: { type: [string, "null"], description: USD; null = no budget. }
+        spent: { type: string, description: USD cost recorded this month. }
+        month_start: { type: string, format: date-time }
+        exceeded: { type: boolean }
+
+    AIUsageSummaryResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AIUsageSummary" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    CampaignMetaCost:
+      type: object
+      required: [currency, cost, messages]
+      properties:
+        currency: { type: string }
+        cost: { type: string }
+        messages: { type: integer, format: int64 }
+
+    CampaignAIUsage:
+      type: object
+      required: [campaign_id, ai_requests, ai_failed, ai_conversations, ai_input_tokens, ai_output_tokens, ai_cached_tokens, ai_cost,
+                 ai_currency, meta_costs, total_cost, total_currency, reply_sentiments, attribution_days]
+      properties:
+        campaign_id: { type: string, format: uuid }
+        ai_requests: { type: integer, format: int64 }
+        ai_failed: { type: integer, format: int64 }
+        ai_conversations: { type: integer, format: int64 }
+        ai_input_tokens: { type: integer, format: int64 }
+        ai_output_tokens: { type: integer, format: int64 }
+        ai_cached_tokens: { type: integer, format: int64 }
+        ai_cost: { type: string }
+        ai_currency: { type: string, enum: [USD] }
+        meta_costs: { type: array, items: { $ref: "#/components/schemas/CampaignMetaCost" }, description: "What Meta billed, per currency." }
+        total_cost: { type: [string, "null"], description: "Meta + AI when Meta billed in USD or nothing; null when the currencies differ." }
+        total_currency: { type: [string, "null"] }
+        reply_sentiments:
+          type: object
+          description: "Classified first replies: positive, negative, neutral, plus pending / failed / skipped."
+          additionalProperties: { type: integer, format: int64 }
+        attribution_days: { type: integer }
+
+    CampaignAIUsageResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/CampaignAIUsage" }, meta: { $ref: "#/components/schemas/Meta" } }
 
     ContactFields:
       type: object
@@ -7100,7 +7330,8 @@ components:
         note: { type: string, maxLength: 500, description: Why (kept with the handoff). }
     HandoffReason:
       type: string
-      enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error, manual]
+      enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error, manual,
+             ai_budget, profile_complete]
     ConversationHandoff:
       type: object
       required: [id, from_type, from_user, to_type, to_user, reason, reason_detail, summary, summary_source, detected_need,
@@ -7196,7 +7427,7 @@ components:
       type: string
       enum: [handed_to_ai, handed_to_human, ai_mode_changed, assignee_changed, closed, reopened, note_added, ai_action, ai_reply_sent,
              ai_draft_created, ai_draft_decided, ai_error, escalation, handoff_accepted, automation_started, automation_completed,
-             automation_failed, message_sent, message_failed, contact_ai_disabled, contact_ai_enabled]
+             automation_failed, message_sent, message_failed, contact_ai_disabled, contact_ai_enabled, profile_completed]
     ConversationActivity:
       type: object
       required: [id, kind, actor_type, actor_name, data, created_at]

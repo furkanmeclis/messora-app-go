@@ -39,6 +39,8 @@ const contacts: Messages['contacts'] = {
         segment: 'Segment',
         any: 'Tümü',
         clear: 'Filtreleri temizle',
+        origin: 'Kaynak',
+        aiProfile: 'AI tarafından oluşturulan',
     },
     create: {
         title: 'Yeni kişi',
@@ -104,6 +106,27 @@ const contacts: Messages['contacts'] = {
         remove: '{name} etiketini kaldır',
         max: 'En fazla {max} etiket',
         placeholder: 'Bir etiket yazıp Enter’a basın',
+    },
+    aiProfile: {
+        title: 'AI tarafından toplanan bilgiler',
+        description:
+            'Bu kişi bilinmeyen bir numaradan yazdı; profili AI oluşturuyor.',
+        descriptionKnown: 'AI’ın sohbetlerde topladığı değerler.',
+        status: {
+            new: 'Yeni',
+            collecting: 'Toplanıyor',
+            complete: 'Tamamlandı',
+        },
+        progress: '{required} zorunlu alanın {filled} tanesi dolu',
+        missing: 'Eksik: {fields}',
+        unverified: 'AI tarafından toplandı, doğrulanmadı',
+        verifiedBadge: 'Doğrulandı',
+        verify: 'Doğrula',
+        verifyAll: 'Tümünü doğrula',
+        verified: 'Doğrulandı olarak işaretlendi.',
+        collectedAt: '{time} tarihinde toplandı',
+        none: 'Henüz bir şey toplanmadı.',
+        aiBadge: 'AI',
     },
     detail: {
         metaTitle: 'Kişi',

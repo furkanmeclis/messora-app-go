@@ -337,6 +337,22 @@ type CampaignRecipient struct {
 	OptedOutAt     pgtype.Timestamptz
 }
 
+type CampaignReplyClassification struct {
+	ID             pgtype.UUID
+	CampaignID     pgtype.UUID
+	ContactID      pgtype.UUID
+	ConversationID pgtype.UUID
+	MessageID      pgtype.UUID
+	Status         string
+	Sentiment      *string
+	Confidence     *float64
+	Reason         string
+	Error          string
+	AiUsageID      pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	ClassifiedAt   pgtype.Timestamptz
+}
+
 type ConsentEvent struct {
 	ID        pgtype.UUID
 	ContactID pgtype.UUID
@@ -382,6 +398,21 @@ type Contact struct {
 	UndeliverableCode      *string
 	AiDisabled             bool
 	ContactType            *string
+	CreatedByInboundAt     pgtype.Timestamptz
+	ProfileStatus          *string
+	ProfileProgress        []byte
+}
+
+type ContactFieldSource struct {
+	ContactID      pgtype.UUID
+	Field          string
+	Source         string
+	Verified       bool
+	CollectedAt    pgtype.Timestamptz
+	AiUsageID      pgtype.UUID
+	ConversationID pgtype.UUID
+	VerifiedBy     pgtype.UUID
+	VerifiedAt     pgtype.Timestamptz
 }
 
 type ContactGroup struct {

@@ -129,6 +129,22 @@ func RunWorker(ctx context.Context) error {
 		// Per-provider failures are logged; the next daily run repeats them.
 		return svc.ai.SyncAll(ctx)
 	})
+	mux.HandleFunc(ai.TypeClassifyReply, func(ctx context.Context, t *asynq.Task) error {
+		var p struct {
+			ClassificationID uuid.UUID `json:"classification_id"`
+		}
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return fmt.Errorf("%w: %w", asynq.SkipRetry, err)
+		}
+		return svc.ai.RunClassification(ctx, p.ClassificationID)
+	})
+	mux.HandleFunc(ai.TypeAttributionReconcile, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := svc.ai.ReconcileAttribution(ctx)
+		if n > 0 {
+			log.InfoContext(ctx, "ai usage attributed to campaigns", "count", n)
+		}
+		return err
+	})
 	mux.HandleFunc(contacts.TypeImport, func(ctx context.Context, t *asynq.Task) error {
 		var p struct {
 			ImportID uuid.UUID `json:"import_id"`

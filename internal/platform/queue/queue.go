@@ -83,6 +83,10 @@ var policies = map[string]Policy{
 	// One AI turn of a conversation; it never sends twice (see
 	// conversations.HandleAIReply), so a few retries are safe.
 	"ai:reply": {AI, 3},
+	// Classification of a campaign reply (stored once per campaign and
+	// contact) and the campaign attribution reconcile job.
+	"ai:classify":              {AI, 5},
+	"ai:attribution_reconcile": {AI, periodicMaxRetry},
 }
 
 // campaignAware task types move to the Campaigns queue when their payload

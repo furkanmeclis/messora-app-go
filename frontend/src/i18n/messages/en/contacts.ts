@@ -37,6 +37,8 @@ const contacts = {
         segment: 'Segment',
         any: 'Any',
         clear: 'Clear filters',
+        origin: 'Origin',
+        aiProfile: 'Created by the AI',
     },
     create: {
         title: 'New contact',
@@ -105,6 +107,27 @@ const contacts = {
         remove: 'Remove tag {name}',
         max: 'At most {max} tags',
         placeholder: 'Type a tag and press Enter',
+    },
+    aiProfile: {
+        title: 'Collected by the AI',
+        description:
+            'This contact wrote from a number nobody knew; the AI is building the profile.',
+        descriptionKnown: 'Values the AI collected in conversations.',
+        status: {
+            new: 'New',
+            collecting: 'Collecting',
+            complete: 'Complete',
+        },
+        progress: '{filled} of {required} required fields',
+        missing: 'Missing: {fields}',
+        unverified: 'Collected by the AI, not verified',
+        verifiedBadge: 'Verified',
+        verify: 'Verify',
+        verifyAll: 'Verify all',
+        verified: 'Marked as verified.',
+        collectedAt: 'Collected {time}',
+        none: 'Nothing collected yet.',
+        aiBadge: 'AI',
     },
     detail: {
         metaTitle: 'Contact',

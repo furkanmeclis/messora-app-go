@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { Cpu, PlugZap, SlidersHorizontal } from 'lucide-react';
+import { ChartColumn, Cpu, PlugZap, SlidersHorizontal } from 'lucide-react';
 import { TabNav } from '@/components/tab-nav';
 import { useT } from '@/i18n/client';
 
@@ -31,6 +31,12 @@ export function AITabs() {
                     label: t('ai.sub.models'),
                     icon: Cpu,
                     active: path.startsWith('/settings/ai/models'),
+                },
+                {
+                    href: '/settings/ai/usage',
+                    label: t('ai.sub.usage'),
+                    icon: ChartColumn,
+                    active: path.startsWith('/settings/ai/usage'),
                 },
             ]}
         />

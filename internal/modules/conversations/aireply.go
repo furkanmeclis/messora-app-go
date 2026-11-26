@@ -143,6 +143,10 @@ func (s *Service) OnInbound(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.
 	if set, err := consent.CachedSettings(ctx, q); err == nil && set.Keywords.Match(m.Body) != "" {
 		return nil
 	}
+	// A reply to a campaign may be classified for the campaign's analysis.
+	if err := s.ai.EnqueueReplyClassification(ctx, tx, q, c, m); err != nil {
+		return err
+	}
 	if c.AiModeSetAt == nil && c.OwnerType == string(OwnerNone) {
 		if p, ok, _ := s.availability(ctx, c, contact); ok {
 			next := State{Owner: OwnerAI, Mode: ModeAutoReply}
@@ -229,6 +233,7 @@ type turn struct {
 	msgs    []db.Message // context, oldest first
 	request ai.Request
 	intent  string
+	usageID *uuid.UUID // the AI request of the reply
 }
 
 // HandleAIReply runs the AI turn for customer message msgID (task
@@ -280,6 +285,16 @@ func (s *Service) HandleAIReply(ctx context.Context, convID, msgID uuid.UUID) er
 	if n >= int64(st.RepliesPerHour()) {
 		return s.fail(ctx, t, ReasonAIError, "rate_limited")
 	}
+	// The monthly AI budget pauses AI replies once it is used up; the
+	// people who manage AI are told once per month.
+	if b, err := s.ai.BudgetStatus(ctx); err != nil {
+		return err
+	} else if b.Exceeded {
+		if err := s.withTx(ctx, func(tx pgx.Tx, q *db.Queries) error { return s.ai.NotifyBudgetExceeded(ctx, tx, q, b) }); err != nil {
+			return err
+		}
+		return s.fail(ctx, t, ReasonAIBudget, "budget_exceeded")
+	}
 	if aiOwned && mode == ModeAutoReply && !messaging.WindowOpen(c.LastInboundAt, time.Now()) {
 		return s.fail(ctx, t, ReasonWindowClosed, "")
 	}
@@ -329,6 +344,7 @@ func (s *Service) HandleAIReply(ctx context.Context, convID, msgID uuid.UUID) er
 	if res.UsageID != uuid.Nil {
 		usageID = &res.UsageID
 	}
+	t.usageID = usageID
 	if !aiOwned {
 		return s.draft(ctx, t, "suggestion", reply, usageID)
 	}
@@ -589,7 +605,16 @@ func (s *Service) send(ctx context.Context, t *turn, reply ai.Reply, usageID *uu
 			"confidence": reply.Confidence, "intent": reply.Intent}); err != nil {
 			return err
 		}
-		if err := s.act(ctx, tx, q, c, t, reply, d); err != nil {
+		completed, err := s.act(ctx, tx, q, c, t, reply, d)
+		if err != nil {
+			return err
+		}
+		if completed && t.profile != nil && t.profile.DataCollection.HandoffWhenComplete {
+			if c, err = q.GetConversation(ctx, c.ID); err != nil {
+				return err
+			}
+			sum := FallbackSummary(t.msgs, ReasonProfileComplete, reply.Intent, t.lang)
+			_, err = s.escalateTx(ctx, tx, q, c, ReasonProfileComplete, "", sum, reply.ExtractedFields, t.profile)
 			return err
 		}
 		_, err = s.setAIStatus(ctx, tx, q, c.ID, "idle", "")
@@ -624,7 +649,7 @@ func (s *Service) draft(ctx context.Context, t *turn, kind string, reply ai.Repl
 			}
 		}
 		if len(decision) > 0 {
-			if err := s.act(ctx, tx, q, c, t, reply, decision[0]); err != nil {
+			if _, err := s.act(ctx, tx, q, c, t, reply, decision[0]); err != nil {
 				return err
 			}
 		}
@@ -634,33 +659,18 @@ func (s *Service) draft(ctx context.Context, t *turn, kind string, reply ai.Repl
 }
 
 // act applies what an AI reply asked for and the profile allows: collected
-// contact fields and automations. Refused actions are recorded.
-func (s *Service) act(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Conversation, t *turn, reply ai.Reply, d Decision) error {
-	p := t.profile
-	if p != nil && p.DataCollection.Enabled && p.DataCollection.MayUpdateFields && p.Allows("update_contact_fields") {
-		for _, f := range p.DataCollection.Fields {
-			v := reply.ExtractedFields[f.Key]
-			if v == nil || strings.TrimSpace(*v) == "" {
-				continue
-			}
-			val := truncateRunes(strings.TrimSpace(*v), 500)
-			if err := setContactField(ctx, q, c.ContactID, f.Key, val); err != nil {
-				if _, isApp := apperr.As(err); isApp {
-					continue // e.g. not an e-mail address
-				}
-				return err
-			}
-			if _, err := activity.Record(ctx, tx, q, c.ID, activity.AIAction, activity.AI, activity.Data{"action": "update_field",
-				"field": f.Key, "label": f.Label}); err != nil {
-				return err
-			}
-		}
+// contact fields and automations. Refused actions are recorded. completed
+// reports that this turn completed the profile of a new contact.
+func (s *Service) act(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Conversation, t *turn, reply ai.Reply, d Decision) (bool, error) {
+	completed, err := s.collect(ctx, tx, q, c, t, reply)
+	if err != nil {
+		return false, err
 	}
 	for _, a := range d.Actions {
 		id, ok := strings.CutPrefix(a, "automation:")
 		if !ok {
 			if _, err := activity.Record(ctx, tx, q, c.ID, activity.AIAction, activity.AI, activity.Data{"action": a, "status": "requested"}); err != nil {
-				return err
+				return false, err
 			}
 			continue
 		}
@@ -669,15 +679,15 @@ func (s *Service) act(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.Conver
 			continue
 		}
 		if err := s.startAutomation(ctx, tx, q, c, t.msgID, autoID); err != nil {
-			return err
+			return false, err
 		}
 	}
 	for _, a := range d.Refused {
 		if _, err := activity.Record(ctx, tx, q, c.ID, activity.AIAction, activity.AI, activity.Data{"action": a, "status": "not_allowed"}); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return completed, nil
 }
 
 // setContactField stores a field the AI collected.
@@ -690,9 +700,6 @@ func setContactField(ctx context.Context, q *db.Queries, contactID uuid.UUID, ke
 	case "name":
 		p.Name = &val
 	case "email":
-		if !strings.Contains(val, "@") || strings.ContainsAny(val, " \t") {
-			return apperr.Validation("email", "not an e-mail address")
-		}
 		p.SetEmail, p.Email = true, &val
 	case "var1":
 		p.SetVar1, p.Var1 = true, &val

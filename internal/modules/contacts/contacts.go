@@ -190,12 +190,18 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, f Fields) (db.Contac
 	}
 	var c db.Contact
 	err := s.txx(ctx, func(tx pgx.Tx, q *db.Queries) error {
-		var err error
-		c, err = q.UpdateContact(ctx, p)
+		before, err := q.LockContact(ctx, id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apperr.NotFound("Contact not found.")
 		}
 		if err != nil {
+			return err
+		}
+		c, err = q.UpdateContact(ctx, p)
+		if err != nil {
+			return err
+		}
+		if err := recordEdits(ctx, q, before, c); err != nil {
 			return err
 		}
 		if err := setTagsAndGroups(ctx, tx, q, id, f); err != nil {

@@ -44,6 +44,8 @@ const (
 	MessageFailed       = "message_failed"
 	ContactAIDisabled   = "contact_ai_disabled"
 	ContactAIEnabled    = "contact_ai_enabled"
+	// ProfileCompleted: the AI collected every required field of a new contact.
+	ProfileCompleted = "profile_completed"
 )
 
 // Actor types.

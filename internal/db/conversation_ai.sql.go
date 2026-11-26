@@ -910,7 +910,7 @@ func (q *Queries) MarkConversationAIDisclosed(ctx context.Context, id uuid.UUID)
 }
 
 const setContactAIDisabled = `-- name: SetContactAIDisabled :one
-UPDATE contacts SET ai_disabled = $1, updated_at = now() WHERE id = $2 RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type
+UPDATE contacts SET ai_disabled = $1, updated_at = now() WHERE id = $2 RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress
 `
 
 type SetContactAIDisabledParams struct {
@@ -954,6 +954,9 @@ func (q *Queries) SetContactAIDisabled(ctx context.Context, arg SetContactAIDisa
 		&i.UndeliverableCode,
 		&i.AiDisabled,
 		&i.ContactType,
+		&i.CreatedByInboundAt,
+		&i.ProfileStatus,
+		&i.ProfileProgress,
 	)
 	return i, err
 }

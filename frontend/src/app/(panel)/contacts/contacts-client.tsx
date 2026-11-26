@@ -51,6 +51,7 @@ type Filters = {
     marketing_consent: string;
     service_consent: string;
     reachability: string;
+    ai_profile: string;
 };
 
 function FilterSelect({
@@ -123,7 +124,8 @@ export function ContactFilters({
         filters.opted_out ||
         filters.marketing_consent ||
         filters.service_consent ||
-        filters.reachability;
+        filters.reachability ||
+        filters.ai_profile;
     return (
         <div className="flex flex-wrap items-end gap-3">
             <form
@@ -215,6 +217,15 @@ export function ContactFilters({
                     },
                 ]}
                 onChange={(reachability) => go({ reachability })}
+            />
+            <FilterSelect
+                id="filter-ai-profile"
+                label={t('contacts.filters.origin')}
+                value={filters.ai_profile}
+                options={[
+                    { id: 'true', name: t('contacts.filters.aiProfile') },
+                ]}
+                onChange={(ai_profile) => go({ ai_profile })}
             />
             {active && (
                 <Button

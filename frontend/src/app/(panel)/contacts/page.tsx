@@ -51,6 +51,7 @@ export default async function ContactsPage({
             sp.reachability === 'undeliverable'
                 ? sp.reachability
                 : '',
+        ai_profile: sp.ai_profile === 'true' ? 'true' : '',
     };
     const query = new URLSearchParams();
     for (const [k, v] of Object.entries(filters)) if (v) query.set(k, v);

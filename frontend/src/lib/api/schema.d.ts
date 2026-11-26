@@ -716,6 +716,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/ai/usage/summary': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI usage and cost between two dates
+         * @description Requests, generated replies, tokens, cost (USD), failed requests, average latency and the handoff rate (AI escalations divided by conversations the AI answered) between `from` (inclusive) and `to` (exclusive), in total and grouped by `group_by`. Rows of the `campaign` group without a campaign are AI work outside campaigns ("kampanya dışı"). Also returns the month's spend against the monthly AI budget.
+         */
+        get: operations['getAIUsageSummary'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/ai/profiles/{profileId}/test': {
         parameters: {
             query?: never;
@@ -1397,6 +1417,26 @@ export interface paths {
          */
         put: operations['setContactAI'];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/contacts/{contactId}/verify-fields': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark values the AI collected as verified
+         * @description A person confirms values the AI collected ("AI tarafından toplandı, doğrulanmadı"). Verified values are never overwritten by the AI. Audited.
+         */
+        post: operations['verifyContactFields'];
         delete?: never;
         options?: never;
         head?: never;
@@ -2100,6 +2140,26 @@ export interface paths {
          * @description The scheduler uses a new priority or cap from its next tick. Priority changes are audited.
          */
         patch: operations['updateCampaignSettings'];
+        trace?: never;
+    };
+    '/campaigns/{campaignId}/ai-usage': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI usage, AI cost and total operational cost of a campaign
+         * @description The AI requests attributed to the campaign (a request belongs to the campaign that reached the contact last within the attribution window, never to two), their tokens and USD cost, what Meta billed for the campaign's messages, and the total operational cost (Meta + AI) when both are in the same currency. Also the AI's reading of the replies (positive / negative / neutral) when reply classification is on.
+         */
+        get: operations['getCampaignAIUsage'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     '/campaigns/{campaignId}/pauses': {
@@ -3464,6 +3524,8 @@ export interface components {
             marketing_consent?: components['schemas']['ConsentStatus'];
             service_consent?: components['schemas']['ConsentStatus'];
             reachability?: components['schemas']['Reachability'];
+            /** @description true: contacts whose profile the AI built from an unknown number. */
+            ai_profile?: boolean;
         };
         /**
          * @example {
@@ -4344,6 +4406,12 @@ export interface components {
             max_replies_per_hour: number;
             /** @description Recent messages an AI turn sees. */
             context_messages: number;
+            /** @description Monthly AI budget in USD (calendar month, UTC); null = none. When used up, AI auto replies pause (escalation ai_budget). */
+            monthly_budget: string | null;
+            /** @description Whether the AI classifies the first reply to a campaign as positive, negative or neutral. */
+            classify_campaign_replies: boolean;
+            /** @description Days after a campaign reached a contact during which the contact's AI usage and replies count for it. */
+            campaign_attribution_days: number;
             /** @description Whether the fake provider kind can be connected (development and test only). */
             fake_provider_available: boolean;
         };
@@ -4358,6 +4426,12 @@ export interface components {
             max_replies_per_hour?: number;
             /** @description Default 20. */
             context_messages?: number;
+            /** @description USD; an empty string removes the budget. Left out or null: unchanged. */
+            monthly_budget?: string | null;
+            /** @description Default false. Left out: unchanged. */
+            classify_campaign_replies?: boolean;
+            /** @description Default 7. Left out: unchanged. */
+            campaign_attribution_days?: number;
         };
         AISettingsResponse: {
             data: components['schemas']['AISettings'];
@@ -4382,12 +4456,23 @@ export interface components {
             key: string;
             label: string;
             required: boolean;
+            /**
+             * @description How the extracted value is checked before it is stored (default text; the email field is always email).
+             * @enum {string}
+             */
+            type?: 'text' | 'email' | 'phone' | 'select' | 'number' | 'date';
+            /** @description Allowed values of a select field. */
+            options?: string[];
         };
         AIDataCollection: {
             enabled: boolean;
             fields: components['schemas']['AIDataField'][];
+            /** @description The AI builds the profile of contacts created by a message from an unknown number (greets, asks for the fields). */
             may_create_contact: boolean;
+            /** @description The AI may store the fields it collected (never over values people set or verified). */
             may_update_fields: boolean;
+            /** @description Hand a new contact's conversation to the team (reason profile_complete) once every required field is collected. */
+            handoff_when_complete?: boolean;
         };
         /** @enum {string} */
         AIDisclosureMode: 'always_first_message' | 'on_question' | 'off';
@@ -4640,6 +4725,8 @@ export interface components {
          *       },
          *       "last_inbound_at": "2026-11-25T08:41:00Z",
          *       "source": "api",
+         *       "profile_status": null,
+         *       "created_by_inbound_at": null,
          *       "created_at": "2026-09-12T07:30:00Z",
          *       "updated_at": "2026-11-25T08:41:00Z"
          *     }
@@ -4673,10 +4760,148 @@ export interface components {
             contact_type?: string | null;
             /** @enum {string} */
             source: 'webhook' | 'manual' | 'import' | 'api';
+            /**
+             * Format: date-time
+             * @description Set when the contact was created by a message from a number nobody knew.
+             */
+            created_by_inbound_at?: string | null;
+            /**
+             * @description The profile the AI builds for a contact from an unknown number: new, collecting (asking for the fields), complete (every required field known); null = not built by the AI.
+             * @enum {string|null}
+             */
+            profile_status?: 'new' | 'collecting' | 'complete' | null;
+            profile_progress?: components['schemas']['ContactProfileProgress'];
+            /** @description Where field values came from (single contact reads only). A field without an entry was set by people, an import or the API. */
+            field_sources?: components['schemas']['ContactFieldSource'][];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+        };
+        ContactProfileProgress: {
+            required: number;
+            filled: number;
+            missing: string[];
+        } | null;
+        ContactFieldSource: {
+            /** @description name, email, var1…var5 or attr:<key>. */
+            field: string;
+            /** @enum {string} */
+            source: 'ai' | 'user' | 'import' | 'api';
+            /** @description false = collected by the AI and not checked by a person. */
+            verified: boolean;
+            /** Format: date-time */
+            collected_at: string;
+            /** Format: date-time */
+            verified_at?: string | null;
+            /** Format: uuid */
+            conversation_id?: string | null;
+        };
+        VerifyContactFieldsRequest: {
+            fields: string[];
+        };
+        AIUsageTotals: {
+            /** Format: int64 */
+            requests: number;
+            /**
+             * Format: int64
+             * @description Successful reply and suggestion requests.
+             */
+            replies: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            input_tokens: number;
+            /** Format: int64 */
+            output_tokens: number;
+            /** Format: int64 */
+            cached_tokens: number;
+            /** Format: int64 */
+            cache_write_tokens: number;
+            /** @description USD (requests priced in another currency are left out). */
+            cost: string;
+            avg_latency_ms: number;
+        };
+        AIUsageGroup: components['schemas']['AIUsageTotals'] & {
+            /** @description The model (kind/model), provider id, purpose, campaign id (empty = outside campaigns) or day (YYYY-MM-DD). */
+            key: string;
+            label: string;
+        };
+        AIUsageSummary: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            group_by: string;
+            /** @enum {string} */
+            currency: 'USD';
+            totals: components['schemas']['AIUsageTotals'];
+            /**
+             * Format: int64
+             * @description Conversations with an AI reply request.
+             */
+            ai_conversations: number;
+            /**
+             * Format: int64
+             * @description Handoffs from the AI to people.
+             */
+            escalations: number;
+            /** @description escalations / ai_conversations (null without AI conversations). */
+            handoff_rate: number | null;
+            groups: components['schemas']['AIUsageGroup'][];
+            budget: components['schemas']['AIBudget'];
+        };
+        AIBudget: {
+            /** @description USD; null = no budget. */
+            limit: string | null;
+            /** @description USD cost recorded this month. */
+            spent: string;
+            /** Format: date-time */
+            month_start: string;
+            exceeded: boolean;
+        };
+        AIUsageSummaryResponse: {
+            data: components['schemas']['AIUsageSummary'];
+            meta: components['schemas']['Meta'];
+        };
+        CampaignMetaCost: {
+            currency: string;
+            cost: string;
+            /** Format: int64 */
+            messages: number;
+        };
+        CampaignAIUsage: {
+            /** Format: uuid */
+            campaign_id: string;
+            /** Format: int64 */
+            ai_requests: number;
+            /** Format: int64 */
+            ai_failed: number;
+            /** Format: int64 */
+            ai_conversations: number;
+            /** Format: int64 */
+            ai_input_tokens: number;
+            /** Format: int64 */
+            ai_output_tokens: number;
+            /** Format: int64 */
+            ai_cached_tokens: number;
+            ai_cost: string;
+            /** @enum {string} */
+            ai_currency: 'USD';
+            /** @description What Meta billed, per currency. */
+            meta_costs: components['schemas']['CampaignMetaCost'][];
+            /** @description Meta + AI when Meta billed in USD or nothing; null when the currencies differ. */
+            total_cost: string | null;
+            total_currency: string | null;
+            /** @description Classified first replies: positive, negative, neutral, plus pending / failed / skipped. */
+            reply_sentiments: {
+                [key: string]: number;
+            };
+            attribution_days: number;
+        };
+        CampaignAIUsageResponse: {
+            data: components['schemas']['CampaignAIUsage'];
+            meta: components['schemas']['Meta'];
         };
         ContactFields: {
             name?: string;
@@ -5453,7 +5678,9 @@ export interface components {
             | 'unauthorized_action'
             | 'window_closed'
             | 'ai_error'
-            | 'manual';
+            | 'manual'
+            | 'ai_budget'
+            | 'profile_complete';
         /**
          * @example {
          *       "id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
@@ -5568,7 +5795,8 @@ export interface components {
             | 'message_sent'
             | 'message_failed'
             | 'contact_ai_disabled'
-            | 'contact_ai_enabled';
+            | 'contact_ai_enabled'
+            | 'profile_completed';
         /**
          * @example {
          *       "id": "0195f0c2-6b1e-7c4a-9d3e-2f1a4b5c6d7e",
@@ -9491,6 +9719,34 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    getAIUsageSummary: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                group_by?:
+                    'model' | 'provider' | 'purpose' | 'campaign' | 'day';
+                /** @description IANA time zone of the day groups (default UTC). */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIUsageSummaryResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     testAIProfile: {
         parameters: {
             query?: never;
@@ -10535,6 +10791,8 @@ export interface operations {
                 service_consent?: components['schemas']['ConsentStatus'];
                 /** @description meta_marketing_stopped: stopped marketing in WhatsApp; undeliverable: Meta could not deliver to the number. */
                 reachability?: components['schemas']['Reachability'];
+                /** @description true: contacts whose profile the AI built from an unknown number (profile_status collecting or complete). */
+                ai_profile?: boolean;
                 sort?: components['schemas']['ContactSort'];
                 /** @description 1-based page number. With it the list is paged by offset (cursor is ignored) and meta.total is set. */
                 page?: number;
@@ -10711,6 +10969,33 @@ export interface operations {
             404: components['responses']['NotFound'];
             422: components['responses']['ValidationFailed'];
             429: components['responses']['RateLimited'];
+            default: components['responses']['Error'];
+        };
+    };
+    verifyContactFields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: components['parameters']['ContactId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['VerifyContactFieldsRequest'];
+            };
+        };
+        responses: {
+            /** @description The contact */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ContactResponse'];
+                };
+            };
             default: components['responses']['Error'];
         };
     };
@@ -10943,6 +11228,8 @@ export interface operations {
                 marketing_consent?: components['schemas']['ConsentStatus'];
                 service_consent?: components['schemas']['ConsentStatus'];
                 reachability?: components['schemas']['Reachability'];
+                /** @description true: contacts whose profile the AI built from an unknown number. */
+                ai_profile?: boolean;
                 q?: string;
                 tag_id?: string;
                 group_id?: string;
@@ -12037,6 +12324,29 @@ export interface operations {
             409: components['responses']['Conflict'];
             422: components['responses']['ValidationFailed'];
             429: components['responses']['RateLimited'];
+            default: components['responses']['Error'];
+        };
+    };
+    getCampaignAIUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaignId: components['parameters']['CampaignId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CampaignAIUsageResponse'];
+                };
+            };
             default: components['responses']['Error'];
         };
     };

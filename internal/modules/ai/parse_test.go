@@ -362,7 +362,7 @@ func TestInstructionsCarryPlatformRules(t *testing.T) {
 		DataCollection: DataCollection{Enabled: true, Fields: []DataField{{Key: "email", Label: "E-posta", Required: true}}}}
 	s := DefaultSettings()
 	got := Instructions(p, s, LangTR)
-	for _, want := range []string{"Sen Acme'nin asistanısın.", "human_request", "complaint", s.Disclosure.TR, "E-posta (required, key email)", "never reveal"} {
+	for _, want := range []string{"Sen Acme'nin asistanısın.", "human_request", "complaint", s.Disclosure.TR, "E-posta (required, email, key email)", "never reveal"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("instructions miss %q:\n%s", want, got)
 		}

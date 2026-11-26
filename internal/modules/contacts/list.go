@@ -36,6 +36,9 @@ type Filter struct {
 	// ContactIDs restricts to an explicit list (a campaign's "selected
 	// contacts" audience); nil = no restriction.
 	ContactIDs []uuid.UUID
+	// AIProfile true: contacts whose profile the AI built from an unknown
+	// number (collecting or complete); false: the others.
+	AIProfile *bool
 }
 
 // consentExpr is a category's effective consent status in SQL.
@@ -85,6 +88,13 @@ func (f Filter) where() (string, []any, error) {
 			conds = append(conds, "c.undeliverable_at IS NOT NULL")
 		default:
 			return "", nil, apperr.Validation("reachability", "Unknown reachability filter.")
+		}
+	}
+	if f.AIProfile != nil {
+		if *f.AIProfile {
+			conds = append(conds, "c.profile_status IN ('collecting', 'complete')")
+		} else {
+			conds = append(conds, "(c.profile_status IS NULL OR c.profile_status NOT IN ('collecting', 'complete'))")
 		}
 	}
 	if f.FromCampaign != nil {
