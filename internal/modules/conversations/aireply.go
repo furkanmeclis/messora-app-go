@@ -176,8 +176,17 @@ func (s *Service) scheduleUnanswered(ctx context.Context, tx pgx.Tx, q *db.Queri
 	if err != nil {
 		return err
 	}
-	if c.LastMessageID == nil || *c.LastMessageID != latest.ID || (c.AiHandledMessageID != nil && *c.AiHandledMessageID == latest.ID) ||
-		!messaging.WindowOpen(c.LastInboundAt, time.Now()) {
+	if (c.AiHandledMessageID != nil && *c.AiHandledMessageID == latest.ID) || !messaging.WindowOpen(c.LastInboundAt, time.Now()) {
+		return nil
+	}
+	// Unanswered: nothing was written after it. Message ids follow insertion
+	// order; Meta's timestamps have one-second precision, so
+	// last_message_id cannot tell.
+	last, err := q.ListThreadMessages(ctx, db.ListThreadMessagesParams{ContactID: c.ContactID, PhoneNumberID: c.PhoneNumberID, Lim: 1})
+	if err != nil {
+		return err
+	}
+	if len(last) == 0 || last[0].ID != latest.ID {
 		return nil
 	}
 	_, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeAIReply), AIReplyPayload{ConversationID: c.ID, MessageID: latest.ID}, 0)
