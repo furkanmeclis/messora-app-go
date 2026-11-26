@@ -71,7 +71,7 @@ func TestAILeadCaptureBuildsProfileOfUnknownNumber(t *testing.T) {
 	byTurn(env.script,
 		aiReply("Merhaba! Size nasıl yardımcı olabilirim? Adınızı öğrenebilir miyim?", 0.9, "pricing"),
 		aiReply("Teşekkürler Ayşe Hanım. Hangi firmada çalışıyorsunuz?", 0.9, "pricing",
-			fields("name", "Ayşe Yılmaz", "email", "gecersiz-adres", "attr:plan", "gold")),
+			fields("name", "Ayşe Yılmaz", "email", "gecersiz-eposta", "attr:plan", "gold")),
 		aiReply("Harika, ekibimiz sizinle iletişime geçecek.", 0.9, "pricing", fields("attr:company", "Acme Ltd", "attr:health", "x")),
 	)
 	h.say("wamid.lc1", "Merhaba, fiyat almak istiyorum")
