@@ -551,6 +551,26 @@ func InboundMedia(phoneNumberID, from, wamid, mediaType, mediaID, mime, caption 
 	})
 }
 
+// InboundReaction builds a notification with one reaction (emoji) of the
+// customer to the message reactedTo (a wamid); an empty emoji removes it.
+func InboundReaction(phoneNumberID, from, wamid, reactedTo, emoji string, at time.Time) []byte {
+	return notification(phoneNumberID, map[string]any{
+		"contacts": []any{map[string]any{"wa_id": from, "profile": map[string]string{"name": ""}}},
+		"messages": []any{map[string]any{"from": from, "id": wamid, "timestamp": fmt.Sprint(at.Unix()), "type": "reaction",
+			"reaction": map[string]string{"message_id": reactedTo, "emoji": emoji}}},
+	})
+}
+
+// InboundReply builds a notification with one text message that quotes
+// the message replyTo (a wamid), as when the customer swipes to reply.
+func InboundReply(phoneNumberID, from, wamid, replyTo, body string, at time.Time) []byte {
+	return notification(phoneNumberID, map[string]any{
+		"contacts": []any{map[string]any{"wa_id": from, "profile": map[string]string{"name": ""}}},
+		"messages": []any{map[string]any{"from": from, "id": wamid, "timestamp": fmt.Sprint(at.Unix()), "type": "text",
+			"text": map[string]string{"body": body}, "context": map[string]string{"from": "15550000000", "id": replyTo}}},
+	})
+}
+
 // StatusUpdate builds a "messages" notification with one status, with
 // Meta's pricing object when pricing is given (Meta sends it on either the
 // "sent" or the "delivered" status).

@@ -34,6 +34,7 @@ func (h *harness) useAIEmulator() *aitest.Server {
 	}
 	h.svc.ai = ai.New(h.pool, h.sealer(), ai.Options{AllowFake: true, HTTP: emu.Client(), BaseURLs: bases}, testutil.DiscardLogger())
 	h.svc.inbox.SetAI(h.svc.ai)
+	h.svc.automation.SetAI(h.svc.ai)
 	h.remount()
 	return emu
 }
