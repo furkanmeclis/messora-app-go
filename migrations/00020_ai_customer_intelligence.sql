@@ -62,16 +62,21 @@ ALTER TABLE conversation_handoffs ADD CONSTRAINT conversation_handoffs_reason_ch
 CREATE INDEX messages_campaign_reach_idx ON messages (contact_id, phone_number_id, sent_at DESC)
     WHERE campaign_id IS NOT NULL AND direction = 'outbound';
 
--- The AI's reading of a customer's first reply to a campaign (company
--- setting "classify campaign replies"). P3's reaction pipeline reads it as
--- a system-computed positive/negative reaction. One row per campaign and
--- contact: the first reply is the one classified.
+-- The job log of the AI's reading of a customer's first free-text reply
+-- to a campaign (company setting "classify campaign replies"). The
+-- campaigns module attributes the reply and hands it over
+-- (campaigns.ReplyClassifier); the result is written to the recipient row
+-- as its reaction with source ai (campaign_recipients.reaction, never over
+-- a manual label or a tapped quick reply), which is what the counters and
+-- the analysis read. This table keeps the attempt: status, confidence,
+-- reason, error and the usage row. One row per campaign and contact.
 --   status    pending | done | failed | skipped
 --   sentiment positive | negative | neutral (NULL until done)
 CREATE TABLE campaign_reply_classifications (
     id              uuid PRIMARY KEY DEFAULT uuidv7(),
     campaign_id     uuid NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
     contact_id      uuid NOT NULL REFERENCES contacts (id) ON DELETE CASCADE,
+    recipient_id    uuid REFERENCES campaign_recipients (id) ON DELETE CASCADE,
     conversation_id uuid REFERENCES conversations (id) ON DELETE SET NULL,
     message_id      uuid REFERENCES messages (id) ON DELETE SET NULL,
     status          text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done', 'failed', 'skipped')),

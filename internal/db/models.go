@@ -343,6 +343,7 @@ type CampaignReplyClassification struct {
 	ID             uuid.UUID
 	CampaignID     uuid.UUID
 	ContactID      uuid.UUID
+	RecipientID    *uuid.UUID
 	ConversationID *uuid.UUID
 	MessageID      *uuid.UUID
 	Status         string

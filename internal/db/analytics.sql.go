@@ -79,18 +79,30 @@ func (q *Queries) ActiveCampaignsOfAccount(ctx context.Context, accountID uuid.U
 }
 
 const campaignAICost = `-- name: CampaignAICost :many
-SELECT coalesce(currency, '')::text AS currency, coalesce(sum(cost), 0)::text AS cost, count(*)::bigint AS requests
+SELECT coalesce(currency, 'USD')::text AS currency, coalesce(sum(cost), 0)::text AS cost, count(*)::bigint AS requests,
+       count(*) FILTER (WHERE status = 'error')::bigint AS failed,
+       coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
+       coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
+       coalesce(sum(cached_tokens), 0)::bigint AS cached_tokens,
+       count(DISTINCT conversation_id)::bigint AS conversations
 FROM ai_usage WHERE campaign_id = $1 GROUP BY 1 ORDER BY 1
 `
 
 type CampaignAICostRow struct {
-	Currency string
-	Cost     string
-	Requests int64
+	Currency      string
+	Cost          string
+	Requests      int64
+	Failed        int64
+	InputTokens   int64
+	OutputTokens  int64
+	CachedTokens  int64
+	Conversations int64
 }
 
-// AI usage attributed to the campaign (P7 sets ai_usage.campaign_id), by
-// currency.
+// AI usage attributed to the campaign (ai_usage.campaign_id: each request
+// belongs to one campaign or none, docs/AI.md "Campaign attribution"), by
+// currency. Requests without a price (currency NULL) are counted under
+// USD with no cost, like the AI usage page does.
 func (q *Queries) CampaignAICost(ctx context.Context, campaignID *uuid.UUID) ([]CampaignAICostRow, error) {
 	rows, err := q.db.Query(ctx, campaignAICost, campaignID)
 	if err != nil {
@@ -100,7 +112,16 @@ func (q *Queries) CampaignAICost(ctx context.Context, campaignID *uuid.UUID) ([]
 	items := []CampaignAICostRow{}
 	for rows.Next() {
 		var i CampaignAICostRow
-		if err := rows.Scan(&i.Currency, &i.Cost, &i.Requests); err != nil {
+		if err := rows.Scan(
+			&i.Currency,
+			&i.Cost,
+			&i.Requests,
+			&i.Failed,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CachedTokens,
+			&i.Conversations,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -967,6 +988,7 @@ UPDATE campaign_recipients SET reaction = $1,
     reaction_source = CASE WHEN $1::text IS NULL THEN NULL ELSE $2::text END,
     reaction_at = CASE WHEN $1::text IS NULL THEN NULL ELSE now() END, updated_at = now()
 WHERE id = $3 AND campaign_id = $4 AND ($2::text = 'manual' OR reaction_source IS DISTINCT FROM 'manual')
+    AND ($2::text <> 'ai' OR reaction_source IS DISTINCT FROM 'quick_reply')
 `
 
 type SetRecipientReactionParams struct {
@@ -977,7 +999,9 @@ type SetRecipientReactionParams struct {
 }
 
 // A manual label is never overwritten by the system (quick reply mapping
-// or AI); a manual label replaces anything. reaction NULL clears.
+// or AI); a manual label replaces anything. An AI label never replaces a
+// tapped quick reply (the customer's own choice; an AI result may finish
+// after a later tap). reaction NULL clears.
 func (q *Queries) SetRecipientReaction(ctx context.Context, arg SetRecipientReactionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setRecipientReaction,
 		arg.Reaction,

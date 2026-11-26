@@ -75,6 +75,8 @@ const analytics: Messages['analytics'] = {
     cost: {
         ai: 'AI maliyeti',
         aiHint: 'Kampanyaya atanan AI istekleri (atama penceresi içindeki cevaplar).',
+        aiUsage:
+            '{requests} AI isteği · {tokens} token · {conversations} sohbet',
         total: 'Operasyon maliyeti (Meta + AI)',
         estimate: 'Mesaj başı tahmin',
         estimateHint:

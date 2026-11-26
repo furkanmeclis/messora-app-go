@@ -192,6 +192,7 @@ type ReplyClassifier interface {
 // ReplyToClassify is a reply waiting for a reaction label.
 type ReplyToClassify struct {
 	CampaignID, RecipientID, MessageID uuid.UUID
+	ContactID, PhoneNumberID           uuid.UUID
 	Text                               string
 }
 
@@ -240,7 +241,7 @@ func (s *Service) RecordInbound(ctx context.Context, tx pgx.Tx, q *db.Queries, m
 		}
 	case first > 0 && s.classifier != nil && strings.TrimSpace(m.Body) != "":
 		if err := s.classifier.ClassifyReply(ctx, tx, ReplyToClassify{CampaignID: a.CampaignID, RecipientID: a.RecipientID,
-			MessageID: m.ID, Text: m.Body}); err != nil {
+			MessageID: m.ID, ContactID: m.ContactID, PhoneNumberID: m.PhoneNumberID, Text: m.Body}); err != nil {
 			return err
 		}
 	}

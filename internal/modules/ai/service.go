@@ -55,6 +55,12 @@ type Service struct {
 
 	mu   sync.RWMutex
 	fake FakeScript
+
+	// window is the campaign attribution window (SetAttributionWindow).
+	window func(context.Context) (time.Duration, error)
+	// onClassified stores a finished reply classification on the
+	// campaign's recipient row (SetClassificationSink).
+	onClassified ClassificationSink
 }
 
 // New returns the service.
@@ -788,8 +794,8 @@ func (s *Service) record(ctx context.Context, c Call, model string, at time.Time
 	if params.CampaignID == nil && c.ConversationID != nil {
 		// Campaign attribution at insert time; the reconcile job retries
 		// rows left without one.
-		if st, err := s.Settings(ctx); err == nil {
-			if cid, err := attributeCampaign(ctx, s.q, *c.ConversationID, at, st.AttributionWindow()); err == nil {
+		if window, err := s.AttributionWindow(ctx); err == nil {
+			if cid, err := attributeCampaign(ctx, s.q, *c.ConversationID, at, window); err == nil {
 				params.CampaignID = cid
 			} else {
 				s.log.WarnContext(ctx, "ai usage campaign attribution", "err", err)

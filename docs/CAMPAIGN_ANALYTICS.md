@@ -91,8 +91,11 @@ send times are compared at that precision. Only the first inbound message
 sets `replied_at`. Opt-outs are the marketing consent becoming `opted_out`
 (keywords, the API, manual changes) and the customer's **Stop** in WhatsApp
 (`user_preferences`); a 131050 error only reveals an earlier Stop and is
-counted separately (`err_131050`). P7 attributes AI usage the same way
-(`ai_usage.campaign_id`); the campaign's operating cost is Meta + AI.
+counted separately (`err_131050`). AI usage is attributed with the same
+window (`ai_usage.campaign_id`, docs/AI.md "Campaign attribution"); the
+analysis center's `ai_cost` (requests, tokens, conversations, cost) sums
+those rows, the same ones the AI usage page groups by campaign, and the
+campaign's operating cost is Meta + AI.
 
 ## Positive / negative reactions
 
@@ -102,10 +105,12 @@ detail page; the template's quick reply buttons are offered). When an
 attributed inbound message is a quick reply, its payload (else its text) is
 looked up and the recipient is labelled with source `quick_reply`.
 Changing the mapping relabels earlier taps. Operators can label a recipient
-by hand (`manual`), which the system never overrides. Free-text replies are
-handed to an optional `ReplyClassifier` (P7 plugs the AI classifier in; it
-enqueues work inside the inbound transaction and stores the result with
-source `ai`). All system labels are shown as "Sistem hesaplaması".
+by hand (`manual`), which the system never overrides. Free-text first
+replies are handed to the `ReplyClassifier`: with **Settings → AI →
+Classify replies to campaigns** on, the AI classifier enqueues work inside
+the inbound transaction and stores the result with source `ai`
+(docs/AI.md "Campaign reply classification"). An AI label never replaces
+a tapped quick reply; a quick reply replaces an AI label. All system labels are shown as "Sistem hesaplaması".
 
 ## Pre-launch analysis (forecast)
 

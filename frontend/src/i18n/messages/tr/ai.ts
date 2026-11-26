@@ -54,12 +54,9 @@ const ai: Messages['ai'] = {
             'Ayın AI maliyeti buna ulaşınca AI otomatik cevapları durur ve sohbetler ekibe geçer. Boş: bütçe yok.',
         noBudget: 'Bütçe yok',
         budgetInvalid: '50 veya 12.5 gibi bir tutar girin.',
-        attributionDays: 'Kampanya atama penceresi (gün)',
-        attributionDaysHint:
-            'Bir kişiyle yapılan AI işi, kişiye en son ulaşan kampanyaya bu kadar gün boyunca yazılır.',
         classify: 'Kampanya cevaplarını sınıflandır',
         classifyHint:
-            'AI, her kişinin kampanyaya ilk cevabını olumlu, olumsuz veya nötr olarak okur (cevap başına bir ek istek).',
+            'AI, her kişinin kampanyaya ilk yazılı cevabını olumlu, olumsuz veya nötr olarak okur ve alıcıyı etiketler (cevap başına bir ek istek). Basılan hızlı cevaplar ve kişilerin verdiği etiketler korunur. Atama penceresi Kampanya koruması ayarındadır.',
         training:
             'Messora, seçenek sunan sağlayıcılardan sohbet verisini saklamamalarını ve eğitimde kullanmamalarını ister (OpenAI: store=false). Sağlayıcı bazında ayrıntı için docs/AI.md.',
     },

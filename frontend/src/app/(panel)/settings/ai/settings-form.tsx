@@ -28,7 +28,6 @@ function initial(s: Settings): Schemas['UpdateAISettingsRequest'] {
         context_messages: s.context_messages,
         monthly_budget: s.monthly_budget ?? '',
         classify_campaign_replies: s.classify_campaign_replies,
-        campaign_attribution_days: s.campaign_attribution_days,
     };
 }
 
@@ -221,28 +220,6 @@ export function AISettingsForm({
                             </p>
                         )}
                     </div>
-                </Row>
-                <Row
-                    label={t('ai.settings.attributionDays')}
-                    hint={t('ai.settings.attributionDaysHint')}
-                >
-                    <NumberField
-                        aria-label={t('ai.settings.attributionDays')}
-                        min={1}
-                        max={90}
-                        className="w-32"
-                        value={v.campaign_attribution_days ?? 7}
-                        disabled={readOnly}
-                        onValueChange={(n) =>
-                            setV({
-                                ...v,
-                                campaign_attribution_days: Math.min(
-                                    90,
-                                    Math.max(1, n ?? 7),
-                                ),
-                            })
-                        }
-                    />
                 </Row>
             </div>
             <label className="flex items-start justify-between gap-4">

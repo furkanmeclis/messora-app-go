@@ -53,12 +53,9 @@ const ai = {
             'When the month’s AI cost reaches it, AI auto replies pause and conversations go to the team. Empty: no budget.',
         noBudget: 'No budget',
         budgetInvalid: 'An amount like 50 or 12.5.',
-        attributionDays: 'Campaign attribution window (days)',
-        attributionDaysHint:
-            'AI work with a contact counts for the campaign that reached them last, for this many days.',
         classify: 'Classify replies to campaigns',
         classifyHint:
-            'The AI reads each contact’s first reply to a campaign as positive, negative or neutral (one extra request per reply).',
+            'The AI reads each contact’s first written reply to a campaign as positive, negative or neutral and labels the recipient (one extra request per reply). Tapped quick replies and labels set by people are kept. The attribution window is set in Campaign protection.',
         training:
             'Messora asks providers not to retain or train on conversation data where they offer the option (OpenAI: store=false). See docs/AI.md for each provider.',
     },

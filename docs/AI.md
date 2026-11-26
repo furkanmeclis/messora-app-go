@@ -418,26 +418,25 @@ Every `ai_usage` row of a conversation gets a `campaign_id` when it is
 recorded (`ai.Attribute`): the campaign whose message reached the
 contact **last** on the conversation's number at or before the request
 (a message Meta accepted: `sent`, `delivered` or `read`), provided it is
-at most **N days** old (Settings → AI, `campaign_attribution_days`,
-default 7, 1–90). A later campaign reaching the same contact takes over
-from its send on. Each request belongs to **at most one** campaign (one
+at most **N days** old. N is the campaign attribution window of
+**Settings → Campaign protection** (`attribution_days`, default 7, 1–30;
+docs/CAMPAIGN_ANALYTICS.md "Attribution"), the one window for replies,
+opt-outs and AI usage (`ai.Service.SetAttributionWindow` reads it; there
+is no AI setting of its own). A later campaign reaching the same contact
+takes over from its send on. Each request belongs to **at most one** campaign (one
 column, never rewritten); rows without one are **kampanya dışı**.
 `ai:attribution_reconcile` (hourly, queue `ai`) retries rows of the last
 window + 1 day that have no campaign (a campaign message recorded late)
 and never changes an attributed row. A call may also name its campaign
 (classification does).
 
-> For P3: the same rule and window are exposed as `ai.CampaignAt` and
-> `ai.Settings.AttributionWindow()`; replies and reactions should use it so
-> AI cost and campaign results agree. If P3 introduces its own window
-> setting, `campaign_attribution_days` should move there.
-
-`GET /campaigns/{id}/ai-usage` (session, `campaigns.read`) returns the AI
-requests, failures, conversations, tokens and USD cost of the campaign,
-what Meta billed for its messages per currency (`messages.cost_amount`),
-the **total operational cost** (Meta + AI; `null` when Meta billed in
-another currency than USD) and the reply classification counts. P3's
-analysis page shows these figures.
+The campaign's AI figures are in its **analysis center**
+(`GET /campaigns/{id}/analytics`, `ai_cost`: requests, failures,
+input/output/cached tokens, conversations and cost per currency, and
+`total_cost` = Meta estimate + AI when they share a currency; see
+docs/CAMPAIGN_ANALYTICS.md). They sum the same `ai_usage` rows as the
+`campaign` group of the usage summary below, so the two always agree and
+a request is never counted twice.
 
 ### Usage metrics
 
@@ -467,19 +466,31 @@ state; raising or removing the budget resumes AI on the next message.
 ### Campaign reply classification
 
 With **Kampanya cevaplarını sınıflandır** (`classify_campaign_replies`,
-off by default) the first reply of a contact to the campaign that reached
-them last (same attribution window) is recorded in
-`campaign_reply_classifications` (one row per campaign and contact,
-`pending`) in the webhook transaction and `ai:classify` (queue `ai`)
-classifies it: purpose `classify`, structured output (`sentiment`
+off by default) a contact's first **free-text** reply to a campaign is
+classified. The campaigns module attributes the reply (the recipient row
+of the campaign that reached the contact last on that number, within the
+attribution window) and, when it is not a tapped quick reply, hands it to
+its `ReplyClassifier` (`conversations.CampaignReplyClassifier`; skipped
+for contacts with AI turned off and for consent keywords). That records a
+`pending` row in `campaign_reply_classifications` (one per campaign and
+contact, linked to the recipient) in the webhook transaction, and
+`ai:classify` (queue `ai`) classifies it: purpose `classify`, structured output (`sentiment`
 positive | negative | neutral, `confidence`, `reason`), the number's
 profile provider/model, usage attributed to that campaign. Results:
 `done` with the sentiment, `failed` (provider error kind), `skipped` (AI
 off, budget used up, more than 10 classifications in an hour for the
 conversation, message deleted). Provider rate limits are retried by the
-queue. The reply text is treated as customer content. P3's reaction
-pipeline reads the table (system-computed reaction) or calls
-`ai.Service.ClassifyReply` directly.
+queue. The reply text is treated as customer content.
+
+A `done` result is written to the recipient row as its **reaction** with
+source `ai` (`campaign_recipients.reaction`), so the campaign counters,
+the positive/negative/neutral rates, the recipient table filters and
+reaction automations see it like any other reaction. Precedence: a label
+set by a person (`manual`) is never replaced, and an AI label never
+replaces a tapped quick reply (a quick reply tapped later replaces the AI
+label). `campaign_reply_classifications` stays as the job log
+(confidence, reason, error, usage row); if writing the reaction fails the
+job is retried and only the write is repeated.
 
 ## Development and tests
 

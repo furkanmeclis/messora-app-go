@@ -104,22 +104,6 @@ SELECT count(*)::bigint FROM conversation_handoffs WHERE from_type = 'ai' AND cr
 -- name: CampaignNames :many
 SELECT id, name FROM campaigns WHERE id = ANY(@ids::uuid[]);
 
--- name: CampaignAIUsage :one
-SELECT count(*)::bigint AS requests,
-       count(*) FILTER (WHERE status = 'error')::bigint AS failed,
-       coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
-       coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
-       coalesce(sum(cached_tokens), 0)::bigint AS cached_tokens,
-       coalesce(sum(cost) FILTER (WHERE coalesce(currency, 'USD') = 'USD'), 0)::text AS cost,
-       count(DISTINCT conversation_id)::bigint AS conversations
-FROM ai_usage WHERE campaign_id = @campaign_id;
-
--- name: CampaignMetaCost :many
--- What Meta billed for the campaign's messages, per currency.
-SELECT coalesce(cost_currency, '')::text AS currency, coalesce(sum(cost_amount), 0)::text AS cost, count(*)::bigint AS messages
-FROM messages WHERE campaign_id = @campaign_id AND cost_amount IS NOT NULL
-GROUP BY 1 ORDER BY 1;
-
 -- ── Budget ──────────────────────────────────────────────────────────────────
 
 -- name: AICostSince :one
@@ -137,8 +121,8 @@ WHERE u.status = 'active' AND rp.permission_key = 'ai.manage';
 
 -- name: InsertReplyClassification :one
 -- The first reply of a contact to a campaign; later replies insert nothing.
-INSERT INTO campaign_reply_classifications (campaign_id, contact_id, conversation_id, message_id)
-VALUES (@campaign_id, @contact_id, sqlc.narg(conversation_id), sqlc.narg(message_id))
+INSERT INTO campaign_reply_classifications (campaign_id, contact_id, recipient_id, conversation_id, message_id)
+VALUES (@campaign_id, @contact_id, sqlc.narg(recipient_id), sqlc.narg(conversation_id), sqlc.narg(message_id))
 ON CONFLICT (campaign_id, contact_id) DO NOTHING
 RETURNING id;
 
@@ -149,13 +133,6 @@ SELECT * FROM campaign_reply_classifications WHERE id = @id;
 UPDATE campaign_reply_classifications SET status = @status, sentiment = sqlc.narg(sentiment), confidence = sqlc.narg(confidence),
     reason = @reason, error = @error, ai_usage_id = sqlc.narg(ai_usage_id), classified_at = now()
 WHERE id = @id AND status = 'pending';
-
--- name: ListCampaignReplyClassifications :many
-SELECT * FROM campaign_reply_classifications WHERE campaign_id = @campaign_id ORDER BY id;
-
--- name: CampaignReplySentiments :many
-SELECT coalesce(sentiment, status)::text AS sentiment, count(*)::bigint AS n FROM campaign_reply_classifications
-WHERE campaign_id = @campaign_id GROUP BY 1 ORDER BY 1;
 
 -- name: CountConversationClassifications :one
 -- Classification requests of a conversation in the last hour.

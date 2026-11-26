@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 )
 
@@ -199,7 +201,8 @@ func TestAINeverOverwritesValuesPeopleSetOrVerified(t *testing.T) {
 }
 
 // campaignReached records campaign name's message to the test customer on
-// the number, sent at sentAt; it returns the campaign id.
+// the number, sent at sentAt, and its recipient row (what reply
+// attribution reads); it returns the campaign id.
 func (h *harness) campaignReached(phoneID, name string, sentAt time.Time) string {
 	h.t.Helper()
 	ctx := context.Background()
@@ -211,8 +214,13 @@ func (h *harness) campaignReached(phoneID, name string, sentAt time.Time) string
 		VALUES ($1, 'completed', $2, 'promo', 'en', '{"all": true}') RETURNING id`, name, phoneID).Scan(&cid); err != nil {
 		h.t.Fatal(err)
 	}
-	if _, err := h.pool.Exec(ctx, `INSERT INTO messages (phone_number_id, contact_id, direction, type, body, status, status_rank, source, campaign_id, sent_at, created_at)
-		VALUES ($1, $2, 'outbound', 'template', '[template] promo', 'delivered', 4, 'campaign', $3, $4, $4)`, phoneID, contactID, cid, sentAt); err != nil {
+	var msgID uuid.UUID
+	if err := h.pool.QueryRow(ctx, `INSERT INTO messages (phone_number_id, contact_id, direction, type, body, status, status_rank, source, campaign_id, sent_at, created_at)
+		VALUES ($1, $2, 'outbound', 'template', '[template] promo', 'delivered', 4, 'campaign', $3, $4, $4) RETURNING id`, phoneID, contactID, cid, sentAt).Scan(&msgID); err != nil {
+		h.t.Fatal(err)
+	}
+	if _, err := h.pool.Exec(ctx, `INSERT INTO campaign_recipients (campaign_id, contact_id, phone_e164, state, message_id, msg_status, attempted_at, sent_at, delivered_at)
+		VALUES ($1, $2, $3, 'queued', $4, 'delivered', $5, $5, $5)`, cid, contactID, "+"+testCustomer, msgID, sentAt); err != nil {
 		h.t.Fatal(err)
 	}
 	return cid.String()
@@ -273,15 +281,20 @@ func TestAIUsageAttributedToOneCampaign(t *testing.T) {
 		t.Fatal("reconcile is not idempotent")
 	}
 
-	// Per-campaign usage and the operational cost.
-	r := h.do(call{method: "GET", path: "/api/v1/campaigns/" + b + "/ai-usage", token: env.owner})
+	// Per-campaign usage and the operational cost, in the analysis center.
+	r := h.do(call{method: "GET", path: "/api/v1/campaigns/" + b + "/analytics", token: env.owner})
 	h.expect(r, 200, "")
 	d := r.data()
-	// 2 requests × (100 input × 1/1M + 20 output × 2/1M) = 0.00028
-	if d["ai_requests"] != float64(2) || d["ai_cost"] != "0.00028" || d["total_cost"] != "0.00028" || d["attribution_days"] != float64(7) {
-		t.Fatalf("campaign usage: %s", r.raw)
+	aiCost := d["ai_cost"].([]any)
+	if len(aiCost) != 1 {
+		t.Fatalf("campaign ai cost: %s", r.raw)
 	}
-	h.expect(h.do(call{method: "GET", path: "/api/v1/campaigns/" + uuid.NewString() + "/ai-usage", token: env.owner}), 404, "")
+	ac := aiCost[0].(map[string]any)
+	// 2 requests × (100 input × 1/1M + 20 output × 2/1M) = 0.00028
+	if ac["currency"] != "USD" || ac["requests"] != float64(2) || num(t, ac["cost"]) != 0.00028 || ac["input_tokens"] != float64(200) ||
+		ac["output_tokens"] != float64(40) || ac["failed"] != float64(0) || ac["conversations"] != float64(1) || num(t, d["total_cost"]) != 0.00028 {
+		t.Fatalf("campaign ai cost: %s", r.raw)
+	}
 
 	// The summary: totals and the campaign breakdown.
 	q := url.Values{"from": {start.UTC().Format(time.RFC3339)}, "to": {time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}, "group_by": {"campaign"}}
@@ -308,6 +321,17 @@ func TestAIUsageAttributedToOneCampaign(t *testing.T) {
 	}
 	if sum != tot["requests"] {
 		t.Fatal("a request was counted for two campaigns")
+	}
+	// The analysis center and the usage page read the same rows.
+	for _, cid := range []string{a, b, c} {
+		r := h.do(call{method: "GET", path: "/api/v1/campaigns/" + cid + "/analytics", token: env.owner})
+		h.expect(r, 200, "")
+		ac := r.data()["ai_cost"].([]any)[0].(map[string]any)
+		g := byKey[cid]
+		if ac["requests"] != g["requests"] || num(t, ac["cost"]) != num(t, g["cost"]) || ac["input_tokens"] != g["input_tokens"] ||
+			ac["output_tokens"] != g["output_tokens"] {
+			t.Fatalf("campaign %s: analytics %v, usage %v", cid, ac, g)
+		}
 	}
 	for _, g := range []string{"model", "provider", "purpose", "day"} {
 		q.Set("group_by", g)
@@ -429,9 +453,65 @@ func TestCampaignReplyClassification(t *testing.T) {
 	if h.count("SELECT count(*) FROM ai_usage WHERE purpose = 'classify' AND campaign_id = $1", camp) != 1 {
 		t.Fatal("classification usage not attributed to the campaign")
 	}
-	r = h.do(call{method: "GET", path: "/api/v1/campaigns/" + camp + "/ai-usage", token: env.owner})
-	h.expect(r, 200, "")
-	if r.data()["reply_sentiments"].(map[string]any)["positive"] != float64(1) {
-		t.Fatalf("sentiments: %s", r.raw)
+	// The result is the recipient's reaction (source ai), which the
+	// campaign's counters and analysis read.
+	var reaction, source string
+	var recipient uuid.UUID
+	if err := h.pool.QueryRow(context.Background(), "SELECT id, coalesce(reaction, ''), coalesce(reaction_source, '') FROM campaign_recipients WHERE campaign_id = $1",
+		camp).Scan(&recipient, &reaction, &source); err != nil {
+		t.Fatal(err)
 	}
+	if reaction != "positive" || source != campaigns.ReactionSourceAI {
+		t.Fatalf("recipient reaction %q (%q)", reaction, source)
+	}
+	if h.count("SELECT count(*) FROM campaign_reply_classifications WHERE recipient_id = $1", recipient) != 1 {
+		t.Fatal("classification not linked to the recipient")
+	}
+	r = h.do(call{method: "GET", path: "/api/v1/campaigns/" + camp + "/analytics", token: env.owner})
+	h.expect(r, 200, "")
+	metrics := map[string]float64{}
+	for _, m := range r.data()["metrics"].([]any) {
+		mm := m.(map[string]any)
+		metrics[mm["key"].(string)] = mm["value"].(float64)
+	}
+	if metrics["positive"] != 1 || metrics["replied"] != 1 {
+		t.Fatalf("analytics: %v", metrics)
+	}
+	// Precedence: an AI label never replaces a manual one or a tapped quick
+	// reply; a quick reply replaces an AI label.
+	ctx := context.Background()
+	campID := uuid.MustParse(camp)
+	neg := "negative"
+	if ok, err := h.svc.campaigns.SetReaction(ctx, campID, recipient, &neg, campaigns.ReactionSourceQuickReply); err != nil || !ok {
+		t.Fatalf("quick reply over ai: %v %v", ok, err)
+	}
+	pos := "positive"
+	if ok, err := h.svc.campaigns.SetReaction(ctx, campID, recipient, &pos, campaigns.ReactionSourceAI); err != nil || ok {
+		t.Fatalf("ai over quick reply: %v %v", ok, err)
+	}
+	if ok, err := h.svc.campaigns.SetReaction(ctx, campID, recipient, &pos, campaigns.ReactionSourceManual); err != nil || !ok {
+		t.Fatalf("manual: %v %v", ok, err)
+	}
+	if ok, err := h.svc.campaigns.SetReaction(ctx, campID, recipient, &neg, campaigns.ReactionSourceAI); err != nil || ok {
+		t.Fatalf("ai over manual: %v %v", ok, err)
+	}
+	// A rerun of a finished classification only rewrites the reaction
+	// (which the manual label now keeps): no second request.
+	var clsID uuid.UUID
+	if err := h.pool.QueryRow(ctx, "SELECT id FROM campaign_reply_classifications WHERE campaign_id = $1", camp).Scan(&clsID); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ai.RunClassification(ctx, clsID); err != nil || classified.Load() != 1 {
+		t.Fatalf("rerun: %v, classifications %d", err, classified.Load())
+	}
+}
+
+func num(t *testing.T, v any) float64 {
+	t.Helper()
+	s, _ := v.(string)
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		t.Fatalf("not a number: %v", v)
+	}
+	return f
 }

@@ -2,19 +2,15 @@ package ai
 
 import (
 	"context"
-	"errors"
-	"math/big"
 	"net/http"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
-	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
 // Usage summary groups.
@@ -134,73 +130,6 @@ func (s *Service) usageLabels(ctx context.Context, groupBy string, rows []db.AIU
 	return labels, nil
 }
 
-// CampaignUsage is the AI and Meta cost of a campaign.
-type CampaignUsage struct {
-	CampaignID      uuid.UUID
-	AI              db.CampaignAIUsageRow
-	MetaCosts       []db.CampaignMetaCostRow
-	TotalCost       *string
-	TotalCurrency   *string
-	Sentiments      map[string]int64
-	AttributionDays int
-}
-
-// Total adds the AI cost (USD) and Meta's costs when Meta billed in USD
-// (or nothing); with another currency there is no single total.
-func Total(aiCost string, meta []db.CampaignMetaCostRow) (*string, *string) {
-	sum, ok := new(big.Rat).SetString(aiCost)
-	if !ok {
-		sum = new(big.Rat)
-	}
-	for _, m := range meta {
-		if m.Currency != "USD" {
-			return nil, nil
-		}
-		if x, ok := new(big.Rat).SetString(m.Cost); ok {
-			sum.Add(sum, x)
-		}
-	}
-	t, cur := trimZeros(sum.FloatString(6)), "USD"
-	return &t, &cur
-}
-
-// CampaignUsageOf returns the AI usage attributed to a campaign, what Meta
-// billed for it and the total operational cost.
-func (s *Service) CampaignUsageOf(ctx context.Context, id uuid.UUID) (CampaignUsage, error) {
-	names, err := s.q.CampaignNames(ctx, []uuid.UUID{id})
-	if err != nil {
-		return CampaignUsage{}, err
-	}
-	if len(names) == 0 {
-		return CampaignUsage{}, ErrNotFound
-	}
-	out := CampaignUsage{CampaignID: id, Sentiments: map[string]int64{}}
-	if out.AI, err = s.q.CampaignAIUsage(ctx, &id); err != nil {
-		return out, err
-	}
-	out.AI.Cost = trimZeros(out.AI.Cost)
-	if out.MetaCosts, err = s.q.CampaignMetaCost(ctx, &id); err != nil {
-		return out, err
-	}
-	for i := range out.MetaCosts {
-		out.MetaCosts[i].Cost = trimZeros(out.MetaCosts[i].Cost)
-	}
-	out.TotalCost, out.TotalCurrency = Total(out.AI.Cost, out.MetaCosts)
-	sents, err := s.q.CampaignReplySentiments(ctx, id)
-	if err != nil {
-		return out, err
-	}
-	for _, r := range sents {
-		out.Sentiments[r.Sentiment] = r.N
-	}
-	st, err := s.Settings(ctx)
-	if err != nil {
-		return out, err
-	}
-	out.AttributionDays = st.AttributionDays()
-	return out, nil
-}
-
 func totalsToAPI(r db.AIUsageSummaryRow) api.AIUsageTotals {
 	cost := trimZeros(r.Cost)
 	if cost == "" {
@@ -246,25 +175,4 @@ func (h *Handler) GetAIUsageSummary(w http.ResponseWriter, r *http.Request, p ap
 			CacheWriteTokens: t.CacheWriteTokens, Cost: t.Cost, AvgLatencyMs: t.AvgLatencyMs})
 	}
 	httpx.JSON(w, r, http.StatusOK, out)
-}
-
-// GetCampaignAIUsage implements api.ServerInterface.
-func (h *Handler) GetCampaignAIUsage(w http.ResponseWriter, r *http.Request, id api.CampaignId) {
-	u, err := h.svc.CampaignUsageOf(r.Context(), id)
-	if errors.Is(err, ErrNotFound) || errors.Is(err, pgx.ErrNoRows) {
-		h.fail(w, r, apperr.NotFound("Campaign not found."))
-		return
-	}
-	if err != nil {
-		h.fail(w, r, err)
-		return
-	}
-	meta := make([]api.CampaignMetaCost, len(u.MetaCosts))
-	for i, m := range u.MetaCosts {
-		meta[i] = api.CampaignMetaCost{Currency: m.Currency, Cost: m.Cost, Messages: m.Messages}
-	}
-	httpx.JSON(w, r, http.StatusOK, api.CampaignAIUsage{CampaignId: u.CampaignID, AiRequests: u.AI.Requests, AiFailed: u.AI.Failed,
-		AiConversations: u.AI.Conversations, AiInputTokens: u.AI.InputTokens, AiOutputTokens: u.AI.OutputTokens,
-		AiCachedTokens: u.AI.CachedTokens, AiCost: u.AI.Cost, AiCurrency: "USD", MetaCosts: meta, TotalCost: u.TotalCost,
-		TotalCurrency: u.TotalCurrency, ReplySentiments: u.Sentiments, AttributionDays: u.AttributionDays})
 }

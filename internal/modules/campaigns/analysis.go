@@ -40,10 +40,10 @@ type CostCategory struct {
 	Messages, Unpriced             int64
 }
 
-// AICost is the AI cost of a campaign in one currency.
+// AICost is the AI usage and cost of a campaign in one currency.
 type AICost struct {
-	Currency, Cost string
-	Requests       int64
+	Currency, Cost                                                           string
+	Requests, Failed, InputTokens, OutputTokens, CachedTokens, Conversations int64
 }
 
 // CostDay is Meta's reconciled cost of one day and category of the
@@ -81,8 +81,7 @@ type Analysis struct {
 	Timeline        []AccountEvent
 	Classes         map[string]int64
 	Hourly          []HourlyPoint
-	// AICost is the AI usage attributed to the campaign (P7; empty until
-	// then) per currency; TotalCost is Meta + AI when they share the
+	// AICost is the AI usage attributed to the campaign per currency; TotalCost is Meta + AI when they share the
 	// currency (the campaign's operating cost), "" otherwise.
 	AICost    []AICost
 	TotalCost string
@@ -153,7 +152,8 @@ func (s *Service) Analysis(ctx context.Context, id uuid.UUID) (Analysis, error) 
 	meta, _ := metacost.ParseMicros(out.CostEstimate)
 	total := meta
 	for _, x := range ai {
-		out.AICost = append(out.AICost, AICost{Currency: x.Currency, Cost: x.Cost, Requests: x.Requests})
+		out.AICost = append(out.AICost, AICost{Currency: x.Currency, Cost: x.Cost, Requests: x.Requests, Failed: x.Failed,
+			InputTokens: x.InputTokens, OutputTokens: x.OutputTokens, CachedTokens: x.CachedTokens, Conversations: x.Conversations})
 	}
 	switch {
 	case len(ai) == 0:

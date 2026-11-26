@@ -116,75 +116,6 @@ func (q *Queries) AIUsageSummary(ctx context.Context, arg AIUsageSummaryParams) 
 	return items, nil
 }
 
-const campaignAIUsage = `-- name: CampaignAIUsage :one
-SELECT count(*)::bigint AS requests,
-       count(*) FILTER (WHERE status = 'error')::bigint AS failed,
-       coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
-       coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
-       coalesce(sum(cached_tokens), 0)::bigint AS cached_tokens,
-       coalesce(sum(cost) FILTER (WHERE coalesce(currency, 'USD') = 'USD'), 0)::text AS cost,
-       count(DISTINCT conversation_id)::bigint AS conversations
-FROM ai_usage WHERE campaign_id = $1
-`
-
-type CampaignAIUsageRow struct {
-	Requests      int64
-	Failed        int64
-	InputTokens   int64
-	OutputTokens  int64
-	CachedTokens  int64
-	Cost          string
-	Conversations int64
-}
-
-func (q *Queries) CampaignAIUsage(ctx context.Context, campaignID *uuid.UUID) (CampaignAIUsageRow, error) {
-	row := q.db.QueryRow(ctx, campaignAIUsage, campaignID)
-	var i CampaignAIUsageRow
-	err := row.Scan(
-		&i.Requests,
-		&i.Failed,
-		&i.InputTokens,
-		&i.OutputTokens,
-		&i.CachedTokens,
-		&i.Cost,
-		&i.Conversations,
-	)
-	return i, err
-}
-
-const campaignMetaCost = `-- name: CampaignMetaCost :many
-SELECT coalesce(cost_currency, '')::text AS currency, coalesce(sum(cost_amount), 0)::text AS cost, count(*)::bigint AS messages
-FROM messages WHERE campaign_id = $1 AND cost_amount IS NOT NULL
-GROUP BY 1 ORDER BY 1
-`
-
-type CampaignMetaCostRow struct {
-	Currency string
-	Cost     string
-	Messages int64
-}
-
-// What Meta billed for the campaign's messages, per currency.
-func (q *Queries) CampaignMetaCost(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMetaCostRow, error) {
-	rows, err := q.db.Query(ctx, campaignMetaCost, campaignID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CampaignMetaCostRow{}
-	for rows.Next() {
-		var i CampaignMetaCostRow
-		if err := rows.Scan(&i.Currency, &i.Cost, &i.Messages); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const campaignNames = `-- name: CampaignNames :many
 SELECT id, name FROM campaigns WHERE id = ANY($1::uuid[])
 `
@@ -204,36 +135,6 @@ func (q *Queries) CampaignNames(ctx context.Context, ids []uuid.UUID) ([]Campaig
 	for rows.Next() {
 		var i CampaignNamesRow
 		if err := rows.Scan(&i.ID, &i.Name); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const campaignReplySentiments = `-- name: CampaignReplySentiments :many
-SELECT coalesce(sentiment, status)::text AS sentiment, count(*)::bigint AS n FROM campaign_reply_classifications
-WHERE campaign_id = $1 GROUP BY 1 ORDER BY 1
-`
-
-type CampaignReplySentimentsRow struct {
-	Sentiment string
-	N         int64
-}
-
-func (q *Queries) CampaignReplySentiments(ctx context.Context, campaignID uuid.UUID) ([]CampaignReplySentimentsRow, error) {
-	rows, err := q.db.Query(ctx, campaignReplySentiments, campaignID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CampaignReplySentimentsRow{}
-	for rows.Next() {
-		var i CampaignReplySentimentsRow
-		if err := rows.Scan(&i.Sentiment, &i.N); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -334,7 +235,7 @@ func (q *Queries) FinishReplyClassification(ctx context.Context, arg FinishReply
 }
 
 const getReplyClassification = `-- name: GetReplyClassification :one
-SELECT id, campaign_id, contact_id, conversation_id, message_id, status, sentiment, confidence, reason, error, ai_usage_id, created_at, classified_at FROM campaign_reply_classifications WHERE id = $1
+SELECT id, campaign_id, contact_id, recipient_id, conversation_id, message_id, status, sentiment, confidence, reason, error, ai_usage_id, created_at, classified_at FROM campaign_reply_classifications WHERE id = $1
 `
 
 func (q *Queries) GetReplyClassification(ctx context.Context, id uuid.UUID) (CampaignReplyClassification, error) {
@@ -344,6 +245,7 @@ func (q *Queries) GetReplyClassification(ctx context.Context, id uuid.UUID) (Cam
 		&i.ID,
 		&i.CampaignID,
 		&i.ContactID,
+		&i.RecipientID,
 		&i.ConversationID,
 		&i.MessageID,
 		&i.Status,
@@ -360,8 +262,8 @@ func (q *Queries) GetReplyClassification(ctx context.Context, id uuid.UUID) (Cam
 
 const insertReplyClassification = `-- name: InsertReplyClassification :one
 
-INSERT INTO campaign_reply_classifications (campaign_id, contact_id, conversation_id, message_id)
-VALUES ($1, $2, $3, $4)
+INSERT INTO campaign_reply_classifications (campaign_id, contact_id, recipient_id, conversation_id, message_id)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (campaign_id, contact_id) DO NOTHING
 RETURNING id
 `
@@ -369,6 +271,7 @@ RETURNING id
 type InsertReplyClassificationParams struct {
 	CampaignID     uuid.UUID
 	ContactID      uuid.UUID
+	RecipientID    *uuid.UUID
 	ConversationID *uuid.UUID
 	MessageID      *uuid.UUID
 }
@@ -379,6 +282,7 @@ func (q *Queries) InsertReplyClassification(ctx context.Context, arg InsertReply
 	row := q.db.QueryRow(ctx, insertReplyClassification,
 		arg.CampaignID,
 		arg.ContactID,
+		arg.RecipientID,
 		arg.ConversationID,
 		arg.MessageID,
 	)
@@ -440,44 +344,6 @@ func (q *Queries) ListAIManagers(ctx context.Context) ([]uuid.UUID, error) {
 			return nil, err
 		}
 		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listCampaignReplyClassifications = `-- name: ListCampaignReplyClassifications :many
-SELECT id, campaign_id, contact_id, conversation_id, message_id, status, sentiment, confidence, reason, error, ai_usage_id, created_at, classified_at FROM campaign_reply_classifications WHERE campaign_id = $1 ORDER BY id
-`
-
-func (q *Queries) ListCampaignReplyClassifications(ctx context.Context, campaignID uuid.UUID) ([]CampaignReplyClassification, error) {
-	rows, err := q.db.Query(ctx, listCampaignReplyClassifications, campaignID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CampaignReplyClassification{}
-	for rows.Next() {
-		var i CampaignReplyClassification
-		if err := rows.Scan(
-			&i.ID,
-			&i.CampaignID,
-			&i.ContactID,
-			&i.ConversationID,
-			&i.MessageID,
-			&i.Status,
-			&i.Sentiment,
-			&i.Confidence,
-			&i.Reason,
-			&i.Error,
-			&i.AiUsageID,
-			&i.CreatedAt,
-			&i.ClassifiedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/furkanmeclis/messora-app-go/internal/db"
 )
 
 func TestAttributeCampaign(t *testing.T) {
@@ -49,13 +47,6 @@ func TestAttributeCampaign(t *testing.T) {
 	}
 	if Attribute(nil, t0, week) != nil {
 		t.Error("no sends")
-	}
-}
-
-func TestAttributionWindowSetting(t *testing.T) {
-	if (Settings{}).AttributionDays() != 7 || (Settings{CampaignAttributionDays: 3}).AttributionWindow() != 72*time.Hour ||
-		(Settings{CampaignAttributionDays: 500}).AttributionDays() != MaxCampaignAttributionDays {
-		t.Fatal("attribution window")
 	}
 }
 
@@ -168,18 +159,6 @@ func TestBudget(t *testing.T) {
 	}
 	if m := MonthStart(time.Date(2026, 11, 30, 23, 59, 0, 0, time.FixedZone("TRT", 3*3600))); !m.Equal(time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)) {
 		t.Errorf("month start %v", m)
-	}
-}
-
-func TestTotalCost(t *testing.T) {
-	if tot, cur := Total("0.25", []db.CampaignMetaCostRow{{Currency: "USD", Cost: "1.5"}}); tot == nil || *tot != "1.75" || *cur != "USD" {
-		t.Fatalf("usd total %v", tot)
-	}
-	if tot, _ := Total("0.25", nil); tot == nil || *tot != "0.25" {
-		t.Fatal("no meta cost")
-	}
-	if tot, _ := Total("0.25", []db.CampaignMetaCostRow{{Currency: "TRY", Cost: "30"}}); tot != nil {
-		t.Fatal("currencies differ: no total")
 	}
 }
 

@@ -2142,26 +2142,6 @@ export interface paths {
         patch: operations['updateCampaignSettings'];
         trace?: never;
     };
-    '/campaigns/{campaignId}/ai-usage': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * AI usage, AI cost and total operational cost of a campaign
-         * @description The AI requests attributed to the campaign (a request belongs to the campaign that reached the contact last within the attribution window, never to two), their tokens and USD cost, what Meta billed for the campaign's messages, and the total operational cost (Meta + AI) when both are in the same currency. Also the AI's reading of the replies (positive / negative / neutral) when reply classification is on.
-         */
-        get: operations['getCampaignAIUsage'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     '/campaigns/{campaignId}/pauses': {
         parameters: {
             query?: never;
@@ -4408,10 +4388,8 @@ export interface components {
             context_messages: number;
             /** @description Monthly AI budget in USD (calendar month, UTC); null = none. When used up, AI auto replies pause (escalation ai_budget). */
             monthly_budget: string | null;
-            /** @description Whether the AI classifies the first reply to a campaign as positive, negative or neutral. */
+            /** @description Whether the AI classifies the first free-text reply to a campaign as positive, negative or neutral (the recipient's reaction, source ai). The attribution window is the campaign protection setting attribution_days. */
             classify_campaign_replies: boolean;
-            /** @description Days after a campaign reached a contact during which the contact's AI usage and replies count for it. */
-            campaign_attribution_days: number;
             /** @description Whether the fake provider kind can be connected (development and test only). */
             fake_provider_available: boolean;
         };
@@ -4430,8 +4408,6 @@ export interface components {
             monthly_budget?: string | null;
             /** @description Default false. Left out: unchanged. */
             classify_campaign_replies?: boolean;
-            /** @description Default 7. Left out: unchanged. */
-            campaign_attribution_days?: number;
         };
         AISettingsResponse: {
             data: components['schemas']['AISettings'];
@@ -4862,45 +4838,6 @@ export interface components {
         };
         AIUsageSummaryResponse: {
             data: components['schemas']['AIUsageSummary'];
-            meta: components['schemas']['Meta'];
-        };
-        CampaignMetaCost: {
-            currency: string;
-            cost: string;
-            /** Format: int64 */
-            messages: number;
-        };
-        CampaignAIUsage: {
-            /** Format: uuid */
-            campaign_id: string;
-            /** Format: int64 */
-            ai_requests: number;
-            /** Format: int64 */
-            ai_failed: number;
-            /** Format: int64 */
-            ai_conversations: number;
-            /** Format: int64 */
-            ai_input_tokens: number;
-            /** Format: int64 */
-            ai_output_tokens: number;
-            /** Format: int64 */
-            ai_cached_tokens: number;
-            ai_cost: string;
-            /** @enum {string} */
-            ai_currency: 'USD';
-            /** @description What Meta billed, per currency. */
-            meta_costs: components['schemas']['CampaignMetaCost'][];
-            /** @description Meta + AI when Meta billed in USD or nothing; null when the currencies differ. */
-            total_cost: string | null;
-            total_currency: string | null;
-            /** @description Classified first replies: positive, negative, neutral, plus pending / failed / skipped. */
-            reply_sentiments: {
-                [key: string]: number;
-            };
-            attribution_days: number;
-        };
-        CampaignAIUsageResponse: {
-            data: components['schemas']['CampaignAIUsage'];
             meta: components['schemas']['Meta'];
         };
         ContactFields: {
@@ -7523,12 +7460,26 @@ export interface components {
         CampaignAnalytics: {
             /** @description The template's quick reply button texts (keys for the reaction mapping). */
             quick_replies: string[];
-            /** @description AI usage attributed to the campaign (ai_usage.campaign_id), per currency; empty until AI features attribute usage. */
+            /** @description AI usage attributed to the campaign (ai_usage.campaign_id: each request belongs to the campaign that reached the contact last on the number within the attribution window, never to two), per currency; the same rows as the campaign group of GET /ai/usage/summary. Empty without AI usage. */
             ai_cost: {
+                /** @description USD; requests without a price count under USD with no cost. */
                 currency: string;
                 cost: string;
                 /** Format: int64 */
                 requests: number;
+                /** Format: int64 */
+                failed: number;
+                /** Format: int64 */
+                input_tokens: number;
+                /** Format: int64 */
+                output_tokens: number;
+                /** Format: int64 */
+                cached_tokens: number;
+                /**
+                 * Format: int64
+                 * @description Conversations with AI requests for the campaign.
+                 */
+                conversations: number;
             }[];
             /** @description Meta estimate + AI cost (the campaign's operating cost) when they share a currency. */
             total_cost?: string | null;
@@ -12324,29 +12275,6 @@ export interface operations {
             409: components['responses']['Conflict'];
             422: components['responses']['ValidationFailed'];
             429: components['responses']['RateLimited'];
-            default: components['responses']['Error'];
-        };
-    };
-    getCampaignAIUsage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaignId: components['parameters']['CampaignId'];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Usage */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['CampaignAIUsageResponse'];
-                };
-            };
             default: components['responses']['Error'];
         };
     };

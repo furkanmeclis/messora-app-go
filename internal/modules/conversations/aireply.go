@@ -143,10 +143,6 @@ func (s *Service) OnInbound(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.
 	if set, err := consent.CachedSettings(ctx, q); err == nil && set.Keywords.Match(m.Body) != "" {
 		return nil
 	}
-	// A reply to a campaign may be classified for the campaign's analysis.
-	if err := s.ai.EnqueueReplyClassification(ctx, tx, q, c, m); err != nil {
-		return err
-	}
 	if c.AiModeSetAt == nil && c.OwnerType == string(OwnerNone) {
 		if p, ok, _ := s.availability(ctx, c, contact); ok {
 			next := State{Owner: OwnerAI, Mode: ModeAutoReply}

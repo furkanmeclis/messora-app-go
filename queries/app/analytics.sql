@@ -38,11 +38,14 @@ UPDATE campaign_recipients SET reply_payload = @payload, updated_at = now() WHER
 
 -- name: SetRecipientReaction :execrows
 -- A manual label is never overwritten by the system (quick reply mapping
--- or AI); a manual label replaces anything. reaction NULL clears.
+-- or AI); a manual label replaces anything. An AI label never replaces a
+-- tapped quick reply (the customer's own choice; an AI result may finish
+-- after a later tap). reaction NULL clears.
 UPDATE campaign_recipients SET reaction = sqlc.narg(reaction),
     reaction_source = CASE WHEN sqlc.narg(reaction)::text IS NULL THEN NULL ELSE @source::text END,
     reaction_at = CASE WHEN sqlc.narg(reaction)::text IS NULL THEN NULL ELSE now() END, updated_at = now()
-WHERE id = @id AND campaign_id = @campaign_id AND (@source::text = 'manual' OR reaction_source IS DISTINCT FROM 'manual');
+WHERE id = @id AND campaign_id = @campaign_id AND (@source::text = 'manual' OR reaction_source IS DISTINCT FROM 'manual')
+    AND (@source::text <> 'ai' OR reaction_source IS DISTINCT FROM 'quick_reply');
 
 -- name: SetRecipientOptedOut :execrows
 UPDATE campaign_recipients SET opted_out_at = @at, updated_at = now() WHERE id = @id AND opted_out_at IS NULL;
@@ -185,7 +188,14 @@ GROUP BY contact_type ORDER BY n DESC, contact_type LIMIT 100;
 SELECT coalesce(max(resumed_at), 'epoch')::timestamptz AS resumed_at FROM campaign_pauses WHERE campaign_id = @campaign_id AND reason = 'spam_protection' AND resumed_at IS NOT NULL;
 
 -- name: CampaignAICost :many
--- AI usage attributed to the campaign (P7 sets ai_usage.campaign_id), by
--- currency.
-SELECT coalesce(currency, '')::text AS currency, coalesce(sum(cost), 0)::text AS cost, count(*)::bigint AS requests
+-- AI usage attributed to the campaign (ai_usage.campaign_id: each request
+-- belongs to one campaign or none, docs/AI.md "Campaign attribution"), by
+-- currency. Requests without a price (currency NULL) are counted under
+-- USD with no cost, like the AI usage page does.
+SELECT coalesce(currency, 'USD')::text AS currency, coalesce(sum(cost), 0)::text AS cost, count(*)::bigint AS requests,
+       count(*) FILTER (WHERE status = 'error')::bigint AS failed,
+       coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
+       coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
+       coalesce(sum(cached_tokens), 0)::bigint AS cached_tokens,
+       count(DISTINCT conversation_id)::bigint AS conversations
 FROM ai_usage WHERE campaign_id = @campaign_id GROUP BY 1 ORDER BY 1;

@@ -553,6 +553,36 @@ function Cost({ a }: { a: CampaignAnalytics }) {
                                   .map((x) => money(x.cost, x.currency))
                                   .join(' + ')}
                     </p>
+                    {a.ai_cost.length > 0 && (
+                        <p
+                            className="text-xs text-muted-foreground tabular-nums"
+                            data-testid="cost-ai-usage"
+                        >
+                            {t('analytics.cost.aiUsage', {
+                                requests: n(
+                                    a.ai_cost.reduce(
+                                        (s, x) => s + x.requests,
+                                        0,
+                                    ),
+                                ),
+                                tokens: n(
+                                    a.ai_cost.reduce(
+                                        (s, x) =>
+                                            s +
+                                            x.input_tokens +
+                                            x.output_tokens,
+                                        0,
+                                    ),
+                                ),
+                                conversations: n(
+                                    a.ai_cost.reduce(
+                                        (s, x) => s + x.conversations,
+                                        0,
+                                    ),
+                                ),
+                            })}
+                        </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                         {t('analytics.cost.aiHint')}
                     </p>

@@ -102,8 +102,8 @@ func DecodeClassification(raw []byte) (Classification, error) {
 }
 
 // ClassifyReply classifies one reply (purpose classify, structured output)
-// with the company's or the profile's provider. It is the hook of P3's
-// reaction pipeline; it fails with ErrAIDisabled while AI is off and
+// with the company's or the profile's provider (RunClassification calls
+// it for campaign replies); it fails with ErrAIDisabled while AI is off and
 // records the usage like every request.
 func (s *Service) ClassifyReply(ctx context.Context, in ClassifyInput) (Classification, error) {
 	res, err := s.Generate(ctx, Call{Purpose: PurposeClassify, ProfileID: in.ProfileID, ConversationID: in.ConversationID,
@@ -122,33 +122,38 @@ func (s *Service) ClassifyReply(ctx context.Context, in ClassifyInput) (Classifi
 	return c, err
 }
 
-// EnqueueReplyClassification is called for every customer message in the
-// webhook transaction: when the company classifies campaign replies and
-// the message is the contact's first reply to the campaign that reached
-// them last (attribution window), it records a pending classification
-// and schedules TypeClassifyReply. Later replies to the same campaign are
-// not classified.
-func (s *Service) EnqueueReplyClassification(ctx context.Context, tx pgx.Tx, q *db.Queries, conv db.Conversation, m db.Message) error {
+// CampaignReply is a customer's first free-text reply to a campaign, as
+// the campaigns module attributed it (campaigns.ReplyClassifier): the
+// campaign that reached the contact last, on the same number, within the
+// attribution window.
+type CampaignReply struct {
+	CampaignID, RecipientID, ContactID, MessageID uuid.UUID
+	ConversationID                                *uuid.UUID
+	Text                                          string
+}
+
+// ClassificationSink stores a finished classification as the reaction of
+// the campaign's recipient (source ai). It must be idempotent: a retry
+// after a failed write calls it again.
+type ClassificationSink func(ctx context.Context, campaignID, recipientID uuid.UUID, sentiment string) error
+
+// SetClassificationSink installs where finished classifications go (the
+// campaigns module's recipient reaction). nil: they are only logged in
+// campaign_reply_classifications.
+func (s *Service) SetClassificationSink(f ClassificationSink) { s.onClassified = f }
+
+// EnqueueReplyClassification is called inside the webhook transaction for
+// a reply the campaigns module attributed: when the company classifies
+// campaign replies it records a pending classification and schedules
+// TypeClassifyReply. One classification per campaign and contact.
+func (s *Service) EnqueueReplyClassification(ctx context.Context, tx pgx.Tx, q *db.Queries, r CampaignReply) error {
 	st, err := s.Settings(ctx)
-	if err != nil || !st.Enabled || !st.ClassifyCampaignReplies || strings.TrimSpace(m.Body) == "" {
+	if err != nil || !st.Enabled || !st.ClassifyCampaignReplies || strings.TrimSpace(r.Text) == "" {
 		return err
 	}
-	// When the reply reached Messora: Meta's timestamp has one-second
-	// precision and may fall before a send of the same second.
-	at := m.CreatedAt
-	if m.OccurredAt.After(at) {
-		at = m.OccurredAt
-	}
-	if at.IsZero() {
-		at = s.opts.Now()
-	}
-	campaign, err := CampaignAt(ctx, q, conv.ContactID, conv.PhoneNumberID, at, st.AttributionWindow())
-	if err != nil || campaign == nil {
-		return err
-	}
-	convID, msgID := conv.ID, m.ID
-	id, err := q.InsertReplyClassification(ctx, db.InsertReplyClassificationParams{CampaignID: *campaign, ContactID: conv.ContactID,
-		ConversationID: &convID, MessageID: &msgID})
+	recipient, msgID := r.RecipientID, r.MessageID
+	id, err := q.InsertReplyClassification(ctx, db.InsertReplyClassificationParams{CampaignID: r.CampaignID, ContactID: r.ContactID,
+		RecipientID: &recipient, ConversationID: r.ConversationID, MessageID: &msgID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil // the contact already replied to this campaign
 	}
@@ -157,6 +162,14 @@ func (s *Service) EnqueueReplyClassification(ctx context.Context, tx pgx.Tx, q *
 	}
 	_, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeClassifyReply), map[string]string{"classification_id": id.String()}, 0)
 	return err
+}
+
+// store hands a finished classification to the sink.
+func (s *Service) store(ctx context.Context, row db.CampaignReplyClassification, sentiment string) error {
+	if s.onClassified == nil || row.RecipientID == nil {
+		return nil
+	}
+	return s.onClassified(ctx, row.CampaignID, *row.RecipientID, sentiment)
 }
 
 // maxClassifyPerHour bounds classification requests per conversation and
@@ -172,8 +185,15 @@ func (s *Service) RunClassification(ctx context.Context, id uuid.UUID) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
-	if err != nil || row.Status != "pending" {
+	if err != nil {
 		return err
+	}
+	if row.Status == "done" && row.Sentiment != nil {
+		// A retry after the reaction write failed.
+		return s.store(ctx, row, *row.Sentiment)
+	}
+	if row.Status != "pending" {
+		return nil
 	}
 	finish := func(status, errText string, c *Classification) error {
 		p := db.FinishReplyClassificationParams{ID: id, Status: status, Error: errText}
@@ -235,5 +255,8 @@ func (s *Service) RunClassification(ctx context.Context, id uuid.UUID) error {
 		}
 		return finish("failed", kind, nil)
 	}
-	return finish("done", "", &c)
+	if err := finish("done", "", &c); err != nil {
+		return err
+	}
+	return s.store(ctx, row, c.Sentiment)
 }

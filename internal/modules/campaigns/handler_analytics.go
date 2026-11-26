@@ -133,7 +133,8 @@ func (h *Handler) GetCampaignAnalytics(w http.ResponseWriter, r *http.Request, i
 func aiCostJSON(in []AICost) []map[string]any {
 	out := make([]map[string]any, len(in))
 	for i, x := range in {
-		out[i] = map[string]any{"currency": x.Currency, "cost": x.Cost, "requests": x.Requests}
+		out[i] = map[string]any{"currency": x.Currency, "cost": x.Cost, "requests": x.Requests, "failed": x.Failed,
+			"input_tokens": x.InputTokens, "output_tokens": x.OutputTokens, "cached_tokens": x.CachedTokens, "conversations": x.Conversations}
 	}
 	return out
 }

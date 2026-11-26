@@ -84,7 +84,7 @@ func (h *Handler) settingsToAPI(s Settings) api.AISettings {
 	return api.AISettings{Enabled: s.Enabled, DefaultProviderId: s.DefaultProviderID, DefaultModel: s.DefaultModel,
 		Disclosure: api.AITexts{Tr: s.Disclosure.TR, En: s.Disclosure.EN}, DataSharingNotice: api.AITexts{Tr: s.DataSharingNotice.TR, En: s.DataSharingNotice.EN},
 		FakeProviderAvailable: h.svc.FakeAllowed(), MaxRepliesPerHour: s.RepliesPerHour(), ContextMessages: s.ContextSize(),
-		ClassifyCampaignReplies: s.ClassifyCampaignReplies, CampaignAttributionDays: s.AttributionDays(), MonthlyBudget: nonEmpty(s.MonthlyBudget)}
+		ClassifyCampaignReplies: s.ClassifyCampaignReplies, MonthlyBudget: nonEmpty(s.MonthlyBudget)}
 }
 
 // GetAISettings implements api.ServerInterface.
@@ -113,15 +113,12 @@ func (h *Handler) UpdateAISettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.MaxRepliesPerHour, in.ContextMessages = old.MaxRepliesPerHour, old.ContextMessages
-	in.MonthlyBudget, in.ClassifyCampaignReplies, in.CampaignAttributionDays = old.MonthlyBudget, old.ClassifyCampaignReplies, old.CampaignAttributionDays
+	in.MonthlyBudget, in.ClassifyCampaignReplies = old.MonthlyBudget, old.ClassifyCampaignReplies
 	if req.MonthlyBudget != nil {
 		in.MonthlyBudget = *req.MonthlyBudget // "" removes the budget
 	}
 	if req.ClassifyCampaignReplies != nil {
 		in.ClassifyCampaignReplies = *req.ClassifyCampaignReplies
-	}
-	if req.CampaignAttributionDays != nil {
-		in.CampaignAttributionDays = *req.CampaignAttributionDays
 	}
 	if req.MaxRepliesPerHour != nil {
 		in.MaxRepliesPerHour = *req.MaxRepliesPerHour

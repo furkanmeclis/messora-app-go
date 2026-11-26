@@ -37,10 +37,11 @@ type Querier interface {
 	ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatusParams) (Message, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
 	AutomationExists(ctx context.Context, id uuid.UUID) (bool, error)
-	// AI usage attributed to the campaign (P7 sets ai_usage.campaign_id), by
-	// currency.
+	// AI usage attributed to the campaign (ai_usage.campaign_id: each request
+	// belongs to one campaign or none, docs/AI.md "Campaign attribution"), by
+	// currency. Requests without a price (currency NULL) are counted under
+	// USD with no cost, like the AI usage page does.
 	CampaignAICost(ctx context.Context, campaignID *uuid.UUID) ([]CampaignAICostRow, error)
-	CampaignAIUsage(ctx context.Context, campaignID *uuid.UUID) (CampaignAIUsageRow, error)
 	// Account events of the campaign's account in a period: quality and
 	// template changes, restrictions (the spam and quality section).
 	CampaignAccountEvents(ctx context.Context, arg CampaignAccountEventsParams) ([]WhatsappAccountEvent, error)
@@ -56,14 +57,11 @@ type Querier interface {
 	// Sends, deliveries, reads and replies per hour, from the recipient rows.
 	CampaignHourly(ctx context.Context, campaignID uuid.UUID) ([]CampaignHourlyRow, error)
 	CampaignMessageStats(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMessageStatsRow, error)
-	// What Meta billed for the campaign's messages, per currency.
-	CampaignMetaCost(ctx context.Context, campaignID *uuid.UUID) ([]CampaignMetaCostRow, error)
 	CampaignNames(ctx context.Context, ids []uuid.UUID) ([]CampaignNamesRow, error)
 	// Campaigns that are sending or waiting for the portfolio limit, with what
 	// is left (the queue view per number).
 	CampaignQueue(ctx context.Context) ([]CampaignQueueRow, error)
 	CampaignRecipientStats(ctx context.Context, campaignID uuid.UUID) ([]CampaignRecipientStatsRow, error)
-	CampaignReplySentiments(ctx context.Context, campaignID uuid.UUID) ([]CampaignReplySentimentsRow, error)
 	// The campaign's template on its sender's account (category, status,
 	// quality, buttons).
 	CampaignTemplate(ctx context.Context, campaignID uuid.UUID) (MessageTemplate, error)
@@ -360,7 +358,6 @@ type Querier interface {
 	ListCampaignEvents(ctx context.Context, campaignID uuid.UUID) ([]CampaignEvent, error)
 	ListCampaignExports(ctx context.Context, campaignID uuid.UUID) ([]CampaignExport, error)
 	ListCampaignPauses(ctx context.Context, campaignID uuid.UUID) ([]CampaignPause, error)
-	ListCampaignReplyClassifications(ctx context.Context, campaignID uuid.UUID) ([]CampaignReplyClassification, error)
 	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
 	// Realtime re-sync after missed events: campaigns changed at or after since,
 	// and every active one (their counters change without touching the row).
@@ -553,7 +550,9 @@ type Querier interface {
 	SetPhoneNumberSignals(ctx context.Context, arg SetPhoneNumberSignalsParams) error
 	SetRecipientOptedOut(ctx context.Context, arg SetRecipientOptedOutParams) (int64, error)
 	// A manual label is never overwritten by the system (quick reply mapping
-	// or AI); a manual label replaces anything. reaction NULL clears.
+	// or AI); a manual label replaces anything. An AI label never replaces a
+	// tapped quick reply (the customer's own choice; an AI result may finish
+	// after a later tap). reaction NULL clears.
 	SetRecipientReaction(ctx context.Context, arg SetRecipientReactionParams) (int64, error)
 	SetRecipientReplied(ctx context.Context, arg SetRecipientRepliedParams) (int64, error)
 	SetRecipientReplyPayload(ctx context.Context, arg SetRecipientReplyPayloadParams) error

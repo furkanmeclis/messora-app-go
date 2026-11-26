@@ -73,6 +73,8 @@ const analytics = {
     cost: {
         ai: 'AI cost',
         aiHint: 'AI requests attributed to the campaign (replies to it within the attribution window).',
+        aiUsage:
+            '{requests} AI requests · {tokens} tokens · {conversations} conversations',
         total: 'Operating cost (Meta + AI)',
         estimate: 'Per-message estimate',
         estimateHint:

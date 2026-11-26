@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -61,10 +60,9 @@ type Settings struct {
 	// ClassifyCampaignReplies lets the AI read a customer's first reply to
 	// a campaign as positive, negative or neutral (off by default).
 	ClassifyCampaignReplies bool `json:"classify_campaign_replies,omitempty"`
-	// CampaignAttributionDays is how long after a campaign reached a
-	// contact the contact's AI usage (and replies) count for the campaign.
-	// 0 = DefaultCampaignAttributionDays. P3 reads the same window.
-	CampaignAttributionDays int `json:"campaign_attribution_days,omitempty"`
+	// The campaign attribution window is not an AI setting: it is the
+	// campaign protection setting attribution_days
+	// (docs/CAMPAIGN_ANALYTICS.md), read through SetAttributionWindow.
 }
 
 // Defaults and bounds of the conversation AI settings.
@@ -72,23 +70,7 @@ const (
 	DefaultMaxRepliesPerHour = 20
 	DefaultContextMessages   = 20
 	MaxContextMessages       = 100
-	// DefaultCampaignAttributionDays is the campaign attribution window.
-	DefaultCampaignAttributionDays = 7
-	MaxCampaignAttributionDays     = 90
 )
-
-// AttributionWindow is the effective campaign attribution window.
-func (s Settings) AttributionWindow() time.Duration {
-	return time.Duration(s.AttributionDays()) * 24 * time.Hour
-}
-
-// AttributionDays is the effective campaign attribution window in days.
-func (s Settings) AttributionDays() int {
-	if s.CampaignAttributionDays <= 0 {
-		return DefaultCampaignAttributionDays
-	}
-	return min(s.CampaignAttributionDays, MaxCampaignAttributionDays)
-}
 
 // RepliesPerHour is the effective per-conversation hourly cap.
 func (s Settings) RepliesPerHour() int {
@@ -162,9 +144,6 @@ func (s *Service) SaveSettings(ctx context.Context, in Settings, actor *uuid.UUI
 	if in.ContextMessages < 0 || in.ContextMessages > MaxContextMessages {
 		return Settings{}, &FieldError{"context_messages", fmt.Sprintf("Between 2 and %d messages.", MaxContextMessages)}
 	}
-	if in.CampaignAttributionDays < 0 || in.CampaignAttributionDays > MaxCampaignAttributionDays {
-		return Settings{}, &FieldError{"campaign_attribution_days", fmt.Sprintf("Between 1 and %d days.", MaxCampaignAttributionDays)}
-	}
 	in.MonthlyBudget = strings.TrimSpace(in.MonthlyBudget)
 	if in.MonthlyBudget != "" {
 		b, err := ParseAmount(in.MonthlyBudget)
@@ -232,9 +211,6 @@ func settingsDiff(a, b Settings) map[string]any {
 	}
 	if a.ClassifyCampaignReplies != b.ClassifyCampaignReplies {
 		ch["classify_campaign_replies"] = []any{a.ClassifyCampaignReplies, b.ClassifyCampaignReplies}
-	}
-	if a.AttributionDays() != b.AttributionDays() {
-		ch["campaign_attribution_days"] = []any{a.AttributionDays(), b.AttributionDays()}
 	}
 	if a.ContextSize() != b.ContextSize() {
 		ch["context_messages"] = []any{a.ContextSize(), b.ContextSize()}
