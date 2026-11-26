@@ -605,10 +605,14 @@ export function activityText(t: Translate, a: ConversationActivity): string {
                     name: str(d.automation_name),
                 });
             }
-            if (d.action === 'update_field')
-                return t('inbox.ai.activity.update_field', {
-                    field: str(d.label) || str(d.field),
-                });
+            if (d.action === 'update_field') {
+                const field = str(d.label) || str(d.field);
+                if (d.status === 'invalid')
+                    return t('inbox.ai.activity.field_invalid', { field });
+                if (d.status === 'kept_existing')
+                    return t('inbox.ai.activity.field_kept', { field });
+                return t('inbox.ai.activity.update_field', { field });
+            }
             if (d.status === 'not_allowed')
                 return t('inbox.ai.activity.not_allowed', {
                     action: str(d.action),
@@ -671,6 +675,7 @@ export function activityText(t: Translate, a: ConversationActivity): string {
             });
         case 'contact_ai_disabled':
         case 'contact_ai_enabled':
+        case 'profile_completed':
             return t(`inbox.ai.activity.${a.kind}`);
     }
     return a.kind;

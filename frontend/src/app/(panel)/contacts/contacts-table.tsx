@@ -65,7 +65,8 @@ type Filters = Record<
     | 'opted_out'
     | 'marketing_consent'
     | 'service_consent'
-    | 'reachability',
+    | 'reachability'
+    | 'ai_profile',
     string
 >;
 
@@ -90,6 +91,7 @@ function target(
         filters.reachability === 'undeliverable'
     )
         filter.reachability = filters.reachability;
+    if (filters.ai_profile === 'true') filter.ai_profile = true;
     return {
         filter,
         ...(sel.exclude.length ? { exclude_ids: sel.exclude } : {}),
@@ -145,12 +147,24 @@ export function ContactsTable({
                         ).toLocaleUpperCase()}
                     </span>
                     <div className="min-w-0">
-                        <Link
-                            href={`/contacts/${c.id}`}
-                            className="block truncate font-medium hover:underline"
-                        >
-                            {contactName(c, unnamed)}
-                        </Link>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                            <Link
+                                href={`/contacts/${c.id}`}
+                                className="block truncate font-medium hover:underline"
+                            >
+                                {contactName(c, unnamed)}
+                            </Link>
+                            {(c.profile_status === 'collecting' ||
+                                c.profile_status === 'complete') && (
+                                <Badge
+                                    variant="secondary"
+                                    title={t('contacts.filters.aiProfile')}
+                                    data-testid="contact-ai-badge"
+                                >
+                                    {t('contacts.aiProfile.aiBadge')}
+                                </Badge>
+                            )}
+                        </div>
                         {c.email && (
                             <div className="truncate text-xs text-muted-foreground">
                                 {c.email}

@@ -161,6 +161,8 @@ const inbox: Messages['inbox'] = {
             window_closed: '24 saatlik pencere kapalı',
             ai_error: 'AI hata verdi',
             manual: 'Bir temsilci devretti',
+            ai_budget: 'Aylık AI bütçesi doldu',
+            profile_complete: 'Yeni müşterinin bilgileri toplandı',
         },
         draft: {
             suggestion: 'AI önerisi',
@@ -230,6 +232,11 @@ const inbox: Messages['inbox'] = {
             message_failed: 'Mesaj gönderilemedi{code}.',
             contact_ai_disabled: 'Kişi için AI kapatıldı.',
             contact_ai_enabled: 'Kişi için AI açıldı.',
+            profile_completed:
+                'AI, yeni müşterinin zorunlu bilgilerini topladı.',
+            field_invalid:
+                'AI’ın {field} için bulduğu değer uygun değildi, kaydedilmedi.',
+            field_kept: 'AI, {field} alanındaki mevcut değeri korudu.',
             by: '{name}',
         },
         run: {

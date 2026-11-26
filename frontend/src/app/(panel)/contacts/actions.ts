@@ -43,6 +43,7 @@ function contactQuery(raw: string, cursor?: string): string {
     const reach = src.get('reachability');
     if (reach === 'meta_marketing_stopped' || reach === 'undeliverable')
         q.set('reachability', reach);
+    if (src.get('ai_profile') === 'true') q.set('ai_profile', 'true');
     if (cursor && UUID.test(cursor)) q.set('cursor', cursor);
     return q.toString();
 }
@@ -112,6 +113,29 @@ export async function updateContactAction(
                 })
             ).data,
         (await getT())('contacts.toast.contactSaved'),
+    );
+    if (res.ok) {
+        revalidatePath('/contacts');
+        revalidatePath(`/contacts/${id}`);
+    }
+    return res;
+}
+
+/** A person confirms values the AI collected. */
+export async function verifyContactFieldsAction(
+    id: string,
+    fields: string[],
+): Promise<ActionResult<Contact>> {
+    check(id);
+    const res = await runAction(
+        async () =>
+            (
+                await api<Contact>(`/contacts/${id}/verify-fields`, {
+                    method: 'POST',
+                    body: { fields },
+                })
+            ).data,
+        (await getT())('contacts.aiProfile.verified'),
     );
     if (res.ok) {
         revalidatePath('/contacts');

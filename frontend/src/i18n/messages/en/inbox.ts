@@ -159,6 +159,8 @@ const inbox = {
             window_closed: 'The 24-hour window is closed',
             ai_error: 'The AI failed',
             manual: 'Handed over by a person',
+            ai_budget: 'The monthly AI budget is used up',
+            profile_complete: 'The new customer’s details are collected',
         },
         draft: {
             suggestion: 'AI suggestion',
@@ -229,6 +231,11 @@ const inbox = {
             message_failed: 'A message could not be sent{code}.',
             contact_ai_disabled: 'AI was disabled for the contact.',
             contact_ai_enabled: 'AI was allowed for the contact.',
+            profile_completed:
+                'The AI collected every required detail of the new customer.',
+            field_invalid:
+                'The AI’s value for {field} did not fit and was not stored.',
+            field_kept: 'The AI kept the existing value of {field}.',
             by: '{name}',
         },
         run: {

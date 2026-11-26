@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { notify } from '@/components/notify';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
 import { NumberField } from '@/components/ui/number-field';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,8 +26,13 @@ function initial(s: Settings): Schemas['UpdateAISettingsRequest'] {
         data_sharing_notice: { ...s.data_sharing_notice },
         max_replies_per_hour: s.max_replies_per_hour,
         context_messages: s.context_messages,
+        monthly_budget: s.monthly_budget ?? '',
+        classify_campaign_replies: s.classify_campaign_replies,
+        campaign_attribution_days: s.campaign_attribution_days,
     };
 }
+
+const BUDGET_RE = /^$|^[0-9]{1,8}(\.[0-9]{1,6})?$/;
 
 /** Company AI switch, default model and the texts shown to customers. */
 export function AISettingsForm({
@@ -45,9 +51,11 @@ export function AISettingsForm({
     const [v, setV] = useState(() => initial(settings));
     const [saving, start] = useTransition();
     const dirty = JSON.stringify(v) !== JSON.stringify(initial(settings));
+    const budgetOK = BUDGET_RE.test(v.monthly_budget ?? '');
 
     const save = () =>
         start(async () => {
+            if (!budgetOK) return;
             if (notify(await saveAISettingsAction(v))) router.refresh();
         });
 
@@ -176,6 +184,85 @@ export function AISettingsForm({
                     />
                 </Row>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+                <Row
+                    label={t('ai.settings.budget')}
+                    hint={t('ai.settings.budgetHint')}
+                >
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                            <Input
+                                aria-label={t('ai.settings.budget')}
+                                inputMode="decimal"
+                                className="w-32"
+                                placeholder={t('ai.settings.noBudget')}
+                                value={v.monthly_budget ?? ''}
+                                disabled={readOnly}
+                                aria-invalid={!budgetOK}
+                                onChange={(e) =>
+                                    setV({
+                                        ...v,
+                                        monthly_budget: e.target.value
+                                            .trim()
+                                            .replace(',', '.'),
+                                    })
+                                }
+                            />
+                            <span className="text-sm text-muted-foreground">
+                                USD
+                            </span>
+                        </div>
+                        {!budgetOK && (
+                            <p
+                                className="text-xs text-destructive"
+                                role="alert"
+                            >
+                                {t('ai.settings.budgetInvalid')}
+                            </p>
+                        )}
+                    </div>
+                </Row>
+                <Row
+                    label={t('ai.settings.attributionDays')}
+                    hint={t('ai.settings.attributionDaysHint')}
+                >
+                    <NumberField
+                        aria-label={t('ai.settings.attributionDays')}
+                        min={1}
+                        max={90}
+                        className="w-32"
+                        value={v.campaign_attribution_days ?? 7}
+                        disabled={readOnly}
+                        onValueChange={(n) =>
+                            setV({
+                                ...v,
+                                campaign_attribution_days: Math.min(
+                                    90,
+                                    Math.max(1, n ?? 7),
+                                ),
+                            })
+                        }
+                    />
+                </Row>
+            </div>
+            <label className="flex items-start justify-between gap-4">
+                <span>
+                    <span className="block text-sm font-medium">
+                        {t('ai.settings.classify')}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                        {t('ai.settings.classifyHint')}
+                    </span>
+                </span>
+                <Switch
+                    checked={!!v.classify_campaign_replies}
+                    disabled={readOnly}
+                    onCheckedChange={(c) =>
+                        setV({ ...v, classify_campaign_replies: c })
+                    }
+                    aria-label={t('ai.settings.classify')}
+                />
+            </label>
             {texts(
                 'disclosure',
                 t('ai.settings.disclosure'),
