@@ -86,7 +86,8 @@ test.afterAll(async () => {
 
 test('the contact shows what the AI collected, and a person verifies it', async () => {
     await page.goto(`/contacts/${contact}`);
-    const card = page.getByTestId('ai-profile-card');
+    const main = page.getByRole('main');
+    const card = main.getByTestId('ai-profile-card');
     await expect(
         card.getByText('Collected by the AI', { exact: true }),
     ).toBeVisible();
@@ -123,23 +124,25 @@ test('the contacts list filters contacts the AI created', async () => {
 test('the AI usage page renders the KPIs, the daily cost and the breakdowns', async () => {
     await page.goto('/settings/ai/usage');
     await expect(page.getByRole('link', { name: 'Usage' })).toBeVisible();
-    const usage = page.getByTestId('ai-usage');
+    const usage = page.getByRole('main').getByTestId('ai-usage');
     await expect(
         usage.getByRole('heading', { name: 'AI usage' }),
     ).toBeVisible();
-    await expect(page.getByTestId('ai-usage-requests')).toContainText(/\d/);
-    await expect(page.getByTestId('ai-usage-cost')).toContainText('$');
-    await expect(page.getByTestId('ai-usage-chart')).toBeVisible();
+    await expect(usage.getByTestId('ai-usage-requests')).toContainText(/\d/);
+    await expect(usage.getByTestId('ai-usage-cost')).toContainText('$');
+    await expect(usage.getByTestId('ai-usage-chart')).toBeVisible();
     await expect(
-        page.getByTestId('ai-usage-by-model').getByText('fake/fake-small'),
+        usage.getByTestId('ai-usage-by-model').getByText('fake/fake-small'),
     ).toBeVisible();
     await expect(
-        page.getByTestId('ai-usage-by-campaign').getByText('Outside campaigns'),
+        usage
+            .getByTestId('ai-usage-by-campaign')
+            .getByText('Outside campaigns'),
     ).toBeVisible();
     await expect(
-        page.getByTestId('ai-usage-by-purpose').getByText('Classification'),
+        usage.getByTestId('ai-usage-by-purpose').getByText('Classification'),
     ).toBeVisible();
     await page.getByRole('radio', { name: 'Last 7 days' }).click();
     await expect(page).toHaveURL(/range=7/);
-    await expect(page.getByTestId('ai-usage-chart')).toBeVisible();
+    await expect(usage.getByTestId('ai-usage-chart')).toBeVisible();
 });
