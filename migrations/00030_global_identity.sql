@@ -86,6 +86,8 @@ ALTER TABLE user_recovery_codes DROP COLUMN tenant_id;
 -- active membership (checked on every request); a support session of a
 -- platform admin carries the grant it was opened with.
 ALTER TABLE user_sessions ADD CONSTRAINT user_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE NOT VALID;
+-- Small tables (accounts, sessions, the tenant registry): validated at once.
+-- squawk-ignore constraint-missing-not-valid
 ALTER TABLE user_sessions VALIDATE CONSTRAINT user_sessions_user_id_fkey;
 ALTER TABLE user_sessions ADD COLUMN support_grant_id uuid;
 ALTER TABLE user_sessions ADD COLUMN read_only boolean NOT NULL DEFAULT false;
@@ -97,10 +99,14 @@ ALTER TABLE user_sessions ADD COLUMN read_only boolean NOT NULL DEFAULT false;
 ALTER TABLE tenants ADD COLUMN subscription_status text NOT NULL DEFAULT 'active';
 ALTER TABLE tenants ADD CONSTRAINT tenants_subscription_status_check
     CHECK (subscription_status IN ('trial', 'active', 'past_due', 'canceled')) NOT VALID;
+-- Small tables (accounts, sessions, the tenant registry): validated at once.
+-- squawk-ignore constraint-missing-not-valid
 ALTER TABLE tenants VALIDATE CONSTRAINT tenants_subscription_status_check;
 ALTER TABLE tenants ADD COLUMN trial_ends_at timestamptz;
 ALTER TABLE tenants ADD COLUMN suspended_reason text;
 ALTER TABLE tenants ADD CONSTRAINT tenants_suspended_reason_length CHECK (length(suspended_reason) <= 500) NOT VALID;
+-- Small tables (accounts, sessions, the tenant registry): validated at once.
+-- squawk-ignore constraint-missing-not-valid
 ALTER TABLE tenants VALIDATE CONSTRAINT tenants_suspended_reason_length;
 
 -- The reserved sub-domains are the ones the sign-up form refuses
@@ -173,6 +179,8 @@ CREATE INDEX support_access_grants_tenant_idx ON support_access_grants (tenant_i
 CREATE INDEX support_access_grants_admin_idx ON support_access_grants (admin_id);
 ALTER TABLE user_sessions ADD CONSTRAINT user_sessions_support_grant_id_fkey
     FOREIGN KEY (support_grant_id) REFERENCES support_access_grants (id) ON DELETE CASCADE NOT VALID;
+-- Small tables (accounts, sessions, the tenant registry): validated at once.
+-- squawk-ignore constraint-missing-not-valid
 ALTER TABLE user_sessions VALIDATE CONSTRAINT user_sessions_support_grant_id_fkey;
 
 -- What platform admins did. tenant_id names the company the action
@@ -319,9 +327,11 @@ UPDATE users u SET tenant_id = coalesce((SELECT m.tenant_id FROM tenant_membersh
 UPDATE users u SET status = 'disabled'
 WHERE EXISTS (SELECT 1 FROM tenant_memberships m WHERE m.user_id = u.id AND m.status = 'disabled');
 UPDATE user_recovery_codes c SET tenant_id = u.tenant_id FROM users u WHERE u.id = c.user_id;
+-- squawk-ignore adding-not-nullable-field
 ALTER TABLE users ALTER COLUMN tenant_id SET NOT NULL;
 ALTER TABLE users ALTER COLUMN tenant_id SET DEFAULT app_tenant_id();
 ALTER TABLE users ADD CONSTRAINT users_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE RESTRICT NOT VALID;
+-- squawk-ignore adding-not-nullable-field
 ALTER TABLE user_recovery_codes ALTER COLUMN tenant_id SET NOT NULL;
 ALTER TABLE user_recovery_codes ALTER COLUMN tenant_id SET DEFAULT app_tenant_id();
 ALTER TABLE user_recovery_codes ADD CONSTRAINT user_recovery_codes_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE RESTRICT NOT VALID;

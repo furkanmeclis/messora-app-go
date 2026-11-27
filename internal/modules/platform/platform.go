@@ -77,6 +77,11 @@ func New(pool *pgxpool.Pool, id *identity.Service, o Options) *Service {
 	return &Service{pool: pool, q: db.New(pool), id: id, o: o, now: time.Now}
 }
 
+// SetLookupTXT replaces the DNS lookup of domain verification (tests).
+func (s *Service) SetLookupTXT(fn func(ctx context.Context, name string) ([]string, error)) {
+	s.o.LookupTXT = fn
+}
+
 // ctx makes sure work runs as the platform (it does on the admin host).
 func pctx(ctx context.Context) context.Context { return tenant.Platform(ctx) }
 
@@ -402,6 +407,9 @@ func (s *Service) Unsuspend(ctx context.Context, id uuid.UUID) (api.PlatformTena
 
 var errDomainNotFound = apperr.NotFound("Domain not found")
 
+// verifyPrefix starts the TXT value that proves a domain's ownership.
+const verifyPrefix = "messora-verify="
+
 // AddDomain registers a custom domain for a company. It answers only once
 // its TXT record _messora.<domain> holds the returned token (VerifyDomain).
 func (s *Service) AddDomain(ctx context.Context, tenantID uuid.UUID, raw string) (api.PlatformDomain, error) {
@@ -416,7 +424,7 @@ func (s *Service) AddDomain(ctx context.Context, tenantID uuid.UUID, raw string)
 	if _, err := rand.Read(b); err != nil {
 		return api.PlatformDomain{}, err
 	}
-	token := "messora-verify=" + hex.EncodeToString(b)
+	token := verifyPrefix + hex.EncodeToString(b)
 	var d db.TenantDomain
 	err := s.inTenant(ctx, tenantID, func(q *db.Queries) error {
 		if _, err := q.GetTenant(pctx(ctx), tenantID); isNoRows(err) {
