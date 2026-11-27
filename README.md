@@ -52,10 +52,12 @@ docker compose up -d --build
 ```
 
 Open <http://localhost>. The first start takes a few minutes (images are
-built locally). Create the owner account with the one-time setup link:
+built locally). Create the first platform admin, then open the admin panel
+at `admin.<TENANT_BASE_DOMAIN>` to create companies and invite their owners
+(or let people sign up at `app.<TENANT_BASE_DOMAIN>`):
 
 ```bash
-docker compose exec messora-api messora setup token
+docker compose exec -T messora-api messora admin create --email you@example.com --password-stdin
 ```
 
 What happens on first start:
