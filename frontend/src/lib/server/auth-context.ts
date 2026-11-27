@@ -6,6 +6,7 @@ import { api } from './api';
 import { getAppearance } from './appearance';
 import type { Schemas } from '@/lib/types';
 import { tenantSlugFromHost } from '@/lib/auth/tenant-host';
+import { configuredBaseDomain } from '@/lib/platform-host';
 
 export type AuthTenant = {
     slug: string;
@@ -42,15 +43,13 @@ export const getCapabilities = cache(async (): Promise<Capabilities> => {
         return (await api<Capabilities>('/auth/capabilities', { auth: 'none' }))
             .data;
     } catch {
-        return { password_reset: true, setup_required: false };
+        return { password_reset: true, signup_enabled: true };
     }
 });
 
-/** The domain workspaces live under (MESSORA_BASE_DOMAIN). */
+/** The domain workspaces live under (MESSORA_BASE_DOMAIN / TENANT_BASE_DOMAIN). */
 export function baseDomain(): string {
-    return (process.env.MESSORA_BASE_DOMAIN?.trim() || 'messora.tech')
-        .toLowerCase()
-        .replace(/^\.+/, '');
+    return configuredBaseDomain() || 'messora.tech';
 }
 
 /**

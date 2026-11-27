@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ArrowRight, Building2, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getT } from '@/i18n/server';
-import { api, ApiError } from '@/lib/server/api';
+import { api } from '@/lib/server/api';
 import { requireMe } from '@/lib/server/auth';
 import type { Membership } from '@/lib/auth/contracts';
 import { cn } from '@/lib/utils';
@@ -16,19 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
     return { title: t('auth.workspace.metaTitle') };
 }
 
-/** The workspaces this person belongs to; null until the API has them. */
-async function memberships(): Promise<Membership[] | null> {
-    try {
-        return (await api<Membership[]>('/me/memberships')).data;
-    } catch (err) {
-        if (
-            err instanceof ApiError &&
-            (err.status === 404 || err.status === 405)
-        ) {
-            return null;
-        }
-        throw err;
-    }
+/** The workspaces this person belongs to. */
+async function memberships(): Promise<Membership[]> {
+    return (await api<Membership[]>('/me/memberships')).data;
 }
 
 function initials(name: string) {
@@ -46,7 +36,7 @@ export default async function SelectWorkspacePage() {
     await requireMe();
     const [t, list] = await Promise.all([getT(), memberships()]);
 
-    if (!list || list.length === 0) {
+    if (list.length <= 1) {
         return (
             <AuthCard
                 icon={LayoutGrid}

@@ -1,14 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import {
+    configuredBaseDomain,
+    isAdminHost,
+    PLATFORM_SEGMENT,
+    workspaceImageSource,
+} from '@/lib/platform-host';
 
-/** Routes reachable without a session. */
+/** Routes of a workspace reachable without a session. */
 const PUBLIC = [
     '/login',
-    '/setup',
     '/invite',
     '/forgot-password',
     '/reset-password',
     '/signup',
     '/verify-email',
+    '/confirm-email',
+    '/auth/handoff',
     '/logout',
     // The public API reference and the document it renders.
     '/docs/api',
@@ -19,17 +26,44 @@ const PUBLIC = [
 ];
 const SESSION_COOKIES = ['__Host-messora_session', 'messora_session'];
 
+/** Routes of the platform admin panel reachable without a session. */
+const PLATFORM_PUBLIC = ['/login', '/bootstrap', '/logout'];
+const PLATFORM_COOKIES = ['__Host-messora_platform', 'messora_platform'];
+
+function matches(pathname: string, list: string[]) {
+    return list.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
 /**
- * Edge proxy: a per-request CSP nonce (scripts run only with it) and a cheap
- * signed-in check that redirects anonymous visitors to the sign-in page.
- * Authorization itself is always decided by the Go API.
+ * Edge proxy: a per-request CSP nonce (scripts run only with it), a cheap
+ * signed-in check that redirects anonymous visitors to the sign-in page,
+ * and the admin host. The platform admin panel (`admin.<base>`) is served
+ * from an internal route segment that no other host can reach, and the
+ * admin host serves nothing else. Authorization itself is always decided
+ * by the Go API.
  */
 export function proxy(req: NextRequest) {
     const { pathname, search } = req.nextUrl;
-    const isPublic = PUBLIC.some(
-        (p) => pathname === p || pathname.startsWith(p + '/'),
+    const host = req.headers.get('host') ?? req.nextUrl.host;
+    const base = configuredBaseDomain();
+    const admin = isAdminHost(host, base);
+
+    // The internal segment exists only behind the admin host's rewrite.
+    if (
+        pathname === PLATFORM_SEGMENT ||
+        pathname.startsWith(PLATFORM_SEGMENT + '/')
+    ) {
+        return new NextResponse('Not found', { status: 404 });
+    }
+
+    // Served as they are on every host (no platform version needed).
+    const shared = pathname === '/api/health' || pathname === '/bff/favicon';
+    const isPublic = admin
+        ? shared || matches(pathname, PLATFORM_PUBLIC)
+        : matches(pathname, PUBLIC);
+    const signedIn = (admin ? PLATFORM_COOKIES : SESSION_COOKIES).some((c) =>
+        req.cookies.has(c),
     );
-    const signedIn = SESSION_COOKIES.some((c) => req.cookies.has(c));
     if (!isPublic && !signedIn) {
         const url = req.nextUrl.clone();
         url.pathname = '/login';
@@ -44,20 +78,20 @@ export function proxy(req: NextRequest) {
     const dev = process.env.NODE_ENV === 'development';
     // The realtime WebSocket (Centrifugo behind Caddy's /connection route)
     // lives on this origin; older browsers do not let 'self' cover ws(s):.
-    const host = req.headers.get('host') ?? req.nextUrl.host;
     const proto =
         req.headers.get('x-forwarded-proto')?.split(',')[0] ??
         req.nextUrl.protocol;
     const https = proto.trim().replace(/:$/, '') === 'https';
     // Only a plain host[:port] may end up in the policy.
-    const socket = /^[a-z0-9.\-:[\]]+$/i.test(host)
-        ? `${https ? 'wss' : 'ws'}://${host}`
-        : '';
+    const plainHost = /^[a-z0-9.\-:[\]]+$/i.test(host);
+    const socket = plainHost ? `${https ? 'wss' : 'ws'}://${host}` : '';
+    // Other workspaces' logos (the workspace picker).
+    const logos = plainHost ? workspaceImageSource(host, https, base) : '';
     const csp = [
         `default-src 'self'`,
         `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
         `style-src 'self' 'unsafe-inline'`,
-        `img-src 'self' data: blob:`,
+        `img-src 'self' data: blob:${logos ? ' ' + logos : ''}`,
         `font-src 'self'`,
         `connect-src 'self'${socket ? ' ' + socket : ''}${dev ? ' ws: wss:' : ''}`,
         `object-src 'none'`,
@@ -71,7 +105,16 @@ export function proxy(req: NextRequest) {
     requestHeaders.set('x-nonce', nonce);
     requestHeaders.set('x-pathname', pathname);
     requestHeaders.set('Content-Security-Policy', csp);
-    const res = NextResponse.next({ request: { headers: requestHeaders } });
+    let res: NextResponse;
+    if (admin && !shared) {
+        const url = req.nextUrl.clone();
+        url.pathname = PLATFORM_SEGMENT + (pathname === '/' ? '' : pathname);
+        res = NextResponse.rewrite(url, {
+            request: { headers: requestHeaders },
+        });
+    } else {
+        res = NextResponse.next({ request: { headers: requestHeaders } });
+    }
     res.headers.set('Content-Security-Policy', csp);
     return res;
 }

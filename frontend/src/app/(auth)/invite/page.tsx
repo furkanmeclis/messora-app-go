@@ -5,7 +5,6 @@ import { intlLocale } from '@/i18n/config';
 import { api, ApiError } from '@/lib/server/api';
 import { errorMessage } from '@/lib/server/actions';
 import { getAppearance } from '@/lib/server/appearance';
-import type { InvitationPreviewExtras } from '@/lib/auth/contracts';
 import type { Schemas } from '@/lib/types';
 import { FormAlert } from '../_components/fields';
 import { AuthCard } from '../_components/shell';
@@ -16,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
     return { title: t('auth.invite.metaTitle') };
 }
 
-type Preview = Schemas['InvitationPreview'] & InvitationPreviewExtras;
+type Preview = Schemas['InvitationPreview'];
 
 export default async function InvitePage({
     searchParams,
@@ -131,7 +130,11 @@ export default async function InvitePage({
                         </dd>
                     </div>
                 </dl>
-                <AcceptInvitationForm token={token} email={invitation.email} />
+                <AcceptInvitationForm
+                    token={token}
+                    email={invitation.email}
+                    accountExists={invitation.account_exists}
+                />
             </div>
         </AuthCard>
     );

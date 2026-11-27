@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getT } from '@/i18n/server';
-import { getAuthContext } from '@/lib/server/auth-context';
+import { getAuthContext, getCapabilities } from '@/lib/server/auth-context';
 import { AuthCard, AuthLink } from '../_components/shell';
 import { SignupForm } from '../forms';
 
@@ -9,11 +9,15 @@ export async function generateMetadata(): Promise<Metadata> {
     return { title: t('auth.signup.metaTitle') };
 }
 
-/** Where "coming soon" points people who want a workspace now. */
+/** Where people who want a workspace go while sign-up is closed. */
 const CONTACT_URL = 'mailto:merhaba@messora.tech';
 
 export default async function SignupPage() {
-    const [t, { baseDomain }] = await Promise.all([getT(), getAuthContext()]);
+    const [t, { baseDomain }, caps] = await Promise.all([
+        getT(),
+        getAuthContext(),
+        getCapabilities(),
+    ]);
     return (
         <AuthCard
             title={t('auth.signup.title')}
@@ -25,7 +29,11 @@ export default async function SignupPage() {
                 </>
             }
         >
-            <SignupForm baseDomain={baseDomain} contactUrl={CONTACT_URL} />
+            <SignupForm
+                baseDomain={baseDomain}
+                contactUrl={CONTACT_URL}
+                closed={!caps.signup_enabled}
+            />
         </AuthCard>
     );
 }

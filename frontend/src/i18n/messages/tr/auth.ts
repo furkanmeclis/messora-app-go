@@ -75,6 +75,13 @@ const auth: Messages['auth'] = {
         verified: 'E-posta adresiniz doğrulandı. Şimdi giriş yapabilirsiniz.',
         noAccount: 'Messora’da yeni misiniz?',
         signup: 'Hesap oluşturun',
+        notVerifiedTitle: 'Önce e-posta adresinizi doğrulayın',
+        notVerifiedBody:
+            'Kayıt olurken gönderdiğimiz bağlantıyı açın ya da yenisini isteyin.',
+        resetRequiredTitle: 'Yeni bir şifre belirleyin',
+        resetRequiredBody:
+            'Güvenliğiniz için yeni bir şifre gerekiyor. Size bir sıfırlama bağlantısı gönderdik; şimdi de isteyebilirsiniz.',
+        resetRequiredLink: 'Şifremi sıfırla',
     },
     verify: {
         title: 'İki adımlı doğrulama',
@@ -110,9 +117,9 @@ const auth: Messages['auth'] = {
         submit: 'Hesap oluştur',
         haveAccount: 'Zaten hesabınız var mı?',
         signin: 'Giriş yapın',
-        soonTitle: 'Kayıtlar yakında açılıyor',
+        soonTitle: 'Kayıt şu anda kapalı',
         soonBody:
-            'Kendi kendine kaydı adım adım açıyoruz. O zamana kadar bize yazın, çalışma alanınızı sizin için kuralım.',
+            'Şu an yeni çalışma alanı açılamıyor. Bize yazın, sizinkini biz kuralım.',
         soonContact: 'Bize yazın',
         soonBack: 'Girişe dön',
     },
@@ -144,20 +151,6 @@ const auth: Messages['auth'] = {
             'Daha önce kullanılmış ya da eksik kopyalanmış olabilir. Aşağıdan yenisini isteyin.',
         alreadyTitle: 'Zaten doğrulanmış',
         alreadyBody: 'Bu adres zaten doğrulanmış. Giriş yapabilirsiniz.',
-        soonTitle: 'Doğrulama henüz açık değil',
-        soonBody:
-            'Kayıtlar yakında açılıyor. O zaman bu bağlantıya geri dönebilirsiniz.',
-    },
-    setup: {
-        title: 'Messora kurulumu',
-        description: 'Bu kurulum için sahip hesabını oluşturun.',
-        organizationName: 'Kuruluş adı',
-        organizationPlaceholder: 'Örnek A.Ş.',
-        submit: 'Sahip hesabını oluştur',
-        openLinkTitle: 'Kurulum bağlantısını açın',
-        openLinkLogs:
-            'Tek kullanımlık bağlantı, ilk açılışta API günlüklerine yazılır:',
-        newLink: 'Yeni bir bağlantı için şu komutu çalıştırın:',
     },
     invite: {
         metaTitle: 'Daveti kabul et',
@@ -173,6 +166,9 @@ const auth: Messages['auth'] = {
         invalidTitle: 'Bu davet çalışmıyor',
         askAdmin: 'Bir yöneticiden yeni bir davet isteyin.',
         submit: 'Katıl',
+        existingAccount:
+            'Zaten bir Messora hesabınız var. Bu çalışma alanına katılmak için hesabınızın şifresini girin.',
+        submitExisting: 'Giriş yap ve katıl',
     },
     forgot: {
         metaTitle: 'Şifre sıfırlama',
@@ -206,11 +202,22 @@ const auth: Messages['auth'] = {
         current: 'Şu anki',
         open: '{name} panelini aç',
         role: 'Rol: {role}',
-        unavailableTitle: 'Şimdilik tek çalışma alanı',
+        unavailableTitle: 'Tek çalışma alanı',
         unavailableBody:
-            'Çalışma alanları arasında geçiş bir sonraki güncellemeyle geliyor. Panelinize devam edebilirsiniz.',
+            'Tek bir çalışma alanının üyesisiniz. Panelinize devam edin.',
         continue: 'Panele devam et',
         signOut: 'Çıkış yap',
+    },
+    confirmEmail: {
+        metaTitle: 'Yeni adresinizi doğrulayın',
+        title: 'Yeni e-posta adresinizi doğrulayın',
+        submit: 'Adresi doğrula',
+        successTitle: 'E-posta adresiniz değişti',
+        successBody: 'Yeni adresinizle yeniden giriş yapın.',
+        invalidTitle: 'Bu bağlantı çalışmıyor',
+        invalidBody:
+            'Süresi dolmuş ya da daha önce kullanılmış olabilir. Değişikliği profilinizden yeniden isteyin.',
+        continue: 'Girişe devam et',
     },
 };
 export default auth;
