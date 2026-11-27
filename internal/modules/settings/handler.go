@@ -9,8 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -20,23 +18,24 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
 
 // Handler serves the settings operations.
 type Handler struct {
-	pool     *pgxpool.Pool
-	store    *Store
-	mail     *Mail
-	mediaDir string
-	log      *slog.Logger
+	pool   *pgxpool.Pool
+	store  *Store
+	mail   *Mail
+	stores *storage.Stores
+	log    *slog.Logger
 }
 
 // NewHandler returns the settings handler. mail may be nil when e-mail is
 // injected by tests; the SMTP operations then report it as unavailable.
-func NewHandler(pool *pgxpool.Pool, store *Store, mail *Mail, mediaDir string, log *slog.Logger) *Handler {
-	return &Handler{pool: pool, store: store, mail: mail, mediaDir: mediaDir, log: log}
+func NewHandler(pool *pgxpool.Pool, store *Store, mail *Mail, stores *storage.Stores, log *slog.Logger) *Handler {
+	return &Handler{pool: pool, store: store, mail: mail, stores: stores, log: log}
 }
 
 func logoToAPI(l *Logo) *api.LogoInfo {
@@ -185,7 +184,34 @@ func changes(a, b Settings) map[string]any {
 
 const maxLogoBytes = 2 << 20
 
-func (h *Handler) logoPath() string { return filepath.Join(h.mediaDir, "branding", "logo") }
+// LogoKey is the public object of a logo version. The key changes with
+// every upload, so a CDN never serves a stale logo.
+func LogoKey(tenantID, version string) string {
+	return storage.TenantPrefix(tenantID) + "branding/logo-" + version
+}
+
+// legacyLogoKey is where logos were kept before the object store (MEDIA_DIR/branding/logo).
+const legacyLogoKey = "branding/logo"
+
+func (h *Handler) currentLogo(r *http.Request) *Logo {
+	if s, err := h.store.Get(r.Context()); err == nil {
+		return s.Logo
+	}
+	return nil
+}
+
+func (h *Handler) removeLogo(r *http.Request, old *Logo, keep string) {
+	if old == nil {
+		return
+	}
+	key := LogoKey(storage.TenantKey(r.Context()), old.Version)
+	if key == keep {
+		return
+	}
+	if err := h.stores.Public.Delete(context.WithoutCancel(r.Context()), key); err != nil {
+		h.log.WarnContext(r.Context(), "removing logo file", "error", err)
+	}
+}
 
 // sniffLogo returns the image type, or "" for anything that is not a
 // PNG, JPEG, WebP or SVG image.
@@ -220,22 +246,32 @@ func (h *Handler) UploadLogo(w http.ResponseWriter, r *http.Request) {
 	}
 	sum := sha256.Sum256(body)
 	logo := &Logo{ContentType: ct, Version: hex.EncodeToString(sum[:8])}
-	if err := writeAtomic(h.logoPath(), body); err != nil {
+	old := h.currentLogo(r)
+	key := LogoKey(storage.TenantKey(r.Context()), logo.Version)
+	if err := h.stores.Public.Put(r.Context(), key, bytes.NewReader(body), int64(len(body)), ct,
+		storage.PutOptions{CacheControl: "public, max-age=31536000, immutable"}); err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return
 	}
-	h.saveLogo(w, r, logo, "settings.logo_upload")
+	if h.saveLogo(w, r, logo, "settings.logo_upload") {
+		h.removeLogo(r, old, key)
+	}
 }
 
 // DeleteLogo implements api.ServerInterface.
 func (h *Handler) DeleteLogo(w http.ResponseWriter, r *http.Request) {
-	h.saveLogo(w, r, nil, "settings.logo_delete")
-	if err := os.Remove(h.logoPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
-		h.log.WarnContext(r.Context(), "removing logo file", "error", err)
+	old := h.currentLogo(r)
+	if h.saveLogo(w, r, nil, "settings.logo_delete") {
+		h.removeLogo(r, old, "")
+		if storage.TenantKey(r.Context()) == storage.DefaultTenant {
+			_ = h.stores.Private.Delete(context.WithoutCancel(r.Context()), legacyLogoKey)
+		}
 	}
 }
 
-func (h *Handler) saveLogo(w http.ResponseWriter, r *http.Request, logo *Logo, action string) {
+// saveLogo stores the logo setting and answers with the settings; it
+// reports whether the change was saved.
+func (h *Handler) saveLogo(w http.ResponseWriter, r *http.Request, logo *Logo, action string) bool {
 	actor := principal.From(r.Context())
 	err := inTx(r.Context(), h.pool, func(q *db.Queries) error {
 		if err := h.store.SetLogo(r.Context(), q, logo, &actor.ID); err != nil {
@@ -246,14 +282,15 @@ func (h *Handler) saveLogo(w http.ResponseWriter, r *http.Request, logo *Logo, a
 	h.store.Invalidate()
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
-		return
+		return false
 	}
 	s, err := h.store.Get(r.Context())
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
-		return
+		return true
 	}
 	httpx.JSON(w, r, http.StatusOK, toAPI(s))
+	return true
 }
 
 // GetLogo implements api.ServerInterface.
@@ -267,8 +304,16 @@ func (h *Handler) GetLogo(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, r, apperr.NotFound("No logo has been uploaded."), h.log)
 		return
 	}
-	b, err := os.ReadFile(h.logoPath())
-	if errors.Is(err, os.ErrNotExist) {
+	// Streamed, never redirected to the CDN: the panel's BFF fetches this
+	// route server-side, and an SVG must keep the sandboxing policy below.
+	// PUBLIC_ASSET_BASE_URL serves the same object to e-mails and Meta
+	// (LogoKey, storage.Store.PublicURL).
+	key := LogoKey(storage.TenantKey(r.Context()), s.Logo.Version)
+	rc, _, err := h.stores.Public.Get(r.Context(), key)
+	if errors.Is(err, storage.ErrNotFound) && storage.TenantKey(r.Context()) == storage.DefaultTenant {
+		rc, _, err = h.stores.Private.Get(r.Context(), legacyLogoKey)
+	}
+	if errors.Is(err, storage.ErrNotFound) {
 		httpx.WriteError(w, r, apperr.NotFound("No logo has been uploaded."), h.log)
 		return
 	}
@@ -276,6 +321,7 @@ func (h *Handler) GetLogo(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, r, err, h.log)
 		return
 	}
+	defer func() { _ = rc.Close() }()
 	w.Header().Set("Content-Type", s.Logo.ContentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	// An SVG opened directly must not run scripts.
@@ -286,26 +332,7 @@ func (h *Handler) GetLogo(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
-	_, _ = io.Copy(w, bytes.NewReader(b))
-}
-
-func writeAtomic(path string, b []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".logo-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := tmp.Write(b); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+	_, _ = io.Copy(w, rc)
 }
 
 // E-mail -------------------------------------------------------------------

@@ -408,7 +408,7 @@ func TestInboundMediaIsDownloaded(t *testing.T) {
 	if err := h.pool.QueryRow(context.Background(), "SELECT storage_key, size_bytes FROM media_files WHERE id = $1 AND status = 'stored'", id).Scan(&key, &size); err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(h.svc.cfg.MediaDir, key))
+	b, err := os.ReadFile(filepath.Join(h.svc.cfg.Storage.LocalDir, key))
 	if err != nil || string(b) != "\xff\xd8\xff fake jpeg" || size != int64(len(b)) {
 		t.Fatalf("stored media: %q %v", b, err)
 	}

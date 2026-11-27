@@ -19,6 +19,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -50,31 +51,32 @@ const (
 	FormatPDF        = "pdf"
 )
 
-// ExportStore keeps generated export files under <root>/exports.
-type ExportStore struct{ root string }
+// ExportStore keeps generated export files in the private object store
+// (t/<tenant>/exports/…); keys written before (exports/<id>.<format>
+// under MEDIA_DIR) still open with the local driver.
+type ExportStore struct {
+	st      storage.Store
+	scratch string
+}
 
-// NewExportStore returns a store under dir (the data volume).
-func NewExportStore(dir string) *ExportStore { return &ExportStore{root: dir} }
+// NewExportStore returns an export store on the private bucket.
+func NewExportStore(stores *storage.Stores) *ExportStore {
+	return &ExportStore{st: stores.Private, scratch: stores.Scratch}
+}
 
 // SetExportStore enables exports.
 func (s *Service) SetExportStore(st *ExportStore) { s.exports = st }
 
-func (e *ExportStore) path(key string) (string, error) {
-	if key == "" || strings.Contains(key, "..") || filepath.IsAbs(key) || !strings.HasPrefix(key, "exports/") {
-		return "", errors.New("exports: invalid key")
-	}
-	return filepath.Join(e.root, filepath.FromSlash(key)), nil
-}
-
+// tmpDir is a writable scratch directory (XLSX assembly).
 func (e *ExportStore) tmpDir() string {
-	d := filepath.Join(e.root, "exports", "tmp")
+	d := filepath.Join(e.scratch, "exports")
 	_ = os.MkdirAll(d, 0o750)
 	return d
 }
 
-func (e *ExportStore) remove(key string) {
-	if p, err := e.path(key); err == nil {
-		_ = os.Remove(p)
+func (e *ExportStore) remove(ctx context.Context, key string) {
+	if storage.CheckTenantKey(storage.TenantKey(ctx), key) == nil {
+		_ = e.st.Delete(ctx, key)
 	}
 }
 
@@ -297,47 +299,32 @@ func (s *Service) RunExport(ctx context.Context, exportID uuid.UUID) error {
 	}
 	var f RecipientFilter
 	_ = json.Unmarshal(e.Filters, &f)
-	key := fmt.Sprintf("exports/%s.%s", e.ID, e.Format)
-	p, err := s.exports.path(key)
+	key, err := storage.Key(storage.TenantKey(ctx), "exports", e.Format)
 	if err != nil {
 		return fail(err)
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
-		return err
-	}
-	tmp := p + ".part"
-	file, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o640) //nolint:gosec // key generated from the export id
-	if err != nil {
-		return err
-	}
+	// Streamed into the store as it is generated; a failure abandons the
+	// upload, so no partial file is ever downloadable.
 	var rows int64
-	switch e.Kind {
-	case ExportRecipients:
-		rows, err = s.writeRecipientsTo(ctx, e.CampaignID, f, e.Format, file)
-	case ExportReport:
-		if e.Format == FormatPDF {
-			err = s.WriteReportPDF(ctx, e.CampaignID, file)
-		} else {
-			rows, err = s.WriteReportXLSX(ctx, e.CampaignID, file)
+	size, err := storage.PutFunc(ctx, s.exports.st, key, ContentType(e.Format), storage.PutOptions{}, func(file io.Writer) error {
+		var err error
+		switch e.Kind {
+		case ExportRecipients:
+			rows, err = s.writeRecipientsTo(ctx, e.CampaignID, f, e.Format, file)
+		case ExportReport:
+			if e.Format == FormatPDF {
+				err = s.WriteReportPDF(ctx, e.CampaignID, file)
+			} else {
+				rows, err = s.WriteReportXLSX(ctx, e.CampaignID, file)
+			}
 		}
-	}
-	if cerr := file.Close(); err == nil {
-		err = cerr
-	}
+		return err
+	})
 	if err != nil {
-		_ = os.Remove(tmp)
 		if ctx.Err() != nil {
 			return err // shutting down: the job is retried
 		}
 		return fail(err)
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		return err
-	}
-	st, _ := os.Stat(p)
-	var size int64
-	if st != nil {
-		size = st.Size()
 	}
 	c, _ := s.q.GetCampaign(ctx, e.CampaignID)
 	name := exportFilename(c.Name, e.Kind, e.Format)
@@ -379,32 +366,40 @@ func (s *Service) Exports(ctx context.Context, id uuid.UUID) ([]db.CampaignExpor
 	return s.q.ListCampaignExports(ctx, id)
 }
 
-// OpenExport opens a finished export for download (audited).
-func (s *Service) OpenExport(ctx context.Context, campaignID, exportID uuid.UUID) (*os.File, db.CampaignExport, error) {
+// OpenExport checks a finished export can be downloaded, records the
+// download and returns its object key (in ExportObjects()).
+func (s *Service) OpenExport(ctx context.Context, campaignID, exportID uuid.UUID) (string, db.CampaignExport, error) {
 	e, err := s.q.GetCampaignExport(ctx, exportID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && e.CampaignID != campaignID) {
-		return nil, e, apperr.NotFound("Export not found.")
+		return "", e, apperr.NotFound("Export not found.")
 	}
 	if err != nil {
-		return nil, e, err
+		return "", e, err
 	}
 	if e.Status != "done" || e.FileKey == nil || s.exports == nil || (e.ExpiresAt != nil && e.ExpiresAt.Before(time.Now())) {
-		return nil, e, apperr.Conflict("EXPORT_NOT_READY", "The export is not ready or has expired.")
+		return "", e, apperr.Conflict("EXPORT_NOT_READY", "The export is not ready or has expired.")
 	}
-	p, err := s.exports.path(*e.FileKey)
-	if err != nil {
-		return nil, e, err
+	if err := storage.CheckTenantKey(storage.TenantKey(ctx), *e.FileKey); err != nil {
+		return "", e, apperr.Conflict("EXPORT_NOT_READY", "The export file is gone.")
 	}
-	file, err := os.Open(p) //nolint:gosec // validated key generated by Messora
-	if err != nil {
-		return nil, e, apperr.Conflict("EXPORT_NOT_READY", "The export file is gone.")
+	if _, err := s.exports.st.Stat(ctx, *e.FileKey); errors.Is(err, storage.ErrNotFound) {
+		return "", e, apperr.Conflict("EXPORT_NOT_READY", "The export file is gone.")
+	} else if err != nil {
+		return "", e, err
 	}
 	if err := audit.Record(ctx, s.q, audit.Entry{Action: "campaign.export_download", EntityType: "campaign", EntityID: &campaignID,
 		Changes: map[string]any{"export_id": exportID, "kind": e.Kind, "format": e.Format}}); err != nil {
-		_ = file.Close()
-		return nil, e, err
+		return "", e, err
 	}
-	return file, e, nil
+	return *e.FileKey, e, nil
+}
+
+// ExportObjects is the store export files are kept in.
+func (s *Service) ExportObjects() storage.Store {
+	if s.exports == nil {
+		return nil
+	}
+	return s.exports.st
 }
 
 // expireExports deletes expired files and re-queues exports whose job was
@@ -416,7 +411,7 @@ func (s *Service) expireExports(ctx context.Context) error {
 	}
 	for _, g := range gone {
 		if s.exports != nil && g.FileKey != nil {
-			s.exports.remove(*g.FileKey)
+			s.exports.remove(ctx, *g.FileKey)
 		}
 	}
 	stale, err := s.q.StaleCampaignExports(ctx)

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/xuri/excelize/v2"
 
@@ -55,14 +54,10 @@ func xlsxToCSV(src string, dst io.Writer, tmpDir string) error {
 	return w.Error()
 }
 
-// convertXLSX replaces the uploaded workbook at key with its CSV form.
-func (s *ImportStore) convertXLSX(key string) error {
-	src, err := s.path(key)
-	if err != nil {
-		return err
-	}
-	tmp := src + ".csv.tmp"
-	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640) //nolint:gosec // derived from a generated key
+// convertXLSX writes the first worksheet of the workbook at src as CSV to
+// dst (both scratch files).
+func (s *ImportStore) convertXLSX(src, dst string) error {
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640) //nolint:gosec // a scratch path Messora chose
 	if err != nil {
 		return err
 	}
@@ -70,11 +65,7 @@ func (s *ImportStore) convertXLSX(key string) error {
 	if err := out.Close(); cerr == nil {
 		cerr = err
 	}
-	if cerr != nil {
-		_ = os.Remove(tmp)
-		return cerr
-	}
-	return os.Rename(tmp, src)
+	return cerr
 }
 
 // xlsxWriter streams an export as a workbook.
@@ -113,11 +104,4 @@ func (x *xlsxWriter) Finish(w io.Writer) error {
 	_, err := x.f.WriteTo(w)
 	_ = x.f.Close()
 	return err
-}
-
-// tmpDir is a writable scratch directory on the data volume.
-func (s *ImportStore) tmpDir() string {
-	d := filepath.Join(s.root, "imports", "tmp")
-	_ = os.MkdirAll(d, 0o750)
-	return d
 }
