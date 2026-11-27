@@ -2,20 +2,23 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { serverConfig } from '@/lib/server/config';
 import { streamUpload } from '@/lib/server/stream';
 import { invalidateAppearance } from '@/lib/server/appearance';
+import { forwardHost } from '@/lib/server/tenant-host';
 
 /**
  * The organisation logo. Public (the sign-in page shows it); the API sets
  * the image type and a sandboxing policy, which pass through unchanged.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
     const { apiInternalUrl, bffSharedSecret } = serverConfig();
+    const h = new Headers({
+        'X-Messora-BFF': bffSharedSecret,
+        'X-Request-ID': crypto.randomUUID(),
+    });
+    forwardHost(req.headers, h);
     let res: Response;
     try {
         res = await fetch(`${apiInternalUrl}/api/v1/appearance/logo`, {
-            headers: {
-                'X-Messora-BFF': bffSharedSecret,
-                'X-Request-ID': crypto.randomUUID(),
-            },
+            headers: h,
             cache: 'no-store',
         });
     } catch {
@@ -33,7 +36,9 @@ export async function GET() {
     return new NextResponse(res.body, {
         headers: {
             'Content-Type': type,
+            // Each company's address has its own logo.
             'Cache-Control': 'public, max-age=300',
+            Vary: 'Host',
             'X-Content-Type-Options': 'nosniff',
             'Content-Security-Policy':
                 "default-src 'none'; style-src 'unsafe-inline'; sandbox",

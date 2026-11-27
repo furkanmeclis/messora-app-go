@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { serverConfig } from '@/lib/server/config';
+import { forwardHost } from '@/lib/server/tenant-host';
 import { getSessionToken } from '@/lib/server/session';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -43,6 +44,7 @@ export async function GET(
         'X-Request-ID': crypto.randomUUID(),
         Authorization: `Bearer ${token}`,
     });
+    forwardHost(req.headers, h);
     const range = req.headers.get('range');
     if (range) h.set('Range', range);
     let res: Response;
