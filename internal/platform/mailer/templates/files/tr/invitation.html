@@ -1,0 +1,8 @@
+{{define "content"}}
+{{template "h1" (printf "%s çalışma alanına davet edildiniz" .D.WorkspaceName)}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}"><strong>{{.D.InviterName}}</strong>, sizi Messora'da <strong>{{.D.WorkspaceName}}</strong> çalışma alanına <strong>{{.D.Role}}</strong> rolüyle davet etti. Ekibiniz WhatsApp konuşmalarını, kampanyaları ve otomasyonları burada birlikte yönetiyor.</p>
+{{template "button" (dict "URL" .D.AcceptURL "Label" "Daveti kabul et" "L" .L)}}
+<p class="m-muted" style="{{css "muted"}}">Davet <strong>{{dur .D.ExpiresIn}}</strong> boyunca geçerlidir.</p>
+{{template "note" "Bu daveti beklemiyorsanız e-postayı görmezden gelebilirsiniz; kabul etmediğiniz sürece sizin adınıza hesap oluşturulmaz."}}
+{{end}}

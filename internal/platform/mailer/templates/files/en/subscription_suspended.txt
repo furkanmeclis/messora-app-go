@@ -1,0 +1,17 @@
+{{define "subject"}}Your workspace is now read-only{{end}}
+{{define "preheader"}}Once the payment is complete, everything picks up where it left off.{{end}}
+{{define "reason"}}You're receiving this because billing notices for your Messora subscription are sent to this address.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+Because of an unpaid invoice, {{with .C.TenantName}}the {{.}} workspace{{else}}your workspace{{end}} switched to read-only mode on {{datetime .D.SuspendedAt}}.
+{{template "rows" (rows "Invoice no." .D.InvoiceNo "Open balance" (opt (gt .D.Amount.Minor 0) (money .D.Amount)))}}
+What changed?
+- Your data is safe; nothing has been deleted.
+- You can still view the dashboard, but sending messages, campaigns and automations are paused.
+
+How to fix it
+Once the open balance is paid, full access usually returns within a few minutes. Bank transfers can take a business day to match.
+
+Complete the payment:
+{{.D.BillingURL}}
+{{end}}

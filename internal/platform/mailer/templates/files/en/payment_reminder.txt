@@ -1,0 +1,18 @@
+{{define "subject"}}{{if .D.Overdue}}Overdue invoice: {{.D.InvoiceNo}}{{else}}Upcoming payment: {{.D.InvoiceNo}}, due {{date .D.DueDate}}{{end}}{{end}}
+{{define "preheader"}}{{if .D.Overdue}}To avoid any interruption, please pay by {{date .D.GraceEndsAt}}.{{else}}{{money .D.Amount}} · due {{date .D.DueDate}}{{end}}{{end}}
+{{define "reason"}}You're receiving this because billing notices for your Messora subscription are sent to this address.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+{{if .D.Overdue -}}
+Invoice {{.D.InvoiceNo}} was due on {{date .D.DueDate}} and we haven't seen the payment yet. Your account is working normally for now; if the payment doesn't arrive by {{date .D.GraceEndsAt}}, your workspace will switch to read-only mode.
+{{- else -}}
+A friendly reminder: invoice {{.D.InvoiceNo}} is due on {{date .D.DueDate}}.
+{{- end}}
+{{template "rows" (rows "Invoice no." .D.InvoiceNo "Amount" (money .D.Amount) "Due date" (date .D.DueDate) "Grace period ends" (opt .D.Overdue (date .D.GraceEndsAt)))}}
+{{- with .D.Bank}}
+{{template "bank" (dict "B" . "L" $.L)}}{{end}}
+Pay here:
+{{.D.PayURL}}
+
+Already paid? Thank you. Bank transfers can take a business day to match; you can ignore this e-mail.
+{{end}}

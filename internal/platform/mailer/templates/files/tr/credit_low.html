@@ -1,0 +1,8 @@
+{{define "content"}}
+{{if eq .D.CreditType "ai"}}{{template "h1" "AI kredisi bakiyeniz azaldı"}}{{else}}{{template "h1" "Mesaj kredisi bakiyeniz azaldı"}}{{end}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">{{with .C.TenantName}}<strong>{{.}}</strong> çalışma alanındaki{{else}}Çalışma alanınızdaki{{end}} {{credit .D.CreditType}} bakiyesi belirlediğiniz eşiğin altına düştü.</p>
+{{template "rows" (rows "Kalan bakiye" (num .D.Balance) "Uyarı eşiği" (num .D.Threshold))}}
+<p class="m-text" style="{{css "p"}}">Bakiye bittiğinde {{if eq .D.CreditType "ai"}}AI yanıtları ve önerileri{{else}}kampanya ve mesaj gönderimi{{end}} duraklar. Kesinti yaşamamak için şimdiden yükleme yapabilirsiniz.</p>
+{{template "button" (dict "URL" .D.TopUpURL "Label" "Kredi yükle" "L" .L)}}
+{{end}}

@@ -1,0 +1,12 @@
+{{define "subject"}}Hesabınızda yeni bir oturum açıldı{{end}}
+{{define "preheader"}}{{datetime .D.At}} · {{with .D.Location}}{{.}}{{else}}{{.D.IP}}{{end}}{{with .D.Device}} · {{.}}{{end}}{{end}}
+{{define "reason"}}Bu bir güvenlik bildirimidir; hesabınıza yeni bir cihazdan ya da konumdan giriş yapıldığında gönderilir.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+Messora hesabınıza yeni bir oturum açıldı.
+{{template "rows" (rows "Zaman" (datetime .D.At) "IP adresi" .D.IP "Yaklaşık konum" .D.Location "Cihaz" .D.Device)}}
+Bu sizseniz bir şey yapmanıza gerek yok. Konum, IP adresine göre yaklaşık olarak belirlenir.
+
+Siz değil misiniz? Şifrenizi hemen değiştirin ve açık oturumları kapatın:
+{{.D.SecureURL}}
+{{end}}

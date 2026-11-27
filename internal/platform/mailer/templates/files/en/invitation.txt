@@ -1,0 +1,14 @@
+{{define "subject"}}{{.D.InviterName}} invited you to {{.D.WorkspaceName}} on Messora{{end}}
+{{define "preheader"}}Join as {{.D.Role}}. The invitation is valid for {{dur .D.ExpiresIn}}.{{end}}
+{{define "reason"}}You're receiving this because {{.D.InviterName}} invited you to the {{.D.WorkspaceName}} workspace on Messora.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+{{.D.InviterName}} invited you to join the {{.D.WorkspaceName}} workspace on Messora as {{.D.Role}}. Your team manages WhatsApp conversations, campaigns and automations there together.
+
+Open this link to accept the invitation:
+{{.D.AcceptURL}}
+
+The invitation is valid for {{dur .D.ExpiresIn}}.
+
+Not expecting this? You can ignore this e-mail; no account is created for you unless you accept.
+{{end}}
