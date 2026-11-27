@@ -7934,6 +7934,8 @@ export interface components {
             attr_value?: string;
             /** @description Only these recipients (a page selection). */
             ids?: string[];
+            /** @description All matching recipients except these (a select-all with some rows unticked). */
+            exclude_ids?: string[];
         };
         /**
          * @example {
@@ -8005,6 +8007,13 @@ export interface components {
             unreached_class: string;
             failure_class?: string | null;
             error_code?: string | null;
+            /** @description Meta's short description of error_code. */
+            error_title?: string | null;
+            /**
+             * Format: date-time
+             * @description When a withheld recipient gets its new message.
+             */
+            next_attempt_at?: string | null;
             /** Format: date-time */
             attempted_at?: string | null;
             /** Format: date-time */

@@ -173,7 +173,8 @@ func (h *Handler) GetCampaignBreakdown(w http.ResponseWriter, r *http.Request, i
 func recipientRowAPI(x RecipientRow) api.CampaignRecipientRow {
 	out := api.CampaignRecipientRow{Id: x.ID, ContactId: x.ContactID, Phone: x.PhoneE164, Name: x.Name, ContactType: x.ContactType,
 		State: x.State, SkipReason: x.SkipReason, MessageId: x.MessageID, MessageStatus: x.MsgStatus, Outcome: Outcome(x.State, x.MsgStatus),
-		UnreachedClass: x.UnreachedClass, FailureClass: x.FailureClass, ErrorCode: x.ErrorCode, AttemptedAt: x.AttemptedAt,
+		UnreachedClass: x.UnreachedClass, FailureClass: x.FailureClass, ErrorCode: x.ErrorCode, ErrorTitle: x.ErrorTitle,
+		NextAttemptAt: x.NextAttemptAt, AttemptedAt: x.AttemptedAt,
 		SentAt: x.SentAt, DeliveredAt: x.DeliveredAt, ReadAt: x.ReadAt, FailedAt: x.FailedAt, RepliedAt: x.RepliedAt,
 		ReplyPayload: x.ReplyPayload, OptedOutAt: x.OptedOutAt, Cost: x.Cost, CostCurrency: x.CostCurrency, Resends: int(x.Resends)}
 	if x.Reaction != nil {

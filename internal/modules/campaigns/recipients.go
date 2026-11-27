@@ -62,7 +62,8 @@ type RecipientFilter struct {
 	ContactType *string     `json:"contact_type,omitempty"`
 	AttrKey     string      `json:"attr_key,omitempty"`
 	AttrValue   string      `json:"attr_value,omitempty"`
-	IDs         []uuid.UUID `json:"ids,omitempty"` // an explicit selection of recipient ids
+	IDs         []uuid.UUID `json:"ids,omitempty"`         // an explicit selection of recipient ids
+	ExcludeIDs  []uuid.UUID `json:"exclude_ids,omitempty"` // everything matching except these
 }
 
 // where builds the condition (aliases r and c) for campaign id.
@@ -125,6 +126,9 @@ func (s *Service) recipientWhere(ctx context.Context, id uuid.UUID, f RecipientF
 	if f.IDs != nil {
 		conds = append(conds, "r.id = ANY("+bind(f.IDs)+"::uuid[])")
 	}
+	if len(f.ExcludeIDs) > 0 {
+		conds = append(conds, "NOT (r.id = ANY("+bind(f.ExcludeIDs)+"::uuid[]))")
+	}
 	return strings.Join(conds, " AND "), args, nil
 }
 
@@ -134,13 +138,15 @@ type RecipientRow struct {
 	Name, ContactType string
 	Cost              *string
 	UnreachedClass    string
+	ErrorTitle        *string // from the message
 }
 
 const recipientColumns = `r.id, r.campaign_id, r.contact_id, r.phone_e164, r.state, r.skip_reason, r.message_id, r.created_at, r.updated_at,
 	r.next_attempt_at, r.resends, r.msg_status, r.attempted_at, r.sent_at, r.delivered_at, r.read_at, r.failed_at, r.error_code,
 	r.failure_class, r.cost_amount::text, r.cost_currency, r.replied_at, r.reply_message_id, r.reply_payload, r.reaction,
 	r.reaction_source, r.reaction_at, r.opted_out_at, coalesce(c.name, ''), coalesce(c.contact_type, ''),
-	coalesce(campaign_recipient_class(r.state, r.skip_reason, r.msg_status, r.failure_class), '')`
+	coalesce(campaign_recipient_class(r.state, r.skip_reason, r.msg_status, r.failure_class), ''),
+	(SELECT m.error_title FROM messages m WHERE m.id = r.message_id)`
 
 func scanRecipient(rows pgx.Rows) (RecipientRow, error) {
 	var x RecipientRow
@@ -148,7 +154,7 @@ func scanRecipient(rows pgx.Rows) (RecipientRow, error) {
 	err := rows.Scan(&r.ID, &r.CampaignID, &r.ContactID, &r.PhoneE164, &r.State, &r.SkipReason, &r.MessageID, &r.CreatedAt, &r.UpdatedAt,
 		&r.NextAttemptAt, &r.Resends, &r.MsgStatus, &r.AttemptedAt, &r.SentAt, &r.DeliveredAt, &r.ReadAt, &r.FailedAt, &r.ErrorCode,
 		&r.FailureClass, &x.Cost, &r.CostCurrency, &r.RepliedAt, &r.ReplyMessageID, &r.ReplyPayload, &r.Reaction,
-		&r.ReactionSource, &r.ReactionAt, &r.OptedOutAt, &x.Name, &x.ContactType, &x.UnreachedClass)
+		&r.ReactionSource, &r.ReactionAt, &r.OptedOutAt, &x.Name, &x.ContactType, &x.UnreachedClass, &x.ErrorTitle)
 	return x, err
 }
 

@@ -424,6 +424,14 @@ func TestCampaignRecipientsTableExportsAndBreakdowns(t *testing.T) {
 	if r.body["meta"].(map[string]any)["total"] != float64(4) || len(r.list()) != 3 || r.list()[0].(map[string]any)["phone"] != "+9057400000001" {
 		t.Fatalf("search %s", r.raw)
 	}
+	// A select-all with one row unticked.
+	first := r.list()[0].(map[string]any)["id"]
+	r = h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/recipients/search", token: token,
+		body: map[string]any{"filter": map[string]any{"status": []string{"delivered"}, "exclude_ids": []any{first}}}})
+	h.expect(r, 200, "")
+	if r.body["meta"].(map[string]any)["total"] != float64(3) {
+		t.Fatalf("exclude_ids %s", r.raw)
+	}
 	r = h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/recipients/search", token: token,
 		body: map[string]any{"filter": map[string]any{"tag_id": vip, "q": "Contact 2"}}})
 	h.expect(r, 200, "")
