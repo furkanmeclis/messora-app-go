@@ -155,6 +155,7 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 | WP6 | Tech Provider / Embedded Signup (anahtarla kapalı, sahte Meta ile) | M–L | WP5 |
 | WP7 | Dağıtım: wildcard + on-demand TLS, alan adı iletimi, Centrifugo origin'leri, alt alan adında E2E | M | WP2 (erken başlayabilir) |
 | WP8 | Planlar ve yetkiler: plan tablosu, limitler ve yetki kontrolü; Resend platform göndericisi + Enterprise'a özel SMTP; platform AI anahtarları + Enterprise'a özel kendi anahtarı; platform geneli Meta fiyat kartı | M | WP2, WP3 |
+| WP2b | Kimlik akışları ve e-posta tasarımları: giriş, kayıt (self sign-up, firma + alt alan adı), e-posta doğrulama, şifremi unuttum/sıfırlama, davet kabulü, 2FA, firma değiştirici. Şık ve markaya uygun UI/UX; markalı, TR/EN, mobil ve koyu mod uyumlu HTML e-posta şablonları (doğrulama, şifre sıfırlama, davet, hoş geldin, güvenlik uyarısı, fatura ve ödeme hatırlatması); Resend ile gönderim, önizleme ve e-posta testleri | M–L | WP2 |
 | WP9 | Abonelik ve faturalama: havale/EFT, fatura, mesaj ve AI kredisi bakiyeleri, platform onayı, ek süre ve kısıtlı mod (docs/design/faz17-kanvas) | L | WP8 |
 
 ## 6. Kabul kriterleri (taslak)
