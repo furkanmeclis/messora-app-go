@@ -265,8 +265,9 @@ worker webhook:process (idempotent):
   - `user_preferences` (WhatsApp'ta pazarlamayı Durdur/Devam) → kişinin `meta_marketing_stopped_at` bayrağı
 ```
 
-- `GET /webhooks/whatsapp`: `hub.mode=subscribe` **ve** `hub.verify_token` değeri `META_VERIFY_TOKEN` ile sabit zamanlı karşılaştırmada eşleşirse `hub.challenge` döner, aksi halde 403.
-- Tek işletme olduğu için URL'de tenant token'ı yoktur. Birden fazla Meta App kullanılırsa (nadir), imza her kayıtlı app secret ile denenir.
+- **Adresler (Phase 17 WP5):** her firmanın kendi anahtarlı adresi `https://hooks.<TENANT_BASE_DOMAIN>/meta/<webhook anahtarı>` (aynısı `/webhooks/meta/<anahtar>` altında da) ve firmanın kendi alan adındaki `/webhooks/whatsapp` (`/webhooks/meta`). Anahtarlı adreste kiracı, anahtarın SHA-256'sı ile platform yönlendirme tablosundan (`meta_webhook_keys`) **kiracının altında hiçbir şey okunmadan önce** çözülür; alan adlı adreste alan adı ara katmanı çözer. Sonrası iki yolda aynıdır.
+- `GET`: `hub.mode=subscribe` **ve** `hub.verify_token` değeri **o kiracının** doğrulama belirteciyle sabit zamanlı karşılaştırmada eşleşirse `hub.challenge` döner, aksi halde 403.
+- `POST`: imza yalnızca o kiracının hesaplarının app secret'larıyla denenir; `entry[].id` kiracıda bağlı olmayan WABA'ya aitse o girdi atılır ve sayılır. Ayrıntı: SECURITY.md "Meta webhook'ları".
 
 ## 9. Outbox
 
@@ -408,9 +409,9 @@ Ayarlar `platform_settings` tablosunda `fairness` anahtarındadır (`{"tenant_sh
 ## 14. Yapılandırma ve secret'lar
 
 - Kaynak sırası: ortam değişkenleri → `MESSORA_SECRETS_FILE` (init'in ürettiği dosya, yalnızca boş kalan değişkenleri doldurur). Başlangıçta doğrulanır, eksik zorunlu değer varsa process açık bir hata mesajıyla çıkar.
-- **İlk çalıştırma** (`messora-init`): `messora-secrets` volume'unda `secrets.env` yoksa üretir. İçerik: `APP_ENCRYPTION_KEY` (32 byte), `BFF_SHARED_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `CENTRIFUGO_API_KEY`, `CENTRIFUGO_HMAC_SECRET`, `META_VERIFY_TOKEN`. Bunlara ek olarak Centrifugo config dosyası üretilir. Postgres `POSTGRES_PASSWORD_FILE` ile okur. Kullanıcı `.env`'de bir değer verirse o değer kullanılır.
+- **İlk çalıştırma** (`messora-init`): `messora-secrets` volume'unda `secrets.env` yoksa üretir. İçerik: `APP_ENCRYPTION_KEY` (32 byte), `BFF_SHARED_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `CENTRIFUGO_API_KEY`, `CENTRIFUGO_HMAC_SECRET` (eski kurulumların dosyasındaki `META_VERIFY_TOKEN` artık okunmaz). Bunlara ek olarak Centrifugo config dosyası üretilir. Postgres `POSTGRES_PASSWORD_FILE` ile okur. Kullanıcı `.env`'de bir değer verirse o değer kullanılır.
 - `APP_ENCRYPTION_KEY` kaybedilirse şifreli Meta token'ları açılamaz. Yedekleme dokümanında bu açıkça belirtilecek.
-- Meta kimlik bilgileri (`META_*`) `.env` üzerinden verilebilir veya ilk kurulumdan sonra panelden girilebilir. Her iki durumda da DB'de şifreli saklanır, env değerleri yalnızca ilk tohumlama için kullanılır.
+- Meta kimlik bilgileri firma başınadır ve yalnızca panelden (Ayarlar → WhatsApp / Meta) girilir; DB'de şifreli saklanır. Platform genelinde Meta uygulaması, token'ı ya da doğrulama belirteci yoktur (`META_APP_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `META_ACCESS_TOKEN`, `META_WABA_ID` yok sayılır, API açılışta uyarır). Platform düzeyinde yalnızca `META_GRAPH_API_VERSION`, `META_GRAPH_BASE_URL`, `META_DRY_RUN` ve `HOOKS_PUBLIC_URL` kalır.
 
 ## 15. Test stratejisi (özet)
 
