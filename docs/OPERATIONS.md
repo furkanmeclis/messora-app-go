@@ -50,7 +50,7 @@ A backup directory contains:
 |---|---|
 | `database.dump` | `pg_dump` (custom format) taken while the stack runs |
 | `secrets.tar.gz` | the `messora-secrets` volume — **includes `APP_ENCRYPTION_KEY`** |
-| `media.tar.gz` | downloaded WhatsApp media |
+| `media.tar.gz` | files of the local storage driver (media, imports, exports, logos); with `STORAGE_DRIVER=s3` back up the buckets instead (versioning or replication, see [STORAGE.md](STORAGE.md)) |
 | `manifest.txt`, `SHA256SUMS` | version, schema version, checksums |
 
 Without the secrets archive, encrypted data (WhatsApp tokens, TOTP secrets,

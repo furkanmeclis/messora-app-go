@@ -250,7 +250,8 @@ inbound or outbound message write updates it in the same transaction
 ## Media
 
 Inbound media (image, video, audio, document, sticker) is downloaded by the
-worker into the `messora-media` volume (`MEDIA_DIR`) before Meta's 7-day
+worker into the private object store ([STORAGE.md](STORAGE.md); the
+`messora-media` volume with the default local driver) before Meta's 7-day
 expiry, with size (100 MB) and checksum checks. Outbound media is sent by Meta
 media ID or by HTTPS link.
 
