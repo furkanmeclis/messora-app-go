@@ -307,6 +307,7 @@ type Querier interface {
 	// ── Messages ────────────────────────────────────────────────────────────────
 	InsertOutboundMessage(ctx context.Context, arg InsertOutboundMessageParams) (Message, error)
 	InsertOutgoingWebhookEvent(ctx context.Context, arg InsertOutgoingWebhookEventParams) error
+	InsertPlatformSettingIfAbsent(ctx context.Context, arg InsertPlatformSettingIfAbsentParams) (int64, error)
 	InsertRecipient(ctx context.Context, arg InsertRecipientParams) (int64, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	// ── Campaign reply classification ───────────────────────────────────────────

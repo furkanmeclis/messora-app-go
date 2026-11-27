@@ -548,6 +548,24 @@ func (q *Queries) InsertAIUsage(ctx context.Context, arg InsertAIUsageParams) (u
 	return id, err
 }
 
+const insertPlatformSettingIfAbsent = `-- name: InsertPlatformSettingIfAbsent :execrows
+INSERT INTO platform_settings (key, value) VALUES ($1, $2)
+ON CONFLICT (key) DO NOTHING
+`
+
+type InsertPlatformSettingIfAbsentParams struct {
+	Key   string
+	Value []byte
+}
+
+func (q *Queries) InsertPlatformSettingIfAbsent(ctx context.Context, arg InsertPlatformSettingIfAbsentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertPlatformSettingIfAbsent, arg.Key, arg.Value)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listAIModels = `-- name: ListAIModels :many
 SELECT m.provider_id, m.model_id, m.display_name, m.context_window, m.max_output, m.capabilities, m.lifecycle, m.synced_at, m.tenant_id, p.kind AS provider_kind, p.name AS provider_name
 FROM ai_models m JOIN ai_providers p ON p.id = m.provider_id

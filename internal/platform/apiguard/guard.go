@@ -219,8 +219,6 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// authorize evaluates the alternatives of the security requirement (OR of
-// ANDs) and returns the authenticated principal, if any.
 // errWrongTenant is the error for credentials of another tenant; it looks
 // exactly like an unknown token.
 func errWrongTenant(isKey bool) error {
@@ -230,6 +228,8 @@ func errWrongTenant(isKey bool) error {
 	return apperr.Unauthorized("SESSION_INVALID", "Your session has ended. Sign in again.")
 }
 
+// authorize evaluates the alternatives of the security requirement (OR of
+// ANDs) and returns the authenticated principal, if any.
 func (g *Guard) authorize(r *http.Request, reqs openapi3.SecurityRequirements) (*principal.Principal, error) {
 	ctx := r.Context()
 	token := bearer(r)

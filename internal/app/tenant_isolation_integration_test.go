@@ -13,6 +13,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
@@ -91,7 +92,7 @@ func (h *harness) created(token, path string, body map[string]any) string {
 func TestTenantIsolationMatrix(t *testing.T) {
 	h := newHarness(t)
 	h.useAIEmulator()
-	if err := h.svc.ai.EnsureSeed(h.ctx()); err != nil {
+	if err := ai.EnsureSeed(h.ctx(), h.owner); err != nil {
 		t.Fatal(err)
 	}
 

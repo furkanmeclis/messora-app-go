@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/database"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/logger"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
@@ -49,6 +50,11 @@ func RunMigrate(ctx context.Context) error {
 	}
 	if len(added) > 0 {
 		log.Info("tenant #1 host names registered", "hosts", added)
+	}
+	// The AI price table is platform data, written by the owner role.
+	if err := ai.EnsureSeed(ctx, pool); err != nil {
+		// Not fatal: prices can be imported or entered in the panel.
+		log.Error("could not store the seed AI prices", "err", err)
 	}
 	return nil
 }

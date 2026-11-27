@@ -147,3 +147,7 @@ SELECT EXISTS (SELECT 1 FROM phone_numbers WHERE id = @id);
 
 -- name: AutomationExists :one
 SELECT EXISTS (SELECT 1 FROM automations WHERE id = @id);
+
+-- name: InsertPlatformSettingIfAbsent :execrows
+INSERT INTO platform_settings (key, value) VALUES (@key, @value)
+ON CONFLICT (key) DO NOTHING;
