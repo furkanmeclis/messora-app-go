@@ -96,7 +96,7 @@ const node = (type: string) =>
 /** Installs a preset from the gallery and returns the new automation id. */
 async function install(key: string): Promise<string> {
     await page.goto('/automations');
-    await page.getByTestId('presets-link').click();
+    await page.getByTestId('presets-link').filter({ visible: true }).click();
     await expect(page).toHaveURL(/\/automations\/presets$/);
     await expect(
         page.getByRole('heading', { name: 'Ready-made automations' }),

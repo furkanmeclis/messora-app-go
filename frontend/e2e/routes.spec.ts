@@ -230,7 +230,10 @@ test('right-click opens the panel menu; shift keeps the browser menu', async () 
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
     // A contact row offers its own actions first.
-    const row = page.getByTestId('contact-row').first();
+    const row = page
+        .getByTestId('contact-row')
+        .filter({ visible: true })
+        .first();
     if (await row.count()) {
         await row.click({ button: 'right' });
         await expect(

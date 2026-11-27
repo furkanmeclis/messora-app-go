@@ -116,7 +116,9 @@ test('the contact shows what the AI collected, and a person verifies it', async 
 
 test('the contacts list filters contacts the AI created', async () => {
     await page.goto('/contacts?ai_profile=true');
-    const row = page.getByTestId('contact-row-name').filter({ hasText: NAME });
+    const row = page
+        .getByTestId('contact-row-name')
+        .filter({ hasText: NAME, visible: true });
     await expect(row).toBeVisible();
     await expect(row.getByTestId('contact-ai-badge')).toHaveText('AI');
 });
