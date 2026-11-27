@@ -9,6 +9,8 @@ const settings = {
         metaRates: 'Meta rate card',
     },
     metaRates: {
+        managedByPlatform:
+            'Messora keeps Meta’s rate card up to date for every workspace; message costs are calculated from it.',
         title: 'Meta rate card',
         description:
             'Meta publishes its per-message prices only as a rate card, not through an API. Import it here so every billable message is priced in your account’s currency; Meta’s own daily totals are fetched separately for comparison.',

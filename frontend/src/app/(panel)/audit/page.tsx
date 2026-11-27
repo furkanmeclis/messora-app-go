@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
-import type { AuditLog } from '@/lib/types';
+import type { AuditLog, Schemas } from '@/lib/types';
 import { PageHeading } from '../panel-header';
 import { AuditTable } from './audit-client';
+import { SupportAccess } from './support-access';
 
 export async function generateMetadata(): Promise<Metadata> {
     const t = await getT();
@@ -20,9 +21,12 @@ export default async function AuditPage({
     const action = (await searchParams).action;
     const q = new URLSearchParams({ limit: '50' });
     if (action) q.set('action', action);
-    const [first, t] = await Promise.all([
+    const [first, t, grants] = await Promise.all([
         api<AuditLog[]>(`/audit-logs?${q}`),
         getT(),
+        api<Schemas['SupportGrant'][]>('/support-access')
+            .then((r) => r.data)
+            .catch(() => [] as Schemas['SupportGrant'][]),
     ]);
     return (
         <>
@@ -30,6 +34,7 @@ export default async function AuditPage({
                 title={t('audit.title')}
                 description={t('audit.description')}
             />
+            {!action && <SupportAccess grants={grants} />}
             <AuditTable
                 key={action ?? ''}
                 initial={first.data}

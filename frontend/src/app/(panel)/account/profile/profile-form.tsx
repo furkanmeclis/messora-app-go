@@ -26,6 +26,7 @@ import { formatTime, prefsFor } from '@/lib/format';
 import type { User } from '@/lib/types';
 import { updateProfileAction } from '../../actions';
 import { LocaleField, TimezoneField } from '../../settings/fields';
+import { EmailChange } from './email-change';
 import { Row, Section } from '../../settings/section';
 
 export function ProfileForm({ user }: { user: User }) {
@@ -107,6 +108,7 @@ export function ProfileForm({ user }: { user: User }) {
                                 className="pl-8 text-muted-foreground"
                             />
                         </div>
+                        <EmailChange current={user.email} />
                     </Row>
                 </div>
             </Section>

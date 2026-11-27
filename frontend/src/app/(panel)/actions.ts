@@ -48,6 +48,18 @@ export async function updateProfileAction(
     return res;
 }
 
+/** Sends a confirmation link to a new e-mail address (needs reauth). */
+export async function requestEmailChangeAction(
+    email: string,
+): Promise<ActionResult> {
+    return runAction(() =>
+        api('/me/email', {
+            method: 'POST',
+            body: { email: email.trim() },
+        }).then(() => undefined),
+    );
+}
+
 export async function changePasswordAction(
     _prev: ActionResult | null,
     form: FormData,
