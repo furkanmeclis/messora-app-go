@@ -20,6 +20,19 @@
 | Migration | goose, `migrations/NNNNN_<ad>.sql`, `-- +goose Up/Down`. Büyük tablolarda `CREATE INDEX CONCURRENTLY` (`-- +goose NO TRANSACTION`). Kolon silme iki adımda yapılır (önce kullanmayı bırak, sonraki sürümde düş). |
 | Extension | `citext`, `pg_trgm` (contact arama). |
 
+### 1.1 Kiracılar (Phase 17 WP1)
+
+- **Kayıt tabloları:** `tenants` (`slug` alt alan adı etiketidir: 3–40 karakter, küçük harf, rakam ve iç tire, ayrılmış adlar `tenant_reserved_slugs()`; `status` `active | suspended | deleted`), `tenant_domains` (her alan adı tek kiracıya aittir; `kind` `subdomain | custom`; `verified_at` boşsa alan adı yanıt vermez; kiracı başına tek `is_primary`), `platform_settings` (WP2 platform paneli). Bunlarda RLS yoktur; `messora_app` yalnızca okur.
+- **`tenant_id`:** platform tabloları (`tenants`, `tenant_domains`, `platform_settings`, `permissions`, `roles`, `role_permissions`, `meta_rates`, `meta_rate_markets`, `ai_model_prices`, `goose_db_version`) dışındaki 57 tablonun hepsinde `tenant_id uuid NOT NULL REFERENCES tenants ON DELETE RESTRICT DEFAULT app_tenant_id()` bulunur. `outbox_events.tenant_id` boş olabilir (platform olayları); uygulama rolü yine de yalnızca kendi kiracısının olayını yazıp okuyabilir.
+- **Yazma:** sütun varsayılanı bağlantının kiracısıdır (`app_tenant_id()`, havuz kancasının ayarladığı `app.tenant_id`); sorgular değeri ayrıca geçirmez. Kiracısız bağlantıda varsayılan `NULL` olur ve `NOT NULL` ekleme yapılamaz; RLS'in `WITH CHECK` ifadesi başka bir kiracının değerini reddeder. Trigger'lar yazdıkları satıra `NEW.tenant_id`'yi açıkça kopyalar (`ops_hint`, `phone_number_quality_event`, `message_template_change_event`, `campaign_counters_init`, `campaign_counters_recompute`).
+- **Okuma:** RLS (`FORCE`) her sorguya `tenant_id = app_tenant_id()` ekler. ID ile okuma da kiracı içinde kalır.
+- **Bileşik anahtarlar:** ebeveynlerde `UNIQUE (tenant_id, id)`; çocuklar `FOREIGN KEY (tenant_id, x_id) REFERENCES parent (tenant_id, id)` ile bağlanır. `ON DELETE SET NULL (x_id)` yalnızca ilişki sütununu boşaltır.
+- **Kiracı bazlı tekiller:** `settings (tenant_id, key)` birincil anahtar; `contacts (tenant_id, phone_e164)`; etiket, grup, segment adları `(tenant_id, lower(name))`; kiracı başına tek varsayılan numara; `ai_providers (tenant_id, name)`; `messages (tenant_id, wamid)`; `webhook_events (tenant_id, payload_sha256)`; `meta_user_preferences`; açık davet `(tenant_id, email)`; `idempotency_keys (tenant_id, principal, key)`. **Global kalanlar** (yönlendirme): `whatsapp_accounts.waba_id`, `phone_numbers.phone_number_id`, bütün token ve anahtar hash'leri, `users.email` (WP2'ye kadar).
+- **Danışma kilidi:** sahip değişikliği kilidi kiracıyı içerir (`messora.owner_changes:<tenant>`).
+- **Roller:** sahip (`messora`) migrasyonları çalıştırır; `messora_app` (`NOBYPASSRLS`) servislerin rolüdür; `messora_system` (`BYPASSRLS`) yalnızca outbox aktarıcısı ve temizliği içindir. Sonraki migrasyonların tabloları `ALTER DEFAULT PRIVILEGES` ile iki role de DML hakkı alır; yeni bir platform tablosu ekleyen migrasyon `messora_app`'in yazma hakkını açıkça geri almalıdır.
+- **Mevcut verinin taşınması (00024–00028):** `tenant_id` önce boş eklenir, mevcut satırlar tek transaction'da 1 numaralı kiracıya (`00000000-0000-0000-0000-000000000001`) taşınır, `CHECK (tenant_id IS NOT NULL) NOT VALID` eklenir; sonraki migrasyonda doğrulanır, `SET NOT NULL` taramasız yapılır ve kontrol düşürülür. 1 numaralı kiracının `slug`'ı organizasyon adından türetilir (`Acme Şirketi` → `acme-sirketi`, kullanılamıyorsa `default`). Alan adlarını `messora migrate` kaydeder: `<slug>.TENANT_BASE_DOMAIN` ve `PUBLIC_APP_URL` host'u. Down migrasyonları tersine çalışır (iki kiracı aynı anahtarı paylaşıyorsa 00027 Down bilerek başarısız olur).
+- **CI kontrolü:** `TestEveryTableIsTenantScoped` yeni bir tablonun kiracıya bağlanmadan eklenmesini engeller.
+
 ## 2. Kimlik, yetki, sistem
 
 ```sql

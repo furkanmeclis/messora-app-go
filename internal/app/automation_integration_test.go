@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -27,7 +26,7 @@ func (h *harness) automation(token string, body map[string]any) string {
 func (h *harness) drain() {
 	h.t.Helper()
 	for range 50 {
-		if h.pump(context.Background(), 4) == 0 {
+		if h.pump(h.ctx(), 4) == 0 {
 			return
 		}
 	}
@@ -80,7 +79,7 @@ func TestAutomationRunsOncePerWebhookAndBranches(t *testing.T) {
 		t.Fatalf("runs: %d", n)
 	}
 	var status string
-	_ = h.pool.QueryRow(context.Background(), "SELECT status FROM automation_runs WHERE automation_id = $1", id).Scan(&status)
+	_ = h.pool.QueryRow(h.ctx(), "SELECT status FROM automation_runs WHERE automation_id = $1", id).Scan(&status)
 	if status != "completed" {
 		t.Fatalf("run status %s", status)
 	}
@@ -125,8 +124,8 @@ func TestAutomationsCannotTriggerEachOther(t *testing.T) {
 	h.drain()
 	// Deliver the automation's reply: its status must not trigger C.
 	var replyID string
-	_ = h.pool.QueryRow(context.Background(), "SELECT id FROM messages WHERE source = 'automation'").Scan(&replyID)
-	_, _ = h.pool.Exec(context.Background(), "UPDATE messages SET status = 'sent', status_rank = 3, wamid = 'wamid.reply-1' WHERE id = $1", replyID)
+	_ = h.pool.QueryRow(h.ctx(), "SELECT id FROM messages WHERE source = 'automation'").Scan(&replyID)
+	_, _ = h.pool.Exec(h.ctx(), "UPDATE messages SET status = 'sent', status_rank = 3, wamid = 'wamid.reply-1' WHERE id = $1", replyID)
 	h.webhook(whatsapptest.StatusUpdate(testPNID, "wamid.reply-1", "delivered", testCustomer, replyID, time.Now(), 0))
 	h.drain()
 	if h.runs(a) != 1 || h.runs(b) != 0 || h.runs(c) != 0 {
@@ -163,7 +162,7 @@ func TestAutomationDelaySurvivesRestart(t *testing.T) {
 	h.drain()
 	var run uuid.UUID
 	var status string
-	if err := h.pool.QueryRow(context.Background(), "SELECT id, status FROM automation_runs WHERE automation_id = $1", id).Scan(&run, &status); err != nil || status != "waiting" {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id, status FROM automation_runs WHERE automation_id = $1", id).Scan(&run, &status); err != nil || status != "waiting" {
 		t.Fatalf("run %s %v", status, err)
 	}
 	// A second message from the same contact is not a new contact.
@@ -175,7 +174,7 @@ func TestAutomationDelaySurvivesRestart(t *testing.T) {
 
 	// "Restart": the queued resume task is gone, time passes, and a fresh
 	// engine (as after a deploy) recovers the run through the reaper.
-	ctx := context.Background()
+	ctx := h.ctx()
 	if _, err := h.pool.Exec(ctx, "DELETE FROM outbox_events WHERE published_at IS NULL"); err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +263,7 @@ func (h *harness) visited(token, automationID string) (status string, ids []stri
 func TestAutomationCanvasIDsLayoutAndRunTrace(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
-	ctx := context.Background()
+	ctx := h.ctx()
 
 	// Step ids must be unique and well-formed.
 	r := h.do(call{method: "POST", path: "/api/v1/automations", token: token, body: map[string]any{

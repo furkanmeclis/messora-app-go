@@ -572,7 +572,7 @@ func TestAIDebounceAnswersABurstOnce(t *testing.T) {
 	if len(env.script.turns()) != 0 {
 		t.Fatal("answered before the debounce delay")
 	}
-	if _, err := h.pool.Exec(context.Background(), "UPDATE outbox_events SET available_at = now() WHERE topic = 'task:ai:reply'"); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE outbox_events SET available_at = now() WHERE topic = 'task:ai:reply'"); err != nil {
 		t.Fatal(err)
 	}
 	h.drain()
@@ -592,10 +592,10 @@ func TestAIDebounceAnswersABurstOnce(t *testing.T) {
 	// A redelivered task does nothing.
 	id := h.conversationOf(testCustomer)
 	var last uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT ai_handled_message_id FROM conversations WHERE id = $1", id).Scan(&last); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT ai_handled_message_id FROM conversations WHERE id = $1", id).Scan(&last); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.inbox.HandleAIReply(context.Background(), uuid.MustParse(id), last); err != nil || len(h.metaTexts()) != 1 {
+	if err := h.svc.inbox.HandleAIReply(h.ctx(), uuid.MustParse(id), last); err != nil || len(h.metaTexts()) != 1 {
 		t.Fatalf("redelivery: %v", err)
 	}
 }

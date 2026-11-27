@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -96,7 +95,7 @@ func TestInboxTemplateParams(t *testing.T) {
 	owner, _ := h.connect()
 	h.mediaTemplate(owner)
 	h.inbound(testCustomer, "wamid.tp1", "Fiyat?", time.Now())
-	_, _ = h.pool.Exec(context.Background(), "UPDATE contacts SET name = 'Ayşe Yılmaz', var1 = 'yaz-indirimi' WHERE phone_e164 = $1", "+"+testCustomer)
+	_, _ = h.pool.Exec(h.ctx(), "UPDATE contacts SET name = 'Ayşe Yılmaz', var1 = 'yaz-indirimi' WHERE phone_e164 = $1", "+"+testCustomer)
 	id := h.conversationOf(testCustomer)
 	reply := func(params map[string]any) resp {
 		return h.do(call{method: "POST", path: "/api/v1/conversations/" + id + "/messages", token: owner, body: map[string]any{
@@ -154,7 +153,7 @@ func TestTemplateSampleUpload(t *testing.T) {
 func TestContactAttributeKeys(t *testing.T) {
 	h := newHarness(t)
 	owner, _ := h.setupOwner()
-	_, _ = h.pool.Exec(context.Background(), `INSERT INTO contacts (phone_e164, name, source, attributes) VALUES
+	_, _ = h.pool.Exec(h.ctx(), `INSERT INTO contacts (phone_e164, name, source, attributes) VALUES
 		('+905550000001', 'A', 'manual', '{"city":"Ankara","plan":"gold"}'), ('+905550000002', 'B', 'manual', '{"city":"İzmir"}')`)
 	r := h.do(call{method: "GET", path: "/api/v1/contacts/attribute-keys", token: owner})
 	h.expect(r, 200, "")

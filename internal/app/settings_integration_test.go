@@ -5,7 +5,6 @@ package app
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net"
@@ -50,7 +49,7 @@ func (h *harness) rawUpload(method, path, token, contentType string, body []byte
 
 func TestTwoFactorIsOptionalByDefault(t *testing.T) {
 	h := newHarness(t)
-	setupTok, _ := h.svc.identity.EnsureSetupToken(context.Background(), false)
+	setupTok, _ := h.svc.identity.EnsureSetupToken(h.ctx(), false)
 	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": setupTok, "name": "O", "email": "o@example.com", "password": ownerPassword}})
 	h.expect(r, 201, "")
 	token := r.data()["session_token"].(string)
@@ -127,7 +126,7 @@ func TestSettingsFromEnvironmentAreLocked(t *testing.T) {
 	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"organization_name": "Panel"}}), 409, "SETTING_MANAGED_BY_ENV")
 	// Unlocked fields still change, and the environment value is not stored.
 	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"time_format": "12h"}}), 200, "")
-	raw, err := db.New(h.pool).GetSetting(context.Background(), "workspace")
+	raw, err := db.New(h.pool).GetSetting(h.ctx(), "workspace")
 	if err != nil || strings.Contains(string(raw), "From Env") {
 		t.Fatalf("environment value persisted: %s %v", raw, err)
 	}
@@ -208,7 +207,7 @@ func TestSMTPSettingsFromThePanel(t *testing.T) {
 	if r.data()["password_set"] != true || r.data()["enabled"] != true || r.data()["host"] != host {
 		t.Fatalf("saved: %s", r.raw)
 	}
-	raw, _ := db.New(h.pool).GetSetting(context.Background(), "smtp")
+	raw, _ := db.New(h.pool).GetSetting(h.ctx(), "smtp")
 	if strings.Contains(string(raw), "Smtp-secret-pass-1") {
 		t.Fatal("SMTP password stored in plain text")
 	}
@@ -220,7 +219,7 @@ func TestSMTPSettingsFromThePanel(t *testing.T) {
 	if r.data()["password_set"] != true {
 		t.Fatal("password dropped when omitted")
 	}
-	if !mail.Enabled() {
+	if !mail.Enabled(h.ctx()) {
 		t.Fatal("sender still disabled after saving")
 	}
 	h.expect(h.do(call{method: "PUT", path: "/api/v1/settings/smtp", token: owner, body: map[string]any{"host": "smtp.acme.test", "port": 587, "username": "", "from": "not an address", "tls": "starttls"}}), 422, "VALIDATION_ERROR")

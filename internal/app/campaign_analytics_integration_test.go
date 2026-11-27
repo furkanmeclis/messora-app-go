@@ -4,7 +4,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -55,7 +54,7 @@ type sentMsg struct{ id, wamid, phone string }
 
 func (h *harness) campaignMessages(id string) []sentMsg {
 	h.t.Helper()
-	rows, err := h.pool.Query(context.Background(), `SELECT m.id::text, coalesce(m.wamid, ''), c.phone_e164 FROM messages m
+	rows, err := h.pool.Query(h.ctx(), `SELECT m.id::text, coalesce(m.wamid, ''), c.phone_e164 FROM messages m
 		JOIN contacts c ON c.id = m.contact_id WHERE m.campaign_id = $1 ORDER BY c.phone_e164`, id)
 	if err != nil {
 		h.t.Fatal(err)
@@ -74,7 +73,7 @@ func (h *harness) campaignMessages(id string) []sentMsg {
 // recompute from the rows (which must find no drift).
 func (h *harness) countersMatchRecompute(id string) map[string]int64 {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	read := func() map[string]any {
 		var raw []byte
 		if err := h.pool.QueryRow(ctx, `SELECT to_jsonb(k) - 'updated_at' - 'reconciled_at' FROM campaign_counters k WHERE campaign_id = $1`, id).Scan(&raw); err != nil {
@@ -111,7 +110,7 @@ func TestCampaignAnalyticsCountersMatchRecompute(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	h.expect(h.uploadRates(token, "market,countries,category,price,currency,effective_from\nTurkey,TR,utility,0.0050,USD,2026-01-01\n"), 200, "")
 	tag := h.seedTagged(10, "+90570", "mixed")
 	id := h.newCampaign(token, map[string]any{"audience": map[string]any{"tag_id": tag}, "window_size": 20,
@@ -228,7 +227,7 @@ func TestCampaignForecastSnapshotAndComparison(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	tag := h.seedTagged(6, "+90571", "forecast")
 	aud := map[string]any{"tag_id": tag}
 	r := h.do(call{method: "POST", path: "/api/v1/campaigns/forecast", token: token, body: map[string]any{"audience": aud,
@@ -312,7 +311,7 @@ func (h *harness) protection(token string, change map[string]any) {
 
 func (h *harness) lastPause(id string) (reason, rule string) {
 	h.t.Helper()
-	if err := h.pool.QueryRow(context.Background(), `SELECT reason, coalesce(detail->>'rule', '') FROM campaign_pauses
+	if err := h.pool.QueryRow(h.ctx(), `SELECT reason, coalesce(detail->>'rule', '') FROM campaign_pauses
 		WHERE campaign_id = $1 ORDER BY id DESC LIMIT 1`, id).Scan(&reason, &rule); err != nil {
 		h.t.Fatal(err)
 	}
@@ -323,7 +322,7 @@ func TestCampaignSpamProtectionPauses(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	h.protection(token, map[string]any{"window": 20, "min_attempts": 10, "ecosystem_rate_pct": 10})
 
 	// A burst of 131049/131050 after ten good sends.
@@ -390,7 +389,7 @@ func TestCampaignRecipientsTableExportsAndBreakdowns(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	tag := h.seedTagged(8, "+90574", "table")
 	var vip string
 	if err := h.pool.QueryRow(ctx, "INSERT INTO tags (name) VALUES ('vip') RETURNING id").Scan(&vip); err != nil {

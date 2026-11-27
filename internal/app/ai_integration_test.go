@@ -63,7 +63,7 @@ func TestAIProvidersNeverLeakTheKey(t *testing.T) {
 	h := newHarness(t)
 	emu := h.useAIEmulator()
 	owner, _ := h.setupOwner()
-	if err := h.svc.ai.EnsureSeed(context.Background()); err != nil {
+	if err := h.svc.ai.EnsureSeed(h.ctx()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -172,7 +172,7 @@ func TestAIProfilesSettingsAndTestConsole(t *testing.T) {
 	h := newHarness(t)
 	emu := h.useAIEmulator()
 	owner, phoneID := h.connect()
-	if err := h.svc.ai.EnsureSeed(context.Background()); err != nil {
+	if err := h.svc.ai.EnsureSeed(h.ctx()); err != nil {
 		t.Fatal(err)
 	}
 	fake := h.aiProvider(owner, "fake", "Fake", "fake-key-for-tests")
@@ -320,7 +320,7 @@ func TestAIPricesConfirmImportAndSeedOnce(t *testing.T) {
 	h := newHarness(t)
 	h.useAIEmulator()
 	owner, _ := h.setupOwner()
-	ctx := context.Background()
+	ctx := h.ctx()
 	if err := h.svc.ai.EnsureSeed(ctx); err != nil {
 		t.Fatal(err)
 	}

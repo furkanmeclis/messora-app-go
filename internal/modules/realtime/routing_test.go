@@ -33,8 +33,8 @@ func (f *fakeTx) Query(context.Context, string, ...any) (pgx.Rows, error) {
 }
 func (f *fakeTx) QueryRow(_ context.Context, _ string, args ...any) pgx.Row {
 	var body map[string]any
-	_ = json.Unmarshal(args[1].([]byte), &body)
-	topic := args[0].(string)
+	_ = json.Unmarshal(args[2].([]byte), &body)
+	topic := args[1].(string)
 	f.rows = append(f.rows, struct {
 		channel string
 		body    map[string]any

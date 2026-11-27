@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"net/url"
 	"strconv"
 	"strings"
@@ -50,7 +49,7 @@ func fields(kv ...string) map[string]any {
 func (h *harness) contactOf(token, customer string) map[string]any {
 	h.t.Helper()
 	var id uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT id FROM contacts WHERE phone_e164 = $1", "+"+customer).Scan(&id); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id FROM contacts WHERE phone_e164 = $1", "+"+customer).Scan(&id); err != nil {
 		h.t.Fatal(err)
 	}
 	r := h.do(call{method: "GET", path: "/api/v1/contacts/" + id.String(), token: token})
@@ -205,7 +204,7 @@ func TestAINeverOverwritesValuesPeopleSetOrVerified(t *testing.T) {
 // attribution reads); it returns the campaign id.
 func (h *harness) campaignReached(phoneID, name string, sentAt time.Time) string {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	var cid, contactID uuid.UUID
 	if err := h.pool.QueryRow(ctx, "SELECT id FROM contacts WHERE phone_e164 = $1", "+"+testCustomer).Scan(&contactID); err != nil {
 		h.t.Fatal(err)
@@ -228,7 +227,7 @@ func (h *harness) campaignReached(phoneID, name string, sentAt time.Time) string
 
 func (h *harness) usageCampaigns(conversationID string) []string {
 	h.t.Helper()
-	rows, err := h.pool.Query(context.Background(), "SELECT coalesce(campaign_id::text, '') FROM ai_usage WHERE conversation_id = $1 AND purpose = 'reply' ORDER BY id", conversationID)
+	rows, err := h.pool.Query(h.ctx(), "SELECT coalesce(campaign_id::text, '') FROM ai_usage WHERE conversation_id = $1 AND purpose = 'reply' ORDER BY id", conversationID)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -266,18 +265,18 @@ func TestAIUsageAttributedToOneCampaign(t *testing.T) {
 	// A campaign message recorded late (sent before the first request):
 	// the reconcile job fills only the unattributed row.
 	var first time.Time
-	if err := h.pool.QueryRow(context.Background(), "SELECT min(created_at) FROM ai_usage WHERE conversation_id = $1", id).Scan(&first); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT min(created_at) FROM ai_usage WHERE conversation_id = $1", id).Scan(&first); err != nil {
 		t.Fatal(err)
 	}
 	c := h.campaignReached(env.phoneID, "Kampanya C", first.Add(-time.Minute))
-	n, err := h.svc.ai.ReconcileAttribution(context.Background())
+	n, err := h.svc.ai.ReconcileAttribution(h.ctx())
 	if err != nil || n != 1 {
 		t.Fatalf("reconcile = %d, %v", n, err)
 	}
 	if got = h.usageCampaigns(id); got[0] != c || got[1] != a || got[2] != b {
 		t.Fatalf("after reconcile = %v", got)
 	}
-	if n, _ := h.svc.ai.ReconcileAttribution(context.Background()); n != 0 {
+	if n, _ := h.svc.ai.ReconcileAttribution(h.ctx()); n != 0 {
 		t.Fatal("reconcile is not idempotent")
 	}
 
@@ -376,7 +375,7 @@ func TestAIBudgetPausesAutoReplies(t *testing.T) {
 		t.Fatalf("budget notices = %d", n)
 	}
 	var ownerID uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT id FROM users ORDER BY created_at LIMIT 1").Scan(&ownerID); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id FROM users ORDER BY created_at LIMIT 1").Scan(&ownerID); err != nil {
 		t.Fatal(err)
 	}
 	told := false
@@ -443,7 +442,7 @@ func TestCampaignReplyClassification(t *testing.T) {
 	}
 	var status, sentiment string
 	var usage *uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT status, sentiment, ai_usage_id FROM campaign_reply_classifications WHERE campaign_id = $1",
+	if err := h.pool.QueryRow(h.ctx(), "SELECT status, sentiment, ai_usage_id FROM campaign_reply_classifications WHERE campaign_id = $1",
 		camp).Scan(&status, &sentiment, &usage); err != nil {
 		t.Fatal(err)
 	}
@@ -457,7 +456,7 @@ func TestCampaignReplyClassification(t *testing.T) {
 	// campaign's counters and analysis read.
 	var reaction, source string
 	var recipient uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT id, coalesce(reaction, ''), coalesce(reaction_source, '') FROM campaign_recipients WHERE campaign_id = $1",
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id, coalesce(reaction, ''), coalesce(reaction_source, '') FROM campaign_recipients WHERE campaign_id = $1",
 		camp).Scan(&recipient, &reaction, &source); err != nil {
 		t.Fatal(err)
 	}
@@ -479,7 +478,7 @@ func TestCampaignReplyClassification(t *testing.T) {
 	}
 	// Precedence: an AI label never replaces a manual one or a tapped quick
 	// reply; a quick reply replaces an AI label.
-	ctx := context.Background()
+	ctx := h.ctx()
 	campID := uuid.MustParse(camp)
 	neg := "negative"
 	if ok, err := h.svc.campaigns.SetReaction(ctx, campID, recipient, &neg, campaigns.ReactionSourceQuickReply); err != nil || !ok {

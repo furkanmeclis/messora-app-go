@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -19,7 +18,7 @@ import (
 // seedTagged inserts n contacts with phone prefix and tags them tagName.
 func (h *harness) seedTagged(n int, prefix, tagName string) string {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	var tag string
 	if err := h.pool.QueryRow(ctx, "INSERT INTO tags (name) VALUES ($1) RETURNING id", tagName).Scan(&tag); err != nil {
 		h.t.Fatal(err)
@@ -50,7 +49,7 @@ func (h *harness) newCampaign(token string, body map[string]any) string {
 func (h *harness) status(id string) string {
 	h.t.Helper()
 	var st string
-	if err := h.pool.QueryRow(context.Background(), "SELECT status FROM campaigns WHERE id = $1", id).Scan(&st); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT status FROM campaigns WHERE id = $1", id).Scan(&st); err != nil {
 		h.t.Fatal(err)
 	}
 	return st
@@ -60,7 +59,7 @@ func (h *harness) status(id string) string {
 // throughput set to mps.
 func (h *harness) useScheduler(mps int) *messaging.Throttle {
 	h.t.Helper()
-	if _, err := h.pool.Exec(context.Background(), "UPDATE phone_numbers SET throughput_mps = $1", mps); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE phone_numbers SET throughput_mps = $1", mps); err != nil {
 		h.t.Fatal(err)
 	}
 	t := messaging.NewThrottle(h.rdb, messaging.DefaultThroughput).WithCeilings(h.svc.messaging.ThroughputCeiling).SetReservedShare(0.2)
@@ -85,7 +84,7 @@ func TestCampaignSchedulerSharesByPriority(t *testing.T) {
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + hi + "/start", token: token}), 200, "")
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + lo + "/start", token: token}), 200, "")
 
-	ctx := context.Background()
+	ctx := h.ctx()
 	start := time.Now()
 	var apiQueued time.Time
 	var apiID string
@@ -183,7 +182,7 @@ func TestCampaignPortfolioLimitPausesAndResumes(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	if _, err := h.pool.Exec(ctx, "UPDATE phone_numbers SET messaging_limit = 'TIER_250'"); err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +266,7 @@ func TestCampaignPreviousCampaignAudience(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	tag := h.seedTagged(40, "+90564", "first")
 	src := h.newCampaign(token, map[string]any{"audience": map[string]any{"tag_id": tag}})
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + src + "/start", token: token}), 200, "")
@@ -343,7 +342,7 @@ func TestCampaignWithheldStatusResendsOnce(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	tag := h.seedTagged(4, "+90565", "withheld")
 	id := h.newCampaign(token, map[string]any{"audience": map[string]any{"tag_id": tag}, "window_size": 3})
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/start", token: token}), 200, "")
@@ -415,7 +414,7 @@ func TestCampaignPauseDuringInFlightExactlyOnce(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	const n = 600
 	tag := h.seedTagged(n, "+90566", "inflight")
 	id := h.newCampaign(token, map[string]any{"audience": map[string]any{"tag_id": tag}, "window_size": 120})

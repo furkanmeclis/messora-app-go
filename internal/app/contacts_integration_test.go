@@ -4,7 +4,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -251,7 +250,7 @@ func TestContactImportMappingDuplicatesAndErrors(t *testing.T) {
 		t.Fatal("import task not scheduled")
 	}
 
-	if err := h.svc.contacts.Run(context.Background(), uuid.MustParse(id)); err != nil {
+	if err := h.svc.contacts.Run(h.ctx(), uuid.MustParse(id)); err != nil {
 		t.Fatal(err)
 	}
 	r = h.do(call{method: "GET", path: "/api/v1/contact-imports/" + id, token: token})
@@ -278,7 +277,7 @@ func TestContactImportMappingDuplicatesAndErrors(t *testing.T) {
 	// Skip policy leaves existing contacts untouched.
 	imp = uploadCSV(h, token, "again.csv", "phone,name\n+905550000002,Overwritten?\n+905550000009,New\n")
 	h.expect(h.do(call{method: "POST", path: "/api/v1/contact-imports/" + imp["id"].(string) + "/start", token: token, body: map[string]any{"mapping": map[string]string{"phone": "phone", "name": "name"}}}), 202, "")
-	if err := h.svc.contacts.Run(context.Background(), uuid.MustParse(imp["id"].(string))); err != nil {
+	if err := h.svc.contacts.Run(h.ctx(), uuid.MustParse(imp["id"].(string))); err != nil {
 		t.Fatal(err)
 	}
 	d = h.do(call{method: "GET", path: "/api/v1/contact-imports/" + imp["id"].(string), token: token}).data()
@@ -298,7 +297,7 @@ func TestContactImportMappingDuplicatesAndErrors(t *testing.T) {
 	h.expect(h.do(call{method: "POST", path: "/api/v1/contact-imports/" + imp["id"].(string) + "/start", token: token, body: map[string]any{"mapping": map[string]string{"phone": "phone"}}}), 202, "")
 	r = h.do(call{method: "POST", path: "/api/v1/contact-imports/" + imp["id"].(string) + "/cancel", token: token})
 	h.expect(r, 200, "")
-	_ = h.svc.contacts.Run(context.Background(), uuid.MustParse(imp["id"].(string)))
+	_ = h.svc.contacts.Run(h.ctx(), uuid.MustParse(imp["id"].(string)))
 	if r.data()["status"] != "cancelled" || h.count("SELECT count(*) FROM contacts WHERE phone_e164 = '+905551230000'") != 0 {
 		t.Fatalf("cancel: %s", r.raw)
 	}
@@ -348,7 +347,7 @@ func TestLargeImportBoundedMemoryAndCancel(t *testing.T) {
 		}
 	}()
 	start := time.Now()
-	if err := h.svc.contacts.Run(context.Background(), id); err != nil {
+	if err := h.svc.contacts.Run(h.ctx(), id); err != nil {
 		t.Fatal(err)
 	}
 	close(stop)
@@ -370,7 +369,7 @@ func TestLargeImportBoundedMemoryAndCancel(t *testing.T) {
 	h.expect(h.do(call{method: "POST", path: "/api/v1/contact-imports/" + id.String() + "/start", token: token,
 		body: map[string]any{"mapping": map[string]string{"phone": "phone"}}}), 202, "")
 	done := make(chan error, 1)
-	go func() { done <- h.svc.contacts.Run(context.Background(), id) }()
+	go func() { done <- h.svc.contacts.Run(h.ctx(), id) }()
 	deadline := time.Now().Add(30 * time.Second)
 	for h.count("SELECT processed_rows FROM contact_imports WHERE id = $1", id) == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
@@ -436,7 +435,7 @@ func TestXLSXImportAndExport(t *testing.T) {
 	id := up.Data["id"].(string)
 	h.expect(h.do(call{method: "POST", path: "/api/v1/contact-imports/" + id + "/start", token: token,
 		body: map[string]any{"mapping": map[string]string{"phone": "Phone", "name": "Name", "var1": "City"}}}), 202, "")
-	if err := h.svc.contacts.Run(context.Background(), uuid.MustParse(id)); err != nil {
+	if err := h.svc.contacts.Run(h.ctx(), uuid.MustParse(id)); err != nil {
 		t.Fatal(err)
 	}
 	d := h.do(call{method: "GET", path: "/api/v1/contact-imports/" + id, token: token}).data()

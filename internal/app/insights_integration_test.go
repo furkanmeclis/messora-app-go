@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"testing"
 )
 
@@ -13,7 +12,7 @@ import (
 func TestAudienceInsights(t *testing.T) {
 	h := newHarness(t)
 	owner, _ := h.connect()
-	ctx := context.Background()
+	ctx := h.ctx()
 	var group, tag, direct, other string
 	if err := h.pool.QueryRow(ctx, `
 		WITH g AS (INSERT INTO contact_groups (name) VALUES ('VIP') RETURNING id)

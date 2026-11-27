@@ -18,6 +18,7 @@ import (
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pquerna/otp/totp"
 	goredis "github.com/redis/go-redis/v9"
@@ -30,6 +31,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/testutil"
 )
 
@@ -41,7 +43,7 @@ type capturingMailer struct {
 	sent []mailer.Message
 }
 
-func (m *capturingMailer) Enabled() bool { return true }
+func (m *capturingMailer) Enabled(context.Context) bool { return true }
 func (m *capturingMailer) Send(_ context.Context, msg mailer.Message) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -55,14 +57,22 @@ func (m *capturingMailer) last() mailer.Message {
 }
 
 type harness struct {
-	t      *testing.T
-	pool   *pgxpool.Pool
-	srv    *httptest.Server
-	svc    *services
-	mail   *capturingMailer
-	router routers.Router
-	meta   *whatsapptest.Server
-	rdb    *goredis.Client
+	t *testing.T
+	// pool is the services' pool (messora_app, tenant-scoped: queries need
+	// h.ctx() and row-level security applies); owner sees every tenant;
+	// sys is the system pool (outbox relay).
+	pool  *pgxpool.Pool
+	owner *pgxpool.Pool
+	sys   *pgxpool.Pool
+	// The tenant this harness calls the API as, and its host.
+	tenantID uuid.UUID
+	host     string
+	srv      *httptest.Server
+	svc      *services
+	mail     *capturingMailer
+	router   routers.Router
+	meta     *whatsapptest.Server
+	rdb      *goredis.Client
 }
 
 const (
@@ -72,7 +82,8 @@ const (
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	pool := testutil.MigratedPostgres(t)
+	tdb := testutil.TenantDB(t)
+	pool := tdb.App
 	rdb := testutil.Redis(t)
 	meta := whatsapptest.New()
 	t.Cleanup(meta.Close)
@@ -80,6 +91,16 @@ func newHarness(t *testing.T) *harness {
 		MediaDir: t.TempDir(),
 		Meta:     config.MetaConfig{GraphBaseURL: meta.URL, GraphVersion: "v26.0", AppSecret: testAppSecret, VerifyToken: testVerifyToken}}
 	cfg.Centrifugo.HMACSecret = testHMACSecret // see realtime_integration_test.go
+	// Tenant A is tenant #1, reached at the PUBLIC_APP_URL host.
+	if _, err := tenant.BootstrapDomains(context.Background(), tdb.Owner, cfg.PublicAppURL, ""); err != nil {
+		t.Fatal(err)
+	}
+	// Requests that do not go through h.do (Meta's webhooks, raw
+	// downloads) reach the test server at 127.0.0.1: tenant A too.
+	if _, err := tdb.Owner.Exec(context.Background(), `INSERT INTO tenant_domains (tenant_id, hostname, kind, verified_at)
+		VALUES ($1, '127.0.0.1', 'custom', now())`, tenant.DefaultID); err != nil {
+		t.Fatal(err)
+	}
 	mail := &capturingMailer{}
 	fast := crypto.Argon2Params{MemoryKiB: 8 * 1024, Iterations: 1, Parallelism: 1, SaltLen: 16, KeyLen: 32}
 	svc, err := newServicesWith(cfg, pool, rdb, testutil.DiscardLogger(), mail, fast)
@@ -108,10 +129,35 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &harness{t: t, pool: pool, srv: srv, svc: svc, mail: mail, router: router, meta: meta, rdb: rdb}
+	return &harness{t: t, pool: pool, owner: tdb.Owner, sys: tdb.System, tenantID: tenant.DefaultID, host: "messora.test",
+		srv: srv, svc: svc, mail: mail, router: router, meta: meta, rdb: rdb}
+}
+
+// ctx is a context of the harness's tenant, for calling services and
+// h.pool directly.
+func (h *harness) ctx() context.Context { return tenant.WithID(context.Background(), h.tenantID) }
+
+// tenant creates another tenant reached at <slug>.messora.test and returns
+// a harness that calls the same server as that tenant.
+func (h *harness) tenant(slug string) *harness {
+	h.t.Helper()
+	var id uuid.UUID
+	if err := h.owner.QueryRow(context.Background(), `INSERT INTO tenants (slug, name) VALUES ($1, $1) RETURNING id`, slug).Scan(&id); err != nil {
+		h.t.Fatal(err)
+	}
+	host := slug + ".messora.test"
+	if _, err := h.owner.Exec(context.Background(), `INSERT INTO tenant_domains (tenant_id, hostname, kind, verified_at, is_primary)
+		VALUES ($1, $2, 'subdomain', now(), true)`, id, host); err != nil {
+		h.t.Fatal(err)
+	}
+	other := *h
+	other.tenantID, other.host = id, host
+	return &other
 }
 
 type call struct {
+	// host overrides the harness's tenant host.
+	host         string
 	method, path string
 	body         any
 	token        string // bearer token (session or API key)
@@ -152,8 +198,16 @@ func (h *harness) do(c call) resp {
 	if c.body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	host := h.host
+	if c.host != "" {
+		host = c.host
+	}
+	// As through Caddy: the browser's Host, which the panel forwards in
+	// the tenant host header.
+	req.Host = host
 	if !c.noBFF {
 		req.Header.Set(httpx.BFFHeader, bffSecret)
+		req.Header.Set(tenant.HostHeader, host)
 	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
@@ -209,7 +263,7 @@ const ownerPassword = "Horse-battery-staple-42" // gitleaks:allow (test fixture)
 // setupOwner completes setup and enrols TOTP.
 func (h *harness) setupOwner() (token, totpSecret string) {
 	h.t.Helper()
-	setupTok, err := h.svc.identity.EnsureSetupToken(context.Background(), false)
+	setupTok, err := h.svc.identity.EnsureSetupToken(h.ctx(), false)
 	if err != nil || setupTok == "" {
 		h.t.Fatalf("setup token: %q %v", setupTok, err)
 	}
@@ -256,7 +310,7 @@ func TestSetupFlow(t *testing.T) {
 	// Setup is single use, and the token generator now refuses.
 	r = h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": "mst_anything-anything-anything-1", "name": "Y", "email": "y@example.com", "password": ownerPassword}})
 	h.expect(r, 409, "SETUP_COMPLETE")
-	if tok, _ := h.svc.identity.EnsureSetupToken(context.Background(), true); tok != "" {
+	if tok, _ := h.svc.identity.EnsureSetupToken(h.ctx(), true); tok != "" {
 		t.Fatal("setup token issued after setup")
 	}
 	r = h.do(call{method: "GET", path: "/api/v1/settings", token: token})
@@ -351,7 +405,7 @@ func TestMandatoryMFABlocksEverythingElse(t *testing.T) {
 	if err := h.svc.settings.SetOverrides(map[string]string{"mfa_required_roles": "owner,admin"}); err != nil {
 		t.Fatal(err)
 	}
-	setupTok, _ := h.svc.identity.EnsureSetupToken(context.Background(), false)
+	setupTok, _ := h.svc.identity.EnsureSetupToken(h.ctx(), false)
 	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": setupTok, "name": "O", "email": "o@example.com", "password": ownerPassword}})
 	token := r.data()["session_token"].(string)
 
@@ -433,7 +487,7 @@ func TestAPIKeysAndIdempotency(t *testing.T) {
 
 	body := map[string]any{"name": "CRM sync", "scopes": []string{"contacts.read"}}
 	// Signing in counts as fresh authentication for 10 minutes; age it out.
-	if _, err := h.pool.Exec(context.Background(), "UPDATE user_sessions SET reauth_at = now() - interval '11 minutes'"); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE user_sessions SET reauth_at = now() - interval '11 minutes'"); err != nil {
 		t.Fatal(err)
 	}
 	h.expect(h.do(call{method: "POST", path: "/api/v1/api-keys", token: owner, body: body}), 403, "REAUTH_REQUIRED")

@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +28,7 @@ const (
 // retry wait, a delay).
 func (h *harness) fastForward() {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	if _, err := h.pool.Exec(ctx, "UPDATE outbox_events SET available_at = now() WHERE published_at IS NULL"); err != nil {
 		h.t.Fatal(err)
 	}
@@ -41,7 +40,7 @@ func (h *harness) fastForward() {
 // scan runs the time-based trigger scanner and every resulting task.
 func (h *harness) scan() int {
 	h.t.Helper()
-	n, err := h.svc.automation.Scan(context.Background())
+	n, err := h.svc.automation.Scan(h.ctx())
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -53,7 +52,7 @@ func (h *harness) scan() int {
 // opened `ago` ago and every message is that much older.
 func (h *harness) ageThread(customer string, ago time.Duration) {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	secs := ago.Seconds()
 	if _, err := h.pool.Exec(ctx, `UPDATE messages m SET created_at = m.created_at - make_interval(secs => $2), occurred_at = m.occurred_at - make_interval(secs => $2)
 		FROM contacts c WHERE c.id = m.contact_id AND c.phone_e164 = $1`, "+"+customer, secs); err != nil {
@@ -74,7 +73,7 @@ func (h *harness) hasTag(customer, tag string) bool {
 func (h *harness) lastRun(token, automationID string) map[string]any {
 	h.t.Helper()
 	var id uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT id FROM automation_runs WHERE automation_id = $1 ORDER BY id DESC LIMIT 1", automationID).Scan(&id); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id FROM automation_runs WHERE automation_id = $1 ORDER BY id DESC LIMIT 1", automationID).Scan(&id); err != nil {
 		h.t.Fatal(err)
 	}
 	r := h.do(call{method: "GET", path: "/api/v1/automation-runs/" + id.String(), token: token})
@@ -251,7 +250,7 @@ func TestAIDetectIntentBranchesAndExtractsFields(t *testing.T) {
 		t.Fatal("price branch not taken")
 	}
 	var name, email, city string
-	if err := h.pool.QueryRow(context.Background(), "SELECT name, coalesce(email, ''), coalesce(attributes ->> 'city', '') FROM contacts WHERE phone_e164 = $1",
+	if err := h.pool.QueryRow(h.ctx(), "SELECT name, coalesce(email, ''), coalesce(attributes ->> 'city', '') FROM contacts WHERE phone_e164 = $1",
 		"+"+testCustomer).Scan(&name, &email, &city); err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +312,7 @@ func TestStepRetryWithIdempotentSend(t *testing.T) {
 
 	// The step runs again (a recovered run): the AI answers again, the
 	// message is not queued twice.
-	ctx := context.Background()
+	ctx := h.ctx()
 	if _, err := h.pool.Exec(ctx, "UPDATE automation_runs SET status = 'running', pc = 0, finished_at = NULL WHERE id = $1", run["id"]); err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +509,7 @@ func TestReactionAndCampaignReplyTriggers(t *testing.T) {
 	m := h.send(token, map[string]any{"to": "+" + testCustomer, "type": "text", "text": map[string]any{"body": "Yeni ürünlerimiz geldi!"}})
 	h.expect(m, 202, "")
 	h.drain()
-	ctx := context.Background()
+	ctx := h.ctx()
 	msgID := m.data()["id"].(string)
 	if _, err := h.pool.Exec(ctx, "UPDATE messages SET wamid = 'wamid.ours-1' WHERE id = $1", msgID); err != nil {
 		t.Fatal(err)
@@ -589,7 +588,7 @@ func TestCampaignReactionsStartReactionPresetsOnce(t *testing.T) {
 	pos := h.installPresetWith(token, "positive_feedback", agentID)
 	neg := h.automation(token, map[string]any{"name": "Unhappy", "active": true, "trigger_type": "reaction",
 		"trigger": map[string]any{"reaction": "negative"}, "steps": []any{map[string]any{"type": "add_tag", "tag": "olumsuz"}}})
-	ctx := context.Background()
+	ctx := h.ctx()
 
 	h.inbound(testCustomer, "wamid.q0", "Merhaba", time.Now())
 	h.drain()

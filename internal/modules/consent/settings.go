@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
-	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
+	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
 const settingsKey = "consent"

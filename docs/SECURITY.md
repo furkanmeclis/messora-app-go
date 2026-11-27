@@ -56,6 +56,34 @@ messages.send                             (API key scope'u)
 - İzin kontrolü handler seviyesinde middleware (`RequirePermission`) ile, kaynak kapsamı (Agent ataması) servis seviyesinde yapılır.
 - İzin seti oturum başına Redis'te 60 sn cache'lenir. Rol değişikliğinde cache invalidation yapılır.
 
+## 3a. Kiracı yalıtımı (Phase 17 WP1)
+
+Her firma bir **kiracıdır** (`tenants`). Firmanın verisi hiçbir yoldan başka bir firmaya görünmemelidir; kontrol katmanları dıştan içe:
+
+1. **Alan adı → kiracı.** API, isteğin alan adını `tenant_domains` tablosunda arar (`internal/platform/tenant`). BFF, Go'ya iç ağ adresinden bağlandığı için tarayıcının açtığı alan adını `X-Messora-Tenant-Host` başlığıyla iletir; bu başlığa **yalnızca** BFF sırrı (`X-Messora-BFF`) da doğruysa güvenilir, aksi hâlde `Host` kullanılır (Caddy `Host`'u değiştirmeden iletir). `X-Forwarded-Host` kullanılmaz. Bilinmeyen alan adı `404 TENANT_NOT_FOUND`, askıdaki kiracı `403 TENANT_SUSPENDED` alır; doğrulanmamış özel alan adları bilinmeyen sayılır. Sonuç 15 sn önbelleklenir (bilinmeyenler 5 sn), değişiklik yapılan replikada hemen geçersizleşir.
+2. **Kimlik bilgisi kiracıya bağlı.** Oturumlar, API anahtarları ve kullanıcılar bir kiracıya aittir (`tenant_id`). Arama zaten alan adının kiracısıyla yapılır (RLS); API guard ayrıca `principal.TenantID` ile alan adının kiracısını karşılaştırır ve farklıysa bilinmeyen token gibi `401` döner. A'nın anahtarı B'nin adresinde çalışmaz.
+3. **Havuz kancası (fail-closed).** Uygulama `messora_app` rolüyle bağlanır. Havuzdan her bağlantı alınırken `set_config('app.tenant_id', <ctx kiracısı>, false)` çalışır, bırakılırken `RESET app.tenant_id`; sıfırlama başarısızsa bağlantı atılır. Bağlamda kiracı da `tenant.System` işareti de yoksa bağlantı **hiç alınmaz** (`tenant.ErrNoTenant`). `pool.Begin` aynı kancadan geçer.
+4. **Row-level security.** Kiracıya ait 57 tablonun hepsinde RLS açık ve `FORCE` edilmiştir; `tenant_isolation` politikası okuma ve yazmada `tenant_id = app_tenant_id()` ister. `app_tenant_id()` ayar yoksa `NULL` döner (hiçbir satır görünmez, hiçbir satır yazılamaz); bozuk değer hata verir, erişimi genişletmez. `tenant_id` sütununun varsayılanı bağlantının kiracısıdır, `WITH CHECK` başka bir değeri reddeder.
+5. **Bileşik yabancı anahtarlar.** Çocuk tablolar ebeveyne `(tenant_id, id)` ile bağlanır (23 ilişki: kişi ↔ mesaj/konuşma/alıcı, kampanya ↔ alıcı, otomasyon ↔ çalıştırma, numara ↔ hesap, etiket/grup üyelikleri, oturum ↔ kullanıcı …). RLS'i atlayan bir rol bile başka kiracının satırına işaret eden satır yazamaz.
+
+**Roller.**
+
+| Rol | Kim kullanır | Yetki |
+|---|---|---|
+| `messora` (sahip) | yalnızca `messora migrate` | tabloların sahibi; şemayı değiştirir, rol parolalarını ayarlar |
+| `messora_app` | API, worker, scheduler | `NOBYPASSRLS`, hiçbir tablonun sahibi değil; kiracı tablolarında DML (RLS ile sınırlı), `tenants`/`tenant_domains`/`platform_settings`'te yalnızca `SELECT` |
+| `messora_system` | outbox aktarıcısı ve temizliği (worker) | `BYPASSRLS`; havuzu 4 bağlantılık, istekten gelen hiçbir yol kullanmaz |
+
+Parolalar `messora init` tarafından üretilir (`POSTGRES_APP_PASSWORD`, `POSTGRES_SYSTEM_PASSWORD`) ve `messora migrate` her çalıştığında role yazılır. API'nin sahip parolasına ihtiyacı yoktur.
+
+**Önbellekler.** Ayarlar, SMTP göndericisi, onay ayarları ve kampanya analitiği ayarları kiracı başına önbelleklenir (`tenant.Cache`); kiracısız iş hiç önbelleğe yazılmaz. Paneldeki görünüm önbelleği alan adı başınadır.
+
+**Arka plan.** `outbox.Write` olayı yazanın kiracısıyla kaydeder; aktarıcı kiracıyı asynq görevinin başlığına (`messora-tenant`) koyar ve worker her işleyiciyi o kiracı olarak çalıştırır. Başlığı olmayan görevler (zamanlanmış işler) şimdilik 1 numaralı kiracı olarak çalışır; WP3'te kiracı başına dağıtılacak ve başlıksız görev reddedilecek.
+
+**CI kontrolü.** `TestEveryTableIsTenantScoped` (`internal/platform/database`) `pg_catalog`'u okur: platform listesi dışındaki her tabloda `NOT NULL tenant_id`, açık ve zorlanmış RLS ve iki yönlü `tenant_isolation` politikası yoksa test kırılır. `TestTenantIsolationMatrix` (`internal/app`) iki kiracıyla bütün liste/getir uçlarını, değiştirme denemelerini ve çapraz kimlik bilgilerini dener.
+
+**Bilinen açıklar (sonraki paketler).** Realtime kanalları (`inbox:all` …), Redis anahtarları, başarısız işler sayfası ve zamanlanmış işler henüz kiracıya ayrılmadı (WP3). Platform tabloları (`meta_rates`, `ai_model_prices`) firma panelinden yazılabiliyor; platform paneline taşınacak (WP2). `APP_*` çalışma alanı ortam değişkenleri bütün kiracılara uygulanır (WP2'de platform ayarlarına taşınacak). Kullanıcıların e-posta adresi şimdilik bütün kiracılarda tekildir (WP2: global kullanıcı + üyelik).
+
 ## 4. Audit log
 
 Yazılan event'ler:

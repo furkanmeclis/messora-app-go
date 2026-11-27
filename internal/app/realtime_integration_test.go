@@ -61,7 +61,7 @@ type rtEvent struct {
 // rtEvents lists the realtime events in the outbox, oldest first.
 func (h *harness) rtEvents() []rtEvent {
 	h.t.Helper()
-	rows, err := h.pool.Query(context.Background(), "SELECT topic, payload FROM outbox_events WHERE topic LIKE 'rt:%' ORDER BY id")
+	rows, err := h.pool.Query(h.ctx(), "SELECT topic, payload FROM outbox_events WHERE topic LIKE 'rt:%' ORDER BY id")
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestMessageActivityIsPublishedThroughTheOutbox(t *testing.T) {
 	router.Handle(realtime.TopicPrefix, realtime.Publisher(rec))
 	relay := outbox.NewRelay(h.pool, router, outbox.RelayOptions{Logger: testutil.DiscardLogger()})
 	for {
-		n, err := relay.DrainOnce(context.Background())
+		n, err := relay.DrainOnce(h.ctx())
 		if err != nil {
 			t.Fatal(err)
 		}

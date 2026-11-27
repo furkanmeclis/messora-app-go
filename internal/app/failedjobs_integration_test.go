@@ -19,7 +19,7 @@ import (
 // so asynq archives it with its error.
 func (h *harness) failJob(taskType, payload, id string) {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	client := queue.NewClient(h.rdb)
 	defer client.Close()
 	if err := queue.Enqueue(ctx, client, taskType, []byte(payload), asynq.TaskID(id), asynq.MaxRetry(0)); err != nil {
