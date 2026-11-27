@@ -231,7 +231,7 @@ func TestInboxVisibility(t *testing.T) {
 
 	// Realtime: agents may subscribe to the conversations they can see.
 	sub := func(token, id string) resp {
-		return h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: token, body: map[string]any{"channel": "conversation:" + id}})
+		return h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: token, body: map[string]any{"channel": h.wire("conversation:" + id)}})
 	}
 	h.expect(sub(agentA, c1), 403, "CHANNEL_FORBIDDEN")
 	h.expect(sub(agentA, c2), 200, "")

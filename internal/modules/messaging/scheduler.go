@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
+
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
 // The send scheduler (docs/ARCHITECTURE.md §6.3). Every send from a number
@@ -122,28 +124,45 @@ func (t *Throttle) Capacity(ctx context.Context, pn uuid.UUID) Capacity {
 
 // SetShare stores a campaign's share of pn's campaign lane.
 func (t *Throttle) SetShare(ctx context.Context, pn, campaign uuid.UUID, mps float64) {
-	_ = t.rdb.Set(ctx, t.shareKey(pn, campaign), strconv.FormatFloat(mps, 'f', 3, 64), shareTTL).Err()
+	_ = t.rdb.Set(ctx, t.shareKey(ctx, pn, campaign), strconv.FormatFloat(mps, 'f', 3, 64), shareTTL).Err()
 }
 
 // Share returns a campaign's stored share (0 when none).
 func (t *Throttle) Share(ctx context.Context, pn, campaign uuid.UUID) float64 {
-	v, err := t.rdb.Get(ctx, t.shareKey(pn, campaign)).Float64()
+	v, err := t.rdb.Get(ctx, t.shareKey(ctx, pn, campaign)).Float64()
 	if err != nil {
 		return 0
 	}
 	return v
 }
 
-// Keys of one number share a hash tag so the Lua call works on a cluster.
-func (t *Throttle) numberKey(pn uuid.UUID) string { return "messora:send:{pn:" + pn.String() + "}" }
-func (t *Throttle) laneKey(pn uuid.UUID) string {
-	return "messora:send:{pn:" + pn.String() + "}:campaigns"
+// Keys live under the tenant's Redis prefix, whose hash tag (the tenant
+// ID) puts every bucket of one send in one slot, so the Lua call also works
+// on a cluster.
+func (t *Throttle) numberKey(ctx context.Context, pn uuid.UUID) string {
+	return tenant.RedisKey(ctx, "send:pn:"+pn.String())
 }
-func (t *Throttle) campaignKey(pn, c uuid.UUID) string {
-	return "messora:send:{pn:" + pn.String() + "}:c:" + c.String()
+func (t *Throttle) laneKey(ctx context.Context, pn uuid.UUID) string {
+	return tenant.RedisKey(ctx, "send:pn:"+pn.String()+":campaigns")
 }
-func (t *Throttle) shareKey(pn, c uuid.UUID) string {
-	return "messora:share:{pn:" + pn.String() + "}:" + c.String()
+func (t *Throttle) campaignKey(ctx context.Context, pn, c uuid.UUID) string {
+	return tenant.RedisKey(ctx, "send:pn:"+pn.String()+":c:"+c.String())
+}
+func (t *Throttle) shareKey(ctx context.Context, pn, c uuid.UUID) string {
+	return tenant.RedisKey(ctx, "share:pn:"+pn.String()+":"+c.String())
+}
+
+// tenantKey is the bucket of all campaign sends of the tenant.
+func (t *Throttle) tenantKey(ctx context.Context) string {
+	return tenant.RedisKey(ctx, "send:campaigns")
+}
+
+// WithTenantCampaignCap caps the combined campaign send rate of each tenant
+// at fn(ctx) messages per second (0 = no cap), across all its numbers: the
+// fairness setting TenantCampaignMPS.
+func (t *Throttle) WithTenantCampaignCap(fn func(context.Context) float64) *Throttle {
+	t.tenantCap = fn
+	return t
 }
 
 // sendGCRA checks GCRA buckets and takes a token from each only when all of
@@ -220,14 +239,23 @@ func (t *Throttle) take(ctx context.Context, buckets []bucket, shareKey string) 
 // send from pn (0 = now).
 func (t *Throttle) Wait(ctx context.Context, pn uuid.UUID) time.Duration {
 	r := float64(t.Rate(ctx, pn))
-	return t.take(ctx, []bucket{{t.numberKey(pn), r, r}}, "")
+	return t.take(ctx, []bucket{{t.numberKey(ctx, pn), r, r}}, "")
 }
 
 // WaitCampaign reports how long a send of campaign must wait (0 = now): it
-// needs the number's bucket, the campaign lane and its own share.
+// needs the number's bucket, the campaign lane, the tenant's campaign
+// bucket (when capped) and its own share.
 func (t *Throttle) WaitCampaign(ctx context.Context, pn, campaign uuid.UUID) time.Duration {
 	r := float64(t.Rate(ctx, pn))
 	lane := r * (1 - t.reserved)
-	return t.take(ctx, []bucket{{t.numberKey(pn), r, r}, {t.laneKey(pn), lane, lane}, {t.campaignKey(pn, campaign), lane, lane}},
-		t.shareKey(pn, campaign))
+	buckets := []bucket{{t.numberKey(ctx, pn), r, r}, {t.laneKey(ctx, pn), lane, lane}}
+	if t.tenantCap != nil {
+		if c := t.tenantCap(ctx); c > 0 {
+			buckets = append(buckets, bucket{t.tenantKey(ctx), c, c})
+		}
+	}
+	// The campaign's own bucket comes last: the script replaces its rate
+	// with the stored share.
+	buckets = append(buckets, bucket{t.campaignKey(ctx, pn, campaign), lane, lane})
+	return t.take(ctx, buckets, t.shareKey(ctx, pn, campaign))
 }

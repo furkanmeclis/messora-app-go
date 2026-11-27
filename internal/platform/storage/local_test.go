@@ -268,9 +268,67 @@ func get(t *testing.T, h http.Handler, rawURL string, hdr map[string]string) *ht
 	for k, v := range hdr {
 		r.Header.Set(k, v)
 	}
+	// The request host's tenant (tenant.Middleware in the app): acme.
+	r = r.WithContext(WithTenant(r.Context(), "acme"))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
+}
+
+// getAs is get at an address of tenant tid ("" = no tenant).
+func getAs(t *testing.T, h http.Handler, rawURL, tid string) *httptest.ResponseRecorder {
+	t.Helper()
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodGet, u.RequestURI(), nil)
+	if tid != "" {
+		r = r.WithContext(WithTenant(r.Context(), tid))
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	return w
+}
+
+// A signed link answers only at its tenant's addresses, points at the
+// address it was created for, and cannot be re-signed for another tenant.
+func TestSignedLinksAreBoundToTheTenant(t *testing.T) {
+	ctx := WithTenant(context.Background(), "acme")
+	st := newTestStores(t, "")
+	key := MustKey("acme", "media", "")
+	put(t, st.Private, key, "x", "")
+	u, err := st.Private.PresignGet(ctx, key, time.Minute, PresignOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := getAs(t, st.Handler(), u, "acme"); w.Code != 200 {
+		t.Fatalf("own tenant: %d", w.Code)
+	}
+	for _, other := range []string{"evil", ""} {
+		if w := getAs(t, st.Handler(), u, other); w.Code != http.StatusForbidden {
+			t.Fatalf("at tenant %q: %d", other, w.Code)
+		}
+	}
+	// Another tenant's context cannot sign acme's object.
+	if _, err := st.Private.PresignGet(WithTenant(context.Background(), "evil"), key, time.Minute, PresignOptions{}); err == nil {
+		t.Fatal("tenant evil signed acme's object")
+	}
+	// The link points at the request's host.
+	u, _ = st.Private.PresignGet(WithRequestHost(ctx, "acme.messora.test"), key, time.Minute, PresignOptions{})
+	if !strings.HasPrefix(u, "https://acme.messora.test/media/s/t/acme/") {
+		t.Fatalf("link %s", u)
+	}
+	// Legacy keys (no t/ prefix) belong to tenant #1 only.
+	legacy := "media/2024/01/legacy"
+	put(t, st.Private, legacy, "y", "")
+	u, _ = st.Private.PresignGet(context.Background(), legacy, time.Minute, PresignOptions{})
+	if w := getAs(t, st.Handler(), u, LegacyTenant); w.Code != 200 {
+		t.Fatalf("legacy at tenant #1: %d", w.Code)
+	}
+	if w := getAs(t, st.Handler(), u, "acme"); w.Code != http.StatusForbidden {
+		t.Fatalf("legacy elsewhere: %d", w.Code)
+	}
 }
 
 func TestPresignAndServe(t *testing.T) {
@@ -354,7 +412,7 @@ func TestPresignExpiry(t *testing.T) {
 	}
 	// A link signed with another key is refused.
 	other, _ := newSigner(bytes.Repeat([]byte{1}, 32), testAppURL)
-	if w := get(t, st.Handler(), other.sign(key, time.Minute, PresignOptions{}), nil); w.Code != http.StatusForbidden {
+	if w := get(t, st.Handler(), other.sign(ctx, key, time.Minute, PresignOptions{}), nil); w.Code != http.StatusForbidden {
 		t.Fatalf("foreign signature: %d", w.Code)
 	}
 	// A deleted object answers 404 even with a valid link.

@@ -218,6 +218,19 @@ UPDATE contact_imports SET status = @status, error_report_key = sqlc.narg(error_
     last_error = sqlc.narg(last_error), finished_at = now(), updated_at = now()
 WHERE id = @id;
 
+-- name: ExpiredContactImports :many
+-- Imports past the retention period (finished, or uploaded and never
+-- started), oldest first; their files and the rows are removed
+-- (contacts.ExpireImports). Running and queued imports are left alone.
+SELECT id, storage_key, error_report_key FROM contact_imports
+WHERE status IN ('uploaded', 'completed', 'failed', 'cancelled')
+  AND coalesce(finished_at, created_at) < sqlc.arg(before)::timestamptz
+ORDER BY id
+LIMIT @max_rows;
+
+-- name: DeleteContactImport :exec
+DELETE FROM contact_imports WHERE id = @id;
+
 -- name: RequestImportCancel :one
 UPDATE contact_imports SET cancel_requested = true,
     status = CASE WHEN status IN ('uploaded', 'queued') THEN 'cancelled' ELSE status END,

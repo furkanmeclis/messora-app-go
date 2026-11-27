@@ -12,9 +12,12 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
 
+// testTenant is the tenant of the test users.
+var testTenant = uuid.MustParse("0193a6c4-7f2e-7b3c-9d1e-4a5b6c7d8e9f")
+
 func user(perms ...string) *principal.Principal {
 	sort.Strings(perms)
-	return &principal.Principal{Kind: principal.KindUser, ID: uuid.New(), Permissions: perms}
+	return &principal.Principal{Kind: principal.KindUser, TenantID: testTenant, ID: uuid.New(), Permissions: perms}
 }
 
 func TestResolveFiltersSectionsByPermission(t *testing.T) {
@@ -47,7 +50,7 @@ func TestOpsChannelMatchesSections(t *testing.T) {
 	for _, perm := range []string{"campaigns.read", "conversations.read", "conversations.read_all", "automations.read", "settings.read", "contacts.read", "templates.read"} {
 		p := user(perm)
 		sections := len(Resolve(p, nil)) > 0
-		if got := realtime.Authorize(p, realtime.OpsChannel) == nil; got != sections {
+		if got := realtime.Authorize(p, realtime.TenantChannel(testTenant, realtime.OpsChannel)) == nil; got != sections {
 			t.Errorf("%s: may subscribe = %v, has a section = %v", perm, got, sections)
 		}
 	}

@@ -72,6 +72,42 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
   does at start-up); its marker moves to `platform_settings` (migration
   00029).
 
+### Changed (WP3 — background jobs, realtime, Redis and caches per tenant)
+
+- **Periodic jobs run once per active tenant** (Phase 17 WP3): the
+  scheduler enqueues one `platform:tenant_fanout` task per slot and the
+  worker enqueues the job for every active tenant with the tenant header.
+  Suspended and deleted tenants are skipped. A task without a tenant header
+  is refused into the dead letter, except the two platform tasks
+  (`platform:tenant_fanout`, `maintenance:outbox_cleanup`).
+- **Realtime channels carry their tenant:** `tenant:<tenant_id>:inbox:all`
+  and so on, in one Centrifugo namespace `tenant` (no user-limited
+  channels). Tokens are issued only for the session tenant's channels; the
+  connection token returns `channel_prefix`, and the Centrifugo user is
+  `<tenant_id>:<user_id>`. `messora init` rewrites the Centrifugo
+  configuration: restart Centrifugo after upgrading.
+- **Redis keys of tenant work** live under `messora:t:{<tenant_id>}:`
+  (API rate limits per session and API key, the send scheduler, AIMD
+  rates). Person-wide keys (login lockout, 2FA, TOTP replay) and the
+  anonymous per-IP limit stay global.
+- **Failed jobs** (`/system/failed-jobs`, `/system/status`, the operations
+  center) show, retry and delete only the current tenant's tasks.
+- **Signed `/media/s/` links** are bound to their object's tenant: they
+  open only at that tenant's addresses and point at the address of the
+  request that created them. `/media/p/` is unchanged.
+- The portfolio limit's advisory lock names the tenant.
+
+### Added (WP3)
+
+- **Fair share between tenants** (Phase 17 WP3): one tenant's tasks hold
+  at most half of a worker's handler slots (`queue.TenantLimiter`; tasks
+  over the share are deferred, not failed) and a tenant's campaigns send at
+  most 200 messages per second together (a tenant bucket in the send
+  scheduler). Both are platform settings (`platform_settings.fairness`).
+- **Import retention:** contact imports that finished more than 30 days
+  ago are removed with their uploaded file and error report
+  (`contacts:import_retention`, every 6 hours, per tenant).
+
 ### Fixed
 
 - The panel's right-click menu no longer closes at once when the browser

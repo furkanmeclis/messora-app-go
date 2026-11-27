@@ -158,7 +158,9 @@ func setSafetyHeaders(h http.Header, cache, csp, defCache string) {
 // Handler serves the /media/ routes:
 //
 //   - GET /media/s/<key>?exp&ct&cd&sig: presigned downloads of the local
-//     driver (signature and expiry checked; 403 otherwise).
+//     driver (signature and expiry checked; 403 otherwise). The route must
+//     run behind the tenant middleware: a link answers only at an address
+//     of the object's tenant (403 elsewhere, and without a tenant).
 //   - GET /media/p/<key>: public assets when PUBLIC_ASSET_BASE_URL is not
 //     set (served from the local public directory, or redirected to a
 //     presigned URL of the public bucket).
@@ -189,6 +191,9 @@ func (s *Stores) serveSigned(w http.ResponseWriter, r *http.Request, key string)
 		return
 	}
 	ct, cd, err := loc.verifyURL(key, r.URL.Query())
+	if err == nil && CheckTenantKey(TenantKey(r.Context()), key) != nil {
+		err = errSignature // another tenant's link, or no tenant at all
+	}
 	if err != nil {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "this link is invalid or has expired", http.StatusForbidden)

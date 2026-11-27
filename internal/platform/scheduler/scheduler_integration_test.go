@@ -58,7 +58,7 @@ func TestSchedulersNeverDuplicate(t *testing.T) {
 	insp := queue.NewInspector(rdb)
 	defer insp.Close()
 
-	jobs := []scheduler.Job{{Name: "every_second", Every: time.Second, TaskType: queue.TypeOutboxCleanup}}
+	jobs := []scheduler.Job{{Name: "every_second", Every: time.Second, TaskType: queue.TypeOutboxCleanup, Platform: true}}
 	opts := scheduler.Options{LeaseTTL: 600 * time.Millisecond, Tick: 100 * time.Millisecond, Logger: testutil.DiscardLogger()}
 
 	ctxs := make([]context.CancelFunc, 3)

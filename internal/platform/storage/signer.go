@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -12,8 +13,11 @@ import (
 )
 
 // Signed local URLs: /media/s/<key>?exp=<unix>&ct=<type>&cd=<disposition>&sig=<mac>.
-// The MAC covers the key, the expiry and every response parameter, so none
-// of them can be changed without invalidating the link.
+// The MAC covers the object's tenant, the key, the expiry and every
+// response parameter, so none of them can be changed without invalidating
+// the link. A link answers only at an address of that tenant (Handler
+// compares it with the request host's tenant), and points there: the host
+// of the request that created it (WithRequestHost), else PUBLIC_APP_URL.
 
 // SignedPrefix is the route of presigned local downloads.
 const SignedPrefix = "/media/s/"
@@ -26,29 +30,59 @@ const MinSigningKey = 32
 
 // signer creates and verifies presigned local URLs.
 type signer struct {
-	key  []byte
-	base string // PUBLIC_APP_URL without a trailing slash
-	now  func() time.Time
+	key    []byte
+	base   string // PUBLIC_APP_URL without a trailing slash
+	scheme string // of base, for links on a request's own host
+	now    func() time.Time
 }
 
 func newSigner(key []byte, baseURL string) (*signer, error) {
 	if len(key) < MinSigningKey {
 		return nil, errors.New("storage: the media signing key must be at least 32 bytes")
 	}
-	return &signer{key: key, base: strings.TrimRight(baseURL, "/"), now: time.Now}, nil
+	scheme := "https"
+	if u, err := url.Parse(baseURL); err == nil && u.Scheme == "http" {
+		scheme = "http"
+	}
+	return &signer{key: key, base: strings.TrimRight(baseURL, "/"), scheme: scheme, now: time.Now}, nil
+}
+
+type hostCtxKey struct{}
+
+// WithRequestHost records the host a request was addressed to (a verified
+// address of its tenant), so presigned local links created while serving
+// it point back at that address. tenant.Middleware sets it.
+func WithRequestHost(ctx context.Context, host string) context.Context {
+	return context.WithValue(ctx, hostCtxKey{}, host)
+}
+
+func requestHost(ctx context.Context) string {
+	h, _ := ctx.Value(hostCtxKey{}).(string)
+	return h
+}
+
+// keyTenant is the tenant an object belongs to: the t/<tenant>/ segment of
+// its key, or LegacyTenant for keys from before tenants.
+func keyTenant(key string) string {
+	if rest, ok := strings.CutPrefix(key, "t/"); ok {
+		t, _, _ := strings.Cut(rest, "/")
+		return t
+	}
+	return LegacyTenant
 }
 
 func (s *signer) mac(key, exp, ct, cd string) string {
 	m := hmac.New(sha256.New, s.key)
-	for _, p := range []string{"GET", key, exp, ct, cd} {
+	for _, p := range []string{"GET", keyTenant(key), key, exp, ct, cd} {
 		m.Write([]byte(p))
 		m.Write([]byte{0})
 	}
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
 
-// sign returns the URL of key valid for ttl.
-func (s *signer) sign(key string, ttl time.Duration, o PresignOptions) string {
+// sign returns the URL of key valid for ttl, on the host of ctx's request
+// when there is one.
+func (s *signer) sign(ctx context.Context, key string, ttl time.Duration, o PresignOptions) string {
 	exp := strconv.FormatInt(s.now().Add(ttl).Unix(), 10)
 	cd := o.header()
 	q := url.Values{"exp": {exp}}
@@ -59,7 +93,11 @@ func (s *signer) sign(key string, ttl time.Duration, o PresignOptions) string {
 		q.Set("cd", cd)
 	}
 	q.Set("sig", s.mac(key, exp, o.ContentType, cd))
-	return s.base + SignedPrefix + escapeKey(key) + "?" + q.Encode()
+	base := s.base
+	if h := requestHost(ctx); h != "" {
+		base = s.scheme + "://" + h
+	}
+	return base + SignedPrefix + escapeKey(key) + "?" + q.Encode()
 }
 
 // Errors of verify.

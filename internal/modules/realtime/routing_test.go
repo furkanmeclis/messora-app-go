@@ -189,11 +189,11 @@ func TestSync(t *testing.T) {
 			return []CampaignEvent{NewCampaignEvent(db.Campaign{ID: uuid.New(), Status: "running"}, nil)}, nil
 		},
 	}
-	evs, more, err := s.Sync(ctx, agent, UnassignedChannel, since)
+	evs, more, err := s.Sync(ctx, agent, w(UnassignedChannel), since)
 	if err != nil || more || len(evs) != 1 || evs[0].envelope().Type != TypeConversationUpdated {
 		t.Fatalf("unassigned: %v %v %v", evs, more, err)
 	}
-	if _, _, err := s.Sync(ctx, agent, PersonalChannel(agent.ID), since); err != nil {
+	if _, _, err := s.Sync(ctx, agent, w(PersonalChannel(agent.ID)), since); err != nil {
 		t.Fatal(err)
 	}
 	if len(scopes) != 2 || !scopes[0].Unassigned || scopes[1].Assignee == nil || *scopes[1].Assignee != agent.ID {
@@ -201,6 +201,12 @@ func TestSync(t *testing.T) {
 	}
 	// The channel rules are those of the subscription token.
 	for _, ch := range []string{InboxChannel, PersonalChannel(owner.ID), CampaignsChannel, ConversationChannel(uuid.New())} {
+		if _, _, err := s.Sync(ctx, agent, w(ch), since); !errors.Is(err, ErrChannelForbidden) {
+			t.Errorf("agent synced %s: %v", ch, err)
+		}
+	}
+	// Another tenant's channels, and the old unprefixed names, are refused.
+	for _, ch := range []string{TenantChannel(tenantB, UnassignedChannel), UnassignedChannel} {
 		if _, _, err := s.Sync(ctx, agent, ch, since); !errors.Is(err, ErrChannelForbidden) {
 			t.Errorf("agent synced %s: %v", ch, err)
 		}
@@ -209,15 +215,15 @@ func TestSync(t *testing.T) {
 		t.Fatal("a refused channel must not be queried")
 	}
 	n = SyncConversationLimit + 1
-	evs, more, err = s.Sync(ctx, owner, InboxChannel, since)
+	evs, more, err = s.Sync(ctx, owner, w(InboxChannel), since)
 	if err != nil || !more || len(evs) != SyncConversationLimit {
 		t.Fatalf("overflow: %d %v %v", len(evs), more, err)
 	}
-	evs, _, err = s.Sync(ctx, owner, CampaignsChannel, since)
+	evs, _, err = s.Sync(ctx, owner, w(CampaignsChannel), since)
 	if err != nil || len(evs) != 1 || evs[0].envelope().Type != TypeCampaignUpdated {
 		t.Fatalf("campaigns: %v %v", evs, err)
 	}
-	if evs, _, err := s.Sync(ctx, owner, NotificationsChannel, since); err != nil || len(evs) != 0 {
+	if evs, _, err := s.Sync(ctx, owner, w(NotificationsChannel), since); err != nil || len(evs) != 0 {
 		t.Fatalf("notifications: %v %v", evs, err)
 	}
 }

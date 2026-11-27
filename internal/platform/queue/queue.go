@@ -56,6 +56,9 @@ const periodicMaxRetry = 2
 var policies = map[string]Policy{
 	TypeOutboxCleanup:   {Default, periodicMaxRetry},
 	TypeIdentityCleanup: {Default, periodicMaxRetry},
+	// One slot of a periodic job, turned into a task per tenant. Retried a
+	// little more: when it is lost, every tenant misses the slot.
+	TypeTenantFanOut: {Critical, 5},
 	// WhatsApp (constants live in the messaging module). A send's attempts
 	// against Meta are capped by the messaging module (8) and retried as
 	// deferrals; this budget only covers infrastructure errors around them.
@@ -63,6 +66,7 @@ var policies = map[string]Policy{
 	"whatsapp:webhook":             {Critical, 20},
 	"whatsapp:media_download":      {Default, 8},
 	"contacts:import":              {Bulk, 3},
+	"contacts:import_retention":    {Bulk, periodicMaxRetry},
 	"campaign:materialize":         {Campaigns, 10},
 	"campaign:dispatch":            {Campaigns, 10},
 	"campaign:start_due":           {Default, periodicMaxRetry},
@@ -269,12 +273,18 @@ func NewServer(rdb goredis.UniversalClient, o ServerOptions) *asynq.Server {
 			id, _ := asynq.GetTaskID(ctx)
 			level := slog.LevelWarn
 			// The final attempt, or SkipRetry: the task is archived (dead letter).
-			archived := errors.Is(err, asynq.SkipRetry) || (IsFailure(err) && retried >= maxRetry)
-			if archived {
+			archived := errors.Is(err, asynq.SkipRetry) || retried >= maxRetry
+			switch {
+			case archived:
 				level = slog.LevelError
+			case !IsFailure(err):
+				// Deliberate deferrals (pacing, tenant fair share) are routine.
+				level = slog.LevelDebug
 			}
 			log.Log(ctx, level, "task failed", "task_type", t.Type(), "job_id", id, "retry", retried, "max_retry", maxRetry, "err", err)
-			if archived && o.OnArchived != nil {
+			// The hint is the tenant's own (its operations center);
+			// platform tasks have none.
+			if _, ok := TaskTenant(t); archived && ok && o.OnArchived != nil {
 				o.OnArchived(TaskContext(ctx, t), t.Type())
 			}
 		}),

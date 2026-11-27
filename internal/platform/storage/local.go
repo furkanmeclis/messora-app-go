@@ -184,7 +184,7 @@ func (l *Local) Delete(_ context.Context, key string) error {
 
 // PresignGet implements Store: an HMAC-signed app URL served by Handler.
 // For the public class it returns the public URL.
-func (l *Local) PresignGet(_ context.Context, key string, ttl time.Duration, opts PresignOptions) (string, error) {
+func (l *Local) PresignGet(ctx context.Context, key string, ttl time.Duration, opts PresignOptions) (string, error) {
 	if err := ValidateKey(key); err != nil {
 		return "", err
 	}
@@ -195,7 +195,13 @@ func (l *Local) PresignGet(_ context.Context, key string, ttl time.Duration, opt
 	if ttl <= 0 {
 		return "", errors.New("storage: presign ttl must be positive")
 	}
-	return l.signer.sign(key, ttl, opts), nil
+	// A context with a tenant signs only that tenant's objects.
+	if t := TenantKey(ctx); t != "" {
+		if err := CheckTenantKey(t, key); err != nil {
+			return "", err
+		}
+	}
+	return l.signer.sign(ctx, key, ttl, opts), nil
 }
 
 // PublicURL implements Store.

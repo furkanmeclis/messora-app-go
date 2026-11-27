@@ -39,7 +39,7 @@ func TestRealtimeRoutingFollowsVisibility(t *testing.T) {
 		if channel == personalA {
 			return true
 		}
-		r := h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: agentA, body: map[string]any{"channel": channel}})
+		r := h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: agentA, body: map[string]any{"channel": h.wire(channel)}})
 		return r.status == 200
 	}
 
@@ -116,7 +116,7 @@ func TestRealtimeRoutingFollowsVisibility(t *testing.T) {
 
 	since := url.QueryEscape(time.Now().Add(-time.Hour).UTC().Format(time.RFC3339))
 	syncPath := func(channel, since string) string {
-		return "/api/v1/realtime/sync?channel=" + url.QueryEscape(channel) + "&since=" + since
+		return "/api/v1/realtime/sync?channel=" + url.QueryEscape(h.wire(channel)) + "&since=" + since
 	}
 	synced := func(token, channel string) []string {
 		t.Helper()

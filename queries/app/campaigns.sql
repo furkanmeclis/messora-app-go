@@ -354,5 +354,6 @@ SELECT EXISTS (SELECT 1 FROM portfolio_reach WHERE account_id = @account_id AND 
     AND last_at > now() - interval '24 hours');
 
 -- name: LockPortfolio :exec
--- Serialises the limit checks of campaigns sharing an account.
-SELECT pg_advisory_xact_lock(hashtextextended(concat('portfolio:', sqlc.arg(account_id)::uuid), 0));
+-- Serialises the limit checks of campaigns sharing an account. Advisory
+-- locks are database-wide, so the key names the tenant too.
+SELECT pg_advisory_xact_lock(hashtextextended(concat('messora.portfolio:', app_tenant_id(), ':', sqlc.arg(account_id)::uuid), 0));
