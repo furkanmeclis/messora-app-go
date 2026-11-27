@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Info, Search } from 'lucide-react';
 import {
     DataTable,
     type Column,
@@ -9,8 +9,10 @@ import {
 } from '@/components/data-table';
 import type { MenuGroup } from '@/components/context-menu';
 import { Input } from '@/components/ui/input';
-import { useLocale } from '@/i18n/client';
+import type { TablePaging } from '@/hooks/use-cursor-rows';
+import { useLocale, useT } from '@/i18n/client';
 import { intlLocale } from '@/i18n/config';
+import { MAX_LOADED_ROWS, rowsWanted } from '@/lib/paging';
 
 export type ClientColumn<T> = Omit<Column<T>, 'sort'> & {
     /** Makes the column sortable by this value. */
@@ -18,9 +20,14 @@ export type ClientColumn<T> = Omit<Column<T>, 'sort'> & {
 };
 
 /**
- * DataTable for lists the page already holds in full: sorting, paging and
- * search happen in the browser; selection, bulk actions, column visibility,
- * density and the row menu work as in server-paged tables.
+ * DataTable for lists the page holds in the browser: sorting, paging and
+ * search happen there; selection, bulk actions, column visibility, density
+ * and the row menu work as in server-paged tables.
+ *
+ * With `paging` (a cursor-paged API, see useCursorRows) the rows arrive in
+ * chunks and the table's own pager is the only control: it keeps the next
+ * page loaded, goes on past the last loaded page while more rows exist, and
+ * loads everything (up to a cap) for the last page, a search or a sort.
  */
 export function ClientDataTable<T>({
     rows,
@@ -40,6 +47,7 @@ export function ClientDataTable<T>({
     empty,
     noMatch,
     rowTestId,
+    paging,
 }: {
     rows: T[];
     columns: ClientColumn<T>[];
@@ -63,12 +71,27 @@ export function ClientDataTable<T>({
     /** Shown when the search matches nothing (rows exist). */
     noMatch?: React.ReactNode;
     rowTestId?: string;
+    /** Rows beyond `rows` can be loaded (see useCursorRows). */
+    paging?: TablePaging;
 }) {
+    const t = useT();
     const locale = intlLocale(useLocale());
     const [q, setQ] = useState('');
     const [sort, setSort] = useState(initialSort ?? '');
+    // Infinity: the last page, however many rows arrive.
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(initialPageSize);
+
+    // A search or another order is only right over every row: load them
+    // (up to the cap); otherwise keep one page ahead of the one shown.
+    const searching = q.trim() !== '';
+    const wantAll = searching || sort !== (initialSort ?? '');
+    const want = rowsWanted({ page, pageSize, wantAll });
+    const hasMore = paging?.hasMore ?? false;
+    const ensure = paging?.ensure;
+    useEffect(() => {
+        if (ensure && hasMore && rows.length < want) ensure(want);
+    }, [ensure, hasMore, rows.length, want]);
 
     const filtered = useMemo(() => {
         const needle = q.trim().toLocaleLowerCase(locale);
@@ -137,15 +160,23 @@ export function ClientDataTable<T>({
             empty={q && rows.length > 0 ? (noMatch ?? empty) : empty}
             storageKey={storageKey}
             rowTestId={rowTestId}
+            more={hasMore}
+            loading={paging?.loading}
             onNavigate={(patch) => {
                 if ('sort' in patch) setSort(String(patch.sort ?? ''));
                 if ('limit' in patch && patch.limit)
                     setPageSize(Number(patch.limit));
                 if ('page' in patch)
-                    setPage(patch.page ? Number(patch.page) : 1);
+                    setPage(
+                        patch.page === 'last'
+                            ? Infinity
+                            : patch.page
+                              ? Number(patch.page)
+                              : 1,
+                    );
             }}
             toolbar={
-                searchText || toolbar ? (
+                searchText || toolbar || paging?.capped ? (
                     <>
                         {searchText && (
                             <div className="relative w-full sm:w-64">
@@ -163,7 +194,29 @@ export function ClientDataTable<T>({
                                 />
                             </div>
                         )}
+                        {hasMore && wantAll && (
+                            <span
+                                className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+                                title={t('table.loadedOnlyHint')}
+                                data-testid="table-loaded-only"
+                            >
+                                <Info className="size-3.5" />
+                                {t('table.loadedOnly')}
+                            </span>
+                        )}
                         {toolbar}
+                        {paging?.capped && (
+                            <p
+                                className="w-full text-xs text-muted-foreground"
+                                data-testid="table-capped"
+                            >
+                                {t('table.capped', {
+                                    count: MAX_LOADED_ROWS.toLocaleString(
+                                        locale,
+                                    ),
+                                })}
+                            </p>
+                        )}
                     </>
                 ) : undefined
             }

@@ -1,13 +1,6 @@
 'use client';
 
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    useTransition,
-} from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
     ArrowDown,
@@ -43,6 +36,7 @@ import {
 import { Segmented } from '@/components/ui/segmented';
 import { useLocale, useT } from '@/i18n/client';
 import { intlLocale } from '@/i18n/config';
+import { pageNumbers } from '@/lib/paging';
 import { cn } from '@/lib/utils';
 import { useContextMenu, type MenuGroup } from '@/components/context-menu';
 import { CheckSquare, Square as SquareIcon } from 'lucide-react';
@@ -73,6 +67,13 @@ export function selectionCount(s: Selection) {
 
 const PAGE_SIZES = [25, 50, 100, 200];
 
+function withoutPage(query: string) {
+    const p = new URLSearchParams(query);
+    p.delete('page');
+    p.delete('limit');
+    return p.toString();
+}
+
 /**
  * A list with selection (shift-click ranges, whole page, everything that
  * matches), sorting, column visibility, density and numbered pages. Page,
@@ -96,6 +97,9 @@ export function DataTable<T>({
     rowMenu,
     onNavigate,
     toolbar,
+    more = false,
+    loading = false,
+    selectionKey,
 }: {
     rows: T[];
     columns: Column<T>[];
@@ -122,6 +126,18 @@ export function DataTable<T>({
     onNavigate?: (patch: Record<string, string | number | null>) => void;
     /** Shown at the start of the top bar (search, filters). */
     toolbar?: React.ReactNode;
+    /**
+     * Rows beyond `total` exist but are not loaded yet (ClientDataTable over
+     * a cursor-paged API): the pager goes on past the last known page.
+     */
+    more?: boolean;
+    /** More rows are being loaded. */
+    loading?: boolean;
+    /**
+     * The filter the rows match, for tables that do not keep it in the URL
+     * (onNavigate): a change starts a new selection.
+     */
+    selectionKey?: string;
 }) {
     const t = useT();
     // The language is fixed per request, so server and browser agree.
@@ -167,21 +183,15 @@ export function DataTable<T>({
         setLastClicked(null);
     }, []);
 
-    // A new page, filter or sort starts a new selection of ids (a select-all
-    // stays meaningful only for the same filter, which changes the URL).
-    const urlKey = params.toString();
-    const prevKey = useRef(urlKey);
+    // A new filter or sort starts a new selection (a select-all stays
+    // meaningful only for the same filter); paging keeps it.
+    const filterKey = selectionKey ?? withoutPage(params.toString());
+    const prevKey = useRef(filterKey);
     useEffect(() => {
-        if (prevKey.current === urlKey) return;
-        const onlyPage = (k: string) => {
-            const p = new URLSearchParams(k);
-            p.delete('page');
-            p.delete('limit');
-            return p.toString();
-        };
-        if (onlyPage(prevKey.current) !== onlyPage(urlKey)) clear();
-        prevKey.current = urlKey;
-    }, [urlKey, clear]);
+        if (prevKey.current === filterKey) return;
+        clear();
+        prevKey.current = filterKey;
+    }, [filterKey, clear]);
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -262,20 +272,8 @@ export function DataTable<T>({
     const pages = Math.max(1, Math.ceil(total / pageSize));
     const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
     const to = Math.min(total, page * pageSize);
-    const numbers = useMemo(() => {
-        const set = new Set(
-            [1, pages, page - 1, page, page + 1].filter(
-                (x) => x >= 1 && x <= pages,
-            ),
-        );
-        const sorted = [...set].sort((a, b) => a - b);
-        const out: (number | '…')[] = [];
-        sorted.forEach((x, i) => {
-            if (i > 0 && x - sorted[i - 1]! > 1) out.push('…');
-            out.push(x);
-        });
-        return out;
-    }, [page, pages]);
+    const numbers = pageNumbers(page, pages, more);
+    const busy = navigating || loading;
 
     const bodyMenu = useContextMenu((target) => {
         const tr = target.closest<HTMLElement>('tr[data-row-index]');
@@ -310,13 +308,16 @@ export function DataTable<T>({
                         {toolbar}
                     </div>
                 )}
-                <p className="text-sm text-muted-foreground tabular-nums">
-                    {t('table.rows', {
+                <p
+                    className="text-sm text-muted-foreground tabular-nums"
+                    data-testid="table-rows"
+                >
+                    {t(more ? 'table.rowsMore' : 'table.rows', {
                         from: n(from),
                         to: n(to),
                         total: n(total),
                     })}
-                    {navigating && (
+                    {busy && (
                         <Loader2 className="ml-2 inline size-3.5 animate-spin" />
                     )}
                 </p>
@@ -645,6 +646,11 @@ export function DataTable<T>({
                                 <span
                                     key={`e${i}`}
                                     className="px-1 text-muted-foreground"
+                                    title={
+                                        more && i === numbers.length - 1
+                                            ? t('table.moreExist')
+                                            : undefined
+                                    }
                                 >
                                     …
                                 </span>
@@ -668,17 +674,21 @@ export function DataTable<T>({
                         <Button
                             variant="ghost"
                             size="icon-sm"
-                            disabled={page >= pages}
+                            disabled={page >= pages && !more}
                             onClick={() => go({ page: page + 1 })}
                             aria-label={t('table.next')}
                         >
-                            <ChevronRight />
+                            {loading && page >= pages ? (
+                                <Loader2 className="animate-spin" />
+                            ) : (
+                                <ChevronRight />
+                            )}
                         </Button>
                         <Button
                             variant="ghost"
                             size="icon-sm"
-                            disabled={page >= pages}
-                            onClick={() => go({ page: pages })}
+                            disabled={page >= pages && !more}
+                            onClick={() => go({ page: more ? 'last' : pages })}
                             aria-label={t('table.last')}
                         >
                             <ChevronsRight />

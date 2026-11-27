@@ -12,6 +12,12 @@ const table: Messages['table'] = {
     allSelected: 'Eşleşen {count} kaydın tümü seçili.',
     clearSelection: 'Seçimi temizle',
     rows: '{total} kayıttan {from}–{to}',
+    rowsMore: '{total}+ kayıttan {from}–{to}',
+    moreExist: 'Devamı var; sayfalar ilerledikçe yüklenir.',
+    loadedOnly: 'Yalnızca yüklenen kayıtlarda',
+    loadedOnlyHint:
+        'Arama ve sıralama şimdiye kadar yüklenen kayıtları kapsar; kalanlar yükleniyor.',
+    capped: 'İlk {count} kayıt yüklendi. Gerisi için filtreleri ya da dışa aktarmayı kullanın.',
     rowsPerPage: 'Sayfa başına',
     page: 'Sayfa',
     of: '/ {count}',

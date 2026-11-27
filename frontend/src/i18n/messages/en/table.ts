@@ -10,6 +10,12 @@ const table = {
     allSelected: 'All {count} matching items are selected.',
     clearSelection: 'Clear selection',
     rows: '{from}–{to} of {total}',
+    rowsMore: '{from}–{to} of {total}+',
+    moreExist: 'More rows follow; they load as you page on.',
+    loadedOnly: 'Only in loaded rows',
+    loadedOnlyHint:
+        'Search and sort cover the rows loaded so far; the rest is loading.',
+    capped: 'The first {count} rows are loaded. Use the filters or an export for the rest.',
     rowsPerPage: 'Rows per page',
     page: 'Page',
     of: 'of {count}',
