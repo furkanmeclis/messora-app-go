@@ -71,7 +71,16 @@ driver without a migration. They belong to tenant #1 only
 - Writes go to `<dir>/_staging/` and are renamed into place: a reader never
   sees a partial file, and a failed or cancelled write leaves nothing.
 - **Presigned URLs** are app URLs signed with HMAC-SHA256:
-  `<PUBLIC_APP_URL>/media/s/<key>?exp=<unix>&ct=<type>&cd=<disposition>&sig=<mac>`.
+  `<origin>/media/s/<key>?exp=<unix>&ct=<type>&cd=<disposition>&sig=<mac>`,
+  where the origin is the host of the request that created the link (the
+  tenant's own address, `storage.WithRequestHost`) or `PUBLIC_APP_URL`.
+  **Tenant-bound (Phase 17 WP3):** the MAC also covers the object's tenant
+  (the `t/<tenant>/` segment of the key, tenant #1 for legacy keys), the
+  `/media/s/` route runs behind the tenant middleware, and a link whose
+  object belongs to another tenant than the request host's is refused with
+  403 — a valid link of tenant A does not open at tenant B's address. A
+  context of one tenant cannot presign another tenant's object.
+  `/media/p/` (public assets such as logos) stays host-agnostic.
   The MAC covers the key, the expiry, the content type and the disposition,
   so none can be changed. The `/media/s/` handler answers with Range
   support, the signed `Content-Type` and `Content-Disposition`,
@@ -202,7 +211,21 @@ at least 2, or the containers cannot reach the role's credentials.
 
 - **Legacy keys:** drop the tenant #1 allowance for unprefixed keys once no
   installation has pre-tenancy files.
-- **WP3/WP8 (plans):** per-plan storage quotas (bytes per tenant, upload
+- **WP8 (plans):** per-plan storage quotas (bytes per tenant, upload
   sizes); `Put` callers already know the size or count it.
-- Lifecycle: import files and error reports are kept until deleted;
-  exports are removed after `ExportRetention` by the scheduler.
+- **Presigned links from jobs** (no request) point at `PUBLIC_APP_URL`,
+  which is not the tenant's address, so they would be refused there;
+  nothing presigns local links outside a request today. When something
+  does, it needs the tenant's primary domain (WP7).
+
+## Lifecycle
+
+Cleanups run once per tenant (the scheduler's per-tenant fan-out), each
+touching only the objects under its tenant's prefix:
+
+- exports are removed after `ExportRetention` (7 days) by
+  `campaign:analytics_reconcile`;
+- contact imports that finished (or were uploaded and never started) more
+  than 30 days ago lose their uploaded file, their error report and their
+  row (`contacts:import_retention`, every 6 hours, `contacts.ImportRetention`).
+  An import whose objects cannot be deleted keeps its row for the next run.
