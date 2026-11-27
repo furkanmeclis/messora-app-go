@@ -16,7 +16,23 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 )
+
+// The tenant of a context also scopes its stored objects, and the objects
+// stored before tenants belong to the tenant that took over their rows.
+func TestWithIDScopesStorage(t *testing.T) {
+	id := uuid.New()
+	if got := storage.TenantKey(WithID(context.Background(), id)); got != id.String() {
+		t.Fatalf("storage tenant = %q", got)
+	}
+	if got := storage.TenantKey(WithID(context.Background(), uuid.Nil)); got != "" {
+		t.Fatalf("nil tenant reached storage: %q", got)
+	}
+	if storage.LegacyTenant != DefaultID.String() {
+		t.Fatalf("legacy objects belong to %s, legacy rows to %s", storage.LegacyTenant, DefaultID)
+	}
+}
 
 func TestContextHelpers(t *testing.T) {
 	ctx := context.Background()

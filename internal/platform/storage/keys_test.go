@@ -55,8 +55,10 @@ func TestCheckTenantKey(t *testing.T) {
 		{"acme", "t/acmex/media/x", false},
 		{"acme", "t/acme/../other/x", false},
 		{"acme", "ab/cd/legacy", false},
-		{DefaultTenant, "ab/cd/legacy", true},
-		{DefaultTenant, "t/acme/media/x", false},
+		{LegacyTenant, "ab/cd/legacy", true},
+		{LegacyTenant, "t/acme/media/x", false},
+		{"", "ab/cd/legacy", false},
+		{"", "t//media/x", false},
 		{"../x", "t/../x/y", false},
 	}
 	for _, c := range cases {
@@ -67,8 +69,12 @@ func TestCheckTenantKey(t *testing.T) {
 }
 
 func TestTenantFromContext(t *testing.T) {
-	if got := TenantKey(context.Background()); got != DefaultTenant {
+	// No tenant fails closed: no key can be built or accepted.
+	if got := TenantKey(context.Background()); got != "" {
 		t.Fatalf("no tenant: %q", got)
+	}
+	if _, err := Key(TenantKey(context.Background()), "media", ""); err == nil {
+		t.Fatal("key built without a tenant")
 	}
 	if got := TenantKey(WithTenant(context.Background(), "acme")); got != "acme" {
 		t.Fatalf("tenant: %q", got)
@@ -79,7 +85,7 @@ func TestTenantFromContext(t *testing.T) {
 		t.Fatal("key built for a malformed tenant")
 	}
 	if CheckTenantKey(evil, "ab/cd/legacy") == nil {
-		t.Fatal("malformed tenant reached default-tenant keys")
+		t.Fatal("malformed tenant reached legacy keys")
 	}
 }
 

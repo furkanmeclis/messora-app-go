@@ -263,7 +263,7 @@ func (h *Handler) DeleteLogo(w http.ResponseWriter, r *http.Request) {
 	old := h.currentLogo(r)
 	if h.saveLogo(w, r, nil, "settings.logo_delete") {
 		h.removeLogo(r, old, "")
-		if storage.TenantKey(r.Context()) == storage.DefaultTenant {
+		if storage.TenantKey(r.Context()) == storage.LegacyTenant {
 			_ = h.stores.Private.Delete(context.WithoutCancel(r.Context()), legacyLogoKey)
 		}
 	}
@@ -310,7 +310,7 @@ func (h *Handler) GetLogo(w http.ResponseWriter, r *http.Request) {
 	// (LogoKey, storage.Store.PublicURL).
 	key := LogoKey(storage.TenantKey(r.Context()), s.Logo.Version)
 	rc, _, err := h.stores.Public.Get(r.Context(), key)
-	if errors.Is(err, storage.ErrNotFound) && storage.TenantKey(r.Context()) == storage.DefaultTenant {
+	if errors.Is(err, storage.ErrNotFound) && storage.TenantKey(r.Context()) == storage.LegacyTenant {
 		rc, _, err = h.stores.Private.Get(r.Context(), legacyLogoKey)
 	}
 	if errors.Is(err, storage.ErrNotFound) {

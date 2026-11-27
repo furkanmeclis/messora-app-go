@@ -13,6 +13,8 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 )
 
 // DefaultID is tenant #1, which owns every row that existed before tenants
@@ -30,13 +32,15 @@ const (
 	systemKey
 )
 
-// WithID returns ctx scoped to tenant id. A nil id is ignored, so it can
-// never stand in for a real tenant.
+// WithID returns ctx scoped to tenant id: database rows (row-level
+// security) and stored objects (keys under t/<id>/, storage.WithTenant).
+// Every request and job gets its tenant here, so both always agree. A nil
+// id is ignored, so it can never stand in for a real tenant.
 func WithID(ctx context.Context, id uuid.UUID) context.Context {
 	if id == uuid.Nil {
 		return ctx
 	}
-	return context.WithValue(ctx, idKey, id)
+	return storage.WithTenant(context.WithValue(ctx, idKey, id), id.String())
 }
 
 // FromCtx returns the tenant of ctx.

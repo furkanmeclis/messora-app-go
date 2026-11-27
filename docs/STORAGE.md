@@ -48,16 +48,18 @@ keys outside `t/<tenant>/`; every read of a key taken from the database goes
 through it.
 
 **Tenant id.** `storage.TenantKey(ctx)` returns the tenant the context
-carries (`storage.WithTenant`) or `default` when it carries none. Until the
-tenancy work package (WP1) puts the tenant into request and job contexts,
-everything is stored under `t/default/`. A malformed tenant id fails closed
-(no key is built, no key is accepted) instead of falling back to `default`.
+carries (`storage.WithTenant`). `tenant.WithID` sets it together with the
+database tenant, so every request (host → tenant middleware) and every job
+(queue middleware) stores under `t/<tenant_id>/`. A context without a
+tenant, or with a malformed id, fails closed: no key is built and no key is
+accepted.
 
 **Older files.** Keys written before the object store (`aa/bb/<uuid>-<hex>`
 for media, `imports/uploads/<hex>.csv`, `exports/<id>.<format>`,
 `branding/logo`) map one-to-one onto the same paths under
 `STORAGE_LOCAL_DIR`, so an existing `MEDIA_DIR` keeps working with the local
-driver without a migration. They belong to the `default` tenant only.
+driver without a migration. They belong to tenant #1 only
+(`storage.LegacyTenant`, the tenant that took over the pre-tenancy data).
 
 ## Drivers
 
@@ -198,9 +200,7 @@ at least 2, or the containers cannot reach the role's credentials.
 
 ## Still to do
 
-- **WP1 (tenancy):** put the tenant id into request and job contexts with
-  `storage.WithTenant`; every key then lands under `t/<tenant>/` and reads
-  are checked against it. Drop the legacy-key allowance once no
+- **Legacy keys:** drop the tenant #1 allowance for unprefixed keys once no
   installation has pre-tenancy files.
 - **WP3/WP8 (plans):** per-plan storage quotas (bytes per tenant, upload
   sizes); `Put` callers already know the size or count it.
