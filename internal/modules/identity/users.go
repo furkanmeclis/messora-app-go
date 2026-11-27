@@ -165,7 +165,7 @@ func (s *Service) CreateInvitation(ctx context.Context, actor *principal.Princip
 	}
 	link := s.o.PublicAppURL + "/invite?token=" + token
 	sent := false
-	if s.mail.Enabled() {
+	if s.mail.Enabled(ctx) {
 		st, _ := s.settings.Get(ctx)
 		err := s.mail.Send(ctx, mailer.Message{
 			To:      email,

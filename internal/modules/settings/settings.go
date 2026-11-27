@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
 const workspaceKey = "workspace"
@@ -181,21 +182,21 @@ func (s Settings) Apply(p Patch) (Settings, error) {
 // MFARequired reports whether role must use two-factor authentication.
 func (s Settings) MFARequired(role string) bool { return slices.Contains(s.MFARequiredRoles, role) }
 
-// Store reads and writes settings with a short in-process cache.
+// Store reads and writes settings with a short in-process cache per tenant.
 type Store struct {
 	q         db.Querier
-	ttl       time.Duration
 	overrides Patch
 	locked    []string
 
-	mu      sync.Mutex
-	cached  *Settings
-	expires time.Time
+	mu    sync.Mutex
+	cache *tenant.Cache[Settings]
 }
 
 // NewStore returns a store; ttl bounds how long other replicas may serve a
 // stale value after an update.
-func NewStore(q db.Querier, ttl time.Duration) *Store { return &Store{q: q, ttl: ttl} }
+func NewStore(q db.Querier, ttl time.Duration) *Store {
+	return &Store{q: q, cache: tenant.NewCache[Settings](ttl)}
+}
 
 // SetOverrides installs values from environment variables (setting name →
 // value). They are applied on every read, never stored, and the panel cannot
@@ -240,8 +241,9 @@ func (s *Store) SetOverrides(env map[string]string) error {
 	locked := p.fields()
 	slices.Sort(locked)
 	s.mu.Lock()
-	s.overrides, s.locked, s.cached = p, locked, nil
+	s.overrides, s.locked = p, locked
 	s.mu.Unlock()
+	s.cache.Clear()
 	return nil
 }
 
@@ -262,21 +264,15 @@ func (s *Store) withOverrides(v Settings) Settings {
 
 // Get returns the current settings (defaults merged in).
 func (s *Store) Get(ctx context.Context) (Settings, error) {
-	s.mu.Lock()
-	if s.cached != nil && time.Now().Before(s.expires) {
-		v := *s.cached
-		s.mu.Unlock()
+	if v, ok := s.cache.Get(ctx); ok {
 		return v, nil
 	}
-	s.mu.Unlock()
 	v, err := s.load(ctx, s.q)
 	if err != nil {
 		return Settings{}, err
 	}
 	v = s.withOverrides(v)
-	s.mu.Lock()
-	s.cached, s.expires = &v, time.Now().Add(s.ttl)
-	s.mu.Unlock()
+	s.cache.Set(ctx, v)
 	return v, nil
 }
 
@@ -332,9 +328,5 @@ func (s *Store) SetLogo(ctx context.Context, q db.Querier, logo *Logo, updatedBy
 	return s.save(ctx, q, v, updatedBy)
 }
 
-// Invalidate drops the cache.
-func (s *Store) Invalidate() {
-	s.mu.Lock()
-	s.cached = nil
-	s.mu.Unlock()
-}
+// Invalidate drops the cache (of every tenant; changes are rare).
+func (s *Store) Invalidate() { s.cache.Clear() }

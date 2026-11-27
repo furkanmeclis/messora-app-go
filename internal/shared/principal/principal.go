@@ -22,7 +22,10 @@ const (
 
 // Principal is an authenticated caller.
 type Principal struct {
-	Kind        Kind
+	Kind Kind
+	// TenantID is the tenant the session or key belongs to; the API guard
+	// refuses it at any other tenant's address.
+	TenantID    uuid.UUID
 	ID          uuid.UUID // user ID or API key ID
 	Name        string
 	SessionID   uuid.UUID // users only

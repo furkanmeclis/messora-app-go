@@ -15,6 +15,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 )
 
@@ -24,7 +25,7 @@ func RunAPI(ctx context.Context) error {
 	if err != nil {
 		return reportFatal(log, err)
 	}
-	pool, err := openPostgres(ctx, cfg, config.RoleAPI, log)
+	pool, err := openAppPool(ctx, cfg, config.RoleAPI, log)
 	if err != nil {
 		return reportFatal(log, err)
 	}
@@ -66,12 +67,17 @@ func RunAPI(ctx context.Context) error {
 		return reportFatal(log, err)
 	}
 
-	announceSetup(ctx, svc, log)
-	if err := svc.ai.EnsureSeed(ctx); err != nil {
+	// Start-up work of tenant #1: its setup link and the WhatsApp account
+	// from META_* settings. TODO(WP2): the platform admin opens tenants and
+	// connects their accounts.
+	first := tenant.WithID(ctx, tenant.DefaultID)
+	announceSetup(first, svc, log)
+	// The AI price table is platform data (no tenant).
+	if err := svc.ai.EnsureSeed(tenant.System(ctx)); err != nil {
 		// Not fatal: prices can be imported or entered in the panel.
 		log.Error("could not store the seed AI prices", "err", err)
 	}
-	if err := svc.channels.EnsureFromEnv(ctx, cfg.Meta.WABAID, cfg.Meta.AccessToken.Reveal(), cfg.Meta.AppID, cfg.Meta.AppSecret.Reveal()); err != nil {
+	if err := svc.channels.EnsureFromEnv(first, cfg.Meta.WABAID, cfg.Meta.AccessToken.Reveal(), cfg.Meta.AppID, cfg.Meta.AppSecret.Reveal()); err != nil {
 		// Not fatal: the account can be connected from the panel.
 		log.Error("could not connect the WhatsApp account from META_* settings", "err", err)
 	}

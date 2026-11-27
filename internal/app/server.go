@@ -41,6 +41,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -107,6 +108,8 @@ type services struct {
 	webhooks   *webhooks.Service
 	automation *automation.Service
 	ai         *ai.Service
+	// tenants maps request hosts to tenants (tenant_domains).
+	tenants *tenant.Resolver
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -146,7 +149,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// Token problems reach the owners and admins by e-mail (when SMTP is
 	// set up); the panel shows them regardless.
 	ch.SetNotifier(func(ctx context.Context, subject, body string) {
-		if !mail.Enabled() {
+		if !mail.Enabled(ctx) {
 			return
 		}
 		users, err := q.ListUsersWithRole(ctx)
@@ -204,7 +207,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	auto.SetFieldWriter(inbox)
 	return &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
-		automation: auto}, nil
+		automation: auto, tenants: tenant.NewResolver(pool, 15*time.Second)}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -261,10 +264,13 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	}
 	r.Method(http.MethodGet, apidocs.Path, apidocs.Handler(public))
 	r.Method(http.MethodHead, apidocs.Path, apidocs.Handler(public))
+	// Everything below runs as the tenant of the request's host (unknown
+	// hosts get 404, suspended tenants 403).
+	byHost := tenant.Middleware(svc.tenants, log)
 	// Meta's webhooks: authenticated by signature, not by the API guard.
-	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
+	r.With(byHost).Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
 	r.Group(func(g chi.Router) {
-		g.Use(httpx.ClientMeta, guard.Middleware) // the guard applies per-operation body limits
+		g.Use(byHost, httpx.ClientMeta, guard.Middleware) // the guard applies per-operation body limits
 		api.HandlerWithOptions(srv, api.ChiServerOptions{
 			BaseURL:    "/api/v1",
 			BaseRouter: g,

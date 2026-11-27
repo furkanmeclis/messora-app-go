@@ -67,7 +67,7 @@ func (h *Handler) GetAuthCapabilities(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	httpx.JSON(w, r, http.StatusOK, api.AuthCapabilities{PasswordReset: h.svc.PasswordResetEnabled(), SetupRequired: setup})
+	httpx.JSON(w, r, http.StatusOK, api.AuthCapabilities{PasswordReset: h.svc.PasswordResetEnabled(r.Context()), SetupRequired: setup})
 }
 
 // Login implements api.ServerInterface.
