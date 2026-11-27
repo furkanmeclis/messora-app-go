@@ -352,3 +352,42 @@ func TestRenderedMessageAddresses(t *testing.T) {
 		}
 	}
 }
+
+// Development stacks run on http: AllowHTTP accepts http links there, the
+// default renderer never does, and other schemes stay refused.
+func TestAllowHTTPForDevelopmentStacks(t *testing.T) {
+	r := renderer(t)
+	data := PasswordResetData{ResetURL: "http://acme.messora.localhost:8090/reset-password?token=x", ExpiresIn: time.Hour}
+	if _, err := r.Email(PasswordReset, "en", data); err == nil {
+		t.Fatal("default renderer accepted an http link")
+	}
+	e, err := r.AllowHTTP().Email(PasswordReset, "en", data)
+	if err != nil || !strings.Contains(e.Text, data.ResetURL) {
+		t.Fatalf("AllowHTTP: %v", err)
+	}
+	data.ResetURL = "javascript:alert(1)"
+	if _, err := r.AllowHTTP().Email(PasswordReset, "en", data); err == nil {
+		t.Fatal("AllowHTTP accepted a javascript: link")
+	}
+	if _, err := r.Email(PasswordReset, "en", PasswordResetData{ResetURL: "https://a.example.com/r", ExpiresIn: time.Hour}); err != nil {
+		t.Fatalf("the original renderer changed: %v", err)
+	}
+}
+
+// Sign-up verification works by link alone: without a code the e-mail
+// shows no code and its preheader mentions none.
+func TestVerifyEmailWithoutCode(t *testing.T) {
+	r := renderer(t)
+	for _, loc := range Locales {
+		m, err := r.Email(VerifyEmail, loc, VerifyEmailData{Common: Common{Name: "Ada"}, VerifyURL: "https://acme.messora.tech/verify-email?token=msv_x", ExpiresIn: 24 * time.Hour})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p := strings.ToLower(m.Preheader); strings.Contains(p, "kod") || strings.Contains(p, "code") {
+			t.Errorf("%s preheader mentions a code: %q", loc, m.Preheader)
+		}
+		if !strings.Contains(m.HTML, "verify-email?token=msv_x") || !strings.Contains(m.Text, "verify-email?token=msv_x") {
+			t.Errorf("%s: link missing", loc)
+		}
+	}
+}

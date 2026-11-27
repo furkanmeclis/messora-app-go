@@ -78,6 +78,9 @@ type harness struct {
 	router   routers.Router
 	meta     *whatsapptest.Server
 	rdb      *goredis.Client
+	// platTok is a platform admin session, created on first use (shared
+	// by the harness copies of h.tenant).
+	platTok *string
 }
 
 const (
@@ -135,7 +138,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	return &harness{t: t, pool: pool, owner: tdb.Owner, sys: tdb.System, tenantID: tenant.DefaultID, host: "messora.test",
-		srv: srv, svc: svc, mail: mail, router: router, meta: meta, rdb: rdb}
+		srv: srv, svc: svc, mail: mail, router: router, meta: meta, rdb: rdb, platTok: new(string)}
 }
 
 // ctx is a context of the harness's tenant, for calling services and

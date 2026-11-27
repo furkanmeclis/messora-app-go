@@ -168,6 +168,8 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		"/api/v1/ai/providers", "/api/v1/ai/profiles", "/api/v1/ai/usage/summary?from=" + time.Now().Add(-24*time.Hour).UTC().Format(time.RFC3339) + "&to=" + time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "/api/v1/offers", "/api/v1/users",
 		"/api/v1/invitations", "/api/v1/channels/accounts", "/api/v1/channels/phone-numbers", "/api/v1/contact-imports",
 		"/api/v1/ops/overview", "/api/v1/me", "/api/v1/me/sessions", "/api/v1/contacts/attribute-keys",
+		// WP2: memberships, support access, the shared catalogue.
+		"/api/v1/me/memberships", "/api/v1/support-access", "/api/v1/settings/meta-rates", "/api/v1/ai/prices",
 	}
 	for _, p := range lists {
 		leaks(hb, ownerB, p, secretsA)
@@ -229,6 +231,29 @@ func TestTenantIsolationMatrix(t *testing.T) {
 	}
 	h.expect(h.do(call{method: "GET", path: "/api/v1/api-keys/whoami", token: keyA, noBFF: true}), 200, "")
 	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: ownerA}), 200, "")
+
+	// WP2: no hand-over into a workspace one does not belong to, no
+	// platform API at a workspace address, and a support grant of A is
+	// invisible at B.
+	h.expect(hb.do(call{method: "POST", path: "/api/v1/auth/switch-workspace", token: ownerB, body: map[string]any{"tenant_id": h.tenantID.String()}}), 403, "FORBIDDEN")
+	r = hb.do(call{method: "GET", path: "/api/v1/me/memberships", token: ownerB})
+	hb.expect(r, 200, "")
+	if len(r.list()) != 1 || r.list()[0].(map[string]any)["tenant"].(map[string]any)["id"] != hb.tenantID.String() {
+		t.Errorf("B's memberships: %s", r.raw)
+	}
+	r = h.adminDo(call{method: "POST", path: "/tenants/" + h.tenantID.String() + "/support-sessions", body: map[string]any{"reason": "Isolation check"}})
+	h.expect(r, 201, "")
+	supportLink := r.data()["redirect_url"].(string)
+	supportTok := supportLink[strings.Index(supportLink, "token=")+6:]
+	h.expect(hb.do(call{method: "POST", path: "/api/v1/auth/handoff", body: map[string]any{"token": supportTok}}), 401, "HANDOFF_INVALID")
+	if r := hb.do(call{method: "GET", path: "/api/v1/support-access", token: ownerB}); len(r.list()) != 0 {
+		t.Errorf("B sees A's support grants: %s", r.raw)
+	}
+	for _, p := range []string{"/api/v1/platform/tenants", "/api/v1/platform/users", "/api/v1/platform/settings"} {
+		if code, _ := h.rawAt(hb.host, "GET", p, ownerB, true); code != 404 {
+			t.Errorf("platform API %s at B's address: %d", p, code)
+		}
+	}
 
 	// Credentials work only at their own tenant's address.
 	if code, errCode := h.rawAt(hb.host, "GET", "/api/v1/me", ownerA, true); code != 401 {
