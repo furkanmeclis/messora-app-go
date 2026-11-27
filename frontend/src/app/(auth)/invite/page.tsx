@@ -1,17 +1,14 @@
 import type { Metadata } from 'next';
-import { AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import { getT } from '@/i18n/server';
+import { AlertCircle, UserPlus } from 'lucide-react';
+import { getLocale, getT } from '@/i18n/server';
+import { intlLocale } from '@/i18n/config';
 import { api, ApiError } from '@/lib/server/api';
 import { errorMessage } from '@/lib/server/actions';
+import { getAppearance } from '@/lib/server/appearance';
+import type { InvitationPreviewExtras } from '@/lib/auth/contracts';
 import type { Schemas } from '@/lib/types';
+import { FormAlert } from '../_components/fields';
+import { AuthCard } from '../_components/shell';
 import { AcceptInvitationForm } from '../forms';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,19 +16,25 @@ export async function generateMetadata(): Promise<Metadata> {
     return { title: t('auth.invite.metaTitle') };
 }
 
+type Preview = Schemas['InvitationPreview'] & InvitationPreviewExtras;
+
 export default async function InvitePage({
     searchParams,
 }: {
     searchParams: Promise<Record<string, string | undefined>>;
 }) {
-    const t = await getT();
+    const [t, locale, appearance] = await Promise.all([
+        getT(),
+        getLocale(),
+        getAppearance(),
+    ]);
     const token = (await searchParams).token ?? '';
-    let invitation: Schemas['InvitationPreview'] | null = null;
+    let invitation: Preview | null = null;
     let error = t('auth.invite.incomplete');
     if (token) {
         try {
             invitation = (
-                await api<Schemas['InvitationPreview']>('/invitations/lookup', {
+                await api<Preview>('/invitations/lookup', {
                     method: 'POST',
                     auth: 'none',
                     body: { token },
@@ -42,33 +45,94 @@ export default async function InvitePage({
             error = await errorMessage(err);
         }
     }
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{t('auth.invite.title')}</CardTitle>
-                <CardDescription>
-                    {invitation
-                        ? t('auth.invite.invitedAs', {
-                              role: invitation.role.name,
-                          })
-                        : t('auth.invite.accept')}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                {invitation ? (
-                    <AcceptInvitationForm
-                        token={token}
-                        email={invitation.email}
+
+    if (!invitation) {
+        return (
+            <AuthCard
+                icon={AlertCircle}
+                tone="danger"
+                title={t('auth.invite.invalidTitle')}
+            >
+                <FormAlert>
+                    <AlertCircle
+                        className="mt-0.5 size-4 shrink-0"
+                        aria-hidden
                     />
-                ) : (
-                    <Alert variant="destructive">
-                        <AlertCircle />
-                        <AlertDescription>
-                            {error} {t('auth.invite.askAdmin')}
-                        </AlertDescription>
-                    </Alert>
-                )}
-            </CardContent>
-        </Card>
+                    <span>
+                        {error} {t('auth.invite.askAdmin')}
+                    </span>
+                </FormAlert>
+            </AuthCard>
+        );
+    }
+
+    const workspace =
+        invitation.tenant?.name ||
+        (appearance.organization_name !== 'Messora'
+            ? appearance.organization_name
+            : null);
+    const logo =
+        invitation.tenant?.logo_url ??
+        (appearance.logo
+            ? `/bff/logo?v=${encodeURIComponent(appearance.logo.version ?? '')}`
+            : null);
+    const expires = new Intl.DateTimeFormat(intlLocale(locale), {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(new Date(invitation.expires_at));
+
+    return (
+        <AuthCard
+            icon={UserPlus}
+            logoUrl={logo}
+            title={
+                workspace
+                    ? t('auth.invite.titleWorkspace', { workspace })
+                    : t('auth.invite.title')
+            }
+            description={
+                <>
+                    {invitation.invited_by?.name && (
+                        <>
+                            {t('auth.invite.invitedBy', {
+                                name: invitation.invited_by.name,
+                            })}
+                            .{' '}
+                        </>
+                    )}
+                    {t('auth.invite.invitedAs', { role: invitation.role.name })}
+                </>
+            }
+        >
+            <div className="flex flex-col gap-6">
+                <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border text-sm">
+                    {workspace && (
+                        <div className="col-span-2 bg-card px-4 py-3">
+                            <dt className="text-xs text-muted-foreground">
+                                {t('auth.invite.workspace')}
+                            </dt>
+                            <dd className="mt-0.5 font-medium">{workspace}</dd>
+                        </div>
+                    )}
+                    <div className="bg-card px-4 py-3">
+                        <dt className="text-xs text-muted-foreground">
+                            {t('auth.invite.role')}
+                        </dt>
+                        <dd className="mt-0.5 font-medium">
+                            {invitation.role.name}
+                        </dd>
+                    </div>
+                    <div className="bg-card px-4 py-3">
+                        <dt className="text-xs text-muted-foreground">
+                            {t('auth.invite.expires')}
+                        </dt>
+                        <dd className="mt-0.5 font-medium tabular-nums">
+                            {expires}
+                        </dd>
+                    </div>
+                </dl>
+                <AcceptInvitationForm token={token} email={invitation.email} />
+            </div>
+        </AuthCard>
     );
 }

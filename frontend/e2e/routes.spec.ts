@@ -90,7 +90,7 @@ test.beforeAll(async ({ browser }) => {
 
     await page.goto(`/invite?token=${token}`);
     await page.getByLabel('Your name').fill(ADMIN.name);
-    await page.getByLabel('Password').fill(ADMIN.password);
+    await page.getByLabel('Password', { exact: true }).fill(ADMIN.password);
     await page.getByRole('button', { name: 'Join' }).click();
     // Admins must use two-factor authentication: joining lands straight on
     // enrolment, rendered without a reload (regression: a chained redirect

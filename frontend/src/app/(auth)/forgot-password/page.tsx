@@ -1,17 +1,9 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { Info } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { ArrowLeft, Info, KeyRound } from 'lucide-react';
 import { getT } from '@/i18n/server';
-import { api } from '@/lib/server/api';
-import type { Schemas } from '@/lib/types';
+import { getCapabilities } from '@/lib/server/auth-context';
+import { FormAlert } from '../_components/fields';
+import { AuthCard, AuthLink } from '../_components/shell';
 import { ForgotPasswordForm } from '../forms';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,40 +12,30 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ForgotPasswordPage() {
-    const caps = (
-        await api<Schemas['AuthCapabilities']>('/auth/capabilities', {
-            auth: 'none',
-        })
-    ).data;
-    const t = await getT();
+    const [caps, t] = await Promise.all([getCapabilities(), getT()]);
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{t('auth.forgot.title')}</CardTitle>
-                <CardDescription>
-                    {t('auth.forgot.description')}
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                {caps.password_reset ? (
-                    <ForgotPasswordForm />
-                ) : (
-                    <Alert>
-                        <Info />
-                        <AlertDescription>
-                            {t('auth.forgot.noEmail')}
-                        </AlertDescription>
-                    </Alert>
-                )}
-                <p className="text-center text-sm">
-                    <Link
-                        href="/login"
-                        className="text-muted-foreground underline-offset-4 hover:underline"
-                    >
-                        {t('auth.forgot.backToSignIn')}
-                    </Link>
-                </p>
-            </CardContent>
-        </Card>
+        <AuthCard
+            icon={KeyRound}
+            title={t('auth.forgot.title')}
+            description={t('auth.forgot.description')}
+            footer={
+                <AuthLink href="/login" className="gap-1.5">
+                    <ArrowLeft className="size-4" aria-hidden />
+                    {t('auth.forgot.backToSignIn')}
+                </AuthLink>
+            }
+        >
+            {caps.password_reset ? (
+                <ForgotPasswordForm />
+            ) : (
+                <FormAlert tone="info">
+                    <Info
+                        className="mt-0.5 size-4 shrink-0 text-primary"
+                        aria-hidden
+                    />
+                    <span>{t('auth.forgot.noEmail')}</span>
+                </FormAlert>
+            )}
+        </AuthCard>
     );
 }
