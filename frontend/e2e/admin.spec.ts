@@ -99,14 +99,17 @@ test('a company is opened, visited through support access, suspended and restore
     // one forgot them at once.
     await visitor.goto(workspaceUrl(COMPANY.slug) + '/login');
     await expect(
-        visitor.getByRole('heading', { name: 'This workspace is suspended' }),
+        // The company was opened in Turkish (the dialog's default).
+        visitor.getByRole('heading', {
+            name: /This workspace is suspended|Bu çalışma alanı askıya alındı/,
+        }),
     ).toBeVisible();
 
     await page.getByRole('button', { name: 'Lift suspension' }).click();
     await expect(page.getByTestId('suspended-reason')).toHaveCount(0);
     await visitor.reload();
     await expect(
-        visitor.getByRole('heading', { name: /^Sign in/ }),
+        visitor.getByRole('heading', { name: /^Sign in to|paneline giriş$/ }),
     ).toBeVisible();
     await visitor.close();
 

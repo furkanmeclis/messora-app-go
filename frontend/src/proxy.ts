@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { requestHost } from '@/lib/host';
 import {
     configuredBaseDomain,
     isAdminHost,
@@ -44,7 +45,8 @@ function matches(pathname: string, list: string[]) {
  */
 export function proxy(req: NextRequest) {
     const { pathname, search } = req.nextUrl;
-    const host = req.headers.get('host') ?? req.nextUrl.host;
+    // The browser's host (see requestHost: X-Forwarded-Host first).
+    const host = requestHost(req.headers) ?? req.nextUrl.host;
     const base = configuredBaseDomain();
     const admin = isAdminHost(host, base);
 
