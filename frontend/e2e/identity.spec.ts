@@ -1,10 +1,15 @@
+import { writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { platformStateFile, PLATFORM } from './platform';
 import { totp } from './totp';
 
 /**
  * The whole identity journey on a fresh installation, in order:
- * setup → mandatory 2FA enrolment → invitation → invitee joins with a
- * restricted role → owner signs in with a second factor → API key → audit.
+ * the platform admin (created by `messora admin create` in scripts/e2e.sh)
+ * signs in to the admin host and enrols two-factor authentication →
+ * invites the owner of the first workspace → the owner joins, runs the
+ * wizard and enrols 2FA → invitation → invitee joins with a restricted
+ * role → owner signs in with a second factor → API key → audit.
  * Any uncaught browser error fails the test.
  */
 
@@ -20,7 +25,12 @@ const AGENT = {
     password: 'Another-strong-pass-73',
 };
 
-const state: { secret?: string; recovery?: string[]; inviteUrl?: string } = {};
+const state: {
+    secret?: string;
+    recovery?: string[];
+    inviteUrl?: string;
+    ownerInviteUrl?: string;
+} = {};
 
 function watchErrors(page: Page) {
     const errors: string[] = [];
@@ -38,29 +48,76 @@ function freshCode(secret: string) {
 
 test.describe.configure({ mode: 'serial' });
 
-test('owner sets up the installation, runs the wizard and enrols two-factor authentication', async ({
+test('the platform admin enrols two-factor authentication and invites the first owner', async ({
     page,
 }) => {
     const noErrors = watchErrors(page);
-    const setupUrl = process.env.E2E_SETUP_URL;
-    expect(setupUrl, 'E2E_SETUP_URL must be set').toBeTruthy();
+    await page.goto(PLATFORM.adminUrl + '/login');
+    await expect(
+        page.getByRole('heading', { name: 'Platform admin' }),
+    ).toBeVisible();
+    await page.getByLabel('E-mail').fill(PLATFORM.email);
+    await page.getByLabel('Password', { exact: true }).fill(PLATFORM.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await page.goto(setupUrl!);
-    await expect(page.getByText('Set up Messora')).toBeVisible();
-    await page.getByLabel('Organization name').fill(OWNER.org);
+    // Two-factor authentication is mandatory for platform admins.
+    await expect(page).toHaveURL(/\/enroll$/);
+    await page.goto(PLATFORM.adminUrl + '/tenants');
+    await expect(page).toHaveURL(/\/enroll$/);
+    await page.getByRole('button', { name: 'Show the QR code' }).click();
+    const secret = await page
+        .getByTestId('totp-secret')
+        .getAttribute('data-secret');
+    expect(secret).toMatch(/^[A-Z2-7]{16,}$/);
+    await page.getByLabel('Digit 1 of 6').fill(totp(secret!));
+    await page.getByRole('button', { name: 'Turn on' }).click();
+    const codes = page.getByTestId('recovery-codes').locator('li');
+    await expect(codes).toHaveCount(10);
+    writeFileSync(
+        platformStateFile(),
+        JSON.stringify({ secret, recovery: await codes.allInnerTexts() }),
+    );
+    await page.getByRole('link', { name: 'Continue to the panel' }).click();
+    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+
+    // The installation's first workspace has no people yet.
+    await page.goto(PLATFORM.adminUrl + '/tenants');
+    await page.getByRole('link', { name: 'Default' }).click();
+    await expect(page.getByText('No owner yet.')).toBeVisible();
+    await page.getByRole('button', { name: 'Invite owner' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('E-mail').fill(OWNER.email);
+    await dialog.getByRole('button', { name: 'Invite owner' }).click();
+    const link = dialog.getByTestId('owner-accept-url');
+    await expect(link).toHaveValue(/\/invite\?token=msi_/);
+    state.ownerInviteUrl = await link.inputValue();
+    noErrors();
+});
+
+test('the owner joins, runs the wizard and enrols two-factor authentication', async ({
+    page,
+}) => {
+    const noErrors = watchErrors(page);
+    // The link names the workspace's main address; tenant #1 also answers
+    // at the stack's own address, where the other specs sign in.
+    const url = new URL(state.ownerInviteUrl!);
+    await page.goto(url.pathname + url.search);
+    await expect(page.getByText('You were invited as Owner.')).toBeVisible();
     await page.getByLabel('Your name').fill(OWNER.name);
-    await page.getByLabel('E-mail').fill(OWNER.email);
     await page.getByLabel('Password', { exact: true }).fill(OWNER.password);
-    await page.getByRole('button', { name: 'Create owner account' }).click();
+    await page.getByRole('button', { name: 'Join' }).click();
+    await expect(
+        page.getByRole('heading', { name: 'Welcome, Olivia' }),
+    ).toBeVisible();
 
-    // The first-run wizard opens; two-factor is not required by default.
-    await expect(page).toHaveURL(/\/welcome/);
+    // The first-run wizard; two-factor is not required by default.
+    await page.goto('/welcome');
     await page.getByRole('button', { name: 'Start' }).click();
     const next = () =>
         page.getByRole('button', { name: 'Save and continue' }).click();
     const cont = () =>
         page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await expect(page.getByLabel('Organisation name')).toHaveValue(OWNER.org);
+    await page.getByLabel('Organisation name').fill(OWNER.org);
     await next(); // organisation
     await page.getByRole('radio', { name: /English/ }).click();
     await next(); // language
@@ -125,7 +182,7 @@ test('owner invites an agent', async ({ page }) => {
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('E-mail').fill(AGENT.email);
     await dialog.getByRole('button', { name: 'Send invitation' }).click();
-    // E-mail is not configured in the test stack, so the link is shown once.
+    // The link is shown once (it was e-mailed to the stack's mail catcher too).
     const link = dialog.locator('input[readonly]');
     await expect(link).toHaveValue(/\/invite\?token=msi_/);
     state.inviteUrl = await link.inputValue();
@@ -191,7 +248,6 @@ test('owner signs in with an authenticator code and creates an API key', async (
 
     await page.goto('/audit');
     for (const action of [
-        'setup.complete',
         'user.mfa_enable',
         'invitation.create',
         'invitation.accept',

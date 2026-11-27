@@ -2,10 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 /**
  * The sign-in screens without an account: inline validation, the password
- * toggle and meter, the language switch, and the states for expired or
- * broken links. Sign-up and e-mail verification call endpoints that phase
- * 17 WP2 adds; until then they show their "coming soon" states, and these
- * tests accept either.
+ * toggle and meter, the language switch, sign-up, and the states for
+ * expired or broken links. signup.spec.ts follows a sign-up through the
+ * verification e-mail.
  */
 
 function watchErrors(page: Page) {
@@ -137,30 +136,30 @@ test('sign-up previews the panel address and checks its rules', async ({
     await expect(page.getByText('Accept the terms to continue.')).toBeVisible();
 
     await page.getByLabel('Full name').fill('Ayşe Yılmaz');
-    await page.getByLabel('Work e-mail').fill('ayse@example.com');
+    await page
+        .getByLabel('Work e-mail')
+        .fill(`ayse+${Date.now().toString(36)}@example.com`);
     await page
         .getByLabel('Password', { exact: true })
         .fill('Mavi-deniz-kahve-42');
-    await slug.fill('easytrade-e2e');
+    const address = `easytrade-${Date.now().toString(36)}`;
+    await slug.fill(address);
+    await expect(page.getByText('Available.')).toBeVisible();
     await page.getByRole('checkbox').click();
     await page.getByRole('button', { name: 'Create account' }).click();
-    // Until the API has sign-up (phase 17 WP2) the form says it opens soon.
     await expect(
-        page
-            .getByText('Sign-ups open soon')
-            .or(page.getByRole('heading', { name: 'Check your e-mail' })),
+        page.getByRole('heading', { name: 'Check your e-mail' }),
     ).toBeVisible();
     noErrors();
 });
 
-test('a verification link without the API endpoint degrades gently', async ({
+test('a broken verification link says so and offers a new one', async ({
     page,
 }) => {
     await page.goto('/verify-email?token=msv_not-a-real-token');
+    await expect(page.getByText('This link does not work')).toBeVisible();
     await expect(
-        page
-            .getByText('Verification is not open yet')
-            .or(page.getByText('This link does not work')),
+        page.getByRole('button', { name: 'Send the link again' }),
     ).toBeVisible();
 });
 
