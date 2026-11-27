@@ -130,6 +130,15 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 ## Phase 16C — Gelişmiş kampanya yönetimi, AI otomasyonu ve sohbet zekâsı ✅ (v0.12.0, 2026-11-26)
 Teknik analiz, doğrulanmış Meta/AI sağlayıcı gerçekleri, mimari riskler ve iş paketleri (P0–P10): **docs/PHASE-16C.md**. Phase 17 bu faz tamamlanmadan başlamaz.
 
+## Phase 17 — Çok kiracılı SaaS (Messora Cloud) (planlandı)
+Kapsam ve kararlar: **docs/PHASE-17.md**. Özet:
+- Yalnızca çok kiracılı mod; lisans modu kapatılır.
+- Firma bazında tema ve PWA kaldırılır.
+- Her firmanın kendi API adresi ve webhook'ları olur.
+- Meta bağlantısı iki yöntemle yapılır: firmanın kendi uygulaması ya da Messora Tech Provider (henüz aktif değil, anahtarla kapalı).
+- Ayarlar platform yönetici panelinden yönetilir.
+- Abonelik ve havale akışı kapsamda, ama sonraya bırakıldı.
+
 ## Sonraki sürümler (v1.x)
 - Passkey (go-webauthn), Embedded Signup
 - Centrifugo Redis engine (çoklu node), `messages` partition ve arşivleme, `campaign_stats` sharding
