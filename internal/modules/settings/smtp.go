@@ -84,8 +84,16 @@ func NewMail(q db.Querier, sealer *crypto.Sealer, env mailer.Config) (*Mail, err
 // ManagedByEnv reports whether SMTP_HOST is set.
 func (m *Mail) ManagedByEnv() bool { return m.env != nil }
 
+// customSMTP reports whether ctx's company may send through its own SMTP
+// server instead of the platform sender.
+//
+// TODO(WP8): true with the custom_smtp entitlement (Enterprise plans). Until
+// plans exist the platform sender (SMTP_HOST, Resend in production) is used
+// whenever it is set, and a company's own configuration only without it.
+func (m *Mail) customSMTP(context.Context) bool { return false }
+
 func (m *Mail) current(ctx context.Context) mailer.Sender {
-	if m.fixed != nil {
+	if m.fixed != nil && !m.customSMTP(ctx) {
 		return m.fixed
 	}
 	if s, ok := m.senders.Get(ctx); ok {

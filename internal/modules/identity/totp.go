@@ -150,6 +150,13 @@ func (s *Service) DisableTOTP(ctx context.Context, p *principal.Principal) error
 	if st.MFARequired(p.RoleKey) {
 		return apperr.Forbidden("MFA_REQUIRED_BY_POLICY", "Your role requires two-factor authentication")
 	}
+	// The second factor belongs to the person: a platform admin keeps it.
+	if u, err := s.q.GetUserByID(ctx, p.ID); err != nil || u.IsPlatformAdmin {
+		if err == nil {
+			err = apperr.Forbidden("MFA_REQUIRED_BY_POLICY", "Platform admins must keep two-factor authentication")
+		}
+		return err
+	}
 	return s.tx(ctx, func(q *db.Queries) error {
 		if err := q.SetTotpSecret(ctx, db.SetTotpSecretParams{ID: p.ID}); err != nil {
 			return err

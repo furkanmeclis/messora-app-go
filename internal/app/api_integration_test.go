@@ -37,6 +37,11 @@ import (
 
 const bffSecret = "test-bff-secret-0123456789abcdef0123456789" // gitleaks:allow (test fixture)
 
+// testBaseDomain is the platform domain of the harness: new workspaces at
+// <slug>.saas.test, the admin panel at admin.saas.test. Tenant #1 is at
+// messora.test (PUBLIC_APP_URL), as an installation from before tenants.
+const testBaseDomain = "saas.test"
+
 // capturingMailer records sent messages.
 type capturingMailer struct {
 	mu   sync.Mutex
@@ -87,7 +92,7 @@ func newHarness(t *testing.T) *harness {
 	rdb := testutil.Redis(t)
 	meta := whatsapptest.New()
 	t.Cleanup(meta.Close)
-	cfg := &config.Config{PublicAppURL: "https://messora.test", EncryptionKey: bytes.Repeat([]byte{7}, 32),
+	cfg := &config.Config{PublicAppURL: "https://messora.test", TenantBaseDomain: testBaseDomain, EncryptionKey: bytes.Repeat([]byte{7}, 32),
 		Storage: config.StorageConfig{Driver: config.StorageLocal, LocalDir: t.TempDir(), SigningKey: bytes.Repeat([]byte{9}, 32)},
 		Meta:    config.MetaConfig{GraphBaseURL: meta.URL, GraphVersion: "v26.0", AppSecret: testAppSecret, VerifyToken: testVerifyToken}}
 	cfg.Centrifugo.HMACSecret = testHMACSecret // see realtime_integration_test.go
@@ -260,63 +265,55 @@ func (h *harness) expect(r resp, status int, code string) {
 
 const ownerPassword = "Horse-battery-staple-42" // gitleaks:allow (test fixture)
 
-// setupOwner completes setup and enrols TOTP.
-func (h *harness) setupOwner() (token, totpSecret string) {
+// ownerSession makes email the owner of the harness's tenant the way a
+// platform admin does (an owner invitation, accepted through the API) and
+// returns the new session.
+func (h *harness) ownerSession(email, name string) string {
 	h.t.Helper()
-	setupTok, err := h.svc.identity.EnsureSetupToken(h.ctx(), false)
-	if err != nil || setupTok == "" {
-		h.t.Fatalf("setup token: %q %v", setupTok, err)
+	inv, err := h.svc.identity.InviteOwner(context.Background(), h.tenantID, email)
+	if err != nil {
+		h.t.Fatalf("invite owner: %v", err)
 	}
-	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{
-		"token": setupTok, "name": "Ayşe Owner", "email": "Owner@Example.com", "password": ownerPassword, "organization_name": "Acme",
-	}})
+	token := inv.AcceptUrl[strings.Index(inv.AcceptUrl, "token=")+6:]
+	r := h.do(call{method: "POST", path: "/api/v1/invitations/accept", body: map[string]any{"token": token, "name": name, "password": ownerPassword}})
 	h.expect(r, 201, "")
-	token = r.data()["session_token"].(string)
-
-	r = h.do(call{method: "POST", path: "/api/v1/me/mfa/totp", token: token})
-	h.expect(r, 200, "")
-	totpSecret = r.data()["secret"].(string)
-	code, _ := totp.GenerateCode(totpSecret, time.Now())
-	r = h.do(call{method: "POST", path: "/api/v1/me/mfa/totp/confirm", token: token, body: map[string]any{"code": code}})
-	h.expect(r, 200, "")
-	return token, totpSecret
+	return r.data()["session_token"].(string)
 }
 
-func TestSetupFlow(t *testing.T) {
-	h := newHarness(t)
-
-	r := h.do(call{method: "GET", path: "/api/v1/setup/status"})
+// enrolTOTP turns on two-factor authentication for the session's user.
+func (h *harness) enrolTOTP(token string) string {
+	h.t.Helper()
+	r := h.do(call{method: "POST", path: "/api/v1/me/mfa/totp", token: token})
 	h.expect(r, 200, "")
-	if r.data()["setup_required"] != true {
-		t.Fatal("fresh install must require setup")
-	}
-	r = h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{
-		"token": "mst_wrong-token-wrong-token-wrong", "name": "X", "email": "x@example.com", "password": ownerPassword,
-	}})
-	h.expect(r, 403, "SETUP_TOKEN_INVALID")
+	secret := r.data()["secret"].(string)
+	code, _ := totp.GenerateCode(secret, time.Now())
+	r = h.do(call{method: "POST", path: "/api/v1/me/mfa/totp/confirm", token: token, body: map[string]any{"code": code}})
+	h.expect(r, 200, "")
+	return secret
+}
 
+// setupOwner creates the tenant's owner and enrols TOTP.
+func (h *harness) setupOwner() (token, totpSecret string) {
+	h.t.Helper()
+	token = h.ownerSession("Owner@Example.com", "Ayşe Owner")
+	return token, h.enrolTOTP(token)
+}
+
+func TestOwnerInvitationFlow(t *testing.T) {
+	h := newHarness(t)
 	token, _ := h.setupOwner()
-
-	r = h.do(call{method: "GET", path: "/api/v1/me", token: token})
+	r := h.do(call{method: "GET", path: "/api/v1/me", token: token})
 	h.expect(r, 200, "")
 	user := r.data()["user"].(map[string]any)
 	if user["email"] != "owner@example.com" || user["role"].(map[string]any)["key"] != "owner" || user["mfa_enabled"] != true {
 		t.Fatalf("unexpected me: %s", r.raw)
 	}
-	if r.data()["mfa_required"] != false {
-		t.Fatal("mfa no longer pending after enrolment")
+	if r.data()["mfa_required"] != false || r.data()["tenant"].(map[string]any)["id"] != h.tenantID.String() {
+		t.Fatalf("me: %s", r.raw)
 	}
-
-	// Setup is single use, and the token generator now refuses.
-	r = h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": "mst_anything-anything-anything-1", "name": "Y", "email": "y@example.com", "password": ownerPassword}})
-	h.expect(r, 409, "SETUP_COMPLETE")
-	if tok, _ := h.svc.identity.EnsureSetupToken(h.ctx(), true); tok != "" {
-		t.Fatal("setup token issued after setup")
-	}
-	r = h.do(call{method: "GET", path: "/api/v1/settings", token: token})
-	h.expect(r, 200, "")
-	if r.data()["organization_name"] != "Acme" {
-		t.Fatalf("organization name not applied: %s", r.raw)
+	// The setup wizard's endpoints are gone.
+	if code, _ := h.rawAt(h.host, "GET", "/api/v1/setup/status", "", true); code != 404 {
+		t.Fatalf("setup status still served: %d", code)
 	}
 }
 
@@ -405,11 +402,9 @@ func TestMandatoryMFABlocksEverythingElse(t *testing.T) {
 	if err := h.svc.settings.SetOverrides(map[string]string{"mfa_required_roles": "owner,admin"}); err != nil {
 		t.Fatal(err)
 	}
-	setupTok, _ := h.svc.identity.EnsureSetupToken(h.ctx(), false)
-	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": setupTok, "name": "O", "email": "o@example.com", "password": ownerPassword}})
-	token := r.data()["session_token"].(string)
+	token := h.ownerSession("o@example.com", "O")
 
-	r = h.do(call{method: "GET", path: "/api/v1/me", token: token})
+	r := h.do(call{method: "GET", path: "/api/v1/me", token: token})
 	h.expect(r, 200, "")
 	if r.data()["mfa_required"] != true {
 		t.Fatal("owner without 2FA must be flagged")

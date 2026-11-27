@@ -1,17 +1,22 @@
 package app
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/database"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/logger"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
@@ -56,6 +61,20 @@ func RunMigrate(ctx context.Context) error {
 		// Not fatal: prices can be imported or entered in the panel.
 		log.Error("could not store the seed AI prices", "err", err)
 	}
+	// Without a platform admin, a one-time link creates the first one.
+	token, err := identity.IssueBootstrapToken(ctx, db.New(pool), time.Now())
+	if err != nil {
+		return reportFatal(log, err)
+	}
+	if token != "" {
+		hosts := tenant.NewHosts(cfg.PublicAppURL, cfg.TenantBaseDomain)
+		if admin := hosts.AdminURL(); admin != "" {
+			log.Warn("No platform admin yet. Open this link to create one (valid 24 hours, single use), or run `messora admin create`",
+				"bootstrap_url", admin+"/bootstrap?token="+token)
+		} else {
+			log.Warn("No platform admin yet and TENANT_BASE_DOMAIN is not set: run `messora admin create --email …`")
+		}
+	}
 	return nil
 }
 
@@ -81,9 +100,34 @@ func RunInit(_ context.Context) error {
 	return nil
 }
 
-// RunSetupToken prints a fresh one-time setup link (replacing any previous
-// one) while no user exists: `docker compose exec messora-api messora setup token`.
-func RunSetupToken(ctx context.Context) error {
+// RunAdminCreate makes an account a platform admin:
+//
+//	messora admin create --email ops@example.com [--name "Ops"] [--password-stdin]
+//
+// A new account needs a password: from stdin with --password-stdin, else
+// MESSORA_ADMIN_PASSWORD. An existing account is promoted (and gets the
+// password when one is given). Two-factor authentication is set up at the
+// first sign-in on the admin host.
+func RunAdminCreate(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("admin create", flag.ContinueOnError)
+	email := fs.String("email", "", "e-mail address of the admin (required)")
+	name := fs.String("name", "", "display name (new accounts)")
+	fromStdin := fs.Bool("password-stdin", false, "read the password from standard input")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *email == "" {
+		fs.Usage()
+		return errors.New("--email is required")
+	}
+	password := os.Getenv("MESSORA_ADMIN_PASSWORD")
+	if *fromStdin {
+		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil && line == "" {
+			return fmt.Errorf("read password: %w", err)
+		}
+		password = strings.TrimRight(line, "\r\n")
+	}
 	cfg, log, err := bootstrap(config.RoleAPI)
 	if err != nil {
 		return reportFatal(log, err)
@@ -102,19 +146,16 @@ func RunSetupToken(ctx context.Context) error {
 	if err != nil {
 		return reportFatal(log, err)
 	}
-	// TODO(WP2): the platform admin opens tenants; until then setup links
-	// are for tenant #1.
-	ctx = tenant.WithID(ctx, tenant.DefaultID)
-	token, err := svc.identity.EnsureSetupToken(ctx, true)
+	_, created, err := svc.identity.CreatePlatformAdmin(ctx, *email, *name, password)
 	if err != nil {
-		return reportFatal(log, err)
+		fmt.Fprintln(os.Stderr, "messora admin create:", err)
+		return err
 	}
-	if token == "" {
-		fmt.Println("Setup is already complete; sign in or ask an owner for an invitation.")
-		return nil
+	what := "promoted to platform admin"
+	if created {
+		what = "created as platform admin"
 	}
-	fmt.Println("Open this link to create the owner account (valid 24 hours, single use):")
-	fmt.Println(svc.identity.SetupURL(token))
+	fmt.Printf("%s %s. Sign in at %s (two-factor authentication is set up at the first sign-in).\n", *email, what, svc.hosts.AdminURL())
 	return nil
 }
 

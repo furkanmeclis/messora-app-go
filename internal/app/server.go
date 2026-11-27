@@ -29,6 +29,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ops"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/platform"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
@@ -64,6 +65,7 @@ type (
 	consentHandler    = consent.Handler
 	aiHandler         = ai.Handler
 	opsHandler        = ops.Handler
+	platformHandler   = platform.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -85,12 +87,14 @@ type apiServer struct {
 	*consentHandler
 	*aiHandler
 	*opsHandler
+	*platformHandler
 }
 
 var _ api.ServerInterface = apiServer{}
 
 // mfaEnrolmentOps are reachable while a mandatory second factor is not set up.
-var mfaEnrolmentOps = []string{"getMe", "logout", "reauthenticate", "startTotpSetup", "confirmTotp", "getAuthCapabilities"}
+var mfaEnrolmentOps = []string{"getMe", "logout", "reauthenticate", "startTotpSetup", "confirmTotp", "getAuthCapabilities",
+	"getPlatformMe", "platformLogout", "startPlatformTotpSetup", "confirmPlatformTotp"}
 
 // services holds what the API and CLI commands need.
 type services struct {
@@ -112,6 +116,9 @@ type services struct {
 	stores     *storage.Stores
 	// tenants maps request hosts to tenants (tenant_domains).
 	tenants *tenant.Resolver
+	// hosts are the platform's own addresses (base domain, admin host).
+	hosts    tenant.Hosts
+	platform *platform.Service
 }
 
 // openStorage opens the object store the configuration selects.
@@ -157,7 +164,12 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 		}
 		mail = mailSettings
 	}
-	idsvc := identity.New(pool, rdb, sealer, st, mail, identity.Options{PublicAppURL: cfg.PublicAppURL, Logger: log, Argon2: argon})
+	hosts := tenant.NewHosts(cfg.PublicAppURL, cfg.TenantBaseDomain)
+	resolver := tenant.NewResolver(pool, 15*time.Second)
+	idsvc := identity.New(pool, rdb, sealer, st, mail, identity.Options{PublicAppURL: cfg.PublicAppURL, Hosts: hosts, Logger: log, Argon2: argon,
+		InvalidateHosts: resolver.Invalidate})
+	plat := platform.New(pool, idsvc, platform.Options{Hosts: hosts, Invalidate: resolver.Invalidate, Logger: log,
+		Sender: platform.Sender{Configured: cfg.SMTP.Host != "", From: cfg.SMTP.From, Host: cfg.SMTP.Host}})
 	wa, err := whatsapp.New(whatsapp.Options{BaseURL: cfg.Meta.GraphBaseURL, Version: cfg.Meta.GraphVersion, DryRun: cfg.Meta.DryRun})
 	if err != nil {
 		return nil, err
@@ -224,7 +236,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	auto.SetFieldWriter(inbox)
 	return &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
-		automation: auto, stores: stores, tenants: tenant.NewResolver(pool, 15*time.Second)}, nil
+		automation: auto, stores: stores, tenants: resolver, hosts: hosts, platform: plat}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -251,12 +263,14 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		return err
 	}
 	sh := settings.NewHandler(pool, svc.settings, svc.mail, svc.stores, log)
+	ch := channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log)
+	aih := ai.NewHandler(svc.ai, log)
 	srv := apiServer{
 		identityHandler:   identity.NewHandler(svc.identity, log),
 		settingsHandler:   sh,
 		auditHandler:      audit.NewHandler(svc.queries, log),
 		systemHandler:     sys,
-		channelsHandler:   channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log),
+		channelsHandler:   ch,
 		messagesHandler:   messaging.NewHandler(svc.messaging, log),
 		contactsHandler:   contacts.NewHandler(svc.contacts, log),
 		campaignHandler:   campaigns.NewHandler(svc.campaigns, log),
@@ -266,7 +280,8 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		automationHandler: automation.NewHandler(svc.automation, log),
 		consentHandler:    consent.NewHandler(pool, log),
 		offersHandler:     offers.NewHandler(svc.offers, log),
-		aiHandler:         ai.NewHandler(svc.ai, log),
+		aiHandler:         aih,
+		platformHandler:   platform.NewHandler(svc.platform, ch.ListMetaRates, aih.ListAIPrices, log),
 		opsHandler: ops.NewHandler(ops.New(pool, ops.Deps{Campaigns: svc.campaigns, FailedJobs: sys.FailedJobsTotal,
 			Budget: svc.ai.BudgetStatus}), log),
 	}
@@ -287,7 +302,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	r.Handle("/media/*", svc.stores.Handler())
 	// Everything below runs as the tenant of the request's host (unknown
 	// hosts get 404, suspended tenants 403).
-	byHost := tenant.Middleware(svc.tenants, log)
+	byHost := tenant.Middleware(svc.tenants, svc.hosts, log)
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.With(byHost).Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
 	r.Group(func(g chi.Router) {

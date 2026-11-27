@@ -11,30 +11,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pquerna/otp/totp"
-
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
-// setupOwnerAs completes the setup of the harness's tenant with an owner of
-// the given e-mail (e-mail addresses are unique across tenants until WP2)
+// setupOwnerAs makes email the owner of the harness's tenant (with TOTP)
 // and returns the session.
 func (h *harness) setupOwnerAs(email string) string {
 	h.t.Helper()
-	setupTok, err := h.svc.identity.EnsureSetupToken(h.ctx(), false)
-	if err != nil || setupTok == "" {
-		h.t.Fatalf("setup token: %q %v", setupTok, err)
-	}
-	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{
-		"token": setupTok, "name": "Owner " + h.host, "email": email, "password": ownerPassword}})
-	h.expect(r, 201, "")
-	token := r.data()["session_token"].(string)
-	r = h.do(call{method: "POST", path: "/api/v1/me/mfa/totp", token: token})
-	h.expect(r, 200, "")
-	code, _ := totp.GenerateCode(r.data()["secret"].(string), time.Now())
-	h.expect(h.do(call{method: "POST", path: "/api/v1/me/mfa/totp/confirm", token: token, body: map[string]any{"code": code}}), 200, "")
+	token := h.ownerSession(email, "Owner "+h.host)
+	h.enrolTOTP(token)
 	return token
 }
 
@@ -281,7 +268,7 @@ func TestTenantIsolationMatrix(t *testing.T) {
 	}
 
 	// Unknown hosts and suspended tenants.
-	if code, errCode := h.rawAt("nobody.messora.test", "GET", "/api/v1/setup/status", "", true); code != 404 || errCode != "TENANT_NOT_FOUND" {
+	if code, errCode := h.rawAt("nobody.messora.test", "GET", "/api/v1/me", "", true); code != 404 || errCode != "TENANT_NOT_FOUND" {
 		t.Errorf("unknown host: %d %s", code, errCode)
 	}
 	if _, err := h.owner.Exec(context.Background(), "UPDATE tenants SET status = 'suspended' WHERE id = $1", hb.tenantID); err != nil {

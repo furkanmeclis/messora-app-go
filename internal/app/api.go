@@ -68,11 +68,9 @@ func RunAPI(ctx context.Context) error {
 		return reportFatal(log, err)
 	}
 
-	// Start-up work of tenant #1: its setup link and the WhatsApp account
-	// from META_* settings. TODO(WP2): the platform admin opens tenants and
-	// connects their accounts.
+	// Start-up work of tenant #1: the WhatsApp account from META_*
+	// settings (other companies connect theirs in the panel).
 	first := tenant.WithID(ctx, tenant.DefaultID)
-	announceSetup(first, svc, log)
 	if err := svc.channels.EnsureFromEnv(first, cfg.Meta.WABAID, cfg.Meta.AccessToken.Reveal(), cfg.Meta.AppID, cfg.Meta.AppSecret.Reveal()); err != nil {
 		// Not fatal: the account can be connected from the panel.
 		log.Error("could not connect the WhatsApp account from META_* settings", "err", err)
@@ -100,21 +98,4 @@ func RunAPI(ctx context.Context) error {
 	flushTracing()
 	log.Info("stopped")
 	return nil
-}
-
-// announceSetup logs the one-time setup link while no user exists. Only the
-// replica that creates the token logs it.
-func announceSetup(ctx context.Context, svc *services, log interface {
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-}) {
-	token, err := svc.identity.EnsureSetupToken(ctx, false)
-	if err != nil {
-		log.Error("could not prepare the setup token", "err", err)
-		return
-	}
-	if token != "" {
-		log.Warn("Messora is not set up yet. Open this link to create the owner account (valid 24 hours, single use)",
-			"setup_url", svc.identity.SetupURL(token))
-	}
 }
