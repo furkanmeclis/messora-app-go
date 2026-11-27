@@ -66,7 +66,86 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 - **Meta bağlantı yöntemleri** (bölüm 3.3) ve platform genel ayarları: e-posta, varsayılan AI fiyat tablosu, Meta fiyat kartı.
 - **İzleme:** firma bazında kullanım (mesaj, AI, depolama), hatalı işler, Meta hesap uyarıları.
 
-## 5. Kabul kriterleri (taslak)
+## 5. Teknik analiz (2026-11-27)
+
+### 5.1 Mevcut durum
+- **Tablolar:** 63 tablo var.
+  - ~50'si kiracıya ait.
+  - Platform genelinde kalacaklar: `permissions`, `roles`, `role_permissions`, `meta_rates`, `meta_rate_markets`, `ai_model_prices`, `users`.
+  - Yeni tablolar: `tenants`, `tenant_domains`, `tenant_memberships`, `platform_settings`, `platform_admins`, `platform_audit_logs`, `meta_routes`.
+- **Kiracı bazına çevrilecek global tekil kısıtlar:**
+  - `settings.key` (birincil anahtar)
+  - `contacts.phone_e164`
+  - etiket, grup ve segment adları
+  - `phone_numbers` varsayılan numara
+  - `ai_providers.name`
+  - `messages.wamid`
+  - `webhook_events.payload_sha256`
+  - `meta_user_preferences`
+  - açık davet e-postası
+- **Global kalacak tekiller (yönlendirme için):** `waba_id`, `phone_number_id`, anahtar ve token hash'leri.
+- **Veritabanı erişimi:**
+  - 18 servis, ~257 havuz çağrısı, 443 sqlc sorgusu.
+  - Uygulama tablo sahibi rolüyle bağlanıyor, yani RLS bugün kendiliğinden atlanır.
+- **Arka plan:**
+  - 30 asynq task tipi ve 15 zamanlanmış iş var; payload'larda kiracı bilgisi yok.
+  - Zamanlanmış işlerin çoğu bütün veriyi tarıyor.
+- **Realtime:** `inbox:all`, `campaign:all`, `system:ops` gibi global kanallar kiracılar arasında sızar.
+- **Bellek önbellekleri kiracıya göre ayrılmalı:** settings, consent, kampanya analitiği, SMTP; frontend'de appearance önbelleği.
+- **Gelen Meta webhook'u:** tek `META_VERIFY_TOKEN` kullanılıyor. İmza, bütün hesapların sırlarıyla sırayla deneniyor; bu, çok kiracılıda **firmalar arası sahte olay** riski demek.
+- **Silinecek kod:**
+  - Lisans: ~2,5k satır Go, Cloudflare Worker, R2 yayın işi, kurulum dosyası araçları, ilgili dokümanlar.
+  - Tema: ~1,5k satır.
+  - PWA: ~0,6k satır.
+  - Masaüstü modu, kaldırılırsa: ~1,3k satır.
+- **Dağıtım:**
+  - Caddy tek adresli.
+  - Gerekecekler: `*.messora.tech` için DNS-01 wildcard sertifika, özel alan adları için on-demand TLS (`ask` uç noktası) ve `X-Forwarded-Host`.
+  - Centrifugo `allowed_origins` çoklu origin'e açılmalı.
+- **Testler:** `newHarness` 27 dosyada, 127 kez kullanılıyor ve tek kiracı varsayıyor. E2E alt alan adlarına (`*.localhost`) taşınmalı.
+
+### 5.2 Mimari kararlar (öneri)
+- **RLS yöntemi:**
+  - Uygulama ayrı, sahibi olmayan bir rolle bağlanır.
+  - Tablolarda `FORCE ROW LEVEL SECURITY` açılır.
+  - Havuzdan her bağlantı alınırken `set_config('app.tenant_id', …)` çalışır, bırakılırken sıfırlanır.
+  - Kiracı bağlamı yoksa erişim reddedilir (fail-closed).
+  - Ek savunma olarak sorgularda açık `tenant_id` filtresi bulunur.
+  - Outbox aktarıcısı, zamanlanmış işlerin dağıtıcısı ve talep eden sorgular ayrı bir `messora_system` (BYPASSRLS) rolüyle çalışır.
+- **Kullanıcılar global:** üyelikler `tenant_memberships` (rol + durum) üzerinden tutulur; oturum tek bir kiracıya bağlıdır. Bir kişi birden çok firmada olabilir.
+- **Kiracı çözümü:** istek alan adından çözülür. BFF, alan adını güvenli bir başlıkla Go'ya iletir. Oturum ya da API anahtarı başka bir kiracıya aitse istek 401 alır.
+- **Kuyruk işleri:** kiracı bilgisi outbox üzerinden task başlığına taşınır ve bir ara katman bağlamı kurar. Zamanlanmış işler kiracı başına dağıtılır.
+- **Adillik:** kiracı başına eşzamanlılık sınırı uygulanır (webhook teslimi, kampanya dağıtımı).
+- **Meta webhook'u:** imza yalnızca o kiracının sırrıyla doğrulanır. Tech Provider olayları platform kutusuna düşer, `meta_routes` üzerinden kiracıya aktarılır.
+- **Trigger'lar:** outbox'a ve diğer tablolara yazan trigger'lar `NEW.tenant_id`'yi kopyalar.
+- **Mevcut veri:** 1 numaralı kiracıya taşınır. `tenant_id` önce boş eklenir, toplu doldurulur, sonra `NOT NULL` yapılır. Bunun bir runbook'u ve geri dönüş testi olur.
+
+### 5.3 Riskler
+| Risk | Azaltma |
+|---|---|
+| Unutulan kiracı filtresi / RLS'in atlanması | Sahip olmayan rol + FORCE RLS; bağlamsız erişimin reddi; CI'da "her tablo RLS'li" kontrolü; firmalar arası test matrisi |
+| Havuzdaki bağlantıda eski kiracının kalması | Her alımda ayarlama, bırakılırken sıfırlama |
+| Bağlamsız worker ve zamanlanmış işler | Task başlığı + ara katman; eksikse işi durdur; sistem rolü yalnızca dar yollarda |
+| Firmalar arası sahte webhook | Kiracıya özel doğrulama; Tech Provider'da yalnızca `meta_routes` |
+| Global önbellekler ve kanallar | Kiracı anahtarlı önbellekler; kanal adlarında kiracı öneki; Authorize'da kiracı kontrolü |
+| Gürültülü komşu | Kiracı başına hız ve eşzamanlılık sınırları |
+| On-demand TLS kötüye kullanımı | `ask` yalnızca doğrulanmış alan adlarına evet der |
+| Büyük tablolarda migrasyon kilidi | Boş sütun + toplu doldurma + `NOT VALID`/`VALIDATE` |
+
+### 5.4 İş paketleri
+| # | Paket | Boyut | Bağımlılık |
+|---|---|---|---|
+| WP0 | Temizlik: lisans, tema, PWA (masaüstü modu kararına göre) | M | — |
+| WP1 | Kiracı temeli: tablolar, `tenant_id`, kiracı bazlı tekiller, RLS, roller, havuz kancası, alan adı çözümü, trigger düzeltmeleri, mevcut verinin 1 numaralı kiracıya taşınması | L | WP0 |
+| WP2 | Kimlik ve platform yönetici paneli: global kullanıcı + üyelik, alan adına bağlı oturum ve anahtar, kiracı adresli e-posta bağlantıları, kurulum sihirbazı yerine platform yöneticisi açılışı, firmalar, alan adları, askıya alma, destek erişimi | L | WP1 |
+| WP3 | Arka plan, realtime, Redis ve önbellekler: kiracı bilgisinin taşınması, kanallar, adillik, medya yolları | M–L | WP1 (WP2 ile paralel) |
+| WP4 | Firma başına API, webhook ve doküman; plan bazlı kotalar | M | WP2, WP3 |
+| WP5 | Firmanın kendi Meta uygulaması: kiracıya özel webhook adresi, doğrulama ve sırlar | M | WP1, WP3 |
+| WP6 | Tech Provider / Embedded Signup (anahtarla kapalı, sahte Meta ile) | M–L | WP5 |
+| WP7 | Dağıtım: wildcard + on-demand TLS, alan adı iletimi, Centrifugo origin'leri, alt alan adında E2E | M | WP2 (erken başlayabilir) |
+| — | Abonelik, plan ve kredi | L | WP2, WP4 — sonra |
+
+## 6. Kabul kriterleri (taslak)
 1. İki firmanın verisi hiçbir API, olay, dışa aktarma, kuyruk işi ya da realtime kanalında birbirine görünmez. RLS ve uygulama katmanı testlerle doğrulanır; bir firmanın anahtarıyla diğerinin adresine yapılan istek reddedilir.
 2. Her firma kendi adresinden API'ye erişir, kendi webhook'larını alır; firmaya özel gelen Meta webhook'u doğru firmaya işlenir.
 3. Tech Provider kapalıyken hiçbir arayüzde görünmez. Açılınca Embedded Signup akışı mock Meta ile uçtan uca çalışır.
@@ -74,10 +153,10 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 5. Lisans modu kapalıdır; lisans olmadan da hiçbir özellik kısıtlı moda düşmez.
 6. Firma oluşturma, askıya alma ve alan adı ekleme platform panelinden yapılır ve denetim kaydına yazılır.
 
-## 6. Durum
+## 7. Durum
 
 | İş | Durum |
 |---|---|
-| Teknik analiz ve iş paketleri | bekliyor (onaylı başlangıç) |
+| Teknik analiz ve iş paketleri | ✅ tamamlandı (2026-11-27) — onay bekliyor |
 | Marka kimliği (kanvas) | taslak 1 — geri bildirim bekliyor |
 | Abonelik tasarımı (kanvas) | taslak — öncelik sonra |
