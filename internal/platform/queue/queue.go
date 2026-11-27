@@ -136,8 +136,12 @@ func NewInspector(rdb goredis.UniversalClient) *asynq.Inspector {
 // budget (PolicyFor); later options override both. A duplicate TaskID is
 // reported as ErrDuplicate so callers can treat it as success.
 func Enqueue(ctx context.Context, c *asynq.Client, taskType string, payload []byte, opts ...asynq.Option) error {
-	opts = append([]asynq.Option{asynq.Queue(RouteTask(taskType, payload)), asynq.MaxRetry(PolicyFor(taskType).MaxRetry)}, opts...)
-	_, err := c.EnqueueContext(ctx, asynq.NewTask(taskType, payload), opts...)
+	return enqueue(ctx, c, asynq.NewTask(taskType, payload), opts...)
+}
+
+func enqueue(ctx context.Context, c *asynq.Client, t *asynq.Task, opts ...asynq.Option) error {
+	opts = append([]asynq.Option{asynq.Queue(RouteTask(t.Type(), t.Payload())), asynq.MaxRetry(PolicyFor(t.Type()).MaxRetry)}, opts...)
+	_, err := c.EnqueueContext(ctx, t, opts...)
 	if errors.Is(err, asynq.ErrTaskIDConflict) || errors.Is(err, asynq.ErrDuplicateTask) {
 		return ErrDuplicate
 	}
@@ -271,7 +275,7 @@ func NewServer(rdb goredis.UniversalClient, o ServerOptions) *asynq.Server {
 			}
 			log.Log(ctx, level, "task failed", "task_type", t.Type(), "job_id", id, "retry", retried, "max_retry", maxRetry, "err", err)
 			if archived && o.OnArchived != nil {
-				o.OnArchived(ctx, t.Type())
+				o.OnArchived(TaskContext(ctx, t), t.Type())
 			}
 		}),
 	})

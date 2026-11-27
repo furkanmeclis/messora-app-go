@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,12 +18,14 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/database"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/testutil"
 )
 
 func TestOutboxIsTransactionalAndIdempotent(t *testing.T) {
-	ctx := context.Background()
-	pool := testutil.MigratedPostgres(t)
+	ctx := tenant.WithID(context.Background(), tenant.DefaultID)
+	db := testutil.TenantDB(t)
+	pool := db.App
 	rdb := testutil.Redis(t)
 	client := queue.NewClient(rdb)
 	defer client.Close()
@@ -31,7 +34,7 @@ func TestOutboxIsTransactionalAndIdempotent(t *testing.T) {
 
 	router := outbox.NewRouter()
 	router.Handle(outbox.TaskTopicPrefix, outbox.TaskPublisher(client))
-	relay := outbox.NewRelay(pool, router, outbox.RelayOptions{Logger: testutil.DiscardLogger(), Registerer: prometheus.NewRegistry()})
+	relay := outbox.NewRelay(db.System, router, outbox.RelayOptions{Logger: testutil.DiscardLogger(), Registerer: prometheus.NewRegistry()})
 
 	// Rolled-back transaction: the event must never exist.
 	rollback := errors.New("business failure")
@@ -68,6 +71,10 @@ func TestOutboxIsTransactionalAndIdempotent(t *testing.T) {
 	if err := json.Unmarshal(info.Payload, &payload); err != nil || payload["k"] != "v" || info.Type != queue.TypeOutboxCleanup {
 		t.Fatalf("unexpected task %s %s", info.Type, info.Payload)
 	}
+	// The task carries the writer's tenant.
+	if info.Headers[queue.TenantHeader] != tenant.DefaultID.String() {
+		t.Fatalf("task headers %v, want the tenant", info.Headers)
+	}
 
 	var published *time.Time
 	if err := pool.QueryRow(ctx, "SELECT published_at FROM outbox_events WHERE id=$1", id).Scan(&published); err != nil || published == nil {
@@ -89,9 +96,10 @@ func TestOutboxIsTransactionalAndIdempotent(t *testing.T) {
 }
 
 func TestOutboxUnknownTopicIsRetriedNotDropped(t *testing.T) {
-	ctx := context.Background()
-	pool := testutil.MigratedPostgres(t)
-	relay := outbox.NewRelay(pool, outbox.NewRouter(), outbox.RelayOptions{Logger: testutil.DiscardLogger()})
+	ctx := tenant.WithID(context.Background(), tenant.DefaultID)
+	db := testutil.TenantDB(t)
+	pool := db.App
+	relay := outbox.NewRelay(db.System, outbox.NewRouter(), outbox.RelayOptions{Logger: testutil.DiscardLogger()})
 
 	id, err := outbox.Write(ctx, pool, "realtime:campaign.updated", map[string]int{"x": 1}, 0)
 	if err != nil {
@@ -117,18 +125,22 @@ func TestOutboxUnknownTopicIsRetriedNotDropped(t *testing.T) {
 }
 
 func TestRelayRunWakesOnNotify(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(tenant.WithID(context.Background(), tenant.DefaultID))
 	defer cancel()
-	pool := testutil.MigratedPostgres(t)
+	db := testutil.TenantDB(t)
+	pool := db.App
 
 	got := make(chan int64, 1)
 	router := outbox.NewRouter()
 	router.Handle("test:", outbox.PublisherFunc(func(_ context.Context, e outbox.Event) error {
+		if e.TenantID != tenant.DefaultID {
+			t.Errorf("event tenant %s", e.TenantID)
+		}
 		got <- e.ID
 		return nil
 	}))
 	// A long poll interval proves delivery came from LISTEN/NOTIFY.
-	relay := outbox.NewRelay(pool, router, outbox.RelayOptions{Logger: testutil.DiscardLogger(), PollInterval: time.Minute})
+	relay := outbox.NewRelay(db.System, router, outbox.RelayOptions{Logger: testutil.DiscardLogger(), PollInterval: time.Minute})
 	go func() { _ = relay.Run(ctx) }()
 	time.Sleep(500 * time.Millisecond) // let LISTEN register
 
@@ -152,7 +164,8 @@ func TestRelayRunWakesOnNotify(t *testing.T) {
 
 func TestCleanupDeletesOnlyOldPublished(t *testing.T) {
 	ctx := context.Background()
-	pool := testutil.MigratedPostgres(t)
+	db := testutil.TenantDB(t)
+	pool := db.Owner
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO outbox_events (topic, published_at) VALUES
 		  ('t', now() - interval '8 days'),
@@ -160,7 +173,7 @@ func TestCleanupDeletesOnlyOldPublished(t *testing.T) {
 		  ('t', NULL)`); err != nil {
 		t.Fatal(err)
 	}
-	h := outbox.CleanupHandler(pool, 7*24*time.Hour, testutil.DiscardLogger())
+	h := outbox.CleanupHandler(db.System, 7*24*time.Hour, testutil.DiscardLogger())
 	if err := h.ProcessTask(ctx, asynq.NewTask(queue.TypeOutboxCleanup, nil)); err != nil {
 		t.Fatal(err)
 	}
@@ -168,5 +181,33 @@ func TestCleanupDeletesOnlyOldPublished(t *testing.T) {
 	_ = pool.QueryRow(ctx, "SELECT count(*) FROM outbox_events").Scan(&left)
 	if left != 2 {
 		t.Fatalf("left %d rows, want 2 (recent published + unpublished)", left)
+	}
+}
+
+// The application role cannot write an event of another tenant, nor one
+// without a tenant, and sees only its own tenant's events.
+func TestOutboxIsTenantScoped(t *testing.T) {
+	db := testutil.TenantDB(t)
+	var other uuid.UUID
+	if err := db.Owner.QueryRow(context.Background(), `INSERT INTO tenants (slug, name) VALUES ('other', 'Other') RETURNING id`).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	a := tenant.WithID(context.Background(), tenant.DefaultID)
+	b := tenant.WithID(context.Background(), other)
+	if _, err := outbox.Write(a, db.App, "test:a", nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := outbox.Write(context.Background(), db.App, "test:none", nil, 0); !errors.Is(err, tenant.ErrNoTenant) {
+		t.Fatalf("write without a tenant: %v", err)
+	}
+	if _, err := outbox.Write(tenant.System(context.Background()), db.App, "test:none", nil, 0); err == nil {
+		t.Fatal("the app role wrote an event without a tenant")
+	}
+	var n int
+	if err := db.App.QueryRow(b, "SELECT count(*) FROM outbox_events").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("tenant B sees %d events of A (%v)", n, err)
+	}
+	if _, err := db.App.Exec(b, "INSERT INTO outbox_events (tenant_id, topic) VALUES ($1, 'test:forged')", tenant.DefaultID); err == nil {
+		t.Fatal("tenant B wrote an event as tenant A")
 	}
 }

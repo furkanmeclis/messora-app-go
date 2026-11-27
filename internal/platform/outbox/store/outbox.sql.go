@@ -12,7 +12,7 @@ import (
 )
 
 const claimOutboxBatch = `-- name: ClaimOutboxBatch :many
-SELECT id, topic, payload, attempts
+SELECT id, tenant_id, topic, payload, attempts
 FROM outbox_events
 WHERE published_at IS NULL
   AND available_at <= now()
@@ -23,6 +23,7 @@ FOR UPDATE SKIP LOCKED
 
 type ClaimOutboxBatchRow struct {
 	ID       int64
+	TenantID pgtype.UUID
 	Topic    string
 	Payload  []byte
 	Attempts int32
@@ -41,6 +42,7 @@ func (q *Queries) ClaimOutboxBatch(ctx context.Context, batchSize int32) ([]Clai
 		var i ClaimOutboxBatchRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.TenantID,
 			&i.Topic,
 			&i.Payload,
 			&i.Attempts,
@@ -90,12 +92,13 @@ func (q *Queries) DeletePublishedOutboxBefore(ctx context.Context, arg DeletePub
 }
 
 const insertOutboxEvent = `-- name: InsertOutboxEvent :one
-INSERT INTO outbox_events (topic, payload, available_at)
-VALUES ($1, $2, now() + make_interval(secs => $3::double precision))
+INSERT INTO outbox_events (tenant_id, topic, payload, available_at)
+VALUES ($1::uuid, $2, $3, now() + make_interval(secs => $4::double precision))
 RETURNING id
 `
 
 type InsertOutboxEventParams struct {
+	TenantID     pgtype.UUID
 	Topic        string
 	Payload      []byte
 	DelaySeconds float64
@@ -103,8 +106,14 @@ type InsertOutboxEventParams struct {
 
 // The database clock is the only clock: delays are relative to now() so
 // skew between application hosts and PostgreSQL cannot hide events.
+// tenant_id is the writer's tenant; row-level security rejects any other.
 func (q *Queries) InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (int64, error) {
-	row := q.db.QueryRow(ctx, insertOutboxEvent, arg.Topic, arg.Payload, arg.DelaySeconds)
+	row := q.db.QueryRow(ctx, insertOutboxEvent,
+		arg.TenantID,
+		arg.Topic,
+		arg.Payload,
+		arg.DelaySeconds,
+	)
 	var id int64
 	err := row.Scan(&id)
 	return id, err

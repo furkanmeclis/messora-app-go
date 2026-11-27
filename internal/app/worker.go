@@ -43,11 +43,17 @@ func RunWorker(ctx context.Context) error {
 	if err != nil {
 		return reportFatal(log, err)
 	}
-	pool, err := openPostgres(ctx, cfg, config.RoleWorker, log)
+	pool, err := openAppPool(ctx, cfg, config.RoleWorker, log)
 	if err != nil {
 		return reportFatal(log, err)
 	}
 	defer pool.Close()
+	// The outbox relay and the outbox cleanup cover every tenant.
+	sysPool, err := openSystemPool(ctx, cfg, config.RoleWorker, log)
+	if err != nil {
+		return reportFatal(log, err)
+	}
+	defer sysPool.Close()
 	rdb, err := openRedis(ctx, cfg, log)
 	if err != nil {
 		return reportFatal(log, err)
@@ -70,7 +76,7 @@ func RunWorker(ctx context.Context) error {
 		return reportFatal(log, err)
 	}
 	router.Handle(realtime.TopicPrefix, realtime.Publisher(cf))
-	relay := outbox.NewRelay(pool, router, outbox.RelayOptions{Logger: log.With("component", "outbox"), Registerer: reg})
+	relay := outbox.NewRelay(sysPool, router, outbox.RelayOptions{Logger: log.With("component", "outbox"), Registerer: reg})
 
 	svc, err := newServices(cfg, pool, rdb, log)
 	if err != nil {
@@ -78,8 +84,9 @@ func RunWorker(ctx context.Context) error {
 	}
 
 	mux := asynq.NewServeMux()
-	mux.Use(taskMetrics.Middleware, tracing.TaskMiddleware)
-	mux.Handle(queue.TypeOutboxCleanup, outbox.CleanupHandler(pool, outboxRetention, log))
+	// Every handler runs as its task's tenant (queue.TenantMiddleware).
+	mux.Use(taskMetrics.Middleware, tracing.TaskMiddleware, queue.TenantMiddleware)
+	mux.Handle(queue.TypeOutboxCleanup, outbox.CleanupHandler(sysPool, outboxRetention, log))
 	mux.HandleFunc(queue.TypeIdentityCleanup, func(ctx context.Context, _ *asynq.Task) error {
 		sessions, keys, err := svc.identity.Cleanup(ctx)
 		if err == nil {
