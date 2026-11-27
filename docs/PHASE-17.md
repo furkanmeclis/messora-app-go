@@ -11,9 +11,10 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 - **Firma oluşturma:** ilk etapta platform yönetici panelinden. Self sign-up kanvastaki akışla sonra açılır.
 
 ### 1.2 Kaldırılanlar
-- **Firma bazında tema motoru kaldırılır.** Tüm firmalar Messora'nın tek, sabit görünümünü kullanır. Firma logosu yalnızca giriş ekranında ve e-postalarda gösterilir. Bu kararın netleşmesi bekleniyor; yalnızca logo mu kalacak, o da mı kalkacak?
+- **Firma bazında tema motoru kaldırılır.** Tüm firmalar Messora'nın tek, sabit görünümünü kullanır; **firma logosu kalır** (giriş ekranı, sol üst, e-postalar).
 - **PWA (uygulama olarak yükleme) kaldırılır:** manifest, service worker ve ayarlardaki PWA sekmesi.
-- **Masaüstü modu:** karar verilmedi. Teknik analizde sorulacak.
+- **Masaüstü modu tamamen kaldırılır.**
+- **Kullanıcılar global:** bir kişi tek hesapla birden çok firmada farklı rollerle bulunabilir (firma değiştirici).
 
 ### 1.3 Marka
 - Messora'nın kendi marka kimliği (logo, renk, tipografi, dil) kanvasın "Marka kimliği" sayfasında. Seçilen konsept panelin tek temasına uygulanır.
