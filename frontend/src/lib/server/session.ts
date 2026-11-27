@@ -28,12 +28,39 @@ export async function getSessionToken(): Promise<string | undefined> {
     return (await cookies()).get(names().session)?.value;
 }
 
-export async function setSessionToken(token: string, expiresAt: string) {
+/**
+ * Stores the session. Unless `persistent` ("keep me signed in"), the
+ * cookie has no expiry and the browser drops it when it closes; the API
+ * session still ends at `expiresAt` either way.
+ */
+export async function setSessionToken(
+    token: string,
+    expiresAt: string,
+    persistent = true,
+) {
     const n = names();
     (await cookies()).set(n.session, token, {
         ...base(n.secure),
-        expires: new Date(expiresAt),
+        ...(persistent ? { expires: new Date(expiresAt) } : {}),
     });
+}
+
+/** Remembers whether the pending sign-in asked to stay signed in. */
+const REMEMBER_COOKIE = 'messora_remember';
+
+export async function setRememberChoice(remember: boolean) {
+    const n = names();
+    (await cookies()).set(REMEMBER_COOKIE, remember ? '1' : '0', {
+        ...base(n.secure),
+        maxAge: 300,
+    });
+}
+
+export async function takeRememberChoice(): Promise<boolean> {
+    const jar = await cookies();
+    const v = jar.get(REMEMBER_COOKIE)?.value;
+    if (v !== undefined) jar.delete({ name: REMEMBER_COOKIE, path: '/' });
+    return v !== '0';
 }
 
 export async function clearSession() {

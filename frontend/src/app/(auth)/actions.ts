@@ -1,23 +1,47 @@
 'use server';
 
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { api } from '@/lib/server/api';
-import { field, runAction, safeNext } from '@/lib/server/actions';
+import { api, ApiError } from '@/lib/server/api';
+import { errorMessage, field, runAction, safeNext } from '@/lib/server/actions';
 import {
     clearMfaToken,
     getMfaToken,
     setMfaToken,
+    setRememberChoice,
     setSessionToken,
+    takeRememberChoice,
 } from '@/lib/server/session';
+import { serverConfig } from '@/lib/server/config';
+import { SIGNUP_EMAIL_COOKIE, signupEmail } from '@/lib/server/auth-context';
 import type { ActionResult, Me, Schemas } from '@/lib/types';
-import { getT } from '@/i18n/server';
+import { getLocale, getT, LOCALE_COOKIE } from '@/i18n/server';
+import { isLocale } from '@/i18n/config';
+import {
+    AUTH_ERROR_CODES,
+    type ResendVerificationRequest,
+    type SignupRequest,
+    type SignupResponse,
+    type SlugAvailability,
+    type SwitchWorkspaceResponse,
+    type VerifyEmailResponse,
+} from '@/lib/auth/contracts';
+import { PASSWORD_MIN } from '@/lib/auth/password-strength';
+import { validateSlug } from '@/lib/auth/slug';
 
 type SessionCreated = Schemas['SessionCreated'];
 type LoginResult = Schemas['LoginResult'];
 
-async function startSession(s: SessionCreated) {
-    await setSessionToken(s.session_token, s.expires_at);
+async function startSession(s: SessionCreated, persistent = true) {
+    await setSessionToken(s.session_token, s.expires_at, persistent);
     await clearMfaToken();
+}
+
+/** An endpoint the API does not have yet (phase 17 WP2). */
+function missing(err: unknown): boolean {
+    return (
+        err instanceof ApiError && (err.status === 404 || err.status === 405)
+    );
 }
 
 export async function loginAction(
@@ -25,6 +49,7 @@ export async function loginAction(
     form: FormData,
 ): Promise<ActionResult> {
     const next = safeNext(field(form, 'next'));
+    const remember = form.get('remember') === 'on';
     const res = await runAction(
         async () =>
             (
@@ -41,10 +66,11 @@ export async function loginAction(
     if (!res.ok) return res;
     if (res.data.status === 'mfa_required' && res.data.mfa_token) {
         await setMfaToken(res.data.mfa_token);
+        await setRememberChoice(remember);
         redirect(`/login/verify?next=${encodeURIComponent(next)}`);
     }
     if (res.data.session) {
-        await startSession(res.data.session);
+        await startSession(res.data.session, remember);
         await land(res.data.session.session_token);
     }
     redirect(next);
@@ -80,7 +106,7 @@ export async function verifyMfaAction(
         }
         return res;
     }
-    await startSession(res.data);
+    await startSession(res.data, await takeRememberChoice());
     redirect(safeNext(field(form, 'next')));
 }
 
@@ -135,16 +161,17 @@ export async function acceptInvitationAction(
 }
 
 export async function forgotPasswordAction(
-    _prev: ActionResult | null,
+    _prev: ActionResult<{ email: string }> | null,
     form: FormData,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ email: string }>> {
+    const email = field(form, 'email');
     return runAction(
         () =>
             api('/auth/password/forgot', {
                 method: 'POST',
                 auth: 'none',
-                body: { email: field(form, 'email') },
-            }).then(() => undefined),
+                body: { email },
+            }).then(() => ({ email })),
         (await getT())('auth.forgot.sent'),
     );
 }
@@ -165,6 +192,234 @@ export async function resetPasswordAction(
     );
     if (!res.ok) return res;
     redirect('/login?reset=1');
+}
+
+export async function signupAction(
+    _prev: ActionResult | null,
+    form: FormData,
+): Promise<ActionResult> {
+    const t = await getT();
+    const body: SignupRequest = {
+        name: field(form, 'name'),
+        email: field(form, 'email'),
+        password: String(form.get('password') ?? ''),
+        company_name: field(form, 'company_name'),
+        workspace_slug: field(form, 'workspace_slug').toLowerCase(),
+        locale: await getLocale(),
+        accept_terms: true,
+    };
+    // The form checks all of this first; this covers requests without it.
+    const fieldErrors: Record<string, string> = {};
+    for (const k of ['name', 'email', 'company_name'] as const) {
+        if (!body[k]) fieldErrors[k] = t('auth.validation.required');
+    }
+    if ([...body.password].length < PASSWORD_MIN) {
+        fieldErrors.password = t('auth.validation.passwordMin');
+    }
+    const slugError = validateSlug(body.workspace_slug);
+    if (slugError) fieldErrors.workspace_slug = t(`auth.slug.${slugError}`);
+    if (form.get('accept_terms') !== 'on') {
+        fieldErrors.accept_terms = t('auth.validation.terms');
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+        return {
+            ok: false,
+            code: 'VALIDATION_ERROR',
+            message: t('auth.validation.summary', {
+                count: Object.keys(fieldErrors).length,
+            }),
+            fieldErrors,
+        };
+    }
+
+    let created: SignupResponse;
+    try {
+        created = (
+            await api<SignupResponse>('/auth/signup', {
+                method: 'POST',
+                auth: 'none',
+                body,
+            })
+        ).data;
+    } catch (err) {
+        if (missing(err)) {
+            return {
+                ok: false,
+                code: AUTH_ERROR_CODES.signupUnavailable,
+                message: '',
+            };
+        }
+        const res = await runAction(() => Promise.reject(err));
+        if (res.ok) throw err;
+        if (res.code === AUTH_ERROR_CODES.slugTaken) {
+            res.fieldErrors = {
+                ...res.fieldErrors,
+                workspace_slug: t('auth.slug.taken'),
+            };
+        } else if (res.code === AUTH_ERROR_CODES.slugReserved) {
+            res.fieldErrors = {
+                ...res.fieldErrors,
+                workspace_slug: t('auth.slug.reserved'),
+            };
+        } else if (res.code === AUTH_ERROR_CODES.emailTaken) {
+            res.fieldErrors = { ...res.fieldErrors, email: res.message };
+        }
+        return res;
+    }
+    (await cookies()).set(SIGNUP_EMAIL_COOKIE, created.email || body.email, {
+        httpOnly: true,
+        secure: serverConfig().secureCookies,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24,
+    });
+    redirect('/verify-email/sent');
+}
+
+/**
+ * Whether a workspace address is free. `available: null` means the API
+ * cannot tell (not there yet, or unreachable); the form then says nothing.
+ */
+export async function checkSlugAction(
+    slug: string,
+): Promise<{ available: boolean | null; reason?: 'taken' | 'reserved' }> {
+    const s = String(slug ?? '').toLowerCase();
+    if (validateSlug(s)) return { available: null };
+    try {
+        const r = await api<SlugAvailability>(
+            `/auth/signup/slug-availability?slug=${encodeURIComponent(s)}`,
+            { auth: 'none', timeoutMs: 4000 },
+        );
+        return { available: r.data.available, reason: r.data.reason };
+    } catch {
+        return { available: null };
+    }
+}
+
+export type ResendState = {
+    status: 'sent' | 'error' | 'unavailable';
+    message?: string;
+    /** Seconds until the button works again. */
+    cooldown: number;
+    /** When the state was made, so the countdown restarts on each send. */
+    at: number;
+};
+
+const RESEND_COOLDOWN = 60;
+
+export async function resendVerificationAction(
+    _prev: ResendState | null,
+    form: FormData,
+): Promise<ResendState> {
+    const email = field(form, 'email') || (await signupEmail()) || '';
+    const at = Date.now();
+    if (!email) {
+        return {
+            status: 'error',
+            message: (await getT())('auth.validation.email'),
+            cooldown: 0,
+            at,
+        };
+    }
+    const body: ResendVerificationRequest = { email };
+    try {
+        await api('/auth/resend-verification', {
+            method: 'POST',
+            auth: 'none',
+            body,
+        });
+        return { status: 'sent', cooldown: RESEND_COOLDOWN, at };
+    } catch (err) {
+        if (missing(err)) return { status: 'unavailable', cooldown: 0, at };
+        if (!(err instanceof ApiError)) throw err;
+        return {
+            status: 'error',
+            message: await errorMessage(err),
+            cooldown:
+                err.status === 429 ? (err.retryAfter ?? RESEND_COOLDOWN) : 0,
+            at,
+        };
+    }
+}
+
+export type VerifyEmailState =
+    | { status: 'verified'; workspace: string | null; loginUrl: string }
+    | {
+          status: 'expired' | 'invalid' | 'already' | 'unavailable' | 'error';
+          message?: string;
+      };
+
+export async function verifyEmailAction(
+    _prev: VerifyEmailState | null,
+    form: FormData,
+): Promise<VerifyEmailState> {
+    const token = field(form, 'token');
+    if (!token) return { status: 'invalid' };
+    try {
+        const r = await api<VerifyEmailResponse>('/auth/verify-email', {
+            method: 'POST',
+            auth: 'none',
+            body: { token },
+        });
+        return {
+            status: 'verified',
+            workspace: r.data.tenant?.name ?? null,
+            loginUrl: safeLoginUrl(r.data.login_url),
+        };
+    } catch (err) {
+        if (missing(err)) return { status: 'unavailable' };
+        if (!(err instanceof ApiError)) throw err;
+        switch (err.code) {
+            case AUTH_ERROR_CODES.verificationExpired:
+                return { status: 'expired' };
+            case AUTH_ERROR_CODES.verificationInvalid:
+                return { status: 'invalid' };
+            case AUTH_ERROR_CODES.alreadyVerified:
+                return { status: 'already' };
+        }
+        return { status: 'error', message: await errorMessage(err) };
+    }
+}
+
+/** Only http(s) URLs leave the page; anything else signs in here. */
+function safeLoginUrl(raw: string | undefined): string {
+    if (!raw) return '/login?verified=1';
+    try {
+        const u = new URL(raw);
+        if (u.protocol === 'https:' || u.protocol === 'http:') return u.href;
+    } catch {
+        // Relative or malformed: fall through.
+    }
+    return safeNext(raw) === '/' ? '/login?verified=1' : safeNext(raw);
+}
+
+export async function switchWorkspaceAction(form: FormData): Promise<void> {
+    const tenantId = field(form, 'tenant_id');
+    const fallback = field(form, 'url');
+    let target = '/';
+    try {
+        const r = await api<SwitchWorkspaceResponse>('/auth/switch-workspace', {
+            method: 'POST',
+            body: { tenant_id: tenantId },
+        });
+        target = safeLoginUrl(r.data.redirect_url);
+    } catch (err) {
+        if (!missing(err)) throw err;
+        if (fallback) target = safeLoginUrl(fallback);
+    }
+    redirect(target);
+}
+
+/** The language switch on the sign-in screens. */
+export async function setLocaleAction(form: FormData): Promise<void> {
+    const locale = form.get('locale');
+    if (!isLocale(locale)) return;
+    (await cookies()).set(LOCALE_COOKIE, locale, {
+        sameSite: 'lax',
+        path: '/',
+        secure: serverConfig().secureCookies,
+        maxAge: 60 * 60 * 24 * 365,
+    });
 }
 
 /**
