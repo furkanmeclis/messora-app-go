@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-    AppWindow,
     Mail,
     MessageSquareOff,
     ReceiptText,
@@ -17,7 +16,6 @@ import { cn } from '@/lib/utils';
 
 const ICONS = {
     general: SlidersHorizontal,
-    pwa: AppWindow,
     email: Mail,
     consent: MessageSquareOff,
     protection: ShieldAlert,

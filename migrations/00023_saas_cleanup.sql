@@ -16,6 +16,9 @@ SET value = jsonb_set(value - 'theme', '{setup,steps}',
         COALESCE((value #> '{setup,steps}') - 'theme', '[]'::jsonb))
 WHERE key = 'workspace';
 
+-- The installable web app (manifest and service worker).
+UPDATE settings SET value = value - 'pwa' WHERE key = 'workspace';
+
 -- +goose Down
 -- The removed features have no code left to read their settings, so there
 -- is nothing to restore.

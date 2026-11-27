@@ -31,7 +31,6 @@ type Settings struct {
 	SessionLifetimeDays int      `json:"session_lifetime_days"`
 	Logo                *Logo    `json:"logo,omitempty"`
 	Setup               Setup    `json:"setup"`
-	PWA                 PWA      `json:"pwa"`
 
 	// Locked lists the fields set by environment variables (never stored).
 	Locked []string `json:"-"`
@@ -71,7 +70,6 @@ func Defaults() Settings {
 		SessionIdleHours:    12,
 		SessionLifetimeDays: 30,
 		Setup:               Setup{Steps: []string{}},
-		PWA:                 DefaultPWA(),
 	}
 }
 
@@ -87,7 +85,6 @@ type Patch struct {
 	SessionLifetimeDays *int
 	SetupSteps          *[]string
 	SetupCompleted      *bool
-	PWA                 *PWA
 }
 
 // fields names the patched fields (API names), for lock checks.
@@ -148,12 +145,6 @@ func (s Settings) Apply(p Patch) (Settings, error) {
 			return s, fmt.Errorf("%w: time format must be 24h or 12h", ErrInvalid)
 		}
 		s.TimeFormat = *p.TimeFormat
-	}
-	if p.PWA != nil {
-		if err := p.PWA.Validate(); err != nil {
-			return s, err
-		}
-		s.PWA = *p.PWA
 	}
 	if p.SetupSteps != nil {
 		steps := []string{}

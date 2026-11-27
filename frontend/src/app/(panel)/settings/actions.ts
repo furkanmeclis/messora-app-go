@@ -18,9 +18,7 @@ type Patch = Schemas['UpdateSettingsRequest'];
 export async function saveSettingsAction(
     patch: Patch,
     successKey:
-        | 'settings.general.saved'
-        | 'pwa.saved'
-        | 'common.saved' = 'settings.general.saved',
+        'settings.general.saved' | 'common.saved' = 'settings.general.saved',
 ): Promise<ActionResult<Settings>> {
     const t = await getT();
     const res = await runAction(

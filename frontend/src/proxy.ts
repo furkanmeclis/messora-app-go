@@ -14,8 +14,6 @@ const PUBLIC = [
     // The organisation logo appears on the sign-in page.
     '/bff/logo',
     '/bff/favicon',
-    '/bff/manifest',
-    '/offline.html',
 ];
 const SESSION_COOKIES = ['__Host-messora_session', 'messora_session'];
 

@@ -5,10 +5,9 @@ import { getAppearance } from '@/lib/server/appearance';
  * The browser tab icon: the organisation logo when one is uploaded,
  * otherwise Messora's mark in the panel's primary colour.
  */
-export async function GET(req: Request) {
+export async function GET() {
     const a = await getAppearance();
-    const brand = new URL(req.url).searchParams.has('brand');
-    if (a.logo && !brand) {
+    if (a.logo) {
         return new NextResponse(null, {
             status: 307,
             headers: {

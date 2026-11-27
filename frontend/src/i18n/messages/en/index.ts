@@ -13,7 +13,6 @@ import topbar from './topbar';
 import shortcuts from './shortcuts';
 import table from './table';
 import contextMenu from './contextMenu';
-import pwa from './pwa';
 import params from './params';
 import insights from './insights';
 import account from './account';
@@ -45,7 +44,6 @@ export const en = {
     shortcuts,
     table,
     contextMenu,
-    pwa,
     params,
     insights,
     account,
