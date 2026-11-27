@@ -124,8 +124,6 @@ const overview = {
             event: 'Meta: {kind} ({account})',
             budget: 'The monthly AI budget is used up ({spent} of {limit} USD); AI replies are paused.',
             budgetAction: 'AI usage',
-            license: 'Licence: {status}',
-            licenseAction: 'Licence',
         },
         campaigns: {
             title: 'Campaigns',

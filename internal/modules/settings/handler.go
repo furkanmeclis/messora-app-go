@@ -32,9 +32,6 @@ type Handler struct {
 	mail     *Mail
 	mediaDir string
 	log      *slog.Logger
-
-	// LicenseSummary adds the licence status to the public appearance.
-	LicenseSummary func(*http.Request) api.LicenseSummary
 }
 
 // NewHandler returns the settings handler. mail may be nil when e-mail is
@@ -104,8 +101,7 @@ func (h *Handler) GetAppearance(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, r, http.StatusOK, api.Appearance{OrganizationName: s.OrganizationName, DefaultLocale: api.Locale(s.DefaultLocale),
 		DefaultTimezone: s.DefaultTimezone, DateFormat: api.DateFormat(s.DateFormat), TimeFormat: api.TimeFormat(s.TimeFormat),
-		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), SetupCompleted: s.Setup.Completed, Pwa: pwaToAPI(s.PWA),
-		License: h.licenseSummary(r)})
+		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), SetupCompleted: s.Setup.Completed, Pwa: pwaToAPI(s.PWA)})
 }
 
 // GetSettings implements api.ServerInterface.
@@ -468,11 +464,4 @@ func inTx(ctx context.Context, pool *pgxpool.Pool, fn func(*db.Queries) error) e
 		return err
 	}
 	return tx.Commit(ctx)
-}
-
-func (h *Handler) licenseSummary(r *http.Request) api.LicenseSummary {
-	if h.LicenseSummary == nil {
-		return api.LicenseSummary{Status: api.LicenseStatusActive}
-	}
-	return h.LicenseSummary(r)
 }

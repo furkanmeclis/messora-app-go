@@ -16,7 +16,6 @@ import table from './table';
 import desktop from './desktop';
 import contextMenu from './contextMenu';
 import pwa from './pwa';
-import license from './license';
 import params from './params';
 import insights from './insights';
 import account from './account';
@@ -51,7 +50,6 @@ export const en = {
     desktop,
     contextMenu,
     pwa,
-    license,
     params,
     insights,
     account,

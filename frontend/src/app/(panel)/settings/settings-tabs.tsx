@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
     AppWindow,
-    KeyRound,
     Mail,
     MessageSquareOff,
     Palette,
@@ -25,7 +24,6 @@ const ICONS = {
     consent: MessageSquareOff,
     protection: ShieldAlert,
     security: ShieldCheck,
-    license: KeyRound,
     webhooks: Webhook,
     metaRates: ReceiptText,
     ai: Sparkles,

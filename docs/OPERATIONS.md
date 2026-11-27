@@ -168,6 +168,4 @@ in `.env`. Give each Messora service a memory limit (`MEM_*`) on shared servers.
 
 ### With Dokploy (its own domains)
 
-See [INSTALL.md](INSTALL.md#behind-traefik-or-dokploy). Use a Raw compose
-service with the install file; the repository is private and Dokploy must
-not clone it.
+See [INSTALL.md](INSTALL.md#behind-traefik-or-dokploy).

@@ -201,6 +201,7 @@ const PAUSE_REASONS = [
     'manual',
     'system',
     'messaging_limit',
+    // Stored on campaigns paused by the former licence check.
     'license_restricted',
     'offer_expired',
     'spam_protection',

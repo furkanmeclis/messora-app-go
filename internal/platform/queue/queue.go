@@ -79,7 +79,6 @@ var policies = map[string]Policy{
 	"webhook:deliver":              {Default, 10},
 	"webhook:cleanup":              {Default, periodicMaxRetry},
 	"channels:token_check":         {Default, periodicMaxRetry},
-	"license:check_in":             {Default, periodicMaxRetry},
 	"ai:model_sync":                {AI, periodicMaxRetry},
 	// One AI turn of a conversation; it never sends twice (see
 	// conversations.HandleAIReply), so a few retries are safe.

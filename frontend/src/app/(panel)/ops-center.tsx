@@ -557,16 +557,6 @@ function Alerts({
             action: t('overview.ops.alerts.budgetAction'),
         });
     }
-    if (a.license.status !== 'active' && a.license.status !== 'trial') {
-        items.push({
-            key: 'license',
-            text: t('overview.ops.alerts.license', {
-                status: t(`license.status.${a.license.status}`),
-            }),
-            href: '/settings/license',
-            action: t('overview.ops.alerts.licenseAction'),
-        });
-    }
     if (!items.length) return null;
     return (
         <section aria-labelledby="ops-alerts">

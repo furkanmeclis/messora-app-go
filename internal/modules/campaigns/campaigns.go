@@ -33,7 +33,6 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
-	"github.com/furkanmeclis/messora-app-go/internal/shared/licensegate"
 )
 
 // Task types.
@@ -518,9 +517,6 @@ func (s *Service) publishAs(ctx context.Context, tx pgx.Tx, q *db.Queries, c db.
 
 // Start begins sending now, or schedules the campaign for later.
 func (s *Service) Start(ctx context.Context, id uuid.UUID, at *time.Time, actor *uuid.UUID) (db.Campaign, error) {
-	if err := licensegate.Check(ctx); err != nil {
-		return db.Campaign{}, err
-	}
 	var c db.Campaign
 	err := s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 		cur, err := q.GetCampaign(ctx, id)
@@ -642,9 +638,6 @@ func (s *Service) Resume(ctx context.Context, id uuid.UUID, actor *uuid.UUID) (d
 
 // ResumeWith is Resume with changes and an optional later start.
 func (s *Service) ResumeWith(ctx context.Context, id uuid.UUID, actor *uuid.UUID, o ResumeOptions) (db.Campaign, error) {
-	if err := licensegate.Check(ctx); err != nil {
-		return db.Campaign{}, err
-	}
 	if err := o.validate(); err != nil {
 		return db.Campaign{}, err
 	}
@@ -864,15 +857,6 @@ func (s *Service) fail(ctx context.Context, id uuid.UUID, msg string) error {
 // Dispatch is one dispatcher tick: it tops up the in-flight window and
 // schedules the next tick, or finishes the campaign.
 func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
-	// Restricted mode: the campaign pauses (and says why) instead of failing
-	// its recipients; resuming needs a valid licence.
-	if licensegate.Check(ctx) != nil {
-		_, err := s.Pause(ctx, id, nil, "license_restricted")
-		if e, ok := apperr.As(err); ok && e.Code == "INVALID_TRANSITION" {
-			return nil
-		}
-		return err
-	}
 	return s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 		c, err := q.LockCampaign(ctx, id)
 		if errors.Is(err, pgx.ErrNoRows) {

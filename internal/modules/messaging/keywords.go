@@ -91,8 +91,8 @@ func (s *Service) inboundConsent(ctx context.Context, tx pgx.Tx, q *db.Queries, 
 }
 
 // confirmKeyword answers a stop or resume word inside the window the
-// customer's message just opened. A refusal (restricted licence, a
-// validation problem) never fails the webhook: the consent change stands.
+// customer's message just opened. A refusal (a validation
+// problem) never fails the webhook: the consent change stands.
 func (s *Service) confirmKeyword(ctx context.Context, tx pgx.Tx, q *db.Queries, pn db.PhoneNumber, c db.Contact, kind string, set consent.Settings) error {
 	msg := set.StopMessage
 	if kind == consent.KindResume {

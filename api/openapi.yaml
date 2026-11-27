@@ -1084,37 +1084,6 @@ paths:
         "204": { description: Sent }
         default: { $ref: "#/components/responses/Error" }
 
-  /license:
-    get:
-      operationId: getLicense
-      tags: [settings]
-      summary: The installation's licence and what it allows
-      security: [{ session: [settings.read] }]
-      responses:
-        "200":
-          description: Licence
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/LicenseInfoResponse" }
-        default: { $ref: "#/components/responses/Error" }
-    put:
-      operationId: setLicense
-      tags: [settings]
-      summary: Enter or replace the licence key (owner only)
-      security: [{ session: [settings.update] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/SetLicenseRequest" }
-      responses:
-        "200":
-          description: Licence
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/LicenseInfoResponse" }
-        default: { $ref: "#/components/responses/Error" }
-
   /audit-logs:
     get:
       operationId: listAuditLogs
@@ -1295,7 +1264,7 @@ paths:
         with conversations.read_all; `automations` with automations.read
         (runs in progress and runs that failed in the last 24 hours);
         `alerts` with settings.read (failed jobs, Meta account and number
-        problems, the AI budget, the licence). `sections` limits the answer to
+        problems, the AI budget). `sections` limits the answer to
         some of them (the page re-reads a section when a realtime event says
         it changed). Lists are bounded; `*_total` fields count everything.
       security: [{ session: [] }]
@@ -5155,65 +5124,6 @@ components:
         setup_completed: { type: boolean }
         pwa: { $ref: "#/components/schemas/PwaSettings" }
 
-    LicenseStatus:
-      type: string
-      enum: [trial, active, expiring, grace, restricted]
-    LicenseSummary:
-      type: object
-      required: [status, reason, until]
-      properties:
-        status: { $ref: "#/components/schemas/LicenseStatus" }
-        reason: { type: string, description: "trial_ended, expired, revoked, superseded or check_in_overdue; empty otherwise." }
-        until: { type: [string, "null"], format: date-time, description: When the current status ends. }
-    LicenseInfo:
-      type: object
-      required: [status, reason, until, instance_id, installed_at, last_check_in_at, license, latest_release, check_in_configured, current_version]
-      properties:
-        status: { $ref: "#/components/schemas/LicenseStatus" }
-        reason: { type: string }
-        until: { type: [string, "null"], format: date-time }
-        instance_id: { type: string }
-        installed_at: { type: string, format: date-time }
-        last_check_in_at: { type: [string, "null"], format: date-time }
-        check_in_configured: { type: boolean }
-        current_version: { type: string, description: The version this installation runs. }
-        license:
-          oneOf:
-            - type: object
-              required: [id, customer, plan, issued_at, expires_at, updates_until, check_in, max_users, max_phone_numbers]
-              properties:
-                id: { type: string }
-                customer: { type: string }
-                plan: { type: string }
-                issued_at: { type: string, format: date-time }
-                expires_at: { type: [string, "null"], format: date-time }
-                updates_until: { type: [string, "null"], format: date-time }
-                check_in: { type: string, enum: [online, offline] }
-                max_users: { type: integer, description: 0 is unlimited. }
-                max_phone_numbers: { type: integer, description: 0 is unlimited. }
-            - { type: "null" }
-        latest_release:
-          oneOf:
-            - type: object
-              required: [version, released_at, channel, update_allowed]
-              properties:
-                version: { type: string }
-                released_at: { type: string, format: date-time }
-                channel: { type: string }
-                notes: { type: string }
-                update_allowed: { type: boolean }
-            - { type: "null" }
-    LicenseInfoResponse:
-      type: object
-      required: [data, meta]
-      properties: { data: { $ref: "#/components/schemas/LicenseInfo" }, meta: { $ref: "#/components/schemas/Meta" } }
-    SetLicenseRequest:
-      type: object
-      additionalProperties: false
-      required: [key]
-      properties:
-        key: { type: string, minLength: 20, maxLength: 4096 }
-
     PwaSettings:
       type: object
       additionalProperties: false
@@ -5275,7 +5185,7 @@ components:
         wallpaper: { type: string, enum: [aurora, dunes, grid, mesh, plain, waves] }
     Appearance:
       type: object
-      required: [organization_name, default_locale, default_timezone, date_format, time_format, theme, logo, setup_completed, pwa, license]
+      required: [organization_name, default_locale, default_timezone, date_format, time_format, theme, logo, setup_completed, pwa]
       properties:
         organization_name: { type: string }
         default_locale: { $ref: "#/components/schemas/Locale" }
@@ -5289,7 +5199,6 @@ components:
             - { type: "null" }
         setup_completed: { type: boolean }
         pwa: { $ref: "#/components/schemas/PwaSettings" }
-        license: { $ref: "#/components/schemas/LicenseSummary" }
     AppearanceResponse:
       type: object
       required: [data, meta]
@@ -5773,14 +5682,13 @@ components:
 
     OpsAlerts:
       type: object
-      required: [failed_jobs, accounts, numbers, events, license]
+      required: [failed_jobs, accounts, numbers, events]
       properties:
         failed_jobs: { type: integer, description: Background jobs that ran out of retries. }
         accounts: { type: array, items: { $ref: "#/components/schemas/OpsAccountAlert" } }
         numbers: { type: array, items: { $ref: "#/components/schemas/OpsNumberAlert" } }
         events: { type: array, items: { $ref: "#/components/schemas/OpsAccountEvent" }, description: Meta's account alerts of the last 7 days (at most 10). }
         ai_budget: { $ref: "#/components/schemas/AIBudget" }
-        license: { $ref: "#/components/schemas/LicenseSummary" }
 
     OpsAccountAlert:
       type: object
@@ -8023,7 +7931,7 @@ components:
         offer_id: { type: [string, "null"], format: uuid, description: The offer the campaign promotes (see Offer). }
         priority: { $ref: "#/components/schemas/CampaignPriority" }
         max_mps: { type: [number, "null"], format: double, description: Rate cap in messages per second; null = its fair share. }
-        paused_reason: { type: [string, "null"], description: "Why it is paused: manual, messaging_limit, offer_expired, license_restricted …" }
+        paused_reason: { type: [string, "null"], description: "Why it is paused: manual, messaging_limit, offer_expired … (license_restricted on campaigns paused by the former licence check)" }
         paused_at: { type: [string, "null"], format: date-time }
         paused_by: { type: [string, "null"], format: uuid }
         resume_at: { type: [string, "null"], format: date-time, description: "When it resumes by itself (limit frees up, or a scheduled resume)." }
@@ -8245,7 +8153,7 @@ components:
         status: { $ref: "#/components/schemas/CampaignStatus" }
         reason:
           type: string
-          description: manual, system, messaging_limit, license_restricted, offer_expired, or a later automatic reason.
+          description: manual, system, messaging_limit, offer_expired, or a later automatic reason (license_restricted on pauses made by the former licence check).
         detail: { type: object, additionalProperties: true }
         paused_at: { type: string, format: date-time }
         paused_by: { type: [string, "null"], format: uuid }

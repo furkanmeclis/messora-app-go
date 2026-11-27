@@ -35,8 +35,8 @@ duplicate sends, and explicit handling of "did it go out?" uncertainty — see
 
 ## Quick start
 
-**Installing for a customer?** Follow [docs/INSTALL.md](docs/INSTALL.md):
-one downloaded file and a licence key, no repository access.
+Messora is a hosted, multi-tenant service; customer self-hosting is
+discontinued (see [docs/INSTALL.md](docs/INSTALL.md)).
 
 The steps below build from source, for development.
 
@@ -136,8 +136,7 @@ The design documents are currently written in Turkish.
 
 ## License
 
-Messora is commercial software: using it requires a licence key (see
-[LICENSE](LICENSE) and [docs/LICENSING.md](docs/LICENSING.md)). Third-party
+Messora is commercial software (see [LICENSE](LICENSE)). Third-party
 notices are in [NOTICE](NOTICE).
 
 Security issues: please follow [SECURITY.md](SECURITY.md).

@@ -22,13 +22,11 @@ import (
 type Handler struct {
 	svc *Service
 	log *slog.Logger
-	// License is the licence state for the alerts (nil: left out as active).
-	License func(r *http.Request) api.LicenseSummary
 }
 
 // NewHandler returns the handler.
-func NewHandler(svc *Service, license func(r *http.Request) api.LicenseSummary, log *slog.Logger) *Handler {
-	return &Handler{svc: svc, License: license, log: log}
+func NewHandler(svc *Service, log *slog.Logger) *Handler {
+	return &Handler{svc: svc, log: log}
 }
 
 // GetOpsOverview implements api.ServerInterface.
@@ -96,11 +94,7 @@ func (h *Handler) GetOpsOverview(w http.ResponseWriter, r *http.Request, params 
 				if err != nil {
 					return err
 				}
-				lic := api.LicenseSummary{Status: api.LicenseStatusActive}
-				if h.License != nil {
-					lic = h.License(r)
-				}
-				out.Alerts = alertsToAPI(a, lic)
+				out.Alerts = alertsToAPI(a)
 				return nil
 			})
 		}
@@ -202,8 +196,8 @@ func automationsToAPI(p *principal.Principal, a Automations) *api.OpsAutomations
 	return out
 }
 
-func alertsToAPI(a Alerts, lic api.LicenseSummary) *api.OpsAlerts {
-	out := &api.OpsAlerts{FailedJobs: a.FailedJobs, License: lic,
+func alertsToAPI(a Alerts) *api.OpsAlerts {
+	out := &api.OpsAlerts{FailedJobs: a.FailedJobs,
 		Accounts: make([]api.OpsAccountAlert, len(a.Accounts)), Numbers: make([]api.OpsNumberAlert, len(a.Numbers)),
 		Events: make([]api.OpsAccountEvent, len(a.Events))}
 	for i, x := range a.Accounts {

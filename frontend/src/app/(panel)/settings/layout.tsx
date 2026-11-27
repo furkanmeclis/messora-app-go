@@ -47,11 +47,6 @@ export default async function SettingsLayout({
             icon: 'security',
         },
         has('settings.read') && {
-            href: '/settings/license',
-            label: t('license.tab'),
-            icon: 'license',
-        },
-        has('settings.read') && {
             href: '/settings/meta-rates',
             label: t('settings.tabs.metaRates'),
             icon: 'metaRates',

@@ -869,24 +869,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    '/license': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The installation's licence and what it allows */
-        get: operations['getLicense'];
-        /** Enter or replace the licence key (owner only) */
-        put: operations['setLicense'];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     '/audit-logs': {
         parameters: {
             query?: never;
@@ -1051,7 +1033,7 @@ export interface paths {
         };
         /**
          * The operations center
-         * @description What needs attention now, in one call. Each section is present only when the caller may read it: `campaigns` with campaigns.read (counts by state, the active, paused and scheduled campaigns with progress, rate, estimated time left, cost so far and spam signals, and the send queue per number); `conversations` with conversations.read or conversations.read_all, limited to the conversations the caller may open (escalations no one accepted, unassigned conversations waiting, conversations waiting for a reply, the AI's open conversations, the newest messages); `activity` (messages per hour of the last 24 hours) with conversations.read_all; `automations` with automations.read (runs in progress and runs that failed in the last 24 hours); `alerts` with settings.read (failed jobs, Meta account and number problems, the AI budget, the licence). `sections` limits the answer to some of them (the page re-reads a section when a realtime event says it changed). Lists are bounded; `*_total` fields count everything.
+         * @description What needs attention now, in one call. Each section is present only when the caller may read it: `campaigns` with campaigns.read (counts by state, the active, paused and scheduled campaigns with progress, rate, estimated time left, cost so far and spam signals, and the send queue per number); `conversations` with conversations.read or conversations.read_all, limited to the conversations the caller may open (escalations no one accepted, unassigned conversations waiting, conversations waiting for a reply, the AI's open conversations, the newest messages); `activity` (messages per hour of the last 24 hours) with conversations.read_all; `automations` with automations.read (runs in progress and runs that failed in the last 24 hours); `alerts` with settings.read (failed jobs, Meta account and number problems, the AI budget). `sections` limits the answer to some of them (the page re-reads a section when a realtime event says it changed). Lists are bounded; `*_total` fields count everything.
          */
         get: operations['getOpsOverview'];
         put?: never;
@@ -3366,64 +3348,6 @@ export interface components {
             setup_completed?: boolean;
             pwa?: components['schemas']['PwaSettings'];
         };
-        /** @enum {string} */
-        LicenseStatus: 'trial' | 'active' | 'expiring' | 'grace' | 'restricted';
-        LicenseSummary: {
-            status: components['schemas']['LicenseStatus'];
-            /** @description trial_ended, expired, revoked, superseded or check_in_overdue; empty otherwise. */
-            reason: string;
-            /**
-             * Format: date-time
-             * @description When the current status ends.
-             */
-            until: string | null;
-        };
-        LicenseInfo: {
-            status: components['schemas']['LicenseStatus'];
-            reason: string;
-            /** Format: date-time */
-            until: string | null;
-            instance_id: string;
-            /** Format: date-time */
-            installed_at: string;
-            /** Format: date-time */
-            last_check_in_at: string | null;
-            check_in_configured: boolean;
-            /** @description The version this installation runs. */
-            current_version: string;
-            license: {
-                id: string;
-                customer: string;
-                plan: string;
-                /** Format: date-time */
-                issued_at: string;
-                /** Format: date-time */
-                expires_at: string | null;
-                /** Format: date-time */
-                updates_until: string | null;
-                /** @enum {string} */
-                check_in: 'online' | 'offline';
-                /** @description 0 is unlimited. */
-                max_users: number;
-                /** @description 0 is unlimited. */
-                max_phone_numbers: number;
-            } | null;
-            latest_release: {
-                version: string;
-                /** Format: date-time */
-                released_at: string;
-                channel: string;
-                notes?: string;
-                update_allowed: boolean;
-            } | null;
-        };
-        LicenseInfoResponse: {
-            data: components['schemas']['LicenseInfo'];
-            meta: components['schemas']['Meta'];
-        };
-        SetLicenseRequest: {
-            key: string;
-        };
         PwaSettings: {
             /** @description Offer installing the panel as an app. */
             enabled: boolean;
@@ -3511,7 +3435,6 @@ export interface components {
             logo: components['schemas']['LogoInfo'] | null;
             setup_completed: boolean;
             pwa: components['schemas']['PwaSettings'];
-            license: components['schemas']['LicenseSummary'];
         };
         AppearanceResponse: {
             data: components['schemas']['Appearance'];
@@ -4033,7 +3956,6 @@ export interface components {
             /** @description Meta's account alerts of the last 7 days (at most 10). */
             events: components['schemas']['OpsAccountEvent'][];
             ai_budget?: components['schemas']['AIBudget'];
-            license: components['schemas']['LicenseSummary'];
         };
         OpsAccountAlert: {
             /** Format: uuid */
@@ -6433,7 +6355,7 @@ export interface components {
              * @description Rate cap in messages per second; null = its fair share.
              */
             max_mps?: number | null;
-            /** @description Why it is paused: manual, messaging_limit, offer_expired, license_restricted … */
+            /** @description Why it is paused: manual, messaging_limit, offer_expired … (license_restricted on campaigns paused by the former licence check) */
             paused_reason?: string | null;
             /** Format: date-time */
             paused_at?: string | null;
@@ -6803,7 +6725,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             status: components['schemas']['CampaignStatus'];
-            /** @description manual, system, messaging_limit, license_restricted, offer_expired, or a later automatic reason. */
+            /** @description manual, system, messaging_limit, offer_expired, or a later automatic reason (license_restricted on pauses made by the former licence check). */
             reason: string;
             detail: {
                 [key: string]: unknown;
@@ -10356,52 +10278,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            default: components['responses']['Error'];
-        };
-    };
-    getLicense: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Licence */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['LicenseInfoResponse'];
-                };
-            };
-            default: components['responses']['Error'];
-        };
-    };
-    setLicense: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                'application/json': components['schemas']['SetLicenseRequest'];
-            };
-        };
-        responses: {
-            /** @description Licence */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['LicenseInfoResponse'];
-                };
             };
             default: components['responses']['Error'];
         };

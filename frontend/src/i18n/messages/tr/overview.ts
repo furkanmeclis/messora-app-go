@@ -125,8 +125,6 @@ const overview: Messages['overview'] = {
             event: 'Meta: {kind} ({account})',
             budget: 'Aylık AI bütçesi doldu ({limit} USD’nin {spent} USD’si); AI cevapları durdu.',
             budgetAction: 'AI kullanımı',
-            license: 'Lisans: {status}',
-            licenseAction: 'Lisans',
         },
         campaigns: {
             title: 'Kampanyalar',

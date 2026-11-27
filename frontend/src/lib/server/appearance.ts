@@ -22,7 +22,6 @@ export const fallbackAppearance: Appearance = {
     },
     logo: null,
     setup_completed: true,
-    license: { status: 'active', reason: '', until: null },
     pwa: {
         enabled: false,
         name: '',

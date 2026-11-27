@@ -16,7 +16,6 @@ import { api } from '@/lib/server/api';
 import type { Campaign, Conversation } from '@/lib/types';
 import { Topbar, type RunningCampaign } from './topbar';
 import { SetupBanner } from './setup-banner';
-import { LicenseBanner } from './license-banner';
 
 export default async function PanelLayout({
     children,
@@ -116,14 +115,6 @@ export default async function PanelLayout({
                                             dateFormat={appearance.date_format}
                                             timeFormat={appearance.time_format}
                                         >
-                                            {!me.mfa_required && (
-                                                <LicenseBanner
-                                                    license={appearance.license}
-                                                    canManage={me.permissions.includes(
-                                                        'settings.read',
-                                                    )}
-                                                />
-                                            )}
                                             {children}
                                             {!me.mfa_required && (
                                                 <Desktop

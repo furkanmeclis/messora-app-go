@@ -159,7 +159,6 @@ const routes: [string, () => string][] = [
     ['/settings/email', () => '/settings/email'],
     ['/settings/consent', () => '/settings/consent'],
     ['/settings/security', () => '/settings/security'],
-    ['/settings/license', () => '/settings/license'],
     ['/settings/webhooks', () => '/settings/webhooks'],
     ['/settings/ai', () => '/settings/ai'],
     ['/settings/ai/providers', () => '/settings/ai/providers'],
