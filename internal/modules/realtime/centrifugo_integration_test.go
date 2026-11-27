@@ -251,9 +251,12 @@ func TestCentrifugoAcceptsIssuedTokensAndRefusesOthers(t *testing.T) {
 		}
 	}()
 
-	agent := &principal.Principal{Kind: principal.KindUser, ID: uuid.Must(uuid.NewV7()),
+	// Channels carry their tenant: tenant:<id>:<channel>.
+	tA, tB := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	wa := func(ch string) string { return realtime.TenantChannel(tA, ch) }
+	agent := &principal.Principal{Kind: principal.KindUser, TenantID: tA, ID: uuid.Must(uuid.NewV7()),
 		Permissions: []string{"contacts.read", "conversations.read", "conversations.reply"}}
-	owner := &principal.Principal{Kind: principal.KindUser, ID: uuid.Must(uuid.NewV7()),
+	owner := &principal.Principal{Kind: principal.KindUser, TenantID: tA, ID: uuid.Must(uuid.NewV7()),
 		Permissions: []string{"campaigns.read", "conversations.read", "conversations.read_all"}}
 	iss, err := realtime.NewIssuer(cfHMAC)
 	if err != nil {
@@ -269,20 +272,20 @@ func TestCentrifugoAcceptsIssuedTokensAndRefusesOthers(t *testing.T) {
 		t.Fatalf("connect: %v %v", reply, err)
 	}
 	subs, _ := reply["connect"].(map[string]any)["subs"].(map[string]any)
-	if subs[realtime.PersonalChannel(agent.ID)] == nil || subs[realtime.NotificationsChannel] == nil {
+	if subs[wa(realtime.PersonalChannel(agent.ID))] == nil || subs[wa(realtime.NotificationsChannel)] == nil {
 		t.Fatalf("server-side subscriptions %v", subs)
 	}
 	// Events routed to the personal channel survive a short disconnect.
-	if p, _ := subs[realtime.PersonalChannel(agent.ID)].(map[string]any); p["recoverable"] != true {
+	if p, _ := subs[wa(realtime.PersonalChannel(agent.ID))].(map[string]any); p["recoverable"] != true {
 		t.Fatalf("personal channel must be recoverable: %v", p)
 	}
 
 	// A permitted channel with its subscription token: recoverable history.
-	inbox, err := iss.Subscription(agent, realtime.UnassignedChannel)
+	inbox, err := iss.Subscription(agent, wa(realtime.UnassignedChannel))
 	if err != nil {
 		t.Fatal(err)
 	}
-	reply, err = c.call("subscribe", map[string]any{"channel": realtime.UnassignedChannel, "token": inbox.Token})
+	reply, err = c.call("subscribe", map[string]any{"channel": wa(realtime.UnassignedChannel), "token": inbox.Token})
 	if err != nil || reply["subscribe"] == nil {
 		t.Fatalf("subscribe inbox: %v %v", reply, err)
 	}
@@ -291,12 +294,12 @@ func TestCentrifugoAcceptsIssuedTokensAndRefusesOthers(t *testing.T) {
 	}
 
 	// No token: refused (subscribing without a token is disabled).
-	reply, err = c.call("subscribe", map[string]any{"channel": realtime.CampaignsChannel})
+	reply, err = c.call("subscribe", map[string]any{"channel": wa(realtime.CampaignsChannel)})
 	if err != nil || errorCode(reply) != 103 {
 		t.Fatalf("subscribe without token: want permission denied (103), got %v %v", reply, err)
 	}
 	// The API does not issue the agent a campaigns token.
-	if _, err := iss.Subscription(agent, realtime.CampaignsChannel); !errors.Is(err, realtime.ErrChannelForbidden) {
+	if _, err := iss.Subscription(agent, wa(realtime.CampaignsChannel)); !errors.Is(err, realtime.ErrChannelForbidden) {
 		t.Fatalf("agent got a campaigns token: %v", err)
 	}
 
@@ -308,33 +311,33 @@ func TestCentrifugoAcceptsIssuedTokensAndRefusesOthers(t *testing.T) {
 	}
 	pub := realtime.Publisher(cf)
 	ctx := context.Background()
-	first := outbox.Event{ID: 1, Topic: realtime.TopicPrefix + realtime.UnassignedChannel, Payload: []byte(`{"type":"message.created","v":1,"n":1}`)}
+	first := outbox.Event{ID: 1, TenantID: tA, Topic: realtime.TopicPrefix + realtime.UnassignedChannel, Payload: []byte(`{"type":"message.created","v":1,"n":1}`)}
 	for range 2 {
 		if err := pub.Publish(ctx, first); err != nil {
 			t.Fatal(err)
 		}
 	}
-	second := outbox.Event{ID: 2, Topic: realtime.TopicPrefix + realtime.UnassignedChannel, Payload: []byte(`{"type":"message.status","v":1,"n":2}`)}
+	second := outbox.Event{ID: 2, TenantID: tA, Topic: realtime.TopicPrefix + realtime.UnassignedChannel, Payload: []byte(`{"type":"message.status","v":1,"n":2}`)}
 	if err := pub.Publish(ctx, second); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []float64{1, 2} {
-		p := c.awaitPush(realtime.UnassignedChannel)
+		p := c.awaitPush(wa(realtime.UnassignedChannel))
 		if p["data"].(map[string]any)["n"] != want {
 			t.Fatalf("publication %v, want n=%v (duplicates must be dropped)", p, want)
 		}
 	}
-	if err := pub.Publish(ctx, outbox.Event{ID: 3, Topic: realtime.TopicPrefix + realtime.PersonalChannel(agent.ID), Payload: []byte(`{"type":"notice","v":1}`)}); err != nil {
+	if err := pub.Publish(ctx, outbox.Event{ID: 3, TenantID: tA, Topic: realtime.TopicPrefix + realtime.PersonalChannel(agent.ID), Payload: []byte(`{"type":"notice","v":1}`)}); err != nil {
 		t.Fatal(err)
 	}
-	if p := c.awaitPush(realtime.PersonalChannel(agent.ID)); p["data"].(map[string]any)["type"] != "notice" {
+	if p := c.awaitPush(wa(realtime.PersonalChannel(agent.ID))); p["data"].(map[string]any)["type"] != "notice" {
 		t.Fatalf("personal publication %v", p)
 	}
 
 	// A token issued for another channel or another user does not open a
 	// forbidden channel.
-	ownerCampaigns, _ := iss.Subscription(owner, realtime.CampaignsChannel)
-	reply, err = c.call("subscribe", map[string]any{"channel": realtime.CampaignsChannel, "token": ownerCampaigns.Token})
+	ownerCampaigns, _ := iss.Subscription(owner, wa(realtime.CampaignsChannel))
+	reply, err = c.call("subscribe", map[string]any{"channel": wa(realtime.CampaignsChannel), "token": ownerCampaigns.Token})
 	if err == nil && reply["subscribe"] != nil {
 		t.Fatal("another user's subscription token was accepted")
 	}
@@ -342,9 +345,75 @@ func TestCentrifugoAcceptsIssuedTokensAndRefusesOthers(t *testing.T) {
 	if _, err := c2.call("connect", map[string]any{"token": conn.Token}); err != nil {
 		t.Fatal(err)
 	}
-	reply, err = c2.call("subscribe", map[string]any{"channel": realtime.CampaignsChannel, "token": inbox.Token})
+	reply, err = c2.call("subscribe", map[string]any{"channel": wa(realtime.CampaignsChannel), "token": inbox.Token})
 	if err == nil && reply["subscribe"] != nil {
 		t.Fatal("an inbox token opened the campaigns channel")
+	}
+
+	// Tenant B: its user's connection subscribes B's channels only, B's
+	// events never reach A's subscribers, and A's personal channel cannot
+	// be joined by name (no user-limited channels).
+	userB := &principal.Principal{Kind: principal.KindUser, TenantID: tB, ID: agent.ID, // same person, other tenant
+		Permissions: []string{"conversations.read"}}
+	connB, _ := iss.Connection(userB)
+	cb := dial(t, addr)
+	reply, err = cb.call("connect", map[string]any{"token": connB.Token})
+	if err != nil || reply["connect"] == nil {
+		t.Fatalf("connect B: %v %v", reply, err)
+	}
+	for ch := range reply["connect"].(map[string]any)["subs"].(map[string]any) {
+		if !strings.HasPrefix(ch, realtime.ChannelPrefix(tB)) {
+			t.Fatalf("tenant B subscribed %q", ch)
+		}
+	}
+	reply, err = cb.call("subscribe", map[string]any{"channel": wa(realtime.PersonalChannel(agent.ID))})
+	if err != nil || errorCode(reply) != 103 {
+		t.Fatalf("B joined A's personal channel by name: %v %v", reply, err)
+	}
+	// The same person's token from tenant A's session does not work on
+	// tenant B's connection (Centrifugo refuses the token's user and drops
+	// the connection, so on a connection of its own).
+	cb2 := dial(t, addr)
+	if _, err := cb2.call("connect", map[string]any{"token": connB.Token}); err != nil {
+		t.Fatal(err)
+	}
+	reply, err = cb2.call("subscribe", map[string]any{"channel": wa(realtime.UnassignedChannel), "token": inbox.Token})
+	if err == nil && reply["subscribe"] != nil {
+		t.Fatal("tenant A's subscription token opened A's channel for B's user")
+	}
+	if _, err := iss.Subscription(userB, wa(realtime.UnassignedChannel)); !errors.Is(err, realtime.ErrChannelForbidden) {
+		t.Fatalf("B's user got a token for A's channel: %v", err)
+	}
+	inboxB, _ := iss.Subscription(userB, realtime.TenantChannel(tB, realtime.UnassignedChannel))
+	reply, err = cb.call("subscribe", map[string]any{"channel": realtime.TenantChannel(tB, realtime.UnassignedChannel), "token": inboxB.Token})
+	if err != nil || reply["subscribe"] == nil {
+		t.Fatalf("subscribe B's inbox: %v %v", reply, err)
+	}
+	// A fresh subscriber of tenant A's inbox (the earlier connections were
+	// dropped for presenting foreign tokens).
+	ca := dial(t, addr)
+	if _, err := ca.call("connect", map[string]any{"token": conn.Token}); err != nil {
+		t.Fatal(err)
+	}
+	if reply, err := ca.call("subscribe", map[string]any{"channel": wa(realtime.UnassignedChannel), "token": inbox.Token}); err != nil || reply["subscribe"] == nil {
+		t.Fatalf("resubscribe A's inbox: %v %v", reply, err)
+	}
+	if err := pub.Publish(ctx, outbox.Event{ID: 4, TenantID: tB, Topic: realtime.TopicPrefix + realtime.UnassignedChannel, Payload: []byte(`{"type":"message.created","v":1,"n":4}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if p := cb.awaitPush(realtime.TenantChannel(tB, realtime.UnassignedChannel)); p["data"].(map[string]any)["n"] != float64(4) {
+		t.Fatalf("B's publication %v", p)
+	}
+	if err := pub.Publish(ctx, outbox.Event{ID: 5, TenantID: tA, Topic: realtime.TopicPrefix + realtime.UnassignedChannel, Payload: []byte(`{"type":"message.created","v":1,"n":5}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if p := ca.awaitPush(wa(realtime.UnassignedChannel)); p["data"].(map[string]any)["n"] != float64(5) {
+		t.Fatalf("A's publication %v (B's event must not arrive first)", p)
+	}
+	for _, p := range ca.pushes {
+		if d, _ := p["pub"].(map[string]any); d != nil && d["data"].(map[string]any)["n"] == float64(4) {
+			t.Fatal("tenant B's event reached tenant A's subscriber")
+		}
 	}
 
 	// Tokens signed with another secret are refused at connect.

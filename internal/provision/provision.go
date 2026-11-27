@@ -184,27 +184,28 @@ func RedisConf(password string) []byte {
 }
 
 // CentrifugoConfig renders the Centrifugo v6 configuration. Clients connect
-// only with JWTs issued by the API; subscriptions require subscription tokens
-// except for user-limited personal channels.
+// only with JWTs issued by the API. Every channel lives in the "tenant"
+// namespace (tenant:<tenant_id>:<channel>, realtime.TenantChannel): a
+// client subscribes only with a subscription token, which the API issues
+// for channels of the session's own tenant; the personal channel and the
+// tenant's notices are server-side subscriptions of the connection token.
+// There are no user-limited channels: a channel name alone never grants
+// access, whatever tenant it names.
 func CentrifugoConfig(apiKey, hmacSecret, publicAppURL string) ([]byte, error) {
 	origin := strings.TrimRight(publicAppURL, "/")
 	if origin == "" {
 		origin = "http://localhost"
 	}
-	recovering := func(name string, size int, ttl string) map[string]any {
-		return map[string]any{
-			"name":           name,
-			"history_size":   size,
-			"history_ttl":    ttl,
-			"force_recovery": true,
-		}
-	}
 	// Ten minutes of history: a client that reconnects within that window
 	// gets the missed events replayed; after it, the panel re-syncs through
 	// GET /realtime/sync.
 	const historySize, historyTTL = 200, "600s"
-	personal := recovering("personal", historySize, historyTTL)
-	personal["allow_user_limited_channels"] = true
+	tenantNS := map[string]any{
+		"name":           "tenant",
+		"history_size":   historySize,
+		"history_ttl":    historyTTL,
+		"force_recovery": true,
+	}
 	cfg := map[string]any{
 		"log": map[string]any{"level": "info"},
 		"client": map[string]any{
@@ -217,13 +218,7 @@ func CentrifugoConfig(apiKey, hmacSecret, publicAppURL string) ([]byte, error) {
 		"prometheus": map[string]any{"enabled": true},
 		"admin":      map[string]any{"enabled": false},
 		"channel": map[string]any{
-			"namespaces": []map[string]any{
-				personal,
-				recovering("campaign", historySize, historyTTL),
-				recovering("conversation", historySize, historyTTL),
-				recovering("inbox", historySize, historyTTL),
-				recovering("system", 20, "300s"),
-			},
+			"namespaces": []map[string]any{tenantNS},
 		},
 	}
 	return json.MarshalIndent(cfg, "", "  ")

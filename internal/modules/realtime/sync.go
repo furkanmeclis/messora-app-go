@@ -44,13 +44,15 @@ type Syncer struct {
 	Campaigns     CampaignsSince
 }
 
-// Sync checks that p may read channel and returns snapshot events, and
-// whether more changed than returned.
+// Sync checks that p may read channel (a wire name of p's tenant) and
+// returns snapshot events, and whether more changed than returned. The
+// sources read through the request's tenant (row-level security).
 func (s Syncer) Sync(ctx context.Context, p *principal.Principal, channel string, since time.Time) ([]Event, bool, error) {
-	if err := AuthorizeContext(ctx, p, channel, s.Access); err != nil {
+	logical, err := authorizeLogical(ctx, p, channel, s.Access)
+	if err != nil {
 		return nil, false, err
 	}
-	ns, rest, _ := strings.Cut(channel, ":")
+	ns, rest, _ := strings.Cut(logical, ":")
 	var scope ConversationScope
 	switch ns {
 	case "inbox":

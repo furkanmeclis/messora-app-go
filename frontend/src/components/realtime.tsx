@@ -67,7 +67,7 @@ const UNAUTHORIZED = new Set([
     'MFA_SETUP_REQUIRED',
 ]);
 
-async function unwrap(r: Promise<ActionResult<string>>): Promise<string> {
+async function unwrap<T>(r: Promise<ActionResult<T>>): Promise<T> {
     const res = await r;
     if (res.ok) return res.data;
     if (UNAUTHORIZED.has(res.code)) throw new UnauthorizedError(res.message);
@@ -89,7 +89,10 @@ function debounce(fn: () => void, ms: number) {
  * One Centrifugo connection for the whole panel. It connects through the
  * same origin (`/connection/websocket`, routed by Caddy), subscribes to the
  * given channels with recovery, and reconnects by itself with backoff, for
- * example after Centrifugo restarts. Copies of an event (same `id`) are
+ * example after Centrifugo restarts. Pages name channels without their
+ * workspace (`inbox:all`); on the wire every channel carries the
+ * workspace's prefix from the connection token (`tenant:<id>:inbox:all`),
+ * added here on subscribe and removed before events reach listeners. Copies of an event (same `id`) are
  * delivered once. Whenever missed events could not be recovered, the
  * channel is re-synced through GET /realtime/sync (snapshots arrive as
  * ordinary events, then RESYNCED); after a long gap, or when too much
@@ -148,6 +151,18 @@ export function RealtimeProvider({
             setState('disconnected');
             return;
         }
+        let cancelled = false;
+        let client: Centrifuge | null = null;
+        let heartbeat: ReturnType<typeof setInterval> | undefined;
+        let retry: ReturnType<typeof setTimeout> | undefined;
+        // The workspace's channel prefix, from the first connection token.
+        let prefix = '';
+        const toWire = (channel: string) => prefix + channel;
+        // Channels of another prefix are dropped (none are granted).
+        const toLogical = (wire: string) => {
+            if (!prefix) return wire;
+            return wire.startsWith(prefix) ? wire.slice(prefix.length) : null;
+        };
         const dedupe = new EventDeduper(2000);
         const positions = new ChannelPositions();
         const emit = (channel: string, data: unknown) => {
@@ -172,7 +187,7 @@ export function RealtimeProvider({
             if (channel.startsWith('system:')) return;
             const plan = planResync(last, Date.now());
             if (plan.kind === 'reload') return reload();
-            const res = await realtimeSync(channel, plan.since).catch(
+            const res = await realtimeSync(toWire(channel), plan.since).catch(
                 () => null,
             );
             if (!res?.ok || res.data.has_more) return reload();
@@ -181,85 +196,122 @@ export function RealtimeProvider({
             }
             emit(channel, { type: RESYNCED, v: 1, synced: true });
         };
+        // Wire names in, logical names out: listeners and positions only
+        // ever see channels without the workspace prefix.
         const onSubscribed = (c: {
             channel: string;
             wasRecovering: boolean;
             recovered: boolean;
             streamPosition?: { offset: number; epoch: string };
         }) => {
-            const last = positions.get(c.channel);
-            if (c.wasRecovering && !c.recovered) void resync(c.channel, last);
-            positions.mark(c.channel, Date.now(), c.streamPosition);
+            const channel = toLogical(c.channel);
+            if (channel === null) return;
+            const last = positions.get(channel);
+            if (c.wasRecovering && !c.recovered) void resync(channel, last);
+            positions.mark(channel, Date.now(), c.streamPosition);
         };
         const onPublication = (c: {
             channel: string;
             data: unknown;
             offset?: number;
         }) => {
-            positions.mark(c.channel, Date.now(), { offset: c.offset });
-            emit(c.channel, c.data);
+            const channel = toLogical(c.channel);
+            if (channel === null) return;
+            positions.mark(channel, Date.now(), { offset: c.offset });
+            emit(channel, c.data);
         };
 
-        const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const client = new Centrifuge(
-            `${proto}://${window.location.host}/connection/websocket`,
-            {
-                getToken: () => unwrap(realtimeConnectionToken()),
-                name: 'messora-panel',
-                maxReconnectDelay: 10_000,
-            },
-        );
-        const serverChannels = new Set<string>();
-        client.on('connecting', () => setState('connecting'));
-        client.on('connected', () => setState('connected'));
-        client.on('disconnected', () => setState('disconnected'));
-        // Server-side subscriptions: the personal channel and notices.
-        client.on('publication', onPublication);
-        client.on('subscribed', (c) => {
-            serverChannels.add(c.channel);
-            onSubscribed(c);
-        });
-
-        const fixed = new Set(key ? key.split(',') : []);
-        const subscribeTo = (channel: string) => {
-            if (client.getSubscription(channel)) return;
-            const sub = client.newSubscription(channel, {
-                getToken: (c) => unwrap(realtimeSubscriptionToken(c.channel)),
+        const start = (first: { token: string; channelPrefix: string }) => {
+            prefix = first.channelPrefix;
+            const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const c = new Centrifuge(
+                `${proto}://${window.location.host}/connection/websocket`,
+                {
+                    token: first.token,
+                    getToken: () =>
+                        unwrap(realtimeConnectionToken()).then((t) => t.token),
+                    name: 'messora-panel',
+                    maxReconnectDelay: 10_000,
+                },
+            );
+            client = c;
+            const serverChannels = new Set<string>();
+            c.on('connecting', () => setState('connecting'));
+            c.on('connected', () => setState('connected'));
+            c.on('disconnected', () => setState('disconnected'));
+            // Server-side subscriptions: the personal channel and notices.
+            c.on('publication', onPublication);
+            c.on('subscribed', (ctx) => {
+                const channel = toLogical(ctx.channel);
+                if (channel !== null) serverChannels.add(channel);
+                onSubscribed(ctx);
             });
-            sub.on('publication', onPublication);
-            sub.on('subscribed', onSubscribed);
-            sub.subscribe();
+
+            const fixed = new Set(key ? key.split(',') : []);
+            const subscribeTo = (channel: string) => {
+                if (c.getSubscription(toWire(channel))) return;
+                const sub = c.newSubscription(toWire(channel), {
+                    getToken: (ctx) =>
+                        unwrap(realtimeSubscriptionToken(ctx.channel)),
+                });
+                sub.on('publication', onPublication);
+                sub.on('subscribed', onSubscribed);
+                sub.subscribe();
+            };
+            fixed.forEach(subscribeTo);
+            watched.current.forEach((_, channel) => subscribeTo(channel));
+            attach.current = subscribeTo;
+            detach.current = (channel) => {
+                if (fixed.has(channel)) return;
+                const sub = c.getSubscription(toWire(channel));
+                if (!sub) return;
+                sub.unsubscribe();
+                c.removeSubscription(sub);
+            };
+            // While connected, every subscribed channel is current. Timers
+            // stop while the device sleeps, so the last mark bounds what
+            // was missed.
+            heartbeat = setInterval(() => {
+                if (c.state !== 'connected') return;
+                const now = Date.now();
+                serverChannels.forEach((ch) => positions.mark(ch, now));
+                for (const sub of Object.values(c.subscriptions())) {
+                    const ch = toLogical(sub.channel);
+                    if (sub.state === 'subscribed' && ch !== null)
+                        positions.mark(ch, now);
+                }
+            }, 30_000);
+            c.connect();
         };
-        fixed.forEach(subscribeTo);
-        watched.current.forEach((_, channel) => subscribeTo(channel));
-        attach.current = subscribeTo;
-        detach.current = (channel) => {
-            if (fixed.has(channel)) return;
-            const sub = client.getSubscription(channel);
-            if (!sub) return;
-            sub.unsubscribe();
-            client.removeSubscription(sub);
+        // The first token also names the workspace's channel prefix, so it
+        // is fetched before the client subscribes to anything; a failure
+        // that retrying can fix is retried with a growing delay.
+        const connect = (attempt: number) => {
+            unwrap(realtimeConnectionToken())
+                .then((first) => {
+                    if (!cancelled) start(first);
+                })
+                .catch((err: unknown) => {
+                    if (cancelled) return;
+                    setState('disconnected');
+                    if (err instanceof UnauthorizedError) return;
+                    const delay = Math.min(10_000, 500 * 2 ** attempt);
+                    retry = setTimeout(() => connect(attempt + 1), delay);
+                });
         };
-        // While connected, every subscribed channel is current. Timers stop
-        // while the device sleeps, so the last mark bounds what was missed.
-        const heartbeat = setInterval(() => {
-            if (client.state !== 'connected') return;
-            const now = Date.now();
-            serverChannels.forEach((ch) => positions.mark(ch, now));
-            for (const sub of Object.values(client.subscriptions())) {
-                if (sub.state === 'subscribed')
-                    positions.mark(sub.channel, now);
-            }
-        }, 30_000);
-        client.connect();
+        connect(0);
         return () => {
+            cancelled = true;
             attach.current = null;
             detach.current = null;
+            clearTimeout(retry);
             clearInterval(heartbeat);
             reload.cancel();
-            client.disconnect();
-            for (const sub of Object.values(client.subscriptions())) {
-                client.removeSubscription(sub);
+            if (client) {
+                client.disconnect();
+                for (const sub of Object.values(client.subscriptions())) {
+                    client.removeSubscription(sub);
+                }
             }
         };
     }, [enabled, key, router]);

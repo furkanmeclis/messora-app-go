@@ -16,14 +16,24 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
 
 const testSecret = "realtime-test-hmac-secret-0123456789" // gitleaks:allow (test fixture)
 
+// The tenants of the tests: users belong to tenantA.
+var (
+	tenantA = uuid.MustParse("0193a6c4-7f2e-7b3c-9d1e-4a5b6c7d8e9f")
+	tenantB = uuid.MustParse("0193a6c4-7f2e-7b3c-9d1e-4a5b6c7d8ea0")
+)
+
+// w is the wire name of a logical channel of tenantA.
+func w(logical string) string { return TenantChannel(tenantA, logical) }
+
 func user(perms ...string) *principal.Principal {
 	slices.Sort(perms)
-	return &principal.Principal{Kind: principal.KindUser, ID: uuid.Must(uuid.NewV7()), Permissions: perms}
+	return &principal.Principal{Kind: principal.KindUser, TenantID: tenantA, ID: uuid.Must(uuid.NewV7()), Permissions: perms}
 }
 
 // The permissions of the system roles (migrations/00002_identity.sql).
@@ -37,7 +47,7 @@ var (
 func TestAuthorizeMatrix(t *testing.T) {
 	campaign := uuid.Must(uuid.NewV7())
 	conv := uuid.Must(uuid.NewV7())
-	apiKey := &principal.Principal{Kind: principal.KindAPIKey, ID: uuid.Must(uuid.NewV7()), Permissions: owner.Permissions}
+	apiKey := &principal.Principal{Kind: principal.KindAPIKey, TenantID: tenantA, ID: uuid.Must(uuid.NewV7()), Permissions: owner.Permissions}
 	mfaPending := user("campaigns.read", "conversations.read_all")
 	mfaPending.MFAPending = true
 
@@ -99,7 +109,7 @@ func TestAuthorizeMatrix(t *testing.T) {
 		{"owner", owner, "", false},
 	}
 	for _, c := range cases {
-		err := Authorize(c.p, c.channel)
+		err := Authorize(c.p, w(c.channel))
 		if (err == nil) != c.ok {
 			t.Errorf("%s → %q: allowed=%v, want %v (err %v)", c.who, c.channel, err == nil, c.ok, err)
 		}
@@ -139,7 +149,7 @@ func TestAuthorizeConversationAccess(t *testing.T) {
 		{"no inbox permission", readOnly, ConversationChannel(mine), false},
 	}
 	for _, c := range cases {
-		err := AuthorizeContext(ctx, c.p, c.channel, access)
+		err := AuthorizeContext(ctx, c.p, w(c.channel), access)
 		if (err == nil) != c.ok {
 			t.Errorf("%s → %q: allowed=%v, want %v (err %v)", c.who, c.channel, err == nil, c.ok, err)
 		}
@@ -148,24 +158,24 @@ func TestAuthorizeConversationAccess(t *testing.T) {
 		t.Fatalf("checker consulted for %v; only agents' well-formed channels need it", asked)
 	}
 	// A failing lookup is an error, not a grant.
-	if err := AuthorizeContext(ctx, agent, ConversationChannel(broken), access); err == nil || errors.Is(err, ErrChannelForbidden) {
+	if err := AuthorizeContext(ctx, agent, w(ConversationChannel(broken)), access); err == nil || errors.Is(err, ErrChannelForbidden) {
 		t.Fatalf("lookup failure: %v", err)
 	}
 	// Without a checker agents keep the Phase 6 behaviour.
-	if err := AuthorizeContext(ctx, agent, ConversationChannel(mine), nil); !errors.Is(err, ErrChannelForbidden) {
+	if err := AuthorizeContext(ctx, agent, w(ConversationChannel(mine)), nil); !errors.Is(err, ErrChannelForbidden) {
 		t.Fatalf("no checker: %v", err)
 	}
 
 	iss, _ := NewIssuer(testSecret)
 	iss.WithConversationAccess(access)
-	tok, err := iss.SubscriptionContext(ctx, agent, ConversationChannel(mine))
+	tok, err := iss.SubscriptionContext(ctx, agent, w(ConversationChannel(mine)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c := verify(t, tok.Token, testSecret); c["channel"] != ConversationChannel(mine) {
+	if c := verify(t, tok.Token, testSecret); c["channel"] != w(ConversationChannel(mine)) {
 		t.Fatalf("claims %v", c)
 	}
-	if _, err := iss.SubscriptionContext(ctx, agent, ConversationChannel(others)); !errors.Is(err, ErrChannelForbidden) {
+	if _, err := iss.SubscriptionContext(ctx, agent, w(ConversationChannel(others))); !errors.Is(err, ErrChannelForbidden) {
 		t.Fatalf("agent got a token for someone else's conversation: %v", err)
 	}
 }
@@ -224,12 +234,27 @@ func TestConnectionToken(t *testing.T) {
 		t.Fatalf("expires %v", tok.ExpiresAt)
 	}
 	c := verify(t, tok.Token, testSecret)
-	if c["sub"] != agent.ID.String() || c["exp"] != float64(now.Add(TokenTTL).Unix()) || c["iat"] != float64(now.Unix()) {
+	if c["sub"] != ConnectionUser(agent) || c["exp"] != float64(now.Add(TokenTTL).Unix()) || c["iat"] != float64(now.Unix()) {
 		t.Fatalf("claims %v", c)
 	}
 	subs, _ := c["subs"].(map[string]any)
-	if len(subs) != 2 || subs[PersonalChannel(agent.ID)] == nil || subs[NotificationsChannel] == nil {
+	if len(subs) != 2 || subs[w(PersonalChannel(agent.ID))] == nil || subs[w(NotificationsChannel)] == nil {
 		t.Fatalf("server-side subscriptions %v", c["subs"])
+	}
+	if tok.ChannelPrefix != "tenant:"+tenantA.String()+":" {
+		t.Fatalf("channel prefix %q", tok.ChannelPrefix)
+	}
+	// A session of another tenant gets that tenant's channels only.
+	b := user("conversations.read")
+	b.TenantID = tenantB
+	tokB, _ := iss.Connection(b)
+	for ch := range verify(t, tokB.Token, testSecret)["subs"].(map[string]any) {
+		if !strings.HasPrefix(ch, ChannelPrefix(tenantB)) {
+			t.Fatalf("tenant B's connection token grants %q", ch)
+		}
+	}
+	if _, err := iss.Connection(&principal.Principal{Kind: principal.KindUser, ID: uuid.New()}); err == nil {
+		t.Fatal("a session without a tenant must not get a connection token")
 	}
 
 	// A different secret does not verify: Centrifugo would refuse it.
@@ -252,19 +277,72 @@ func TestConnectionToken(t *testing.T) {
 
 func TestSubscriptionToken(t *testing.T) {
 	iss, _ := NewIssuer(testSecret)
-	tok, err := iss.Subscription(agent, UnassignedChannel)
+	tok, err := iss.Subscription(agent, w(UnassignedChannel))
 	if err != nil {
 		t.Fatal(err)
 	}
 	c := verify(t, tok.Token, testSecret)
-	if c["sub"] != agent.ID.String() || c["channel"] != UnassignedChannel {
+	if c["sub"] != ConnectionUser(agent) || c["channel"] != w(UnassignedChannel) {
 		t.Fatalf("claims %v", c)
 	}
 	if exp := int64(c["exp"].(float64)); time.Until(time.Unix(exp, 0)) > TokenTTL || time.Until(time.Unix(exp, 0)) < TokenTTL-time.Minute {
 		t.Fatalf("exp %d", exp)
 	}
-	if _, err := iss.Subscription(agent, CampaignsChannel); !errors.Is(err, ErrChannelForbidden) {
+	if _, err := iss.Subscription(agent, w(CampaignsChannel)); !errors.Is(err, ErrChannelForbidden) {
 		t.Fatalf("agent got a campaigns token: %v", err)
+	}
+	for _, ch := range []string{UnassignedChannel, TenantChannel(tenantB, UnassignedChannel)} {
+		if _, err := iss.Subscription(agent, ch); !errors.Is(err, ErrChannelForbidden) {
+			t.Fatalf("token for %q: %v", ch, err)
+		}
+	}
+}
+
+// Channels carry their tenant; a session may only read its own tenant's,
+// and only in the one canonical spelling.
+func TestAuthorizeTenantPrefix(t *testing.T) {
+	ctx := context.Background()
+	conv := uuid.Must(uuid.NewV7())
+	cases := []struct {
+		channel string
+		ok      bool
+	}{
+		{TenantChannel(tenantA, InboxChannel), true},
+		{TenantChannel(tenantA, PersonalChannel(owner.ID)), true},
+		{TenantChannel(tenantA, ConversationChannel(conv)), true},
+		{TenantChannel(tenantB, InboxChannel), false},
+		{TenantChannel(tenantB, PersonalChannel(owner.ID)), false},
+		{TenantChannel(tenantB, ConversationChannel(conv)), false},
+		{TenantChannel(tenantB, NotificationsChannel), false},
+		{TenantChannel(tenantB, OpsChannel), false},
+		{InboxChannel, false}, // no prefix: the old, tenant-less name
+		{"t:" + tenantA.String() + ":inbox:all", false},
+		{"tenant:" + strings.ToUpper(tenantA.String()) + ":inbox:all", false},
+		{"tenant:" + uuid.Nil.String() + ":inbox:all", false},
+		{"tenant:not-a-uuid:inbox:all", false},
+		{"tenant:" + tenantA.String(), false},
+		{"tenant:" + tenantA.String() + ":", false},
+		{"tenant::inbox:all", false},
+	}
+	for _, c := range cases {
+		if err := Authorize(owner, c.channel); (err == nil) != c.ok {
+			t.Errorf("%q: allowed=%v, want %v", c.channel, err == nil, c.ok)
+		}
+	}
+	// The request's tenant (its host) must be the session's.
+	if err := AuthorizeContext(tenant.WithID(ctx, tenantA), owner, w(InboxChannel), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := AuthorizeContext(tenant.WithID(ctx, tenantB), owner, w(InboxChannel), nil); !errors.Is(err, ErrChannelForbidden) {
+		t.Fatalf("host of tenant B: %v", err)
+	}
+	noTenant := user("conversations.read_all")
+	noTenant.TenantID = uuid.Nil
+	if err := Authorize(noTenant, TenantChannel(uuid.Nil, InboxChannel)); !errors.Is(err, ErrChannelForbidden) {
+		t.Fatalf("session without tenant: %v", err)
+	}
+	if id, logical, ok := SplitChannel(w(ConversationChannel(conv))); !ok || id != tenantA || logical != ConversationChannel(conv) {
+		t.Fatalf("split %v %q %v", id, logical, ok)
 	}
 }
 
@@ -285,10 +363,11 @@ func TestPublisher(t *testing.T) {
 	ev := NewMessageEvent(TypeMessageCreated, db.Message{ID: uuid.New(), ContactID: uuid.New(), PhoneNumberID: uuid.New(),
 		Direction: "inbound", Type: "text", Status: "received", Body: "secret body", UpdatedAt: time.Now()})
 	payload, _ := json.Marshal(ev)
-	if err := pub.Publish(context.Background(), outbox.Event{ID: 42, Topic: TopicPrefix + InboxChannel, Payload: payload}); err != nil {
+	if err := pub.Publish(context.Background(), outbox.Event{ID: 42, TenantID: tenantA, Topic: TopicPrefix + InboxChannel, Payload: payload}); err != nil {
 		t.Fatal(err)
 	}
-	if f.channel != InboxChannel || f.key != "outbox:42" || string(f.data) != string(payload) {
+	// The prefix is the event's tenant.
+	if f.channel != w(InboxChannel) || f.key != "outbox:42" || string(f.data) != string(payload) {
 		t.Fatalf("published %q %q %s", f.channel, f.key, f.data)
 	}
 	var got map[string]any
@@ -300,11 +379,29 @@ func TestPublisher(t *testing.T) {
 		t.Fatal("message bodies must never be published")
 	}
 
+	if err := pub.Publish(context.Background(), outbox.Event{ID: 45, TenantID: tenantB, Topic: TopicPrefix + InboxChannel, Payload: payload}); err != nil {
+		t.Fatal(err)
+	}
+	if f.channel != TenantChannel(tenantB, InboxChannel) {
+		t.Fatalf("tenant B's event went to %q", f.channel)
+	}
+	// A topic naming another tenant's wire channel stays in the writer's.
+	if err := pub.Publish(context.Background(), outbox.Event{ID: 46, TenantID: tenantB, Topic: TopicPrefix + w(InboxChannel), Payload: payload}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(f.channel, ChannelPrefix(tenantB)) {
+		t.Fatalf("a topic escaped its tenant: %q", f.channel)
+	}
+	f.channel = ""
+	if err := pub.Publish(context.Background(), outbox.Event{ID: 47, Topic: TopicPrefix + InboxChannel, Payload: payload}); err == nil || f.channel != "" {
+		t.Fatal("an event without a tenant must not be published")
+	}
+
 	f.err = errors.New("down")
-	if err := pub.Publish(context.Background(), outbox.Event{ID: 43, Topic: TopicPrefix + InboxChannel, Payload: payload}); err == nil {
+	if err := pub.Publish(context.Background(), outbox.Event{ID: 43, TenantID: tenantA, Topic: TopicPrefix + InboxChannel, Payload: payload}); err == nil {
 		t.Fatal("a failed publish must be retried by the relay")
 	}
-	if err := pub.Publish(context.Background(), outbox.Event{ID: 44, Topic: TopicPrefix, Payload: payload}); err == nil {
+	if err := pub.Publish(context.Background(), outbox.Event{ID: 44, TenantID: tenantA, Topic: TopicPrefix, Payload: payload}); err == nil {
 		t.Fatal("an event without a channel must fail")
 	}
 }

@@ -25,6 +25,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/config"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
@@ -136,6 +137,9 @@ func newHarness(t *testing.T) *harness {
 // ctx is a context of the harness's tenant, for calling services and
 // h.pool directly.
 func (h *harness) ctx() context.Context { return tenant.WithID(context.Background(), h.tenantID) }
+
+// wire is the Centrifugo name of the harness tenant's logical channel.
+func (h *harness) wire(logical string) string { return realtime.TenantChannel(h.tenantID, logical) }
 
 // tenant creates another tenant reached at <slug>.messora.test and returns
 // a harness that calls the same server as that tenant.
