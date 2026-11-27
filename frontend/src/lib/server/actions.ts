@@ -1,6 +1,8 @@
 import 'server-only';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { requestOrigin } from './tenant-host';
 import { ApiError } from './api';
 import { clearSession } from './session';
 import type { ActionResult } from '@/lib/types';
@@ -38,7 +40,9 @@ export async function runAction<T>(
                 (err.status === 401 && err.code === 'UNAUTHORIZED')
             ) {
                 await clearSession();
-                redirect('/login');
+                // The full address: a relative redirect renders its target
+                // inside this response, past the proxy's admin-host mapping.
+                redirect(requestOrigin(await headers()) + '/login');
             }
             const fieldErrors: Record<string, string> = {};
             for (const d of err.details) {

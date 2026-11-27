@@ -1,6 +1,7 @@
 'use server';
 
 import QRCode from 'qrcode';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { field, runAction } from '@/lib/server/actions';
@@ -11,6 +12,7 @@ import {
     setPlatformMfaToken,
     setPlatformToken,
 } from '@/lib/server/session';
+import { requestOrigin } from '@/lib/server/tenant-host';
 import { getT } from '@/i18n/server';
 import type { ActionResult, Schemas } from '@/lib/types';
 
@@ -20,6 +22,15 @@ import type { ActionResult, Schemas } from '@/lib/types';
  */
 
 type Detail = Schemas['PlatformTenantDetail'];
+
+/**
+ * Redirects of these actions name the full address: a relative redirect
+ * would render its target inside the action's response, past the edge
+ * proxy that maps the admin host to this route segment.
+ */
+async function full(path: string): Promise<string> {
+    return requestOrigin(await headers()) + path;
+}
 
 function refresh() {
     revalidatePath('/platform-admin', 'layout');
@@ -50,11 +61,11 @@ export async function platformLoginAction(
     if (!res.ok) return res;
     if (res.data.status === 'mfa_required' && res.data.mfa_token) {
         await setPlatformMfaToken(res.data.mfa_token);
-        redirect('/login/verify');
+        redirect(await full('/login/verify'));
     }
     if (res.data.session)
         await setPlatformToken(res.data.session.session_token);
-    redirect('/');
+    redirect(await full('/'));
 }
 
 export async function platformVerifyAction(
@@ -62,7 +73,7 @@ export async function platformVerifyAction(
     form: FormData,
 ): Promise<ActionResult> {
     const token = await getPlatformMfaToken();
-    if (!token) redirect('/login');
+    if (!token) redirect(await full('/login'));
     const code = field(form, 'code');
     const recovery = field(form, 'recovery_code');
     const res = await runAction(
@@ -86,13 +97,13 @@ export async function platformVerifyAction(
     if (!res.ok) {
         if (res.code === 'MFA_EXPIRED') {
             await clearPlatformMfaToken();
-            redirect('/login');
+            redirect(await full('/login'));
         }
         return res;
     }
     await setPlatformToken(res.data.session_token);
     await clearPlatformMfaToken();
-    redirect('/');
+    redirect(await full('/'));
 }
 
 export async function bootstrapAction(
@@ -119,7 +130,7 @@ export async function bootstrapAction(
     );
     if (!res.ok) return res;
     await setPlatformToken(res.data.session_token);
-    redirect('/enroll');
+    redirect(await full('/enroll'));
 }
 
 export async function startEnrollAction(): Promise<
