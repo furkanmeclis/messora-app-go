@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -40,24 +39,6 @@ func NewHandler(pool *pgxpool.Pool, store *Store, mail *Mail, mediaDir string, l
 	return &Handler{pool: pool, store: store, mail: mail, mediaDir: mediaDir, log: log}
 }
 
-func themeToAPI(t Theme) api.Theme {
-	return api.Theme{Preset: api.ThemePreset(t.Preset), Mode: api.ThemeMode(t.Mode), Light: api.ThemeColors(nonNil(t.Light)),
-		Dark: api.ThemeColors(nonNil(t.Dark)), Radius: float32(t.Radius), Font: api.ThemeFont(t.Font),
-		Density: api.ThemeDensity(t.Density), Wallpaper: api.ThemeWallpaper(t.Wallpaper)}
-}
-
-func themeFromAPI(t api.Theme) Theme {
-	return Theme{Preset: string(t.Preset), Mode: string(t.Mode), Light: map[string]string(t.Light), Dark: map[string]string(t.Dark),
-		Radius: float64(t.Radius), Font: string(t.Font), Density: string(t.Density), Wallpaper: string(t.Wallpaper)}
-}
-
-func nonNil(m map[string]string) map[string]string {
-	if m == nil {
-		return map[string]string{}
-	}
-	return m
-}
-
 func pwaToAPI(p PWA) api.PwaSettings {
 	return api.PwaSettings{Enabled: p.Enabled, Name: p.Name, ShortName: p.ShortName, Description: p.Description,
 		ThemeColor: p.ThemeColor, BackgroundColor: p.BackgroundColor, Display: api.PwaSettingsDisplay(p.Display),
@@ -87,7 +68,7 @@ func toAPI(s Settings) api.Settings {
 	return api.Settings{OrganizationName: s.OrganizationName, DefaultTimezone: s.DefaultTimezone, MfaRequiredRoles: roles,
 		SessionIdleHours: s.SessionIdleHours, SessionLifetimeDays: s.SessionLifetimeDays,
 		DefaultLocale: api.Locale(s.DefaultLocale), DateFormat: api.DateFormat(s.DateFormat), TimeFormat: api.TimeFormat(s.TimeFormat),
-		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), Setup: api.SetupProgress{Completed: s.Setup.Completed, Steps: steps},
+		Logo: logoToAPI(s.Logo), Setup: api.SetupProgress{Completed: s.Setup.Completed, Steps: steps},
 		Locked: locked, Pwa: pwaToAPI(s.PWA)}
 }
 
@@ -101,7 +82,7 @@ func (h *Handler) GetAppearance(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, r, http.StatusOK, api.Appearance{OrganizationName: s.OrganizationName, DefaultLocale: api.Locale(s.DefaultLocale),
 		DefaultTimezone: s.DefaultTimezone, DateFormat: api.DateFormat(s.DateFormat), TimeFormat: api.TimeFormat(s.TimeFormat),
-		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), SetupCompleted: s.Setup.Completed, Pwa: pwaToAPI(s.PWA)})
+		Logo: logoToAPI(s.Logo), SetupCompleted: s.Setup.Completed, Pwa: pwaToAPI(s.PWA)})
 }
 
 // GetSettings implements api.ServerInterface.
@@ -156,15 +137,6 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 			StartURL: req.Pwa.StartUrl, Icon: string(req.Pwa.Icon)}
 		p.PWA = &v
 	}
-	if req.Theme != nil {
-		// The look of the whole workspace belongs to its owner.
-		if actor.RoleKey != "owner" {
-			httpx.WriteError(w, r, apperr.Forbidden("OWNER_ONLY", "Only the owner can change the theme."), h.log)
-			return
-		}
-		t := themeFromAPI(*req.Theme)
-		p.Theme = &t
-	}
 	var updated Settings
 	err := inTx(r.Context(), h.pool, func(q *db.Queries) error {
 		old, upd, err := h.store.Update(r.Context(), q, p, &actor.ID)
@@ -214,9 +186,6 @@ func changes(a, b Settings) map[string]any {
 	}
 	if a.SessionLifetimeDays != b.SessionLifetimeDays {
 		out["session_lifetime_days"] = []int{a.SessionLifetimeDays, b.SessionLifetimeDays}
-	}
-	if fmt.Sprint(a.Theme) != fmt.Sprint(b.Theme) {
-		out["theme"] = []any{a.Theme, b.Theme}
 	}
 	if a.PWA != b.PWA {
 		out["pwa"] = []any{a.PWA, b.PWA}

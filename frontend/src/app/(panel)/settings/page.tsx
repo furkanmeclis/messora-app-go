@@ -4,6 +4,8 @@ import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
 import type { Settings } from '@/lib/types';
 import { GeneralForm } from './general-form';
+import { LogoUploader } from './logo-uploader';
+import { Section } from './section';
 
 export async function generateMetadata(): Promise<Metadata> {
     const t = await getT();
@@ -12,11 +14,20 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function SettingsPage() {
     const me = await requirePermission('settings.read');
-    const settings = (await api<Settings>('/settings')).data;
+    const [settings, t] = await Promise.all([
+        api<Settings>('/settings').then((r) => r.data),
+        getT(),
+    ]);
+    const readOnly = !can(me, 'settings.update');
     return (
-        <GeneralForm
-            settings={settings}
-            readOnly={!can(me, 'settings.update')}
-        />
+        <div className="space-y-6">
+            <GeneralForm settings={settings} readOnly={readOnly} />
+            <Section
+                title={t('settings.logo.title')}
+                description={t('settings.logo.hint')}
+            >
+                <LogoUploader logo={settings.logo} readOnly={readOnly} />
+            </Section>
+        </div>
     );
 }

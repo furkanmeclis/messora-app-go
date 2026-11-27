@@ -66,7 +66,7 @@ Frontend **Next.js 16 (App Router, `output: 'standalone'`)** ile yazılır ve BF
 | Konu | Yaklaşım |
 |---|---|
 | UI bileşenleri | shadcn/ui (Radix tabanı, `radix-nova` stili), CLI ile üretilir (`components.json`) |
-| Tema | Messora tasarım token'ları (`globals.css`: nötr yüzeyler, indigo marka rengi), `next-themes` ile light/dark/system |
+| Tema | Tek, sabit Messora görünümü: tasarım token'ları `globals.css`'te (nötr yüzeyler, indigo marka rengi), çalışma zamanında tema enjeksiyonu yok; kişi `next-themes` ile light/dark/system seçer. Firmaya özgü olan yalnızca ad ve logo. |
 | Veri okuma | Server Component → `lib/server/api.ts` (server-only, BFF secret + oturum token'ı ekler) |
 | Veri yazma | Server Action + `useActionState`. Doğrulama hataları API'nin `details[]` alanından forma eşlenir |
 | Bildirimler | Server Action sonucu ve realtime event'ler → `sonner` |

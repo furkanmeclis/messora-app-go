@@ -29,7 +29,6 @@ type Settings struct {
 	MFARequiredRoles    []string `json:"mfa_required_roles"`
 	SessionIdleHours    int      `json:"session_idle_hours"`
 	SessionLifetimeDays int      `json:"session_lifetime_days"`
-	Theme               Theme    `json:"theme"`
 	Logo                *Logo    `json:"logo,omitempty"`
 	Setup               Setup    `json:"setup"`
 	PWA                 PWA      `json:"pwa"`
@@ -56,7 +55,7 @@ var (
 	Locales     = []string{"en", "tr"}
 	DateFormats = []string{"dd.MM.yyyy", "dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "d MMM yyyy"}
 	TimeFormats = []string{"24h", "12h"}
-	SetupSteps  = []string{"organization", "language", "region", "theme", "email", "whatsapp", "security", "team"}
+	SetupSteps  = []string{"organization", "language", "region", "email", "whatsapp", "security", "team"}
 )
 
 // Defaults returns the initial settings. Two-factor authentication is not
@@ -71,7 +70,6 @@ func Defaults() Settings {
 		MFARequiredRoles:    []string{},
 		SessionIdleHours:    12,
 		SessionLifetimeDays: 30,
-		Theme:               DefaultTheme(),
 		Setup:               Setup{Steps: []string{}},
 		PWA:                 DefaultPWA(),
 	}
@@ -87,7 +85,6 @@ type Patch struct {
 	MFARequiredRoles    *[]string
 	SessionIdleHours    *int
 	SessionLifetimeDays *int
-	Theme               *Theme
 	SetupSteps          *[]string
 	SetupCompleted      *bool
 	PWA                 *PWA
@@ -109,7 +106,6 @@ func (p Patch) fields() []string {
 	add(p.MFARequiredRoles != nil, "mfa_required_roles")
 	add(p.SessionIdleHours != nil, "session_idle_hours")
 	add(p.SessionLifetimeDays != nil, "session_lifetime_days")
-	add(p.Theme != nil, "theme")
 	return out
 }
 
@@ -152,12 +148,6 @@ func (s Settings) Apply(p Patch) (Settings, error) {
 			return s, fmt.Errorf("%w: time format must be 24h or 12h", ErrInvalid)
 		}
 		s.TimeFormat = *p.TimeFormat
-	}
-	if p.Theme != nil {
-		if err := p.Theme.Validate(); err != nil {
-			return s, err
-		}
-		s.Theme = *p.Theme
 	}
 	if p.PWA != nil {
 		if err := p.PWA.Validate(); err != nil {

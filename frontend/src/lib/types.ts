@@ -13,7 +13,6 @@ export type RoleKey = Schemas['RoleKey'];
 export type RolesAndPermissions = Schemas['RolesAndPermissions'];
 export type Settings = Schemas['Settings'];
 export type Appearance = Schemas['Appearance'];
-export type Theme = Schemas['Theme'];
 export type SmtpSettings = Schemas['SmtpSettings'];
 export type SetupStep = Schemas['SetupStep'];
 export type AuditLog = Schemas['AuditLog'];

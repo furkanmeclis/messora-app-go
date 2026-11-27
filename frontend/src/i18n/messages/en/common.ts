@@ -2,6 +2,8 @@ const common = {
     save: 'Save',
     saving: 'Saving…',
     saved: 'Saved',
+    unsaved: 'Unsaved changes',
+    discard: 'Discard',
     cancel: 'Cancel',
     close: 'Close',
     back: 'Back',

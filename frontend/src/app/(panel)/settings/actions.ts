@@ -19,7 +19,6 @@ export async function saveSettingsAction(
     patch: Patch,
     successKey:
         | 'settings.general.saved'
-        | 'appearance.saved'
         | 'pwa.saved'
         | 'common.saved' = 'settings.general.saved',
 ): Promise<ActionResult<Settings>> {
@@ -66,7 +65,7 @@ export async function removeLogoAction(): Promise<ActionResult<Settings>> {
     const res = await runAction(
         async () =>
             (await api<Settings>('/settings/logo', { method: 'DELETE' })).data,
-        t('appearance.logoRemoved'),
+        t('settings.logo.removed'),
     );
     invalidateAppearance();
     revalidatePath('/', 'layout');

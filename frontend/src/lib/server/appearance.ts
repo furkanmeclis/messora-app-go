@@ -10,16 +10,6 @@ export const fallbackAppearance: Appearance = {
     default_timezone: 'UTC',
     date_format: 'dd.MM.yyyy',
     time_format: '24h',
-    theme: {
-        preset: 'messora',
-        mode: 'system',
-        light: {},
-        dark: {},
-        radius: 0.75,
-        font: 'geist',
-        density: 'comfortable',
-        wallpaper: 'aurora',
-    },
     logo: null,
     setup_completed: true,
     pwa: {

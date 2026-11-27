@@ -3324,7 +3324,6 @@ export interface components {
             default_locale: components['schemas']['Locale'];
             date_format: components['schemas']['DateFormat'];
             time_format: components['schemas']['TimeFormat'];
-            theme: components['schemas']['Theme'];
             logo: components['schemas']['LogoInfo'] | null;
             setup: components['schemas']['SetupProgress'];
             pwa: components['schemas']['PwaSettings'];
@@ -3343,7 +3342,6 @@ export interface components {
             default_locale?: components['schemas']['Locale'];
             date_format?: components['schemas']['DateFormat'];
             time_format?: components['schemas']['TimeFormat'];
-            theme?: components['schemas']['Theme'];
             setup_steps?: components['schemas']['SetupStep'][];
             setup_completed?: boolean;
             pwa?: components['schemas']['PwaSettings'];
@@ -3379,7 +3377,6 @@ export interface components {
             | 'organization'
             | 'language'
             | 'region'
-            | 'theme'
             | 'email'
             | 'whatsapp'
             | 'security'
@@ -3393,45 +3390,12 @@ export interface components {
             /** @description Changes with every upload (cache key). */
             version: string;
         };
-        /** @description Colour overrides on top of the preset, keyed by token (background, primary …). Hex or oklch(). */
-        ThemeColors: {
-            [key: string]: string;
-        };
-        Theme: {
-            /** @enum {string} */
-            preset:
-                | 'messora'
-                | 'midnight'
-                | 'sand'
-                | 'forest'
-                | 'graphite'
-                | 'ocean'
-                | 'rose';
-            /** @enum {string} */
-            mode: 'light' | 'dark' | 'system';
-            light: components['schemas']['ThemeColors'];
-            dark: components['schemas']['ThemeColors'];
-            radius: number;
-            /** @enum {string} */
-            font:
-                | 'geist'
-                | 'inter'
-                | 'manrope'
-                | 'plus-jakarta'
-                | 'ibm-plex'
-                | 'space-grotesk';
-            /** @enum {string} */
-            density: 'compact' | 'comfortable' | 'spacious';
-            /** @enum {string} */
-            wallpaper: 'aurora' | 'dunes' | 'grid' | 'mesh' | 'plain' | 'waves';
-        };
         Appearance: {
             organization_name: string;
             default_locale: components['schemas']['Locale'];
             default_timezone: string;
             date_format: components['schemas']['DateFormat'];
             time_format: components['schemas']['TimeFormat'];
-            theme: components['schemas']['Theme'];
             logo: components['schemas']['LogoInfo'] | null;
             setup_completed: boolean;
             pwa: components['schemas']['PwaSettings'];

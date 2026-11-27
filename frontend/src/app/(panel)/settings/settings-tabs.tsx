@@ -6,7 +6,6 @@ import {
     AppWindow,
     Mail,
     MessageSquareOff,
-    Palette,
     ReceiptText,
     ShieldAlert,
     ShieldCheck,
@@ -18,7 +17,6 @@ import { cn } from '@/lib/utils';
 
 const ICONS = {
     general: SlidersHorizontal,
-    appearance: Palette,
     pwa: AppWindow,
     email: Mail,
     consent: MessageSquareOff,

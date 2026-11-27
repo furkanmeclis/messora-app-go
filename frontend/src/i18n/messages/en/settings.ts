@@ -3,7 +3,6 @@ const settings = {
     description: 'Workspace-wide configuration.',
     tabs: {
         general: 'General',
-        appearance: 'Appearance',
         email: 'E-mail',
         security: 'Security',
         webhooks: 'Webhooks',
@@ -28,6 +27,13 @@ const settings = {
         since: 'from {from}',
         between: '{from} – {to}',
         importedAt: 'Imported',
+    },
+    logo: {
+        title: 'Logo',
+        hint: 'PNG, JPEG, WebP or SVG, up to 2 MB. Shown in the sidebar and on the sign-in page.',
+        uploaded: 'Logo updated',
+        removed: 'Logo removed',
+        remove: 'Remove logo',
     },
     general: {
         organization: 'Organisation',

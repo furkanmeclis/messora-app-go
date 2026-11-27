@@ -7,25 +7,16 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { I18nProvider } from '@/i18n/client';
 import { getLocale } from '@/i18n/server';
 import { getAppearance } from '@/lib/server/appearance';
-import { themeCss } from '@/theme/css';
 import './globals.css';
 
 // Every page is rendered per request: pages depend on the session, and the
 // CSP nonce changes on each response.
 export const dynamic = 'force-dynamic';
 
-/** A short, stable fingerprint (cache key, not security). */
-function hash(text: string): string {
-    let h = 5381;
-    for (let i = 0; i < text.length; i++)
-        h = ((h << 5) + h + text.charCodeAt(i)) | 0;
-    return (h >>> 0).toString(36);
-}
-
 export async function generateMetadata(): Promise<Metadata> {
-    const { organization_name: org, logo, theme, pwa } = await getAppearance();
-    // The version changes with the logo or theme, so browsers refetch it.
-    const v = encodeURIComponent(logo?.version ?? hash(JSON.stringify(theme)));
+    const { organization_name: org, logo, pwa } = await getAppearance();
+    // The version changes with the logo, so browsers refetch it.
+    const v = encodeURIComponent(logo?.version ?? 'messora');
     return {
         title: { default: org, template: `%s · ${org}` },
         ...(pwa.enabled
@@ -68,21 +59,9 @@ export default async function RootLayout({
     ]);
     return (
         <html lang={locale} className="font-sans" suppressHydrationWarning>
-            <head>
-                {/* The workspace theme, before first paint (no flash). */}
-                <style
-                    id="messora-theme"
-                    nonce={nonce}
-                    dangerouslySetInnerHTML={{
-                        __html: themeCss(appearance.theme),
-                    }}
-                />
-            </head>
+            <head></head>
             <body className="antialiased">
-                <ThemeProvider
-                    nonce={nonce}
-                    defaultTheme={appearance.theme.mode}
-                >
+                <ThemeProvider nonce={nonce}>
                     <I18nProvider locale={locale}>
                         <PwaProvider enabled={appearance.pwa.enabled}>
                             <TooltipProvider>{children}</TooltipProvider>

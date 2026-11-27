@@ -1,5 +1,4 @@
 import type { DeepString } from '../types';
-import appearance from './appearance';
 import auth from './auth';
 import overview from './overview';
 import inbox from './inbox';
@@ -40,7 +39,6 @@ export const en = {
     common,
     nav,
     errors,
-    appearance,
     settings,
     wizard,
     topbar,

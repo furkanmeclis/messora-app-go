@@ -154,7 +154,6 @@ const routes: [string, () => string][] = [
     ['/audit', () => '/audit'],
     ['/system/failed-jobs', () => '/system/failed-jobs'],
     ['/settings', () => '/settings'],
-    ['/settings/appearance', () => '/settings/appearance'],
     ['/settings/pwa', () => '/settings/pwa'],
     ['/settings/email', () => '/settings/email'],
     ['/settings/consent', () => '/settings/consent'],

@@ -17,11 +17,6 @@ export default async function SettingsLayout({
             icon: 'general',
         },
         has('settings.read') && {
-            href: '/settings/appearance',
-            label: t('settings.tabs.appearance'),
-            icon: 'appearance',
-        },
-        has('settings.read') && {
             href: '/settings/pwa',
             label: t('pwa.tab'),
             icon: 'pwa',

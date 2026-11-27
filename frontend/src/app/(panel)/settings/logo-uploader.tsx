@@ -10,7 +10,7 @@ import { FileDrop } from '@/components/ui/file-drop';
 import { notify } from '@/components/notify';
 import { useT } from '@/i18n/client';
 import type { Settings } from '@/lib/types';
-import { removeLogoAction } from '../actions';
+import { removeLogoAction } from './actions';
 
 /** Uploads the organisation logo through the streaming BFF route. */
 export function LogoUploader({
@@ -51,7 +51,7 @@ export function LogoUploader({
             }
             setCurrent(body.data.logo);
             onChange?.(body.data.logo);
-            toast.success(t('appearance.logoUploaded'));
+            toast.success(t('settings.logo.uploaded'));
             router.refresh();
         });
     };
@@ -78,7 +78,7 @@ export function LogoUploader({
                         accept="image/png,image/jpeg,image/webp,image/svg+xml"
                         onFile={upload}
                         disabled={busy}
-                        hint={t('appearance.logoHint')}
+                        hint={t('settings.logo.hint')}
                     />
                     {current && (
                         <Button
@@ -98,7 +98,7 @@ export function LogoUploader({
                             }
                         >
                             <Trash2 />
-                            {t('appearance.removeLogo')}
+                            {t('settings.logo.remove')}
                         </Button>
                     )}
                 </div>

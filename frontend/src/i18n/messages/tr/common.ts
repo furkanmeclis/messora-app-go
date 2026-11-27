@@ -4,6 +4,8 @@ const common: Messages['common'] = {
     save: 'Kaydet',
     saving: 'Kaydediliyor…',
     saved: 'Kaydedildi',
+    unsaved: 'Kaydedilmemiş değişiklikler',
+    discard: 'Vazgeç',
     cancel: 'Vazgeç',
     close: 'Kapat',
     back: 'Geri',

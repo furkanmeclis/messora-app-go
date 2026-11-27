@@ -77,7 +77,7 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** Temiz kurulumda sihirbaz baştan sona tarayıcıda tamamlanır (E2E). `.env`'de tanımlı SMTP değeri panelden değiştirilemez ve kilitli görünür. SMTP şifresi veritabanında düz metin bulunmaz.
 
-## Phase 12 — Tasarım sistemi ve tema motoru ✅ (2026-11-23)
+## Phase 12 — Tasarım sistemi ve tema motoru ✅ (2026-11-23; tema motoru Phase 17 WP0'da kaldırıldı)
 - Messora'ya özgü görsel dil; tarayıcının yerel (native) kontrolleri kullanılmaz: select, checkbox, radio, tarih/saat seçici, dosya seçici, renk seçici, onay pencereleri özel bileşenlerdir.
 - Tema motoru: hazır temalar (açık/koyu) + tam özelleştirme (renkler, yüzeyler, köşe yuvarlaklığı, yazı tipi, yoğunluk), canlı önizleme, okunabilirlik (kontrast) uyarısı. Sadece sahip değiştirir.
 - Yükleme, boş ve hata durumlarında tutarlı hareket ve geçişler.

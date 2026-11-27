@@ -5073,14 +5073,13 @@ components:
 
     Settings:
       type: object
-      required: [organization_name, default_timezone, default_locale, date_format, time_format, mfa_required_roles, session_idle_hours, session_lifetime_days, theme, logo, setup, pwa, locked]
+      required: [organization_name, default_timezone, default_locale, date_format, time_format, mfa_required_roles, session_idle_hours, session_lifetime_days, logo, setup, pwa, locked]
       properties:
         organization_name: { type: string, minLength: 1, maxLength: 120 }
         default_timezone: { type: string, minLength: 1, maxLength: 64 }
         default_locale: { $ref: "#/components/schemas/Locale" }
         date_format: { $ref: "#/components/schemas/DateFormat" }
         time_format: { $ref: "#/components/schemas/TimeFormat" }
-        theme: { $ref: "#/components/schemas/Theme" }
         logo:
           oneOf:
             - { $ref: "#/components/schemas/LogoInfo" }
@@ -5116,10 +5115,9 @@ components:
         default_locale: { $ref: "#/components/schemas/Locale" }
         date_format: { $ref: "#/components/schemas/DateFormat" }
         time_format: { $ref: "#/components/schemas/TimeFormat" }
-        theme: { $ref: "#/components/schemas/Theme" }
         setup_steps:
           type: array
-          maxItems: 8
+          maxItems: 7
           items: { $ref: "#/components/schemas/SetupStep" }
         setup_completed: { type: boolean }
         pwa: { $ref: "#/components/schemas/PwaSettings" }
@@ -5150,7 +5148,7 @@ components:
       enum: [24h, 12h]
     SetupStep:
       type: string
-      enum: [organization, language, region, theme, email, whatsapp, security, team]
+      enum: [organization, language, region, email, whatsapp, security, team]
     SetupProgress:
       type: object
       required: [completed, steps]
@@ -5165,34 +5163,15 @@ components:
       properties:
         content_type: { type: string }
         version: { type: string, description: Changes with every upload (cache key). }
-    ThemeColors:
-      type: object
-      description: Colour overrides on top of the preset, keyed by token (background, primary …). Hex or oklch().
-      maxProperties: 40
-      additionalProperties: { type: string, maxLength: 64 }
-    Theme:
-      type: object
-      required: [preset, mode, light, dark, radius, font, density, wallpaper]
-      additionalProperties: false
-      properties:
-        preset: { type: string, enum: [messora, midnight, sand, forest, graphite, ocean, rose] }
-        mode: { type: string, enum: [light, dark, system] }
-        light: { $ref: "#/components/schemas/ThemeColors" }
-        dark: { $ref: "#/components/schemas/ThemeColors" }
-        radius: { type: number, minimum: 0, maximum: 2 }
-        font: { type: string, enum: [geist, inter, manrope, plus-jakarta, ibm-plex, space-grotesk] }
-        density: { type: string, enum: [compact, comfortable, spacious] }
-        wallpaper: { type: string, enum: [aurora, dunes, grid, mesh, plain, waves] }
     Appearance:
       type: object
-      required: [organization_name, default_locale, default_timezone, date_format, time_format, theme, logo, setup_completed, pwa]
+      required: [organization_name, default_locale, default_timezone, date_format, time_format, logo, setup_completed, pwa]
       properties:
         organization_name: { type: string }
         default_locale: { $ref: "#/components/schemas/Locale" }
         default_timezone: { type: string }
         date_format: { $ref: "#/components/schemas/DateFormat" }
         time_format: { $ref: "#/components/schemas/TimeFormat" }
-        theme: { $ref: "#/components/schemas/Theme" }
         logo:
           oneOf:
             - { $ref: "#/components/schemas/LogoInfo" }
