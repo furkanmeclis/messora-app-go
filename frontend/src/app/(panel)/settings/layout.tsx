@@ -17,16 +17,6 @@ export default async function SettingsLayout({
             icon: 'general',
         },
         has('settings.read') && {
-            href: '/settings/appearance',
-            label: t('settings.tabs.appearance'),
-            icon: 'appearance',
-        },
-        has('settings.read') && {
-            href: '/settings/pwa',
-            label: t('pwa.tab'),
-            icon: 'pwa',
-        },
-        has('settings.read') && {
             href: '/settings/email',
             label: t('settings.tabs.email'),
             icon: 'email',
@@ -45,11 +35,6 @@ export default async function SettingsLayout({
             href: '/settings/security',
             label: t('settings.tabs.security'),
             icon: 'security',
-        },
-        has('settings.read') && {
-            href: '/settings/license',
-            label: t('license.tab'),
-            icon: 'license',
         },
         has('settings.read') && {
             href: '/settings/meta-rates',

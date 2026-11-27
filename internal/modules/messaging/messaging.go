@@ -33,7 +33,6 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
-	"github.com/furkanmeclis/messora-app-go/internal/shared/licensegate"
 )
 
 // Task types.
@@ -261,9 +260,6 @@ func (s *Service) Queue(ctx context.Context, in SendInput) (db.Message, error) {
 // automation runner can record "message queued" and their own progress
 // atomically.
 func (s *Service) QueueTx(ctx context.Context, tx pgx.Tx, in SendInput) (db.Message, error) {
-	if err := licensegate.Check(ctx); err != nil {
-		return db.Message{}, err
-	}
 	to, ok := NormalizePhone(in.To)
 	if !ok {
 		return db.Message{}, apperr.Validation("to", "Recipient must be a phone number in international format, e.g. +905551112233.")

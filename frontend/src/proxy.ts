@@ -14,8 +14,6 @@ const PUBLIC = [
     // The organisation logo appears on the sign-in page.
     '/bff/logo',
     '/bff/favicon',
-    '/bff/manifest',
-    '/offline.html',
 ];
 const SESSION_COOKIES = ['__Host-messora_session', 'messora_session'];
 
@@ -63,8 +61,8 @@ export function proxy(req: NextRequest) {
         `object-src 'none'`,
         `base-uri 'self'`,
         `form-action 'self'`,
-        // Same origin only: desktop mode shows panel pages in windows.
-        `frame-ancestors 'self'`,
+        // Nothing frames the panel, not even its own pages.
+        `frame-ancestors 'none'`,
     ].join('; ');
 
     const requestHeaders = new Headers(req.headers);

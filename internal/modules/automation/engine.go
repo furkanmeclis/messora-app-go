@@ -27,7 +27,6 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/safehttp"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
-	"github.com/furkanmeclis/messora-app-go/internal/shared/licensegate"
 )
 
 // Task types.
@@ -112,9 +111,6 @@ func (s *Service) SetClock(now func() time.Time) { s.now = now }
 // Evaluate starts a run for every active automation the event matches. A
 // redelivered event finds its runs already present and starts nothing.
 func (s *Service) Evaluate(ctx context.Context, e trigger.Event) error {
-	if licensegate.Check(ctx) != nil {
-		return nil // restricted mode: automations do not start
-	}
 	autos, err := s.q.ActiveAutomationsFor(ctx, e.Type)
 	if err != nil || len(autos) == 0 {
 		return err

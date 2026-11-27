@@ -74,7 +74,7 @@ Her kayıtta aktör, IP, user agent, request ID ve değişen alanların eski/yen
 ## 5. HTTP güvenliği
 
 - **Next.js yanıt başlıkları:**
-  - `Content-Security-Policy`: nonce tabanlı. `connect-src` öz origin ve Centrifugo URL'i, `img-src` öz origin ve `blob:`/`data:` (Meta medyası proxy üzerinden servis edilir), `frame-ancestors 'self'` (masaüstü modu panel sayfalarını aynı origin içinde pencerelerde açar; başka siteler çerçeveleyemez, `X-Frame-Options: SAMEORIGIN`).
+  - `Content-Security-Policy`: nonce tabanlı. `connect-src` öz origin ve Centrifugo URL'i, `img-src` öz origin ve `blob:`/`data:` (Meta medyası proxy üzerinden servis edilir), `frame-ancestors 'none'` (panel hiçbir sayfada, kendi origin'inde bile çerçevelenemez; `X-Frame-Options: DENY`).
   - `Strict-Transport-Security` (HTTPS'te), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`.
 - **XSS:** React varsayılan olarak escape eder. Mesaj gövdeleri asla `dangerouslySetInnerHTML` ile render edilmez. WhatsApp formatlama (`*kalın*` vb.) güvenli bir parser ile yapılır.
 - **SQL injection:** Tüm sorgular sqlc ile üretilir veya parametrelidir. Dinamik kısımlar (sıralama kolonu, segment alanları) whitelist'ten gelir.

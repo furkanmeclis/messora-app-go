@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -32,39 +31,12 @@ type Handler struct {
 	mail     *Mail
 	mediaDir string
 	log      *slog.Logger
-
-	// LicenseSummary adds the licence status to the public appearance.
-	LicenseSummary func(*http.Request) api.LicenseSummary
 }
 
 // NewHandler returns the settings handler. mail may be nil when e-mail is
 // injected by tests; the SMTP operations then report it as unavailable.
 func NewHandler(pool *pgxpool.Pool, store *Store, mail *Mail, mediaDir string, log *slog.Logger) *Handler {
 	return &Handler{pool: pool, store: store, mail: mail, mediaDir: mediaDir, log: log}
-}
-
-func themeToAPI(t Theme) api.Theme {
-	return api.Theme{Preset: api.ThemePreset(t.Preset), Mode: api.ThemeMode(t.Mode), Light: api.ThemeColors(nonNil(t.Light)),
-		Dark: api.ThemeColors(nonNil(t.Dark)), Radius: float32(t.Radius), Font: api.ThemeFont(t.Font),
-		Density: api.ThemeDensity(t.Density), Wallpaper: api.ThemeWallpaper(t.Wallpaper)}
-}
-
-func themeFromAPI(t api.Theme) Theme {
-	return Theme{Preset: string(t.Preset), Mode: string(t.Mode), Light: map[string]string(t.Light), Dark: map[string]string(t.Dark),
-		Radius: float64(t.Radius), Font: string(t.Font), Density: string(t.Density), Wallpaper: string(t.Wallpaper)}
-}
-
-func nonNil(m map[string]string) map[string]string {
-	if m == nil {
-		return map[string]string{}
-	}
-	return m
-}
-
-func pwaToAPI(p PWA) api.PwaSettings {
-	return api.PwaSettings{Enabled: p.Enabled, Name: p.Name, ShortName: p.ShortName, Description: p.Description,
-		ThemeColor: p.ThemeColor, BackgroundColor: p.BackgroundColor, Display: api.PwaSettingsDisplay(p.Display),
-		StartUrl: p.StartURL, Icon: api.PwaSettingsIcon(p.Icon)}
 }
 
 func logoToAPI(l *Logo) *api.LogoInfo {
@@ -90,8 +62,8 @@ func toAPI(s Settings) api.Settings {
 	return api.Settings{OrganizationName: s.OrganizationName, DefaultTimezone: s.DefaultTimezone, MfaRequiredRoles: roles,
 		SessionIdleHours: s.SessionIdleHours, SessionLifetimeDays: s.SessionLifetimeDays,
 		DefaultLocale: api.Locale(s.DefaultLocale), DateFormat: api.DateFormat(s.DateFormat), TimeFormat: api.TimeFormat(s.TimeFormat),
-		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), Setup: api.SetupProgress{Completed: s.Setup.Completed, Steps: steps},
-		Locked: locked, Pwa: pwaToAPI(s.PWA)}
+		Logo: logoToAPI(s.Logo), Setup: api.SetupProgress{Completed: s.Setup.Completed, Steps: steps},
+		Locked: locked}
 }
 
 // GetAppearance implements api.ServerInterface. Every page needs it, the
@@ -104,8 +76,7 @@ func (h *Handler) GetAppearance(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, r, http.StatusOK, api.Appearance{OrganizationName: s.OrganizationName, DefaultLocale: api.Locale(s.DefaultLocale),
 		DefaultTimezone: s.DefaultTimezone, DateFormat: api.DateFormat(s.DateFormat), TimeFormat: api.TimeFormat(s.TimeFormat),
-		Theme: themeToAPI(s.Theme), Logo: logoToAPI(s.Logo), SetupCompleted: s.Setup.Completed, Pwa: pwaToAPI(s.PWA),
-		License: h.licenseSummary(r)})
+		Logo: logoToAPI(s.Logo), SetupCompleted: s.Setup.Completed})
 }
 
 // GetSettings implements api.ServerInterface.
@@ -153,21 +124,6 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 			steps[i] = string(st)
 		}
 		p.SetupSteps = &steps
-	}
-	if req.Pwa != nil {
-		v := PWA{Enabled: req.Pwa.Enabled, Name: req.Pwa.Name, ShortName: req.Pwa.ShortName, Description: req.Pwa.Description,
-			ThemeColor: req.Pwa.ThemeColor, BackgroundColor: req.Pwa.BackgroundColor, Display: string(req.Pwa.Display),
-			StartURL: req.Pwa.StartUrl, Icon: string(req.Pwa.Icon)}
-		p.PWA = &v
-	}
-	if req.Theme != nil {
-		// The look of the whole workspace belongs to its owner.
-		if actor.RoleKey != "owner" {
-			httpx.WriteError(w, r, apperr.Forbidden("OWNER_ONLY", "Only the owner can change the theme."), h.log)
-			return
-		}
-		t := themeFromAPI(*req.Theme)
-		p.Theme = &t
 	}
 	var updated Settings
 	err := inTx(r.Context(), h.pool, func(q *db.Queries) error {
@@ -218,12 +174,6 @@ func changes(a, b Settings) map[string]any {
 	}
 	if a.SessionLifetimeDays != b.SessionLifetimeDays {
 		out["session_lifetime_days"] = []int{a.SessionLifetimeDays, b.SessionLifetimeDays}
-	}
-	if fmt.Sprint(a.Theme) != fmt.Sprint(b.Theme) {
-		out["theme"] = []any{a.Theme, b.Theme}
-	}
-	if a.PWA != b.PWA {
-		out["pwa"] = []any{a.PWA, b.PWA}
 	}
 	if a.Setup.Completed != b.Setup.Completed {
 		out["setup_completed"] = []bool{a.Setup.Completed, b.Setup.Completed}
@@ -468,11 +418,4 @@ func inTx(ctx context.Context, pool *pgxpool.Pool, fn func(*db.Queries) error) e
 		return err
 	}
 	return tx.Commit(ctx)
-}
-
-func (h *Handler) licenseSummary(r *http.Request) api.LicenseSummary {
-	if h.LicenseSummary == nil {
-		return api.LicenseSummary{Status: api.LicenseStatusActive}
-	}
-	return h.LicenseSummary(r)
 }

@@ -1,42 +1,18 @@
-/* Messora service worker: installable app shell and an offline page.
- * Panel data is never cached: only built, fingerprinted assets are
- * (cache-first); pages always come from the network and fall back to the
- * offline page when there is none. */
-const VERSION = 'messora-v1';
-const OFFLINE = '/offline.html';
-
-self.addEventListener('install', (event) => {
-    event.waitUntil(caches.open(VERSION).then((c) => c.add(OFFLINE)).then(() => self.skipWaiting()));
-});
+/* The installable app (PWA) was removed in Phase 17. Browsers that still
+ * have the old service worker fetch this file on their next update check:
+ * it takes over, deletes the old caches, unregisters itself and reloads the
+ * open pages, so they come straight from the network again. Keep it for
+ * one release (see src/components/service-worker-cleanup.tsx). */
+self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches
-            .keys()
-            .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
-            .then(() => self.clients.claim()),
+        (async () => {
+            const keys = await caches.keys();
+            await Promise.all(keys.filter((k) => k.startsWith('messora-')).map((k) => caches.delete(k)));
+            await self.registration.unregister();
+            const pages = await self.clients.matchAll({ type: 'window' });
+            pages.forEach((c) => c.navigate(c.url));
+        })(),
     );
-});
-
-self.addEventListener('fetch', (event) => {
-    const req = event.request;
-    if (req.method !== 'GET') return;
-    const url = new URL(req.url);
-    if (url.origin !== self.location.origin) return;
-
-    if (req.mode === 'navigate') {
-        event.respondWith(fetch(req).catch(() => caches.match(OFFLINE)));
-        return;
-    }
-    if (url.pathname.startsWith('/_next/static/')) {
-        event.respondWith(
-            caches.open(VERSION).then(async (cache) => {
-                const hit = await cache.match(req);
-                if (hit) return hit;
-                const res = await fetch(req);
-                if (res.ok) cache.put(req, res.clone());
-                return res;
-            }),
-        );
-    }
 });

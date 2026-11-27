@@ -10,30 +10,8 @@ export const fallbackAppearance: Appearance = {
     default_timezone: 'UTC',
     date_format: 'dd.MM.yyyy',
     time_format: '24h',
-    theme: {
-        preset: 'messora',
-        mode: 'system',
-        light: {},
-        dark: {},
-        radius: 0.75,
-        font: 'geist',
-        density: 'comfortable',
-        wallpaper: 'aurora',
-    },
     logo: null,
     setup_completed: true,
-    license: { status: 'active', reason: '', until: null },
-    pwa: {
-        enabled: false,
-        name: '',
-        short_name: '',
-        description: '',
-        theme_color: '#4f46e5',
-        background_color: '#ffffff',
-        display: 'standalone',
-        start_url: '/',
-        icon: 'brand',
-    },
 };
 
 // Every page needs the appearance, the sign-in page included. One shared

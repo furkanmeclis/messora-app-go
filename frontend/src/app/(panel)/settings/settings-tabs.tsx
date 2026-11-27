@@ -3,11 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-    AppWindow,
-    KeyRound,
     Mail,
     MessageSquareOff,
-    Palette,
     ReceiptText,
     ShieldAlert,
     ShieldCheck,
@@ -19,13 +16,10 @@ import { cn } from '@/lib/utils';
 
 const ICONS = {
     general: SlidersHorizontal,
-    appearance: Palette,
-    pwa: AppWindow,
     email: Mail,
     consent: MessageSquareOff,
     protection: ShieldAlert,
     security: ShieldCheck,
-    license: KeyRound,
     webhooks: Webhook,
     metaRates: ReceiptText,
     ai: Sparkles,

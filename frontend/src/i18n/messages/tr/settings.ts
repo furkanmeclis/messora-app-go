@@ -5,7 +5,6 @@ const settings: Messages['settings'] = {
     description: 'Çalışma alanının genel yapılandırması.',
     tabs: {
         general: 'Genel',
-        appearance: 'Görünüm',
         email: 'E-posta',
         security: 'Güvenlik',
         webhooks: "Webhook'lar",
@@ -30,6 +29,13 @@ const settings: Messages['settings'] = {
         since: '{from} itibarıyla',
         between: '{from} – {to}',
         importedAt: 'Aktarıldı',
+    },
+    logo: {
+        title: 'Logo',
+        hint: 'PNG, JPEG, WebP veya SVG, en fazla 2 MB. Kenar çubuğunda ve giriş sayfasında görünür.',
+        uploaded: 'Logo güncellendi',
+        removed: 'Logo kaldırıldı',
+        remove: 'Logoyu kaldır',
     },
     general: {
         organization: 'Organizasyon',

@@ -214,8 +214,7 @@ func (s *Service) AutomationSection(ctx context.Context) (Automations, error) {
 	return out, err
 }
 
-// Alerts is the alert section (without the licence, which the handler
-// adds).
+// Alerts is the alert section.
 type Alerts struct {
 	FailedJobs int
 	Accounts   []db.OpsAccountProblemsRow

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
-	"github.com/furkanmeclis/messora-app-go/internal/modules/licensing"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -107,14 +106,6 @@ func RunWorker(ctx context.Context) error {
 		// repeated by the next one.
 		if err := svc.channels.CheckTokens(ctx); err != nil {
 			log.WarnContext(ctx, "whatsapp token check", "err", err)
-		}
-		return nil
-	})
-	mux.HandleFunc(licensing.TypeCheckIn, func(ctx context.Context, _ *asynq.Task) error {
-		// A failed check-in is retried by the next run; the licence allows
-		// 30 days without one.
-		if err := svc.licensing.CheckIn(ctx); err != nil {
-			log.WarnContext(ctx, "licence check-in failed", "err", err)
 		}
 		return nil
 	})

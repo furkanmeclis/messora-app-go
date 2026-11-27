@@ -68,14 +68,12 @@ func TestTwoFactorIsOptionalByDefault(t *testing.T) {
 	}
 }
 
-func TestWorkspaceSettingsThemeAndWizard(t *testing.T) {
+func TestWorkspaceSettingsRegionalAndWizard(t *testing.T) {
 	h := newHarness(t)
 	owner, _ := h.setupOwner()
 
-	theme := map[string]any{"preset": "ocean", "mode": "dark", "radius": 1, "font": "manrope", "density": "compact", "wallpaper": "waves",
-		"light": map[string]any{"primary": "#0a7cff"}, "dark": map[string]any{"background": "oklch(0.2 0.02 250)"}}
 	r := h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{
-		"default_locale": "tr", "date_format": "dd/MM/yyyy", "time_format": "12h", "theme": theme,
+		"default_locale": "tr", "date_format": "dd/MM/yyyy", "time_format": "12h",
 		"setup_steps": []string{"organization", "language", "organization"},
 	}})
 	h.expect(r, 200, "")
@@ -83,38 +81,26 @@ func TestWorkspaceSettingsThemeAndWizard(t *testing.T) {
 	if d["default_locale"] != "tr" || d["date_format"] != "dd/MM/yyyy" || d["time_format"] != "12h" {
 		t.Fatalf("regional settings: %s", r.raw)
 	}
-	if th := d["theme"].(map[string]any); th["preset"] != "ocean" || th["light"].(map[string]any)["primary"] != "#0a7cff" {
-		t.Fatalf("theme: %s", r.raw)
+	if _, ok := d["theme"]; ok {
+		t.Fatalf("the theme engine is gone: %s", r.raw)
 	}
 	if steps := d["setup"].(map[string]any)["steps"].([]any); len(steps) != 2 {
 		t.Fatalf("steps must be de-duplicated: %v", steps)
 	}
-
-	// Values that would end up in a style sheet are strictly checked.
-	for _, bad := range []map[string]any{
-		{"primary": "red; } body { display:none"},
-		{"primary": "url(https://evil.example/x)"},
-		{"not-a-token": "#fff"},
-	} {
-		th := map[string]any{}
-		for k, v := range theme {
-			th[k] = v
-		}
-		th["light"] = bad
-		h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"theme": th}}), 422, "VALIDATION_ERROR")
-	}
 	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"default_locale": "de"}}), 422, "")
+	// The removed theme field and wizard step are rejected.
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"theme": map[string]any{"preset": "ocean"}}}), 422, "")
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"setup_steps": []string{"theme"}}}), 422, "")
 
 	// The appearance is public to the panel (sign-in page) and matches.
 	r = h.do(call{method: "GET", path: "/api/v1/appearance"})
 	h.expect(r, 200, "")
-	if r.data()["default_locale"] != "tr" || r.data()["theme"].(map[string]any)["font"] != "manrope" {
+	if r.data()["default_locale"] != "tr" {
 		t.Fatalf("appearance: %s", r.raw)
 	}
 
-	// Only the owner changes the theme; an admin may change the rest.
+	// An admin may change the workspace settings too.
 	admin, _ := h.invite(owner, "admin@example.com", "admin")
-	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: admin, body: map[string]any{"theme": theme}}), 403, "OWNER_ONLY")
 	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: admin, body: map[string]any{"organization_name": "Acme Two"}}), 200, "")
 
 	r = h.do(call{method: "PATCH", path: "/api/v1/settings", token: owner, body: map[string]any{"setup_completed": true}})

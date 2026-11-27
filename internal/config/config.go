@@ -15,8 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/furkanmeclis/messora-app-go/internal/platform/license"
 )
 
 // Environment names.
@@ -90,10 +88,6 @@ type Config struct {
 	// (APP_ORGANIZATION_NAME …), keyed by setting name. They win over the
 	// values chosen in the panel, which shows them as locked.
 	Workspace map[string]string
-
-	// LicenseGateURL is where the installation checks its licence in
-	// (empty disables check-in; online licences then lapse after 30 days).
-	LicenseGateURL string
 }
 
 // WorkspaceEnv maps workspace setting names to their environment variables.
@@ -257,7 +251,6 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 		MediaDir:       l.str("MEDIA_DIR", "/var/lib/messora/media"),
 		Workspace:      map[string]string{},
 	}
-	cfg.LicenseGateURL = l.str("LICENSE_GATE_URL", license.DefaultGateURL)
 	for name, env := range WorkspaceEnv {
 		if v := strings.TrimSpace(l.str(env, "")); v != "" {
 			cfg.Workspace[name] = v

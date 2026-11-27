@@ -19,8 +19,6 @@ const nav = {
     profile: 'Profile',
     security: 'Security',
     toggleSidebar: 'Toggle sidebar',
-    desktopMode: 'Desktop mode',
-    desktopModeHint: 'Press F11 or use this to work in windows',
     finishSetup: 'Finish setting up {organization}',
     finishSetupHint: '{done} of {total} steps done.',
     resumeSetup: 'Resume setup',

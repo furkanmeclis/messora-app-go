@@ -53,7 +53,7 @@ export function Section({
                 >
                     {dirty && (
                         <span className="mr-auto text-xs text-muted-foreground">
-                            {t('appearance.unsaved')}
+                            {t('common.unsaved')}
                         </span>
                     )}
                     {onReset && dirty && (
@@ -64,7 +64,7 @@ export function Section({
                             onClick={onReset}
                             disabled={saving}
                         >
-                            {t('appearance.discard')}
+                            {t('common.discard')}
                         </Button>
                     )}
                     <Button

@@ -77,7 +77,7 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Bitti kriteri:** Temiz kurulumda sihirbaz baştan sona tarayıcıda tamamlanır (E2E). `.env`'de tanımlı SMTP değeri panelden değiştirilemez ve kilitli görünür. SMTP şifresi veritabanında düz metin bulunmaz.
 
-## Phase 12 — Tasarım sistemi ve tema motoru ✅ (2026-11-23)
+## Phase 12 — Tasarım sistemi ve tema motoru ✅ (2026-11-23; tema motoru Phase 17 WP0'da kaldırıldı)
 - Messora'ya özgü görsel dil; tarayıcının yerel (native) kontrolleri kullanılmaz: select, checkbox, radio, tarih/saat seçici, dosya seçici, renk seçici, onay pencereleri özel bileşenlerdir.
 - Tema motoru: hazır temalar (açık/koyu) + tam özelleştirme (renkler, yüzeyler, köşe yuvarlaklığı, yazı tipi, yoğunluk), canlı önizleme, okunabilirlik (kontrast) uyarısı. Sadece sahip değiştirir.
 - Yükleme, boş ve hata durumlarında tutarlı hareket ve geçişler.
@@ -97,7 +97,7 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Durum:** `@xyflow/react` tuvali; adımların kalıcı `id`'si, `layout` (düğüm konumları) ve çalıştırma izi (`visited`) migration 00011 ile. Koşulun üç çıkışı var: evet, hayır ve iki daldan sonra çalışan "sonra"; graf her zaman ağaçtır, adım ağacına kayıpsız çevrilir. Testler: id/derleme tablo testleri, `FuzzStepIDs`, eski otomasyonların konumdan türetilen id'leri ve izleri, dallı akışın API üzerinden tetiklenip izinin doğrulandığı entegrasyon testi, `e2e/automation-canvas.spec.ts` (kur, kaydet, yeniden yükle). Ayrıntılar: [AUTOMATIONS.md](AUTOMATIONS.md).
 
-## Phase 15 — Masaüstü modu ✅ (2026-11-23)
+## Phase 15 — Masaüstü modu ✅ (2026-11-23; Phase 17 WP0'da kaldırıldı)
 - F11 (tarayıcı tam ekranı) veya menüden: masaüstü, görev çubuğu, uygulama ikonları; bölümler taşınabilir, boyutlandırılabilir, küçültülüp büyütülebilir pencerelerde açılır; birden çok pencere aynı anda açık kalır. Pencere düzeni kullanıcı başına hatırlanır. Tam ekrandan çıkınca normal panele dönülür.
 
 **Bitti kriteri:** Her bölüm bir pencerede çalışır (E2E); klavye ile pencere değiştirme; mobilde masaüstü modu kapalıdır.
@@ -108,7 +108,7 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 - Kişiler tablosu: numaralı sayfalar, sıralama, sütun ve yoğunluk seçimi, satır/sayfa/tüm eşleşenleri seçme ve toplu işlemler (etiket, grup, izin, silme) için `POST /contacts/bulk`.
 - Profil ve güvenlik sayfaları yeniden tasarlandı; sekme, durum ve rol ikonları.
 
-## Phase 16 — Lisans ve dağıtım ✅ (repo gizli yapılması hariç; ayrıntılar docs/LICENSING.md)
+## Phase 16 — Lisans ve dağıtım ✅ (Phase 17 WP0'da kaldırıldı: Messora yalnızca SaaS)
 - **Lisans:** Ed25519 ile imzalı belge; özel anahtar yalnızca sahibin bilgisayarında (`messora-license` CLI), uygulamada yalnızca açık anahtar. Alanlar: lisans ID, müşteri, paket ve limitler, `issued_at`, `expires_at` (boş = süresiz), `updates_until` (boş = süresiz), `check_in` (`online` varsayılan / `offline`).
 - **Durumlar:** aktif → uyarı (son 30 gün) → ek süre (14 gün) → kısıtlı mod (salt okunur: gönderim, kampanya ve otomasyon durur; veriler görünür ve dışa aktarılabilir). Veri hiçbir durumda silinmez; yeni anahtar anında geri açar. Saat geri alınmasına karşı görülen en ileri zaman saklanır.
 - **Erken kapatma:** iptal listesi (`revoke` / `reinstate`, sebebiyle). İptal edilen lisans imaj ve güncelleme alamaz; çevrimiçi lisanslı kurulum günlük yoklamada öğrenir ve 7 gün sonra kısıtlı moda geçer. 30 gün yoklama yapamayan çevrimiçi lisans kısıtlı moda geçer. Yeni anahtar verilince eskisi "yerine geçti" olarak geçersizleşir. Çevrimdışı lisanslar uzaktan kapatılamaz, bu yüzden en fazla 1 yıllık verilir.

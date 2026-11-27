@@ -26,7 +26,6 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/conversations"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
-	"github.com/furkanmeclis/messora-app-go/internal/modules/licensing"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ops"
@@ -40,11 +39,9 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
-	"github.com/furkanmeclis/messora-app-go/internal/platform/license"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
-	"github.com/furkanmeclis/messora-app-go/internal/shared/licensegate"
 )
 
 // Aliases give each embedded module handler a distinct field name.
@@ -62,7 +59,6 @@ type (
 	webhooksHandler   = webhooks.Handler
 	automationHandler = automation.Handler
 	offersHandler     = offers.Handler
-	licensingHandler  = licensing.Handler
 	consentHandler    = consent.Handler
 	aiHandler         = ai.Handler
 	opsHandler        = ops.Handler
@@ -84,7 +80,6 @@ type apiServer struct {
 	*webhooksHandler
 	*automationHandler
 	*offersHandler
-	*licensingHandler
 	*consentHandler
 	*aiHandler
 	*opsHandler
@@ -111,7 +106,6 @@ type services struct {
 	inbox      *conversations.Service
 	webhooks   *webhooks.Service
 	automation *automation.Service
-	licensing  *licensing.Service
 	ai         *ai.Service
 }
 
@@ -192,10 +186,6 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// Outgoing webhooks: https only outside development; private
 	// destinations are always refused (internal/platform/safehttp).
 	hooks := webhooks.New(pool, sealer, webhooks.Options{AllowHTTP: cfg.Env == config.EnvDevelopment, Logger: log})
-	lic := licensing.New(pool, licensing.Options{LicenseKeys: license.LicenseKeys, GateKeys: license.GateKeys,
-		GateURL: cfg.LicenseGateURL, Version: Version, Logger: log})
-	// Restricted mode stops sending everywhere (see internal/shared/licensegate).
-	licensegate.Install(lic.Allowed)
 	// AI provider calls go through an SSRF-safe client (https, public
 	// addresses only); the fake provider only with AI_FAKE_PROVIDER.
 	aiSvc := ai.New(pool, sealer, ai.Options{AllowFake: cfg.AIFakeProvider}, log)
@@ -212,7 +202,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// AI field steps store values with their provenance (never over a
 	// person's or verified value).
 	auto.SetFieldWriter(inbox)
-	return &services{cfg: cfg, ai: aiSvc, licensing: lic, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
+	return &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
 		automation: auto}, nil
 }
@@ -240,11 +230,8 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	if err != nil {
 		return err
 	}
-	lh := licensing.NewHandler(svc.licensing, log)
 	sh := settings.NewHandler(pool, svc.settings, svc.mail, svc.cfg.MediaDir, log)
-	sh.LicenseSummary = lh.Summary
 	srv := apiServer{
-		licensingHandler:  lh,
 		identityHandler:   identity.NewHandler(svc.identity, log),
 		settingsHandler:   sh,
 		auditHandler:      audit.NewHandler(svc.queries, log),
@@ -261,7 +248,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		offersHandler:     offers.NewHandler(svc.offers, log),
 		aiHandler:         ai.NewHandler(svc.ai, log),
 		opsHandler: ops.NewHandler(ops.New(pool, ops.Deps{Campaigns: svc.campaigns, FailedJobs: sys.FailedJobsTotal,
-			Budget: svc.ai.BudgetStatus}), lh.Summary, log),
+			Budget: svc.ai.BudgetStatus}), log),
 	}
 	// The public API description (only what an API key can call), anonymous.
 	raw, err := api.GetSpecJSON()

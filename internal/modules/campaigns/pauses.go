@@ -21,9 +21,10 @@ import (
 // PausedStatuses are the statuses a campaign can be resumed from. Every
 // status starting with "paused" is a pause; paused_limit waits for the
 // portfolio's messaging limit (its queued messages still go out), the
-// others hold queued messages. Pause reasons (manual, license_restricted,
-// offer_expired, messaging_limit, and later ones such as spam protection)
-// are kept in paused_reason and the pause history.
+// others hold queued messages. Pause reasons (manual, offer_expired,
+// messaging_limit, and later ones such as spam protection) are kept in
+// paused_reason and the pause history. Campaigns paused by the former
+// licence check keep their stored reason, license_restricted.
 var PausedStatuses = []string{"paused", "paused_limit"}
 
 // IsPaused reports whether status is a pause.
@@ -31,10 +32,9 @@ func IsPaused(status string) bool { return strings.HasPrefix(status, "paused") }
 
 // Pause reasons set by the engine itself.
 const (
-	PauseReasonManual  = "manual"
-	PauseReasonSystem  = "system"
-	PauseReasonLimit   = "messaging_limit"
-	PauseReasonLicense = "license_restricted"
+	PauseReasonManual = "manual"
+	PauseReasonSystem = "system"
+	PauseReasonLimit  = "messaging_limit"
 )
 
 // audited are the campaign events written to the audit log (R10).

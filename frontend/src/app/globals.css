@@ -2,18 +2,13 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist/wght.css';
-@import '@fontsource-variable/inter/wght.css';
-@import '@fontsource-variable/manrope/wght.css';
-@import '@fontsource-variable/plus-jakarta-sans/wght.css';
-@import '@fontsource-variable/ibm-plex-sans/wght.css';
-@import '@fontsource-variable/space-grotesk/wght.css';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
-    /* The theme picks the typeface (bundled, no third-party request). */
-    --font-sans: var(--app-font);
+    /* Geist, bundled (no third-party request). */
+    --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
     --font-mono:
         ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono',
         monospace;
@@ -60,28 +55,82 @@
 }
 
 /*
- * Colours, radius and typeface come from the workspace theme (src/theme),
- * injected by the root layout before first paint. These are the fallbacks
- * for anything rendered outside it.
+ * Messora's single look: every workspace uses these colours. People still
+ * choose light or dark for themselves (next-themes sets .dark).
  */
 :root {
-    --app-font: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
     --radius: 0.75rem;
+    --background: oklch(0.992 0.002 277);
+    --foreground: oklch(0.19 0.012 277);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.19 0.012 277);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.19 0.012 277);
+    --primary: oklch(0.52 0.205 277);
+    --primary-foreground: oklch(0.985 0.012 277);
+    --secondary: oklch(0.958 0.008 277);
+    --secondary-foreground: oklch(0.25 0.012 277);
+    --muted: oklch(0.962 0.007 277);
+    --muted-foreground: oklch(0.5 0.015 277);
+    --accent: oklch(0.95 0.035 277);
+    --accent-foreground: oklch(0.36 0.154 277);
+    --destructive: oklch(0.577 0.215 27);
+    --success: oklch(0.6 0.14 155);
+    --warning: oklch(0.74 0.155 72);
+    --border: oklch(0.912 0.008 277);
+    --input: oklch(0.89 0.01 277);
+    --ring: oklch(0.58 0.205 277);
+    --sidebar: oklch(0.976 0.01 277);
+    --sidebar-foreground: oklch(0.24 0.012 277);
+    --sidebar-primary: oklch(0.52 0.205 277);
+    --sidebar-primary-foreground: oklch(0.985 0.012 277);
+    --sidebar-accent: oklch(0.935 0.045 277);
+    --sidebar-accent-foreground: oklch(0.3 0.123 277);
+    --sidebar-border: oklch(0.918 0.008 277);
+    --chart-1: oklch(0.6 0.205 277);
+    --chart-2: oklch(0.65 0.174 172);
+    --chart-3: oklch(0.72 0.184 27);
+    --chart-4: oklch(0.6 0.205 97);
+    --chart-5: oklch(0.64 0.205 207);
+}
+.dark {
+    --background: oklch(0.155 0.011 277);
+    --foreground: oklch(0.965 0.004 277);
+    --card: oklch(0.195 0.012 277);
+    --card-foreground: oklch(0.965 0.004 277);
+    --popover: oklch(0.215 0.012 277);
+    --popover-foreground: oklch(0.965 0.004 277);
+    --primary: oklch(0.67 0.174 277);
+    --primary-foreground: oklch(0.17 0.03 277);
+    --secondary: oklch(0.26 0.012 277);
+    --secondary-foreground: oklch(0.95 0.006 277);
+    --muted: oklch(0.245 0.012 277);
+    --muted-foreground: oklch(0.7 0.012 277);
+    --accent: oklch(0.29 0.07 277);
+    --accent-foreground: oklch(0.92 0.04 277);
+    --destructive: oklch(0.68 0.19 22);
+    --success: oklch(0.7 0.14 155);
+    --warning: oklch(0.8 0.145 78);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 14%);
+    --ring: oklch(0.67 0.174 277);
+    --sidebar: oklch(0.18 0.012 277);
+    --sidebar-foreground: oklch(0.94 0.004 277);
+    --sidebar-primary: oklch(0.67 0.174 277);
+    --sidebar-primary-foreground: oklch(0.17 0.03 277);
+    --sidebar-accent: oklch(0.26 0.06 277);
+    --sidebar-accent-foreground: oklch(0.95 0.006 277);
+    --sidebar-border: oklch(1 0 0 / 8%);
+    --chart-1: oklch(0.68 0.184 277);
+    --chart-2: oklch(0.73 0.157 172);
+    --chart-3: oklch(0.8 0.166 27);
+    --chart-4: oklch(0.68 0.184 97);
+    --chart-5: oklch(0.72 0.184 207);
 }
 
-/* Inside a desktop-mode window only the page itself is shown. */
 /* Height of the panel's top bar; full-height screens (the inbox) fit below it. */
 :root {
     --topbar-h: 3.5rem;
-}
-html[data-embedded] {
-    --topbar-h: 0px;
-}
-
-html[data-embedded] [data-chrome],
-html[data-embedded] [data-slot='sidebar-gap'],
-html[data-embedded] [data-slot='sidebar-container'] {
-    display: none !important;
 }
 
 @layer base {

@@ -1,5 +1,4 @@
 import type { DeepString } from '../types';
-import appearance from './appearance';
 import auth from './auth';
 import overview from './overview';
 import inbox from './inbox';
@@ -13,10 +12,7 @@ import wizard from './wizard';
 import topbar from './topbar';
 import shortcuts from './shortcuts';
 import table from './table';
-import desktop from './desktop';
 import contextMenu from './contextMenu';
-import pwa from './pwa';
-import license from './license';
 import params from './params';
 import insights from './insights';
 import account from './account';
@@ -42,16 +38,12 @@ export const en = {
     common,
     nav,
     errors,
-    appearance,
     settings,
     wizard,
     topbar,
     shortcuts,
     table,
-    desktop,
     contextMenu,
-    pwa,
-    license,
     params,
     insights,
     account,

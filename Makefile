@@ -15,7 +15,7 @@ SQUAWK          := squawk-cli@2.73.0
 NPM_LICENSES    := license-checker-rseidelsohn@5.0.1
 # Minimum total statement coverage (unit + integration). Raised every phase.
 COVERAGE_MIN    ?= 60
-NPM_ALLOWED_LICENSES := MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC-BY-4.0;BlueOak-1.0.0
+NPM_ALLOWED_LICENSES := MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC-BY-4.0;BlueOak-1.0.0;OFL-1.1
 VERSION         ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 .DEFAULT_GOAL := help

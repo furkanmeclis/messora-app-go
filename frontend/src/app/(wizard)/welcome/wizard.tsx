@@ -13,13 +13,9 @@ import {
     Languages,
     Mail,
     MessageCircle,
-    Moon,
-    Palette,
     Plus,
     ShieldCheck,
     Sparkles,
-    Sun,
-    Monitor,
     Trash2,
     Users,
 } from 'lucide-react';
@@ -34,7 +30,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Segmented } from '@/components/ui/segmented';
 import { notify } from '@/components/notify';
 import { useT } from '@/i18n/client';
 import type { Locale } from '@/i18n/config';
@@ -46,14 +41,11 @@ import type {
     WhatsAppAccount,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { WALLPAPERS } from '@/theme/wallpapers';
 import {
     completeSetupStepAction,
     saveSettingsAction,
 } from '../../(panel)/settings/actions';
-import { LogoUploader } from '../../(panel)/settings/appearance/logo-uploader';
-import { PresetPicker } from '../../(panel)/settings/appearance/preset-picker';
-import { ThemePreview } from '../../(panel)/settings/appearance/theme-preview';
+import { LogoUploader } from '../../(panel)/settings/logo-uploader';
 import { SmtpForm } from '../../(panel)/settings/email/smtp-form';
 import {
     DateFormatField,
@@ -72,11 +64,18 @@ import {
 } from './actions';
 import { SystemUserGuide } from '../../(panel)/channels/token-health';
 
+/** The wizard's backdrop, drawn with the panel's colours (light and dark). */
+const BACKDROP = [
+    'radial-gradient(60% 50% at 15% 20%, color-mix(in oklch, var(--primary) 55%, transparent), transparent 70%)',
+    'radial-gradient(50% 45% at 85% 25%, color-mix(in oklch, var(--chart-2) 45%, transparent), transparent 70%)',
+    'radial-gradient(70% 60% at 60% 100%, color-mix(in oklch, var(--chart-4) 35%, transparent), transparent 70%)',
+    'linear-gradient(160deg, color-mix(in oklch, var(--background) 85%, var(--primary)), var(--background))',
+].join(',');
+
 const STEPS: { key: SetupStep; icon: typeof Building2 }[] = [
     { key: 'organization', icon: Building2 },
     { key: 'language', icon: Languages },
     { key: 'region', icon: CalendarClock },
-    { key: 'theme', icon: Palette },
     { key: 'email', icon: Mail },
     { key: 'whatsapp', icon: MessageCircle },
     { key: 'security', icon: ShieldCheck },
@@ -142,7 +141,7 @@ export function Wizard({
                     : {},
             );
             if (notify(r)) {
-                // A full load: the new theme applies, and when the policy
+                // A full load: when the policy
                 // now requires two-factor the server redirects straight to
                 // enrolment (a client-side chain of redirects stalls).
                 // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate full load (see above)
@@ -166,7 +165,7 @@ export function Wizard({
     return (
         <div
             className="relative flex min-h-svh flex-col"
-            style={{ background: WALLPAPERS[settings.theme.wallpaper] }}
+            style={{ background: BACKDROP }}
         >
             <header className="flex items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-2.5">
@@ -353,22 +352,6 @@ export function Wizard({
                                                 return Object.keys(p).length
                                                     ? patch(p)
                                                     : Promise.resolve(true);
-                                            })
-                                        }
-                                    />
-                                )}
-                                {step.key === 'theme' && (
-                                    <ThemeStep
-                                        settings={settings}
-                                        busy={busy}
-                                        onBack={() => go(index - 1)}
-                                        onNext={(theme) =>
-                                            advance(async () => {
-                                                const ok = await patch({
-                                                    theme,
-                                                });
-                                                if (ok) router.refresh();
-                                                return ok;
                                             })
                                         }
                                     />
@@ -583,7 +566,10 @@ function OrganizationStep({
                     onChange={(e) => setName(e.target.value)}
                 />
             </Row>
-            <Row label={t('appearance.logo')} hint={t('appearance.logoHint')}>
+            <Row
+                label={t('settings.logo.title')}
+                hint={t('settings.logo.hint')}
+            >
                 <LogoUploader logo={settings.logo} readOnly={false} />
             </Row>
             <StepNav
@@ -683,68 +669,6 @@ function RegionStep({
                 />
             </Row>
             <StepNav busy={busy} onBack={onBack} onNext={() => onNext(v)} />
-        </>
-    );
-}
-
-function ThemeStep({
-    settings,
-    busy,
-    onBack,
-    onNext,
-}: StepProps & {
-    settings: Settings;
-    onNext: (theme: Settings['theme']) => void;
-}) {
-    const t = useT();
-    const [theme, setTheme] = useState(settings.theme);
-    const [scheme, setScheme] = useState<'light' | 'dark'>(
-        settings.theme.mode === 'dark' ? 'dark' : 'light',
-    );
-    return (
-        <>
-            <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_18rem]">
-                <div className="space-y-5">
-                    <PresetPicker
-                        value={theme.preset}
-                        scheme={scheme}
-                        onChange={(preset) => setTheme({ ...theme, preset })}
-                    />
-                    <Row label={t('appearance.mode')}>
-                        <Segmented
-                            value={theme.mode}
-                            onValueChange={(mode) => {
-                                setTheme({ ...theme, mode });
-                                if (mode !== 'system') setScheme(mode);
-                            }}
-                            options={[
-                                {
-                                    value: 'light',
-                                    label: t('common.light'),
-                                    icon: <Sun />,
-                                },
-                                {
-                                    value: 'dark',
-                                    label: t('common.dark'),
-                                    icon: <Moon />,
-                                },
-                                {
-                                    value: 'system',
-                                    label: t('common.system'),
-                                    icon: <Monitor />,
-                                },
-                            ]}
-                        />
-                    </Row>
-                </div>
-                <ThemePreview
-                    theme={theme}
-                    scheme={scheme}
-                    id="wizard-preview"
-                    compact
-                />
-            </div>
-            <StepNav busy={busy} onBack={onBack} onNext={() => onNext(theme)} />
         </>
     );
 }

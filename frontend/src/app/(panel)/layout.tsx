@@ -3,8 +3,6 @@ import { redirect } from 'next/navigation';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { ConfirmProvider } from '@/components/confirm';
 import { Shortcuts } from '@/components/shortcuts';
-import { Desktop } from '@/components/desktop/desktop';
-import { DesktopProvider } from '@/components/desktop/desktop-context';
 import { ContextMenuProvider } from '@/components/context-menu';
 import { DisplayPreferences } from '@/components/display-preferences';
 import { getAppearance } from '@/lib/server/appearance';
@@ -16,7 +14,6 @@ import { api } from '@/lib/server/api';
 import type { Campaign, Conversation } from '@/lib/types';
 import { Topbar, type RunningCampaign } from './topbar';
 import { SetupBanner } from './setup-banner';
-import { LicenseBanner } from './license-banner';
 
 export default async function PanelLayout({
     children,
@@ -76,75 +73,53 @@ export default async function PanelLayout({
     }
     return (
         <RealtimeProvider channels={channels} enabled={!me.mfa_required}>
-            <DesktopProvider>
-                <ContextMenuProvider>
-                    <SidebarProvider>
-                        <AppSidebar
-                            user={me.user}
+            <ContextMenuProvider>
+                <SidebarProvider>
+                    <AppSidebar
+                        user={me.user}
+                        permissions={me.permissions}
+                        organization={appearance.organization_name}
+                        logoVersion={appearance.logo?.version}
+                        restricted={me.mfa_required}
+                    />
+                    <SidebarInset>
+                        <Shortcuts
                             permissions={me.permissions}
-                            organization={appearance.organization_name}
-                            logoVersion={appearance.logo?.version}
                             restricted={me.mfa_required}
                         />
-                        <SidebarInset>
-                            <Shortcuts
-                                permissions={me.permissions}
-                                restricted={me.mfa_required}
-                            />
-                            <Topbar
-                                userId={me.user.id}
-                                permissions={me.permissions}
-                                restricted={me.mfa_required}
-                                initialUnread={unread}
-                                initialRunning={running}
-                            />
-                            <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
-                                <ConfirmProvider>
-                                    <div className="w-full flex-1 p-4 md:p-6 xl:px-8">
-                                        {isOwner &&
-                                            !appearance.setup_completed &&
-                                            !me.mfa_required && (
-                                                <SetupBanner
-                                                    organization={
-                                                        appearance.organization_name
-                                                    }
-                                                />
-                                            )}
-                                        <DisplayPreferences
-                                            timeZone={me.user.timezone}
-                                            locale={me.user.locale}
-                                            dateFormat={appearance.date_format}
-                                            timeFormat={appearance.time_format}
-                                        >
-                                            {!me.mfa_required && (
-                                                <LicenseBanner
-                                                    license={appearance.license}
-                                                    canManage={me.permissions.includes(
-                                                        'settings.read',
-                                                    )}
-                                                />
-                                            )}
-                                            {children}
-                                            {!me.mfa_required && (
-                                                <Desktop
-                                                    permissions={me.permissions}
-                                                    wallpaper={
-                                                        appearance.theme
-                                                            .wallpaper
-                                                    }
-                                                    organization={
-                                                        appearance.organization_name
-                                                    }
-                                                />
-                                            )}
-                                        </DisplayPreferences>
-                                    </div>
-                                </ConfirmProvider>
-                            </ReauthProvider>
-                        </SidebarInset>
-                    </SidebarProvider>
-                </ContextMenuProvider>
-            </DesktopProvider>
+                        <Topbar
+                            userId={me.user.id}
+                            permissions={me.permissions}
+                            restricted={me.mfa_required}
+                            initialUnread={unread}
+                            initialRunning={running}
+                        />
+                        <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
+                            <ConfirmProvider>
+                                <div className="w-full flex-1 p-4 md:p-6 xl:px-8">
+                                    {isOwner &&
+                                        !appearance.setup_completed &&
+                                        !me.mfa_required && (
+                                            <SetupBanner
+                                                organization={
+                                                    appearance.organization_name
+                                                }
+                                            />
+                                        )}
+                                    <DisplayPreferences
+                                        timeZone={me.user.timezone}
+                                        locale={me.user.locale}
+                                        dateFormat={appearance.date_format}
+                                        timeFormat={appearance.time_format}
+                                    >
+                                        {children}
+                                    </DisplayPreferences>
+                                </div>
+                            </ConfirmProvider>
+                        </ReauthProvider>
+                    </SidebarInset>
+                </SidebarProvider>
+            </ContextMenuProvider>
         </RealtimeProvider>
     );
 }

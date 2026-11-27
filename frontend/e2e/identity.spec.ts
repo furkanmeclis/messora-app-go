@@ -66,8 +66,6 @@ test('owner sets up the installation, runs the wizard and enrols two-factor auth
     await next(); // language
     await expect(page.getByText('Date format')).toBeVisible();
     await next(); // date and time
-    await page.getByRole('radio', { name: 'Ocean' }).click();
-    await next(); // theme
     await expect(page.getByText('Outgoing e-mail')).toBeVisible();
     await cont(); // e-mail
     await expect(page.getByText('Connect WhatsApp')).toBeVisible();

@@ -13,7 +13,6 @@ const wizard: Messages['wizard'] = {
         organization: 'Organizasyon',
         language: 'Dil',
         region: 'Tarih ve saat',
-        theme: 'Tema',
         email: 'E-posta',
         whatsapp: 'WhatsApp',
         security: 'Güvenlik',
@@ -30,10 +29,6 @@ const wizard: Messages['wizard'] = {
     region: {
         title: 'Tarih ve saat',
         body: 'Tarih ve saatlerin panelde nasıl görüneceği.',
-    },
-    theme: {
-        title: 'Bir görünüm seçin',
-        body: "Bir tema seçin. Her rengi sonradan Ayarlar → Görünüm'den ince ayarlayabilirsiniz.",
     },
     email: {
         title: 'Giden e-posta',

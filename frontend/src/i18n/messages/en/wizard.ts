@@ -11,7 +11,6 @@ const wizard = {
         organization: 'Organisation',
         language: 'Language',
         region: 'Date and time',
-        theme: 'Theme',
         email: 'E-mail',
         whatsapp: 'WhatsApp',
         security: 'Security',
@@ -28,10 +27,6 @@ const wizard = {
     region: {
         title: 'Date and time',
         body: 'How dates and times appear across the panel.',
-    },
-    theme: {
-        title: 'Pick a look',
-        body: 'Choose a theme. You can fine-tune every colour later in Settings → Appearance.',
     },
     email: {
         title: 'Outgoing e-mail',

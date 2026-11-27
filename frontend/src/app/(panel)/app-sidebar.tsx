@@ -7,7 +7,6 @@ import { useTheme } from 'next-themes';
 import {
     BookOpen,
     Check,
-    Download,
     ChevronsUpDown,
     Languages,
     LogOut,
@@ -42,7 +41,6 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { notify } from '@/components/notify';
-import { usePwa } from '@/components/pwa';
 import { useLocale, useT } from '@/i18n/client';
 import { localeNames, locales } from '@/i18n/config';
 import { activeNav, visibleNav, type NavItem } from '@/lib/navigation';
@@ -97,7 +95,6 @@ export function AppSidebar({
     const pathname = usePathname();
     const { theme, setTheme } = useTheme();
     const [switching, startSwitch] = useTransition();
-    const pwa = usePwa();
     const items = visibleNav(permissions, restricted);
     const active = activeNav(pathname)?.id;
 
@@ -128,7 +125,7 @@ export function AppSidebar({
     };
 
     return (
-        <Sidebar collapsible="icon" data-chrome>
+        <Sidebar collapsible="icon">
             {/* As tall as the top bar, so their bottom edges meet. */}
             <SidebarHeader className="h-14 shrink-0 justify-center border-b border-sidebar-border">
                 <div className="flex items-center gap-2.5 px-1 py-0.5">
@@ -246,14 +243,6 @@ export function AppSidebar({
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                                 <DropdownMenuSeparator />
-                                {pwa.canInstall && (
-                                    <DropdownMenuItem
-                                        onSelect={() => void pwa.install()}
-                                    >
-                                        <Download className="size-4" />
-                                        {t('pwa.install')}
-                                    </DropdownMenuItem>
-                                )}
                                 <DropdownMenuItem asChild>
                                     <form action="/logout" method="post">
                                         <button
