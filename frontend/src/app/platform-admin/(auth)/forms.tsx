@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, CheckCircle2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,13 @@ function ServerError({ state }: { state: ActionResult<unknown> | null }) {
     );
 }
 
+/** Follows a successful sign-in step with a full page load. */
+function useFollow(state: ActionResult<{ to: string }> | null) {
+    useEffect(() => {
+        if (state?.ok) window.location.assign(state.data.to);
+    }, [state]);
+}
+
 export function PlatformLoginForm() {
     const t = useT();
     const f = useAuthForm(platformLoginAction, {
@@ -42,6 +49,7 @@ export function PlatformLoginForm() {
         ),
         password: rules.required(t('auth.validation.required')),
     });
+    useFollow(f.state);
     return (
         <form {...f.formProps} className="flex flex-col gap-5">
             <ServerError state={f.state} />
@@ -81,6 +89,7 @@ export function PlatformVerifyForm() {
                       /^\d{6}$/.test(v) ? undefined : t('auth.validation.code'),
               },
     );
+    useFollow(f.state);
     return (
         <form {...f.formProps} className="flex flex-col gap-5">
             <ServerError state={f.state} />
@@ -137,6 +146,7 @@ export function BootstrapForm({ token }: { token: string }) {
             t('auth.validation.passwordMin'),
         ),
     });
+    useFollow(f.state);
     return (
         <form {...f.formProps} className="flex flex-col gap-5">
             <input type="hidden" name="token" value={token} />
