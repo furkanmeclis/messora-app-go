@@ -13,7 +13,7 @@ import (
 )
 
 const activeAutomationsFor = `-- name: ActiveAutomationsFor :many
-SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version FROM automations WHERE active AND trigger_type = $1 ORDER BY created_at
+SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version, tenant_id FROM automations WHERE active AND trigger_type = $1 ORDER BY created_at
 `
 
 func (q *Queries) ActiveAutomationsFor(ctx context.Context, triggerType string) ([]Automation, error) {
@@ -42,6 +42,7 @@ func (q *Queries) ActiveAutomationsFor(ctx context.Context, triggerType string) 
 			&i.Setup,
 			&i.PresetKey,
 			&i.PresetVersion,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -169,7 +170,7 @@ func (q *Queries) FinishAutomationRun(ctx context.Context, arg FinishAutomationR
 }
 
 const getAutomation = `-- name: GetAutomation :one
-SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version FROM automations WHERE id = $1
+SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version, tenant_id FROM automations WHERE id = $1
 `
 
 func (q *Queries) GetAutomation(ctx context.Context, id uuid.UUID) (Automation, error) {
@@ -192,12 +193,13 @@ func (q *Queries) GetAutomation(ctx context.Context, id uuid.UUID) (Automation, 
 		&i.Setup,
 		&i.PresetKey,
 		&i.PresetVersion,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getAutomationRun = `-- name: GetAutomationRun :one
-SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by, vars, attempt, error_code FROM automation_runs WHERE id = $1
+SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by, vars, attempt, error_code, tenant_id FROM automation_runs WHERE id = $1
 `
 
 func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error) {
@@ -224,6 +226,7 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id uuid.UUID) (Automatio
 		&i.Vars,
 		&i.Attempt,
 		&i.ErrorCode,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -245,7 +248,7 @@ func (q *Queries) GetAutomationSend(ctx context.Context, arg GetAutomationSendPa
 }
 
 const getAutomationWithStats = `-- name: GetAutomationWithStats :one
-SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, a.setup, a.preset_key, a.preset_version, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, a.setup, a.preset_key, a.preset_version, a.tenant_id, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
        coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
 FROM automations a
 LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
@@ -270,6 +273,7 @@ type GetAutomationWithStatsRow struct {
 	Setup         []byte
 	PresetKey     *string
 	PresetVersion *int32
+	TenantID      uuid.UUID
 	RunCount      int64
 	HasRun        bool
 	LastRunAt     time.Time
@@ -295,6 +299,7 @@ func (q *Queries) GetAutomationWithStats(ctx context.Context, id uuid.UUID) (Get
 		&i.Setup,
 		&i.PresetKey,
 		&i.PresetVersion,
+		&i.TenantID,
 		&i.RunCount,
 		&i.HasRun,
 		&i.LastRunAt,
@@ -317,7 +322,7 @@ const insertAutomation = `-- name: InsertAutomation :one
 INSERT INTO automations (name, description, active, trigger_type, trigger, steps, program, layout, created_by, setup, preset_key, preset_version)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12)
-RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version
+RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version, tenant_id
 `
 
 type InsertAutomationParams struct {
@@ -368,6 +373,7 @@ func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationPara
 		&i.Setup,
 		&i.PresetKey,
 		&i.PresetVersion,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -444,7 +450,7 @@ func (q *Queries) InsertAutomationSend(ctx context.Context, arg InsertAutomation
 }
 
 const listAutomationRunSteps = `-- name: ListAutomationRunSteps :many
-SELECT id, run_id, pc, action, outcome, detail, created_at FROM automation_run_steps WHERE run_id = $1 ORDER BY id
+SELECT id, run_id, pc, action, outcome, detail, created_at, tenant_id FROM automation_run_steps WHERE run_id = $1 ORDER BY id
 `
 
 func (q *Queries) ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) ([]AutomationRunStep, error) {
@@ -464,6 +470,7 @@ func (q *Queries) ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) (
 			&i.Outcome,
 			&i.Detail,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -476,7 +483,7 @@ func (q *Queries) ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) (
 }
 
 const listAutomationRuns = `-- name: ListAutomationRuns :many
-SELECT r.id, r.automation_id, r.automation_version, r.event_key, r.event, r.contact_id, r.status, r.pc, r.steps_executed, r.resume_at, r.error, r.created_at, r.updated_at, r.finished_at, r.visited, r.conversation_id, r.started_by, r.vars, r.attempt, r.error_code, coalesce(c.phone_e164, '')::text AS phone
+SELECT r.id, r.automation_id, r.automation_version, r.event_key, r.event, r.contact_id, r.status, r.pc, r.steps_executed, r.resume_at, r.error, r.created_at, r.updated_at, r.finished_at, r.visited, r.conversation_id, r.started_by, r.vars, r.attempt, r.error_code, r.tenant_id, coalesce(c.phone_e164, '')::text AS phone
 FROM automation_runs r LEFT JOIN contacts c ON c.id = r.contact_id
 WHERE r.automation_id = $1
   AND ($2::uuid IS NULL OR r.id < $2::uuid)
@@ -510,6 +517,7 @@ type ListAutomationRunsRow struct {
 	Vars              []byte
 	Attempt           int32
 	ErrorCode         *string
+	TenantID          uuid.UUID
 	Phone             string
 }
 
@@ -543,6 +551,7 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 			&i.Vars,
 			&i.Attempt,
 			&i.ErrorCode,
+			&i.TenantID,
 			&i.Phone,
 		); err != nil {
 			return nil, err
@@ -556,7 +565,7 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 }
 
 const listAutomations = `-- name: ListAutomations :many
-SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, a.setup, a.preset_key, a.preset_version, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
+SELECT a.id, a.name, a.description, a.active, a.trigger_type, a.trigger, a.steps, a.program, a.version, a.created_by, a.created_at, a.updated_at, a.layout, a.setup, a.preset_key, a.preset_version, a.tenant_id, coalesce(s.run_count, 0)::bigint AS run_count, (s.last_run_at IS NOT NULL)::boolean AS has_run,
        coalesce(s.last_run_at, '1970-01-01T00:00:00Z')::timestamptz AS last_run_at
 FROM automations a
 LEFT JOIN (SELECT automation_id, count(*) AS run_count, max(created_at) AS last_run_at
@@ -581,6 +590,7 @@ type ListAutomationsRow struct {
 	Setup         []byte
 	PresetKey     *string
 	PresetVersion *int32
+	TenantID      uuid.UUID
 	RunCount      int64
 	HasRun        bool
 	LastRunAt     time.Time
@@ -614,6 +624,7 @@ func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, er
 			&i.Setup,
 			&i.PresetKey,
 			&i.PresetVersion,
+			&i.TenantID,
 			&i.RunCount,
 			&i.HasRun,
 			&i.LastRunAt,
@@ -629,7 +640,7 @@ func (q *Queries) ListAutomations(ctx context.Context) ([]ListAutomationsRow, er
 }
 
 const listAutomationsByTypes = `-- name: ListAutomationsByTypes :many
-SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version FROM automations WHERE active AND trigger_type = ANY($1::text[]) ORDER BY created_at
+SELECT id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version, tenant_id FROM automations WHERE active AND trigger_type = ANY($1::text[]) ORDER BY created_at
 `
 
 func (q *Queries) ListAutomationsByTypes(ctx context.Context, triggerTypes []string) ([]Automation, error) {
@@ -658,6 +669,7 @@ func (q *Queries) ListAutomationsByTypes(ctx context.Context, triggerTypes []str
 			&i.Setup,
 			&i.PresetKey,
 			&i.PresetVersion,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -670,7 +682,7 @@ func (q *Queries) ListAutomationsByTypes(ctx context.Context, triggerTypes []str
 }
 
 const lockAutomationRun = `-- name: LockAutomationRun :one
-SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by, vars, attempt, error_code FROM automation_runs WHERE id = $1 FOR UPDATE
+SELECT id, automation_id, automation_version, event_key, event, contact_id, status, pc, steps_executed, resume_at, error, created_at, updated_at, finished_at, visited, conversation_id, started_by, vars, attempt, error_code, tenant_id FROM automation_runs WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error) {
@@ -697,6 +709,7 @@ func (q *Queries) LockAutomationRun(ctx context.Context, id uuid.UUID) (Automati
 		&i.Vars,
 		&i.Attempt,
 		&i.ErrorCode,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -916,7 +929,7 @@ UPDATE automations SET
     version = CASE WHEN $7::jsonb IS NOT NULL OR $5::jsonb IS NOT NULL THEN version + 1 ELSE version END,
     updated_at = now()
 WHERE id = $10
-RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version
+RETURNING id, name, description, active, trigger_type, trigger, steps, program, version, created_by, created_at, updated_at, layout, setup, preset_key, preset_version, tenant_id
 `
 
 type UpdateAutomationParams struct {
@@ -963,6 +976,7 @@ func (q *Queries) UpdateAutomation(ctx context.Context, arg UpdateAutomationPara
 		&i.Setup,
 		&i.PresetKey,
 		&i.PresetVersion,
+		&i.TenantID,
 	)
 	return i, err
 }

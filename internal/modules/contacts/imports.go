@@ -528,7 +528,7 @@ func parseRow(rec []string, idx map[string]int) (importRow, string) {
 const upsertSQL = `
 INSERT INTO contacts (phone_e164, name, email, var1, var2, var3, var4, var5, attributes, source)
 VALUES ($1, $2, nullif($3, '')::citext, nullif($4, ''), nullif($5, ''), nullif($6, ''), nullif($7, ''), nullif($8, ''), $9, 'import')
-ON CONFLICT (phone_e164) DO UPDATE SET
+ON CONFLICT (tenant_id, phone_e164) DO UPDATE SET
     name       = coalesce(nullif(excluded.name, ''), contacts.name),
     email      = coalesce(excluded.email, contacts.email),
     var1       = coalesce(excluded.var1, contacts.var1),

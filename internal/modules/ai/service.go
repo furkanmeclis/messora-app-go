@@ -619,24 +619,30 @@ func (s *Service) ImportPrices(ctx context.Context, res ImportResult) error {
 const seededKey = "ai_prices_seeded"
 
 // EnsureSeed stores the shipped seed prices once per installation; rows an
-// admin deleted later do not come back.
-func (s *Service) EnsureSeed(ctx context.Context) error {
+// admin deleted later do not come back. The price table and its marker are
+// platform data (platform_settings), which messora_app may not write, so
+// `messora migrate` runs this with the owner pool.
+func EnsureSeed(ctx context.Context, owner *pgxpool.Pool) error {
 	seed, err := SeedPrices()
 	if err != nil {
 		return err
 	}
-	return s.tx(ctx, func(q *db.Queries) error {
-		n, err := q.InsertSettingIfAbsent(ctx, db.InsertSettingIfAbsentParams{Key: seededKey, Value: []byte(`{"date":"` + SeedDate.Format(time.DateOnly) + `"}`)})
-		if err != nil || n == 0 {
+	tx, err := owner.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := db.New(tx)
+	n, err := q.InsertPlatformSettingIfAbsent(ctx, db.InsertPlatformSettingIfAbsentParams{Key: seededKey, Value: []byte(`{"date":"` + SeedDate.Format(time.DateOnly) + `"}`)})
+	if err != nil || n == 0 {
+		return err
+	}
+	for _, p := range seed {
+		if _, err := q.InsertAIPriceIfAbsent(ctx, db.InsertAIPriceIfAbsentParams(upsertParams(p))); err != nil {
 			return err
 		}
-		for _, p := range seed {
-			if _, err := q.InsertAIPriceIfAbsent(ctx, db.InsertAIPriceIfAbsentParams(upsertParams(p))); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	}
+	return tx.Commit(ctx)
 }
 
 // ----------------------------------------------------------------- generate

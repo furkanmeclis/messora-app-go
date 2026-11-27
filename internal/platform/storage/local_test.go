@@ -155,7 +155,7 @@ func TestLocalLegacyLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := CheckTenantKey(DefaultTenant, "ab/cd/abcd-1234"); err != nil {
+	if err := CheckTenantKey(LegacyTenant, "ab/cd/abcd-1234"); err != nil {
 		t.Fatal(err)
 	}
 	rc, _, err := st.Private.Get(context.Background(), "ab/cd/abcd-1234")

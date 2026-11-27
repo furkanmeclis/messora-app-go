@@ -29,7 +29,7 @@ media_vol() { docker volume ls -q --filter "label=com.docker.compose.project=$CO
 echo "== 1. install and write marker data"
 compose down -v --remove-orphans >/dev/null 2>&1 || true
 compose up -d --build --wait --wait-timeout 300
-psql_ "INSERT INTO settings (key, value) VALUES ('restore_rehearsal', to_jsonb('before-backup'::text))" >/dev/null
+psql_ "INSERT INTO settings (tenant_id, key, value) VALUES ('00000000-0000-0000-0000-000000000001', 'restore_rehearsal', to_jsonb('before-backup'::text))" >/dev/null
 docker run --rm -v "$(media_vol)":/m alpine:3 sh -c 'mkdir -p /m/rehearsal && echo marker > /m/rehearsal/file.txt'
 SUM_BEFORE="$(docker run --rm -v "$(vol messora-secrets)":/s:ro alpine:3 cat /s/.state/secrets.env | sum256)"
 

@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -170,38 +170,24 @@ func SaveSettings(ctx context.Context, q db.Querier, s Settings, by *uuid.UUID) 
 // older than a change made through the API.
 const cacheTTL = 10 * time.Second
 
-var cache struct {
-	mu      sync.Mutex
-	v       *Settings
-	expires time.Time
-}
+var cache = tenant.NewCache[Settings](cacheTTL)
 
-// CachedSettings is LoadSettings with a short in-process cache: the send
-// path checks consent for every message.
+// CachedSettings is LoadSettings with a short in-process cache per tenant:
+// the send path checks consent for every message.
 func CachedSettings(ctx context.Context, q db.Querier) (Settings, error) {
-	cache.mu.Lock()
-	if cache.v != nil && time.Now().Before(cache.expires) {
-		v := *cache.v
-		cache.mu.Unlock()
+	if v, ok := cache.Get(ctx); ok {
 		return v, nil
 	}
-	cache.mu.Unlock()
 	v, err := LoadSettings(ctx, q)
 	if err != nil {
 		return v, err
 	}
-	cache.mu.Lock()
-	cache.v, cache.expires = &v, time.Now().Add(cacheTTL)
-	cache.mu.Unlock()
+	cache.Set(ctx, v)
 	return v, nil
 }
 
 // Invalidate drops the cache after a change.
-func Invalidate() {
-	cache.mu.Lock()
-	cache.v = nil
-	cache.mu.Unlock()
-}
+func Invalidate() { cache.Clear() }
 
 // WorkspaceLocale returns the workspace's default language ("en" when unset),
 // which picks the confirmation text.

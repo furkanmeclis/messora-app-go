@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -138,37 +138,23 @@ func SaveAnalyticsSettings(ctx context.Context, q db.Querier, s AnalyticsSetting
 	return nil
 }
 
-var analyticsCache struct {
-	mu      sync.Mutex
-	v       *AnalyticsSettings
-	expires time.Time
-}
+var analyticsCache = tenant.NewCache[AnalyticsSettings](10 * time.Second)
 
-// CachedAnalyticsSettings is LoadAnalyticsSettings with a 10 s cache (the
-// webhook path reads it for every inbound message).
+// CachedAnalyticsSettings is LoadAnalyticsSettings with a 10 s cache per
+// tenant (the webhook path reads it for every inbound message).
 func CachedAnalyticsSettings(ctx context.Context, q db.Querier) (AnalyticsSettings, error) {
-	analyticsCache.mu.Lock()
-	if analyticsCache.v != nil && time.Now().Before(analyticsCache.expires) {
-		v := *analyticsCache.v
-		analyticsCache.mu.Unlock()
+	if v, ok := analyticsCache.Get(ctx); ok {
 		return v, nil
 	}
-	analyticsCache.mu.Unlock()
 	v, err := LoadAnalyticsSettings(ctx, q)
 	if err != nil {
 		return v, err
 	}
-	analyticsCache.mu.Lock()
-	analyticsCache.v, analyticsCache.expires = &v, time.Now().Add(10*time.Second)
-	analyticsCache.mu.Unlock()
+	analyticsCache.Set(ctx, v)
 	return v, nil
 }
 
-func invalidateAnalytics() {
-	analyticsCache.mu.Lock()
-	analyticsCache.v = nil
-	analyticsCache.mu.Unlock()
-}
+func invalidateAnalytics() { analyticsCache.Clear() }
 
 // Signals is what the protection looks at for one campaign.
 type Signals struct {

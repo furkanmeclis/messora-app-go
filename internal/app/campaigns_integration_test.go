@@ -132,13 +132,13 @@ func (h *harness) runCampaign(id string, timeout time.Duration) string {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		var status string
-		if err := h.pool.QueryRow(context.Background(), "SELECT status FROM campaigns WHERE id = $1", id).Scan(&status); err != nil {
+		if err := h.pool.QueryRow(h.ctx(), "SELECT status FROM campaigns WHERE id = $1", id).Scan(&status); err != nil {
 			h.t.Fatal(err)
 		}
 		if status == "completed" || status == "cancelled" || status == "failed" {
 			return status
 		}
-		if h.pump(context.Background(), 32) == 0 {
+		if h.pump(h.ctx(), 32) == 0 {
 			time.Sleep(20 * time.Millisecond)
 		}
 	}
@@ -149,9 +149,9 @@ func (h *harness) runCampaign(id string, timeout time.Duration) string {
 // seedContacts inserts n contacts quickly, tagged "audience".
 func (h *harness) seedContacts(n int, prefix string) string {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	var tag string
-	if err := h.pool.QueryRow(ctx, "INSERT INTO tags (name) VALUES ('audience') ON CONFLICT (lower(name)) DO UPDATE SET name = tags.name RETURNING id").Scan(&tag); err != nil {
+	if err := h.pool.QueryRow(ctx, "INSERT INTO tags (name) VALUES ('audience') ON CONFLICT (tenant_id, lower(name)) DO UPDATE SET name = tags.name RETURNING id").Scan(&tag); err != nil {
 		h.t.Fatal(err)
 	}
 	if _, err := h.pool.Exec(ctx, `
@@ -188,7 +188,7 @@ func (h *harness) assertExactlyOnce(campaign string, want int) {
 			ids[s.Message.BizOpaqueCallbackData]++
 		}
 	}
-	rows, err := h.pool.Query(context.Background(), "SELECT id::text FROM messages WHERE campaign_id = $1", campaign)
+	rows, err := h.pool.Query(h.ctx(), "SELECT id::text FROM messages WHERE campaign_id = $1", campaign)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -216,8 +216,8 @@ func TestCampaignLifecycleAndPersonalisation(t *testing.T) {
 	h.svc.campaigns.TickInterval = 0
 	tag := h.seedContacts(30, "+90551")
 	// One opted-out and one without var1 (skipped: no fallback for it).
-	_, _ = h.pool.Exec(context.Background(), "UPDATE contacts SET opted_out_at = now() WHERE phone_e164 = '+9055100000001'")
-	_, _ = h.pool.Exec(context.Background(), "UPDATE contacts SET var1 = NULL WHERE phone_e164 = '+9055100000002'")
+	_, _ = h.pool.Exec(h.ctx(), "UPDATE contacts SET opted_out_at = now() WHERE phone_e164 = '+9055100000001'")
+	_, _ = h.pool.Exec(h.ctx(), "UPDATE contacts SET var1 = NULL WHERE phone_e164 = '+9055100000002'")
 
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns", token: token, body: map[string]any{"name": "x", "template_name": "order_update",
 		"template_language": "en", "audience": map[string]any{"tag_id": tag, "all": true}}}), 422, "VALIDATION_ERROR")
@@ -265,9 +265,9 @@ func TestCampaignLifecycleAndPersonalisation(t *testing.T) {
 	}
 	// Webhook statuses flow into campaign counts.
 	var wamid string
-	_ = h.pool.QueryRow(context.Background(), "SELECT wamid FROM messages WHERE campaign_id = $1 LIMIT 1", id).Scan(&wamid)
+	_ = h.pool.QueryRow(h.ctx(), "SELECT wamid FROM messages WHERE campaign_id = $1 LIMIT 1", id).Scan(&wamid)
 	// Dispatcher ticks share the two-second progress throttle; let it lapse.
-	if _, err := h.pool.Exec(context.Background(), "UPDATE campaigns SET progress_published_at = now() - interval '1 minute' WHERE id = $1", id); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE campaigns SET progress_published_at = now() - interval '1 minute' WHERE id = $1", id); err != nil {
 		t.Fatal(err)
 	}
 	before := h.count("SELECT count(*) FROM outbox_events WHERE topic = 'rt:campaign:' || $1::text", id)
@@ -278,12 +278,12 @@ func TestCampaignLifecycleAndPersonalisation(t *testing.T) {
 	// A burst within two seconds marks the campaign dirty instead; the
 	// reaper publishes it.
 	var w2 string
-	_ = h.pool.QueryRow(context.Background(), "SELECT wamid FROM messages WHERE campaign_id = $1 AND wamid <> $2 LIMIT 1", id, wamid).Scan(&w2)
+	_ = h.pool.QueryRow(h.ctx(), "SELECT wamid FROM messages WHERE campaign_id = $1 AND wamid <> $2 LIMIT 1", id, wamid).Scan(&w2)
 	h.webhook(whatsapptest.StatusUpdate(testPNID, w2, "delivered", "x", "", time.Now(), 0))
 	if h.count("SELECT count(*) FROM campaigns WHERE id = $1 AND progress_dirty", id) != 1 {
 		t.Fatal("throttled progress not marked dirty")
 	}
-	if _, err := h.svc.campaigns.Reap(context.Background(), h.svc.messaging.Send); err != nil {
+	if _, err := h.svc.campaigns.Reap(h.ctx(), h.svc.messaging.Send); err != nil {
 		t.Fatal(err)
 	}
 	if h.count("SELECT count(*) FROM campaigns WHERE id = $1 AND progress_dirty", id) != 0 {
@@ -319,16 +319,16 @@ func TestCampaignPauseResumeTenTimes(t *testing.T) {
 	tag := h.seedContacts(n, "+90552")
 	id := h.createCampaign(token, tag, 50, nil)
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/start", token: token}), 200, "")
-	h.pump(context.Background(), 8) // materialise
+	h.pump(h.ctx(), 8) // materialise
 
 	for i := range 10 {
-		h.pump(context.Background(), 8)
-		h.pump(context.Background(), 8)
+		h.pump(h.ctx(), 8)
+		h.pump(h.ctx(), 8)
 		r := h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/pause", token: token})
 		h.expect(r, 200, "")
-		h.pump(context.Background(), 8) // queued sends become held
+		h.pump(h.ctx(), 8) // queued sends become held
 		sentBefore := h.count("SELECT count(*) FROM messages WHERE campaign_id = $1 AND status = 'sent'", id)
-		h.pump(context.Background(), 8)
+		h.pump(h.ctx(), 8)
 		if after := h.count("SELECT count(*) FROM messages WHERE campaign_id = $1 AND status = 'sent'", id); after != sentBefore {
 			t.Fatalf("round %d: %d messages sent while paused", i, after-sentBefore)
 		}
@@ -356,12 +356,12 @@ func TestCampaignCancelAndThroughputBackoff(t *testing.T) {
 	id := h.createCampaign(token, tag, 100, nil)
 	h.meta.Script(whatsapptest.Behavior{ErrorCode: 130429, HTTPStatus: 429}, whatsapptest.Behavior{ErrorCode: 131056})
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/start", token: token}), 200, "")
-	h.pump(context.Background(), 1)
-	h.pump(context.Background(), 1)
-	h.pump(context.Background(), 1)
+	h.pump(h.ctx(), 1)
+	h.pump(h.ctx(), 1)
+	h.pump(h.ctx(), 1)
 	var pn uuid.UUID
-	_ = h.pool.QueryRow(context.Background(), "SELECT phone_number_id FROM campaigns WHERE id = $1", id).Scan(&pn)
-	if r := throttle.Rate(context.Background(), pn); r != 40 {
+	_ = h.pool.QueryRow(h.ctx(), "SELECT phone_number_id FROM campaigns WHERE id = $1", id).Scan(&pn)
+	if r := throttle.Rate(h.ctx(), pn); r != 40 {
 		t.Fatalf("rate after 130429: %d, want 40", r)
 	}
 	if h.count("SELECT count(*) FROM messages WHERE campaign_id = $1 AND error_code IN ('130429', '131056') AND status = 'pending'", id) == 0 {
@@ -371,7 +371,7 @@ func TestCampaignCancelAndThroughputBackoff(t *testing.T) {
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/cancel", token: token}), 200, "")
 	h.runCampaign(id, 30*time.Second)
 	sent := h.count("SELECT count(*) FROM messages WHERE campaign_id = $1 AND status = 'sent'", id)
-	h.pump(context.Background(), 8)
+	h.pump(h.ctx(), 8)
 	if again := h.count("SELECT count(*) FROM messages WHERE campaign_id = $1 AND status = 'sent'", id); again != sent {
 		t.Fatal("messages sent after cancel")
 	}
@@ -393,9 +393,9 @@ func TestCampaignReaperRecoversCrashedWork(t *testing.T) {
 	tag := h.seedContacts(40, "+90554")
 	id := h.createCampaign(token, tag, 40, nil)
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/start", token: token}), 200, "")
-	h.pump(context.Background(), 1) // materialise
-	h.pump(context.Background(), 1) // first dispatch tick queues 40 messages
-	ctx := context.Background()
+	h.pump(h.ctx(), 1) // materialise
+	h.pump(h.ctx(), 1) // first dispatch tick queues 40 messages
+	ctx := h.ctx()
 	// Simulate a crash: drop every queued task, claim five messages as if a
 	// worker had started sending them, and age everything.
 	if _, err := h.pool.Exec(ctx, "DELETE FROM outbox_events WHERE published_at IS NULL"); err != nil {

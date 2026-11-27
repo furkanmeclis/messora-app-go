@@ -64,6 +64,10 @@ type Config struct {
 	ShutdownTimeout time.Duration
 
 	PublicAppURL string
+	// TenantBaseDomain is the platform domain whose sub-domains are the
+	// tenants' addresses (TENANT_BASE_DOMAIN, e.g. messora.tech); empty
+	// registers no sub-domain for tenant #1.
+	TenantBaseDomain string
 
 	Database DatabaseConfig
 	Redis    RedisConfig
@@ -163,7 +167,14 @@ type SMTPConfig struct {
 
 // DatabaseConfig describes the PostgreSQL connection.
 type DatabaseConfig struct {
-	URL      Secret // full DSN; when set it wins over the discrete fields
+	URL Secret // full DSN; when set it wins over the discrete fields
+	// App and System are the roles the services connect as (migration
+	// 00024): messora_app, limited by row-level security, and
+	// messora_system, which bypasses it on the few cross-tenant paths. The
+	// owner (User/Password or URL) only runs migrations. Each role's DSN is
+	// the owner's with its own user and password unless the *URL is set.
+	App      RoleLogin
+	System   RoleLogin
 	Host     string
 	Port     int
 	User     string
@@ -174,7 +185,35 @@ type DatabaseConfig struct {
 	MinConns int32
 }
 
-// DSN returns the connection string.
+// RoleLogin is one database role's credentials.
+type RoleLogin struct {
+	User     string
+	Password Secret
+	URL      Secret // full DSN; wins over User/Password
+}
+
+// IsSet reports whether the role can connect.
+func (r RoleLogin) IsSet() bool { return r.URL.IsSet() || (r.User != "" && r.Password.IsSet()) }
+
+// AppDSN is the connection string of the application role.
+func (d DatabaseConfig) AppDSN() (string, error) { return d.roleDSN(d.App) }
+
+// SystemDSN is the connection string of the system role.
+func (d DatabaseConfig) SystemDSN() (string, error) { return d.roleDSN(d.System) }
+
+func (d DatabaseConfig) roleDSN(r RoleLogin) (string, error) {
+	if r.URL.IsSet() {
+		return r.URL.Reveal(), nil
+	}
+	u, err := url.Parse(d.DSN())
+	if err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") {
+		return "", errors.New("database: DATABASE_URL is not a postgres:// URL; set DATABASE_APP_URL and DATABASE_SYSTEM_URL")
+	}
+	u.User = url.UserPassword(r.User, r.Password.Reveal())
+	return u.String(), nil
+}
+
+// DSN returns the owner's connection string.
 func (d DatabaseConfig) DSN() string {
 	if d.URL.IsSet() {
 		return d.URL.Reveal()
@@ -231,16 +270,21 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 	l := &loader{getenv: getenv, file: file}
 
 	cfg := &Config{
-		Env:             l.str("APP_ENV", EnvProduction),
-		LogLevel:        l.str("LOG_LEVEL", "info"),
-		LogFormat:       l.str("LOG_FORMAT", "json"),
-		ServiceName:     l.str("OTEL_SERVICE_NAME", "messora"),
-		HTTPAddr:        l.str("API_ADDR", ":8080"),
-		InternalAddr:    l.str("INTERNAL_ADDR", ":9100"),
-		ShutdownTimeout: l.duration("SHUTDOWN_TIMEOUT", 30*time.Second),
-		PublicAppURL:    strings.TrimRight(l.str("PUBLIC_APP_URL", "http://localhost"), "/"),
+		Env:              l.str("APP_ENV", EnvProduction),
+		LogLevel:         l.str("LOG_LEVEL", "info"),
+		LogFormat:        l.str("LOG_FORMAT", "json"),
+		ServiceName:      l.str("OTEL_SERVICE_NAME", "messora"),
+		HTTPAddr:         l.str("API_ADDR", ":8080"),
+		InternalAddr:     l.str("INTERNAL_ADDR", ":9100"),
+		ShutdownTimeout:  l.duration("SHUTDOWN_TIMEOUT", 30*time.Second),
+		PublicAppURL:     strings.TrimRight(l.str("PUBLIC_APP_URL", "http://localhost"), "/"),
+		TenantBaseDomain: strings.Trim(strings.ToLower(l.str("TENANT_BASE_DOMAIN", "")), "."),
 		Database: DatabaseConfig{
-			URL:      Secret(l.str("DATABASE_URL", "")),
+			URL: Secret(l.str("DATABASE_URL", "")),
+			App: RoleLogin{User: l.str("POSTGRES_APP_USER", "messora_app"), Password: Secret(l.str("POSTGRES_APP_PASSWORD", "")),
+				URL: Secret(l.str("DATABASE_APP_URL", ""))},
+			System: RoleLogin{User: l.str("POSTGRES_SYSTEM_USER", "messora_system"), Password: Secret(l.str("POSTGRES_SYSTEM_PASSWORD", "")),
+				URL: Secret(l.str("DATABASE_SYSTEM_URL", ""))},
 			Host:     l.str("POSTGRES_HOST", "postgres"),
 			Port:     l.int("POSTGRES_PORT", 5432),
 			User:     l.str("POSTGRES_USER", "messora"),
@@ -425,7 +469,17 @@ func (c *Config) Validate(role Role) error {
 		errs = append(errs, fmt.Errorf("LOG_FORMAT must be json or text (got %q)", c.LogFormat))
 	}
 
-	req(c.Database.URL.IsSet() || c.Database.Password.IsSet(), "DATABASE_URL or POSTGRES_PASSWORD")
+	if role == RoleMigrate {
+		// Only migrations connect as the owner.
+		req(c.Database.URL.IsSet() || c.Database.Password.IsSet(), "DATABASE_URL or POSTGRES_PASSWORD")
+	}
+	if role == RoleAPI || role == RoleWorker {
+		// The services never connect as the owner.
+		req(c.Database.App.IsSet(), "POSTGRES_APP_PASSWORD (or DATABASE_APP_URL)")
+	}
+	if role == RoleWorker {
+		req(c.Database.System.IsSet(), "POSTGRES_SYSTEM_PASSWORD (or DATABASE_SYSTEM_URL)")
+	}
 
 	if role != RoleMigrate {
 		req(c.Redis.URL.IsSet() || c.Redis.Addr != "", "REDIS_URL or REDIS_ADDR")

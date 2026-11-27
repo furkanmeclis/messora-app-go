@@ -158,6 +158,19 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 | WP2b | Kimlik akışları ve e-posta tasarımları: giriş, kayıt (self sign-up, firma + alt alan adı), e-posta doğrulama, şifremi unuttum/sıfırlama, davet kabulü, 2FA, firma değiştirici. Şık ve markaya uygun UI/UX; markalı, TR/EN, mobil ve koyu mod uyumlu HTML e-posta şablonları (doğrulama, şifre sıfırlama, davet, hoş geldin, güvenlik uyarısı, fatura ve ödeme hatırlatması); Resend ile gönderim, önizleme ve e-posta testleri | M–L | WP2 |
 | WP9 | Abonelik ve faturalama: havale/EFT, fatura, mesaj ve AI kredisi bakiyeleri, platform onayı, ek süre ve kısıtlı mod (docs/design/faz17-kanvas) | L | WP8 |
 
+### 5.5 WP1 uygulama kararları (2026-11-27)
+- **Şema:** migrasyon 00024–00028. 57 tabloya `tenant_id` eklendi (`outbox_events` boş olabilir), 13 ebeveyne `(tenant_id, id)` anahtarı, 23 ilişkiye bileşik yabancı anahtar. Platform tabloları: `tenants`, `tenant_domains`, `platform_settings`, `permissions`, `roles`, `role_permissions`, `meta_rates`, `meta_rate_markets`, `ai_model_prices`, `goose_db_version`. Ayrıntı: DATABASE_DESIGN.md §1.1, SECURITY.md §3a.
+- **`users` WP1'de kiracıya ait:** e-posta şimdilik bütün kiracılarda tekil kalır. WP2'de global kullanıcı + `tenant_memberships` gelince `users.tenant_id` üyeliğe taşınır; oturum ve API anahtarı kiracıya bağlı kalır.
+- **`tenant_id` sorgularda geçirilmiyor:** sütunun varsayılanı bağlantının kiracısı (`app_tenant_id()`), RLS'in `WITH CHECK`'i başka değeri reddeder. Böylece tek kaynak bağlamdaki kiracıdır; sqlc parametre yapılarında unutulan bir alanın `uuid.Nil` yazması gibi bir hata olamaz. Kiracısız bağlantıda ekleme `NOT NULL` ile başarısız olur. Trigger'lar `NEW.tenant_id`'yi açıkça kopyalar.
+- **Doldurma tek transaction'da:** gruplu doldurma yerine her tablo tek `UPDATE` ile, migrasyon transaction'ı içinde taşınır; yarım kalan migrasyon geri alınır. Mevcut veri küçük (demo kapatılıyor). `NOT VALID` kontrolü ve doğrulaması ayrı migrasyonlarda.
+- **`tenant.System`:** uygulama havuzunda "kiracısız" demektir (kiracı satırı görünmez, yazılamaz; yalnızca platform tabloları). Alan adı çözümü ve sağlık kontrolleri bunu kullanır. Sistem havuzu (`messora_system`) yalnızca worker'da, outbox aktarıcısı ve temizliği için açılır; API'de BYPASSRLS bağlantısı yoktur.
+- **Alan adı:** `X-Forwarded-Host` kullanılmıyor (Caddy `Host`'u koruyor); BFF başlığı yalnızca BFF sırrıyla. 1 numaralı kiracının alan adlarını `messora migrate` kaydeder (`PUBLIC_APP_URL` host'u ve `<slug>.TENANT_BASE_DOMAIN`); WP2'de platform paneline geçer.
+- **Platform verisini sahip rolü yazar:** AI fiyat tablosunun tohumu API açılışından `messora migrate`'e taşındı; "bir kez tohumlandı" işareti `platform_settings`'te (migrasyon 00029 eski işareti taşır). `messora_app` platform tablolarına yazamadığı için başka bir platform tohumu da aynı yoldan gider.
+- **Doğrudan SQL yazan araçlar kiracıyı belirtir:** E2E yardımcıları `PGOPTIONS=-c app.tenant_id=…` ile 1 numaralı kiracı olarak yazar; yedek provası `tenant_id`'yi açıkça verir. Kiracısız ekleme `NOT NULL`'a takılır, bu bilinçli.
+- **Kuyruk (WP3'ün bir kısmı öne alındı):** outbox satırı kiracıyı taşır, aktarıcı asynq görev başlığına (`messora-tenant`) yazar, worker ara katmanı bağlamı kurar. Başlıksız görevler (zamanlanmış işler) `TODO(WP3)` işaretli geçici kuralla 1 numaralı kiracı olarak çalışır.
+- **Önbellekler:** ayarlar, SMTP, onay ve kampanya analitiği ayarları kiracı başına (`tenant.Cache`); panelin görünüm önbelleği alan adı başına. `mailer.Sender.Enabled` bağlam alır.
+- **WP2/WP3'e kalanlar:** realtime kanalları, Redis anahtarları (MFA, TOTP, hız sınırı), başarısız işler sayfası (asynq arşivi bütün kiracıları gösterir), zamanlanmış işlerin kiracı başına dağıtımı ve başlıksız görevin reddi (WP3); `meta_rates` / `ai_model_prices` yazma yetkisinin platforma taşınması, `APP_*` çalışma alanı ortam değişkenleri, global kullanıcılar, kiracı açma ve alan adı yönetimi, `messora setup token`'ın kiracı seçmesi (WP2); gelen Meta webhook'unun kiracıya özel adresi (WP5).
+
 ## 6. Kabul kriterleri (taslak)
 1. İki firmanın verisi hiçbir API, olay, dışa aktarma, kuyruk işi ya da realtime kanalında birbirine görünmez. RLS ve uygulama katmanı testlerle doğrulanır; bir firmanın anahtarıyla diğerinin adresine yapılan istek reddedilir.
 2. Her firma kendi adresinden API'ye erişir, kendi webhook'larını alır; firmaya özel gelen Meta webhook'u doğru firmaya işlenir.
@@ -172,5 +185,6 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 |---|---|
 | Teknik analiz ve iş paketleri | ✅ tamamlandı (2026-11-27) — onay bekliyor |
 | WP0 — temizlik (lisans, tema, PWA, masaüstü modu) | ✅ tamamlandı (2026-11-27); migrasyon 00023, eski service worker bir sürüm boyunca kendini kaldırır |
+| WP1 — kiracı temeli | ✅ tamamlandı (2026-11-27); migrasyon 00024–00028, RLS + `messora_app`/`messora_system`, alan adından kiracı, kiracılar arası test matrisi (kararlar §5.5) |
 | Marka kimliği (kanvas) | taslak 1 — geri bildirim bekliyor |
 | Abonelik tasarımı (kanvas) | taslak — öncelik sonra |

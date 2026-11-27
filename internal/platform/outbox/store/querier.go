@@ -16,6 +16,7 @@ type Querier interface {
 	DeletePublishedOutboxBefore(ctx context.Context, arg DeletePublishedOutboxBeforeParams) (int64, error)
 	// The database clock is the only clock: delays are relative to now() so
 	// skew between application hosts and PostgreSQL cannot hide events.
+	// tenant_id is the writer's tenant; row-level security rejects any other.
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (int64, error)
 	MarkOutboxFailed(ctx context.Context, arg MarkOutboxFailedParams) error
 	MarkOutboxPublished(ctx context.Context, ids []int64) error

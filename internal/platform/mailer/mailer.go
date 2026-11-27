@@ -42,7 +42,8 @@ type Message struct {
 // Sender delivers messages.
 type Sender interface {
 	Send(ctx context.Context, m Message) error
-	Enabled() bool
+	// Enabled reports whether mail can be sent for ctx (its tenant).
+	Enabled(ctx context.Context) bool
 }
 
 // Config holds SMTP settings.
@@ -66,7 +67,7 @@ func (Disabled) Send(context.Context, Message) error {
 }
 
 // Enabled is false.
-func (Disabled) Enabled() bool { return false }
+func (Disabled) Enabled(context.Context) bool { return false }
 
 // SMTP sends via an SMTP server.
 type SMTP struct {
@@ -97,7 +98,7 @@ func New(cfg Config) (Sender, error) {
 }
 
 // Enabled is true.
-func (s *SMTP) Enabled() bool { return true }
+func (s *SMTP) Enabled(context.Context) bool { return true }
 
 // Send delivers m, honouring ctx's deadline (default 15 s).
 func (s *SMTP) Send(ctx context.Context, m Message) error {

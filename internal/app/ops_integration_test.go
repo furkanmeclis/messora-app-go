@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 func (h *harness) sqlOne(query string, args ...any) string {
 	h.t.Helper()
 	var out *string
-	rows, err := h.pool.Query(context.Background(), query, args...)
+	rows, err := h.pool.Query(h.ctx(), query, args...)
 	if err != nil {
 		h.t.Fatal(err)
 	}

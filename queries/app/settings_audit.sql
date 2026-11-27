@@ -4,10 +4,10 @@ SELECT value FROM settings WHERE key = @key;
 -- name: UpsertSetting :exec
 INSERT INTO settings (key, value, updated_by, updated_at)
 VALUES (@key, @value, sqlc.narg(updated_by), now())
-ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = now();
+ON CONFLICT (tenant_id, key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = now();
 
 -- name: InsertSettingIfAbsent :execrows
-INSERT INTO settings (key, value) VALUES (@key, @value) ON CONFLICT (key) DO NOTHING;
+INSERT INTO settings (key, value) VALUES (@key, @value) ON CONFLICT (tenant_id, key) DO NOTHING;
 
 -- name: DeleteSetting :exec
 DELETE FROM settings WHERE key = @key;

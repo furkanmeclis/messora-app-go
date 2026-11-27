@@ -10,29 +10,26 @@ import (
 	"github.com/google/uuid"
 )
 
-// DefaultTenant owns everything stored before multi-tenancy, and every
-// call made without a tenant in its context.
-const DefaultTenant = "default"
+// LegacyTenant owns the objects stored before tenant-scoped keys existed
+// (keys without the "t/" prefix): tenant #1, which took over all data of
+// the single-tenant installation (migration 00024, tenant.DefaultID).
+const LegacyTenant = "00000000-0000-0000-0000-000000000001"
 
 type tenantCtxKey struct{}
 
 // WithTenant returns a context whose objects belong to tenantID.
-//
-// Until the tenancy work package wires the real tenant into request and
-// job contexts, nothing calls this outside tests and every key falls under
-// DefaultTenant.
+// tenant.WithID calls it, so every request and job context that carries a
+// tenant also carries it here.
 func WithTenant(ctx context.Context, tenantID string) context.Context {
 	return context.WithValue(ctx, tenantCtxKey{}, tenantID)
 }
 
-// TenantKey returns the tenant id the context carries, or DefaultTenant
-// when it carries none. A malformed id is returned as is, so Key and
-// CheckTenantKey fail closed instead of falling back to the default tenant.
+// TenantKey returns the tenant id the context carries, or "" when it
+// carries none. Key and CheckTenantKey reject both "" and a malformed id,
+// so storage access without a tenant fails closed.
 func TenantKey(ctx context.Context) string {
-	if v, ok := ctx.Value(tenantCtxKey{}).(string); ok {
-		return v
-	}
-	return DefaultTenant
+	v, _ := ctx.Value(tenantCtxKey{}).(string)
+	return v
 }
 
 // Key builds a new tenant-scoped object key:
@@ -76,7 +73,7 @@ func TenantPrefix(tenantID string) string { return "t/" + tenantID + "/" }
 
 // CheckTenantKey rejects a key that does not belong to tenantID. Keys
 // stored before tenant-scoped keys existed (no "t/" prefix) belong to
-// DefaultTenant only.
+// LegacyTenant only.
 func CheckTenantKey(tenantID, key string) error {
 	if err := ValidateKey(key); err != nil {
 		return err
@@ -90,7 +87,7 @@ func CheckTenantKey(tenantID, key string) error {
 		}
 		return nil
 	}
-	if tenantID != DefaultTenant {
+	if tenantID != LegacyTenant {
 		return fmt.Errorf("%w: key outside the tenant's prefix", ErrInvalidKey)
 	}
 	return nil

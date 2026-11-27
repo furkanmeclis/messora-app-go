@@ -120,7 +120,7 @@ SELECT throughput_mps FROM phone_numbers WHERE id = @id;
 -- name: InsertMetaUserPreference :one
 INSERT INTO meta_user_preferences (phone_number_id, wa_id, user_id, phone_e164, category, value, detail, occurred_at)
 VALUES (sqlc.narg(phone_number_id), sqlc.narg(wa_id), sqlc.narg(user_id), sqlc.narg(phone_e164), @category, @value, @detail, @occurred_at)
-ON CONFLICT (wa_id, user_id, category, value, occurred_at) DO NOTHING
+ON CONFLICT (tenant_id, wa_id, user_id, category, value, occurred_at) DO NOTHING
 RETURNING *;
 
 -- name: LatestMetaUserPreference :one

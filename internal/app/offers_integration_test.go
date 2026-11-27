@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -236,7 +235,7 @@ func TestOfferExpiryPausesRunningCampaign(t *testing.T) {
 	id := r.data()["id"].(string)
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/start", token: token}), 200, "")
 
-	ctx := context.Background()
+	ctx := h.ctx()
 	deadline := time.Now().Add(20 * time.Second)
 	for len(h.meta.Sent()) == 0 && time.Now().Before(deadline) {
 		if h.pump(ctx, 4) == 0 {
@@ -291,7 +290,7 @@ func TestOfferSchedulerActivatesAndExpires(t *testing.T) {
 	if soon["status"] != "scheduled" || draft["status"] != "draft" {
 		t.Fatalf("statuses %v %v", soon["status"], draft["status"])
 	}
-	ctx := context.Background()
+	ctx := h.ctx()
 	if _, err := h.pool.Exec(ctx, "UPDATE offers SET starts_at = now() - interval '1 minute' WHERE id = $1", soon["id"]); err != nil {
 		t.Fatal(err)
 	}

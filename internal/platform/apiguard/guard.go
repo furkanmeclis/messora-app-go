@@ -29,6 +29,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
@@ -218,6 +219,15 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// errWrongTenant is the error for credentials of another tenant; it looks
+// exactly like an unknown token.
+func errWrongTenant(isKey bool) error {
+	if isKey {
+		return apperr.Unauthorized("API_KEY_INVALID", "The API key is invalid, expired or revoked")
+	}
+	return apperr.Unauthorized("SESSION_INVALID", "Your session has ended. Sign in again.")
+}
+
 // authorize evaluates the alternatives of the security requirement (OR of
 // ANDs) and returns the authenticated principal, if any.
 func (g *Guard) authorize(r *http.Request, reqs openapi3.SecurityRequirements) (*principal.Principal, error) {
@@ -250,6 +260,15 @@ func (g *Guard) authorize(r *http.Request, reqs openapi3.SecurityRequirements) (
 			authenticated, authErr = g.o.Auth.AuthenticateAPIKey(ctx, token)
 		} else {
 			authenticated, authErr = g.o.Auth.AuthenticateSession(ctx, token)
+		}
+		// A session or key works only at its own tenant's address. The
+		// lookup already ran as the host's tenant (row-level security), so
+		// a mismatch here means a bug; it is refused all the same.
+		if authenticated != nil {
+			if host, ok := tenant.FromCtx(ctx); !ok || authenticated.TenantID != host {
+				authenticated = nil
+				authErr = errWrongTenant(isKey)
+			}
 		}
 		return authenticated, authErr
 	}

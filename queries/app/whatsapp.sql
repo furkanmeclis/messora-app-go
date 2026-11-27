@@ -118,7 +118,7 @@ UPDATE phone_numbers SET is_default = true, updated_at = now() WHERE id = @id;
 -- name: UpsertContactByPhone :one
 INSERT INTO contacts (phone_e164, wa_id, profile_name)
 VALUES (@phone_e164, sqlc.narg(wa_id), @profile_name)
-ON CONFLICT (phone_e164) DO UPDATE SET
+ON CONFLICT (tenant_id, phone_e164) DO UPDATE SET
     wa_id        = coalesce(excluded.wa_id, contacts.wa_id),
     profile_name = CASE WHEN excluded.profile_name <> '' THEN excluded.profile_name ELSE contacts.profile_name END,
     updated_at   = now()
@@ -147,7 +147,7 @@ INSERT INTO messages (phone_number_id, contact_id, direction, wamid, type, body,
                       reply_to_wamid, source, occurred_at)
 VALUES (@phone_number_id, @contact_id, 'inbound', @wamid, @type, @body, @payload, 'received', 0,
         sqlc.narg(reply_to_wamid), 'webhook', @occurred_at)
-ON CONFLICT (wamid) DO NOTHING
+ON CONFLICT (tenant_id, wamid) DO NOTHING
 RETURNING *;
 
 -- name: GetMessage :one
@@ -251,7 +251,7 @@ SELECT * FROM media_files WHERE message_id = @message_id ORDER BY created_at;
 -- name: InsertWebhookEvent :one
 -- Returns no row when the identical body was already received.
 INSERT INTO webhook_events (payload_sha256, body) VALUES (@payload_sha256, @body)
-ON CONFLICT (payload_sha256) DO NOTHING
+ON CONFLICT (tenant_id, payload_sha256) DO NOTHING
 RETURNING id;
 
 -- name: GetWebhookEvent :one

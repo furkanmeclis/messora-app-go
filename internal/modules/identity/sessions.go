@@ -107,7 +107,7 @@ func (s *Service) AuthenticateSession(ctx context.Context, token string) (*princ
 	}
 	slices.Sort(perms)
 	return &principal.Principal{
-		Kind: principal.KindUser, ID: u.ID, Name: u.Name, SessionID: row.ID,
+		Kind: principal.KindUser, TenantID: row.TenantID, ID: u.ID, Name: u.Name, SessionID: row.ID,
 		RoleKey: role.RoleKey, RoleRank: int(role.RoleRank), Permissions: perms,
 		ReauthAt: row.ReauthAt, ExpiresAt: row.ExpiresAt,
 		MFAPending: st.MFARequired(role.RoleKey) && u.TotpConfirmedAt == nil,
@@ -134,7 +134,7 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, key string) (*principa
 	}
 	scopes := slices.Clone(k.Scopes)
 	slices.Sort(scopes)
-	p := &principal.Principal{Kind: principal.KindAPIKey, ID: k.ID, Name: k.Name, Permissions: scopes}
+	p := &principal.Principal{Kind: principal.KindAPIKey, TenantID: k.TenantID, ID: k.ID, Name: k.Name, Permissions: scopes}
 	if k.ExpiresAt != nil {
 		p.ExpiresAt = *k.ExpiresAt
 	}

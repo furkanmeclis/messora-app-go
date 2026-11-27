@@ -133,7 +133,7 @@ func (q *Queries) CampaignAICost(ctx context.Context, campaignID *uuid.UUID) ([]
 }
 
 const campaignAccountEvents = `-- name: CampaignAccountEvents :many
-SELECT e.id, e.account_id, e.phone_number_id, e.kind, e.payload, e.occurred_at, e.received_at FROM whatsapp_account_events e
+SELECT e.id, e.account_id, e.phone_number_id, e.kind, e.payload, e.occurred_at, e.received_at, e.tenant_id FROM whatsapp_account_events e
 WHERE e.account_id = $1 AND e.occurred_at >= $2 AND e.occurred_at <= $3
   AND (e.phone_number_id IS NULL OR e.phone_number_id = $4)
 ORDER BY e.occurred_at, e.id LIMIT 500
@@ -170,6 +170,7 @@ func (q *Queries) CampaignAccountEvents(ctx context.Context, arg CampaignAccount
 			&i.Payload,
 			&i.OccurredAt,
 			&i.ReceivedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -318,7 +319,7 @@ func (q *Queries) CampaignHourly(ctx context.Context, campaignID uuid.UUID) ([]C
 }
 
 const campaignTemplate = `-- name: CampaignTemplate :one
-SELECT t.id, t.account_id, t.meta_template_id, t.name, t.language, t.category, t.status, t.parameter_format, t.components, t.rejected_reason, t.quality_score, t.synced_at, t.created_at, t.updated_at FROM campaigns c JOIN phone_numbers p ON p.id = c.phone_number_id
+SELECT t.id, t.account_id, t.meta_template_id, t.name, t.language, t.category, t.status, t.parameter_format, t.components, t.rejected_reason, t.quality_score, t.synced_at, t.created_at, t.updated_at, t.tenant_id FROM campaigns c JOIN phone_numbers p ON p.id = c.phone_number_id
 JOIN message_templates t ON t.account_id = p.account_id AND t.name = c.template_name AND t.language = c.template_language
 WHERE c.id = $1
 `
@@ -343,6 +344,7 @@ func (q *Queries) CampaignTemplate(ctx context.Context, campaignID uuid.UUID) (M
 		&i.SyncedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -377,7 +379,7 @@ func (q *Queries) CampaignsToReconcile(ctx context.Context, horizonDays int32) (
 }
 
 const claimCampaignExport = `-- name: ClaimCampaignExport :one
-UPDATE campaign_exports SET status = 'running' WHERE id = $1 AND status = 'queued' RETURNING id, campaign_id, kind, format, filters, status, file_key, filename, size_bytes, rows_written, error, requested_by, created_at, finished_at, expires_at
+UPDATE campaign_exports SET status = 'running' WHERE id = $1 AND status = 'queued' RETURNING id, campaign_id, kind, format, filters, status, file_key, filename, size_bytes, rows_written, error, requested_by, created_at, finished_at, expires_at, tenant_id
 `
 
 func (q *Queries) ClaimCampaignExport(ctx context.Context, id uuid.UUID) (CampaignExport, error) {
@@ -399,6 +401,7 @@ func (q *Queries) ClaimCampaignExport(ctx context.Context, id uuid.UUID) (Campai
 		&i.CreatedAt,
 		&i.FinishedAt,
 		&i.ExpiresAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -646,7 +649,7 @@ func (q *Queries) GetCampaignCounters(ctx context.Context, campaignID uuid.UUID)
 }
 
 const getCampaignExport = `-- name: GetCampaignExport :one
-SELECT id, campaign_id, kind, format, filters, status, file_key, filename, size_bytes, rows_written, error, requested_by, created_at, finished_at, expires_at FROM campaign_exports WHERE id = $1
+SELECT id, campaign_id, kind, format, filters, status, file_key, filename, size_bytes, rows_written, error, requested_by, created_at, finished_at, expires_at, tenant_id FROM campaign_exports WHERE id = $1
 `
 
 func (q *Queries) GetCampaignExport(ctx context.Context, id uuid.UUID) (CampaignExport, error) {
@@ -668,24 +671,30 @@ func (q *Queries) GetCampaignExport(ctx context.Context, id uuid.UUID) (Campaign
 		&i.CreatedAt,
 		&i.FinishedAt,
 		&i.ExpiresAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getCampaignForecast = `-- name: GetCampaignForecast :one
-SELECT campaign_id, forecast, created_at FROM campaign_forecasts WHERE campaign_id = $1
+SELECT campaign_id, forecast, created_at, tenant_id FROM campaign_forecasts WHERE campaign_id = $1
 `
 
 func (q *Queries) GetCampaignForecast(ctx context.Context, campaignID uuid.UUID) (CampaignForecast, error) {
 	row := q.db.QueryRow(ctx, getCampaignForecast, campaignID)
 	var i CampaignForecast
-	err := row.Scan(&i.CampaignID, &i.Forecast, &i.CreatedAt)
+	err := row.Scan(
+		&i.CampaignID,
+		&i.Forecast,
+		&i.CreatedAt,
+		&i.TenantID,
+	)
 	return i, err
 }
 
 const insertCampaignExport = `-- name: InsertCampaignExport :one
 INSERT INTO campaign_exports (campaign_id, kind, format, filters, requested_by)
-VALUES ($1, $2, $3, $4, $5) RETURNING id, campaign_id, kind, format, filters, status, file_key, filename, size_bytes, rows_written, error, requested_by, created_at, finished_at, expires_at
+VALUES ($1, $2, $3, $4, $5) RETURNING id, campaign_id, kind, format, filters, status, file_key, filename, size_bytes, rows_written, error, requested_by, created_at, finished_at, expires_at, tenant_id
 `
 
 type InsertCampaignExportParams struct {
@@ -721,6 +730,7 @@ func (q *Queries) InsertCampaignExport(ctx context.Context, arg InsertCampaignEx
 		&i.CreatedAt,
 		&i.FinishedAt,
 		&i.ExpiresAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -798,7 +808,7 @@ func (q *Queries) LatestReachedRecipient(ctx context.Context, arg LatestReachedR
 }
 
 const listCampaignExports = `-- name: ListCampaignExports :many
-SELECT id, campaign_id, kind, format, filters, status, file_key, filename, size_bytes, rows_written, error, requested_by, created_at, finished_at, expires_at FROM campaign_exports WHERE campaign_id = $1 ORDER BY id DESC LIMIT 20
+SELECT id, campaign_id, kind, format, filters, status, file_key, filename, size_bytes, rows_written, error, requested_by, created_at, finished_at, expires_at, tenant_id FROM campaign_exports WHERE campaign_id = $1 ORDER BY id DESC LIMIT 20
 `
 
 func (q *Queries) ListCampaignExports(ctx context.Context, campaignID uuid.UUID) ([]CampaignExport, error) {
@@ -826,6 +836,7 @@ func (q *Queries) ListCampaignExports(ctx context.Context, campaignID uuid.UUID)
 			&i.CreatedAt,
 			&i.FinishedAt,
 			&i.ExpiresAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -933,7 +944,7 @@ func (q *Queries) RemapQuickReplyReactions(ctx context.Context, arg RemapQuickRe
 }
 
 const setCampaignReactionMap = `-- name: SetCampaignReactionMap :one
-UPDATE campaigns SET reaction_map = $1, updated_at = now() WHERE id = $2 RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, offer_id, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued, reaction_map
+UPDATE campaigns SET reaction_map = $1, updated_at = now() WHERE id = $2 RETURNING id, name, status, phone_number_id, template_name, template_language, template_params, audience, scheduled_at, started_at, finished_at, materialize_cursor, dispatch_gen, window_size, total_recipients, last_error, created_by, created_at, updated_at, progress_published_at, progress_dirty, offer_id, priority, max_mps, paused_reason, paused_at, paused_by, resume_at, send_rate, rate_window_start, rate_window_queued, reaction_map, tenant_id
 `
 
 type SetCampaignReactionMapParams struct {
@@ -977,6 +988,7 @@ func (q *Queries) SetCampaignReactionMap(ctx context.Context, arg SetCampaignRea
 		&i.RateWindowStart,
 		&i.RateWindowQueued,
 		&i.ReactionMap,
+		&i.TenantID,
 	)
 	return i, err
 }

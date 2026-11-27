@@ -58,7 +58,7 @@ func (h *harness) conversations(token, q string) []map[string]any {
 func (h *harness) conversationOf(customer string) string {
 	h.t.Helper()
 	var id uuid.UUID
-	if err := h.pool.QueryRow(context.Background(),
+	if err := h.pool.QueryRow(h.ctx(),
 		"SELECT v.id FROM conversations v JOIN contacts c ON c.id = v.contact_id WHERE c.phone_e164 = $1", "+"+customer).Scan(&id); err != nil {
 		h.t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestInboxVisibility(t *testing.T) {
 	// Agent A cannot read B's conversation through any endpoint, not even
 	// by guessing its ID; the answer is indistinguishable from "not found".
 	var mediaID string
-	if err := h.pool.QueryRow(context.Background(), `INSERT INTO media_files (message_id, mime_type, status)
+	if err := h.pool.QueryRow(h.ctx(), `INSERT INTO media_files (message_id, mime_type, status)
 		SELECT id, 'image/jpeg', 'pending' FROM messages WHERE wamid = 'wamid.v1' RETURNING id`).Scan(&mediaID); err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +328,7 @@ func TestInboxReplyRules(t *testing.T) {
 
 	// The window closes 24 hours after the customer's last message: only
 	// templates then.
-	if _, err := h.pool.Exec(context.Background(), "UPDATE conversations SET last_inbound_at = now() - interval '25 hours' WHERE id = $1", id); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE conversations SET last_inbound_at = now() - interval '25 hours' WHERE id = $1", id); err != nil {
 		t.Fatal(err)
 	}
 	if c := h.do(call{method: "GET", path: "/api/v1/conversations/" + id, token: agent}).data(); c["window_open"] != false {
@@ -520,7 +520,7 @@ func TestInboxMediaDownload(t *testing.T) {
 		t.Fatalf("pending media: %d %s", res.StatusCode, body)
 	}
 	for _, m := range media {
-		if err := h.svc.messaging.DownloadMedia(context.Background(), uuid.MustParse(m)); err != nil {
+		if err := h.svc.messaging.DownloadMedia(h.ctx(), uuid.MustParse(m)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -572,7 +572,7 @@ func TestInboxWindowAppliesToTheDeveloperAPI(t *testing.T) {
 	owner, _ := h.connect()
 	h.inbound(testCustomer, "wamid.w1", "hi", time.Now())
 	h.expect(h.send(owner, map[string]any{"to": "+" + testCustomer, "type": "text", "text": map[string]any{"body": "hello"}}), 202, "")
-	if _, err := h.pool.Exec(context.Background(), "UPDATE conversations SET last_inbound_at = now() - interval '24 hours 1 minute'"); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE conversations SET last_inbound_at = now() - interval '24 hours 1 minute'"); err != nil {
 		t.Fatal(err)
 	}
 	h.expect(h.send(owner, map[string]any{"to": "+" + testCustomer, "type": "text", "text": map[string]any{"body": "hello"}}), 422, "OUTSIDE_SERVICE_WINDOW")
@@ -659,10 +659,10 @@ SELECT c.id, (SELECT id FROM phone_numbers LIMIT 1),
        CASE WHEN right(c.phone_e164, 1) IN ('2', '3', '4') THEN $1::uuid END,
        now() - (right(c.phone_e164, 5)::int * interval '1 minute'), now() - interval '1 hour', right(c.phone_e164, 1)::int
 FROM c`
-	if _, err := h.pool.Exec(context.Background(), seed, uuid.MustParse(agentID)); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), seed, uuid.MustParse(agentID)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.pool.Exec(context.Background(), "ANALYZE conversations; ANALYZE contacts"); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "ANALYZE conversations; ANALYZE contacts"); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ who, token, q string }{

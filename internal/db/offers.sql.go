@@ -15,7 +15,7 @@ import (
 const activateDueOffers = `-- name: ActivateDueOffers :many
 UPDATE offers SET status = 'active', updated_at = now()
 WHERE status = 'scheduled' AND starts_at <= now() AND ends_at > now()
-RETURNING id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at
+RETURNING id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at, tenant_id
 `
 
 // scheduled → active once starts_at passed (and the offer has not ended).
@@ -45,6 +45,7 @@ func (q *Queries) ActivateDueOffers(ctx context.Context) ([]Offer, error) {
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -100,7 +101,7 @@ func (q *Queries) DeleteOffer(ctx context.Context, id uuid.UUID) (int64, error) 
 const expireDueOffers = `-- name: ExpireDueOffers :many
 UPDATE offers SET status = 'expired', updated_at = now()
 WHERE status IN ('scheduled', 'active') AND ends_at <= now()
-RETURNING id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at
+RETURNING id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at, tenant_id
 `
 
 // scheduled or active → expired once ends_at passed.
@@ -130,6 +131,7 @@ func (q *Queries) ExpireDueOffers(ctx context.Context) ([]Offer, error) {
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -142,7 +144,7 @@ func (q *Queries) ExpireDueOffers(ctx context.Context) ([]Offer, error) {
 }
 
 const getOffer = `-- name: GetOffer :one
-SELECT id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at FROM offers WHERE id = $1
+SELECT id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at, tenant_id FROM offers WHERE id = $1
 `
 
 func (q *Queries) GetOffer(ctx context.Context, id uuid.UUID) (Offer, error) {
@@ -165,6 +167,7 @@ func (q *Queries) GetOffer(ctx context.Context, id uuid.UUID) (Offer, error) {
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -175,7 +178,7 @@ INSERT INTO offers (title, description, discount_text, product, starts_at, ends_
                     cta_url, coupon_code, template_id, status, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
         $9, $10, $11, $12, $13)
-RETURNING id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at
+RETURNING id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at, tenant_id
 `
 
 type InsertOfferParams struct {
@@ -229,12 +232,13 @@ func (q *Queries) InsertOffer(ctx context.Context, arg InsertOfferParams) (Offer
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const listOffers = `-- name: ListOffers :many
-SELECT id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at FROM offers
+SELECT id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at, tenant_id FROM offers
 WHERE ($1::text IS NULL OR status = $1::text)
 ORDER BY ends_at DESC, id DESC
 LIMIT 500
@@ -266,6 +270,7 @@ func (q *Queries) ListOffers(ctx context.Context, status *string) ([]Offer, erro
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -278,7 +283,7 @@ func (q *Queries) ListOffers(ctx context.Context, status *string) ([]Offer, erro
 }
 
 const lockOffer = `-- name: LockOffer :one
-SELECT id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at FROM offers WHERE id = $1 FOR UPDATE
+SELECT id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at, tenant_id FROM offers WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockOffer(ctx context.Context, id uuid.UUID) (Offer, error) {
@@ -301,6 +306,7 @@ func (q *Queries) LockOffer(ctx context.Context, id uuid.UUID) (Offer, error) {
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -336,7 +342,7 @@ UPDATE offers SET
     status         = $12,
     updated_at     = now()
 WHERE id = $13
-RETURNING id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at
+RETURNING id, title, description, discount_text, product, starts_at, ends_at, image_url, image_media_id, cta_url, coupon_code, template_id, status, created_by, created_at, updated_at, tenant_id
 `
 
 type UpdateOfferParams struct {
@@ -390,6 +396,7 @@ func (q *Queries) UpdateOffer(ctx context.Context, arg UpdateOfferParams) (Offer
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }

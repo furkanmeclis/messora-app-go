@@ -46,7 +46,7 @@ const claimIdempotencyKey = `-- name: ClaimIdempotencyKey :one
 WITH ins AS (
     INSERT INTO idempotency_keys (principal, key, request_hash, status)
     VALUES ($1, $2, $3, 'in_progress')
-    ON CONFLICT (principal, key) DO NOTHING
+    ON CONFLICT (tenant_id, principal, key) DO NOTHING
     RETURNING true AS inserted, request_hash, status, response_status, response_body
 )
 SELECT inserted, request_hash, status, response_status, response_body FROM ins
@@ -161,7 +161,7 @@ const createApiKey = `-- name: CreateApiKey :one
 
 INSERT INTO api_keys (name, prefix, key_hash, scopes, created_by, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, prefix, key_hash, scopes, created_by, created_at, last_used_at, expires_at, revoked_at
+RETURNING id, name, prefix, key_hash, scopes, created_by, created_at, last_used_at, expires_at, revoked_at, tenant_id
 `
 
 type CreateApiKeyParams struct {
@@ -195,6 +195,7 @@ func (q *Queries) CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (Api
 		&i.LastUsedAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -261,7 +262,7 @@ const createSession = `-- name: CreateSession :one
 
 INSERT INTO user_sessions (user_id, token_hash, ip, user_agent, reauth_at, expires_at)
 VALUES ($1, $2, $3, $4, now(), $5)
-RETURNING id, user_id, token_hash, ip, user_agent, reauth_at, created_at, last_seen_at, expires_at, revoked_at
+RETURNING id, user_id, token_hash, ip, user_agent, reauth_at, created_at, last_seen_at, expires_at, revoked_at, tenant_id
 `
 
 type CreateSessionParams struct {
@@ -293,6 +294,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (U
 		&i.LastSeenAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -300,7 +302,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (U
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, password_hash, locale, timezone)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at
+RETURNING id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id
 `
 
 type CreateUserParams struct {
@@ -335,6 +337,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -386,7 +389,7 @@ func (q *Queries) ExpireStaleInvitation(ctx context.Context, email string) error
 }
 
 const getActiveApiKeyByHash = `-- name: GetActiveApiKeyByHash :one
-SELECT id, name, prefix, key_hash, scopes, created_by, created_at, last_used_at, expires_at, revoked_at FROM api_keys
+SELECT id, name, prefix, key_hash, scopes, created_by, created_at, last_used_at, expires_at, revoked_at, tenant_id FROM api_keys
 WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
 `
 
@@ -404,12 +407,13 @@ func (q *Queries) GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (Ap
 		&i.LastUsedAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getActiveSessionByTokenHash = `-- name: GetActiveSessionByTokenHash :one
-SELECT s.id, s.user_id, s.token_hash, s.ip, s.user_agent, s.reauth_at, s.created_at, s.last_seen_at, s.expires_at, s.revoked_at, u.status AS user_status
+SELECT s.id, s.user_id, s.token_hash, s.ip, s.user_agent, s.reauth_at, s.created_at, s.last_seen_at, s.expires_at, s.revoked_at, s.tenant_id, u.status AS user_status
 FROM user_sessions s JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()
 `
@@ -425,6 +429,7 @@ type GetActiveSessionByTokenHashRow struct {
 	LastSeenAt time.Time
 	ExpiresAt  time.Time
 	RevokedAt  *time.Time
+	TenantID   uuid.UUID
 	UserStatus string
 }
 
@@ -442,6 +447,7 @@ func (q *Queries) GetActiveSessionByTokenHash(ctx context.Context, tokenHash []b
 		&i.LastSeenAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.TenantID,
 		&i.UserStatus,
 	)
 	return i, err
@@ -493,7 +499,7 @@ func (q *Queries) GetRoleByKey(ctx context.Context, key string) (Role, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at FROM users WHERE email = $1
+SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -514,12 +520,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at FROM users WHERE id = $1
+SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -540,12 +547,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getUserForUpdate = `-- name: GetUserForUpdate :one
-SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at FROM users WHERE id = $1 FOR UPDATE
+SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id FROM users WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error) {
@@ -566,6 +574,7 @@ func (q *Queries) GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, err
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -615,7 +624,7 @@ func (q *Queries) InvalidatePasswordResets(ctx context.Context, userID uuid.UUID
 }
 
 const listApiKeys = `-- name: ListApiKeys :many
-SELECT k.id, k.name, k.prefix, k.key_hash, k.scopes, k.created_by, k.created_at, k.last_used_at, k.expires_at, k.revoked_at, u.name AS created_by_name
+SELECT k.id, k.name, k.prefix, k.key_hash, k.scopes, k.created_by, k.created_at, k.last_used_at, k.expires_at, k.revoked_at, k.tenant_id, u.name AS created_by_name
 FROM api_keys k LEFT JOIN users u ON u.id = k.created_by
 WHERE k.revoked_at IS NULL
 ORDER BY k.created_at DESC
@@ -632,6 +641,7 @@ type ListApiKeysRow struct {
 	LastUsedAt    *time.Time
 	ExpiresAt     *time.Time
 	RevokedAt     *time.Time
+	TenantID      uuid.UUID
 	CreatedByName *string
 }
 
@@ -655,6 +665,7 @@ func (q *Queries) ListApiKeys(ctx context.Context) ([]ListApiKeysRow, error) {
 			&i.LastUsedAt,
 			&i.ExpiresAt,
 			&i.RevokedAt,
+			&i.TenantID,
 			&i.CreatedByName,
 		); err != nil {
 			return nil, err
@@ -803,7 +814,7 @@ func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
 }
 
 const listUserSessions = `-- name: ListUserSessions :many
-SELECT id, user_id, token_hash, ip, user_agent, reauth_at, created_at, last_seen_at, expires_at, revoked_at FROM user_sessions
+SELECT id, user_id, token_hash, ip, user_agent, reauth_at, created_at, last_seen_at, expires_at, revoked_at, tenant_id FROM user_sessions
 WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
 ORDER BY last_seen_at DESC
 `
@@ -828,6 +839,7 @@ func (q *Queries) ListUserSessions(ctx context.Context, userID uuid.UUID) ([]Use
 			&i.LastSeenAt,
 			&i.ExpiresAt,
 			&i.RevokedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -840,7 +852,7 @@ func (q *Queries) ListUserSessions(ctx context.Context, userID uuid.UUID) ([]Use
 }
 
 const listUsersWithRole = `-- name: ListUsersWithRole :many
-SELECT u.id, u.email, u.name, u.password_hash, u.status, u.totp_secret_enc, u.totp_confirmed_at, u.locale, u.timezone, u.failed_logins, u.locked_until, u.last_login_at, u.created_at, u.updated_at, r.key AS role_key, r.name AS role_name, r.rank AS role_rank
+SELECT u.id, u.email, u.name, u.password_hash, u.status, u.totp_secret_enc, u.totp_confirmed_at, u.locale, u.timezone, u.failed_logins, u.locked_until, u.last_login_at, u.created_at, u.updated_at, u.tenant_id, r.key AS role_key, r.name AS role_name, r.rank AS role_rank
 FROM users u
 JOIN user_roles ur ON ur.user_id = u.id
 JOIN roles r ON r.id = ur.role_id
@@ -862,6 +874,7 @@ type ListUsersWithRoleRow struct {
 	LastLoginAt     *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	TenantID        uuid.UUID
 	RoleKey         string
 	RoleName        string
 	RoleRank        int16
@@ -891,6 +904,7 @@ func (q *Queries) ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 			&i.RoleKey,
 			&i.RoleName,
 			&i.RoleRank,
@@ -906,7 +920,7 @@ func (q *Queries) ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow
 }
 
 const lockOwnerChanges = `-- name: LockOwnerChanges :exec
-SELECT pg_advisory_xact_lock(hashtext('messora.owner_changes'))
+SELECT pg_advisory_xact_lock(hashtextextended(concat('messora.owner_changes:', app_tenant_id()), 0))
 `
 
 // Serializes changes that could remove an owner, so two concurrent
@@ -1134,7 +1148,7 @@ UPDATE users SET
     timezone = coalesce($3, timezone),
     updated_at = now()
 WHERE id = $4
-RETURNING id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at
+RETURNING id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id
 `
 
 type UpdateProfileParams struct {
@@ -1167,6 +1181,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (U
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }

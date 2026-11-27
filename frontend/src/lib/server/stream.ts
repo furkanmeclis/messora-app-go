@@ -3,6 +3,7 @@ import 'server-only';
 import { NextResponse, type NextRequest } from 'next/server';
 import { serverConfig } from './config';
 import { getSessionToken } from './session';
+import { forwardHost } from './tenant-host';
 
 /** Headers of a file download that the browser may see. */
 const PASS = [
@@ -31,6 +32,7 @@ async function apiHeaders(req: NextRequest): Promise<Headers | null> {
         'X-Request-ID': crypto.randomUUID(),
         Authorization: `Bearer ${token}`,
     });
+    forwardHost(req.headers, h);
     const xff = req.headers.get('x-forwarded-for');
     if (xff) h.set('X-Forwarded-For', xff.split(',').pop()!.trim());
     const ua = req.headers.get('user-agent');

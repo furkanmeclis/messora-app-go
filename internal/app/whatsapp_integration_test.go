@@ -4,7 +4,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -64,7 +63,7 @@ func (h *harness) connect() (token string, phoneID string) {
 // webhook delivers a signed body and processes every pending event.
 func (h *harness) webhook(body []byte) int {
 	h.t.Helper()
-	status, err := whatsapptest.Deliver(context.Background(), h.srv.URL+"/webhooks/whatsapp", testAppSecret, body)
+	status, err := whatsapptest.Deliver(h.ctx(), h.srv.URL+"/webhooks/whatsapp", testAppSecret, body)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -74,7 +73,7 @@ func (h *harness) webhook(body []byte) int {
 
 func (h *harness) processWebhooks() {
 	h.t.Helper()
-	rows, err := h.pool.Query(context.Background(), "SELECT id FROM webhook_events WHERE status = 'pending' ORDER BY id")
+	rows, err := h.pool.Query(h.ctx(), "SELECT id FROM webhook_events WHERE status = 'pending' ORDER BY id")
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -86,7 +85,7 @@ func (h *harness) processWebhooks() {
 	}
 	rows.Close()
 	for _, id := range ids {
-		if err := h.svc.messaging.ProcessWebhook(context.Background(), id, 0, 10); err != nil {
+		if err := h.svc.messaging.ProcessWebhook(h.ctx(), id, 0, 10); err != nil {
 			h.t.Fatalf("process webhook: %v", err)
 		}
 	}
@@ -99,7 +98,7 @@ func (h *harness) send(token string, body map[string]any) resp {
 
 // deliver runs the worker's send step for a queued message.
 func (h *harness) deliver(id string) error {
-	return h.svc.messaging.Send(context.Background(), uuid.MustParse(id))
+	return h.svc.messaging.Send(h.ctx(), uuid.MustParse(id))
 }
 
 func (h *harness) message(token, id string) map[string]any {
@@ -112,7 +111,7 @@ func (h *harness) message(token, id string) map[string]any {
 func (h *harness) count(sql string, args ...any) int {
 	h.t.Helper()
 	var n int
-	if err := h.pool.QueryRow(context.Background(), sql, args...).Scan(&n); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), sql, args...).Scan(&n); err != nil {
 		h.t.Fatal(err)
 	}
 	return n
@@ -137,7 +136,7 @@ func TestWebhookVerificationAndSignature(t *testing.T) {
 	}
 
 	body := whatsapptest.InboundText(testPNID, testCustomer, "wamid.in1", "hi", "Ali", time.Now())
-	if code, _ := whatsapptest.Deliver(context.Background(), h.srv.URL+"/webhooks/whatsapp", "not-the-secret", body); code != 401 {
+	if code, _ := whatsapptest.Deliver(h.ctx(), h.srv.URL+"/webhooks/whatsapp", "not-the-secret", body); code != 401 {
 		t.Fatalf("bad signature: %d", code)
 	}
 	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/webhooks/whatsapp", nil)
@@ -151,7 +150,7 @@ func TestWebhookVerificationAndSignature(t *testing.T) {
 	}
 	// Replays of an identical delivery are stored once.
 	for range 3 {
-		if code, _ := whatsapptest.Deliver(context.Background(), h.srv.URL+"/webhooks/whatsapp", testAppSecret, body); code != 200 {
+		if code, _ := whatsapptest.Deliver(h.ctx(), h.srv.URL+"/webhooks/whatsapp", testAppSecret, body); code != 200 {
 			t.Fatalf("valid webhook: %d", code)
 		}
 	}
@@ -344,7 +343,7 @@ func TestSendFailureModesNeverDuplicate(t *testing.T) {
 
 	// Worker died between claiming and sending: never sent again.
 	id = queue("+905550000003")
-	if _, err := h.pool.Exec(context.Background(), "UPDATE messages SET status = 'sending', status_rank = 1 WHERE id = $1", id); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE messages SET status = 'sending', status_rank = 1 WHERE id = $1", id); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.deliver(id); err != nil {
@@ -394,18 +393,18 @@ func TestInboundMediaIsDownloaded(t *testing.T) {
 	h.webhook(whatsapptest.InboundMedia(testPNID, testCustomer, "wamid.img1", "image", "media-abc", "image/jpeg", "fatura", time.Now()))
 
 	var id uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT id FROM media_files WHERE meta_media_id = 'media-abc'").Scan(&id); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id FROM media_files WHERE meta_media_id = 'media-abc'").Scan(&id); err != nil {
 		t.Fatal(err)
 	}
 	if n := h.count("SELECT count(*) FROM outbox_events WHERE topic = 'task:whatsapp:media_download'"); n != 1 {
 		t.Fatal("download not scheduled")
 	}
-	if err := h.svc.messaging.DownloadMedia(context.Background(), id); err != nil {
+	if err := h.svc.messaging.DownloadMedia(h.ctx(), id); err != nil {
 		t.Fatal(err)
 	}
 	var key string
 	var size int64
-	if err := h.pool.QueryRow(context.Background(), "SELECT storage_key, size_bytes FROM media_files WHERE id = $1 AND status = 'stored'", id).Scan(&key, &size); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT storage_key, size_bytes FROM media_files WHERE id = $1 AND status = 'stored'", id).Scan(&key, &size); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(filepath.Join(h.svc.cfg.Storage.LocalDir, key))

@@ -79,11 +79,13 @@ func TestEncryptionKeyValidation(t *testing.T) {
 
 func TestValidateByRole(t *testing.T) {
 	base := map[string]string{
-		"POSTGRES_PASSWORD":      "pw",
-		"APP_ENCRYPTION_KEY":     validKey,
-		"BFF_SHARED_SECRET":      strings.Repeat("x", 32),
-		"CENTRIFUGO_API_KEY":     "k",
-		"CENTRIFUGO_HMAC_SECRET": "h",
+		"POSTGRES_PASSWORD":        "pw",
+		"POSTGRES_APP_PASSWORD":    "app-pw",
+		"POSTGRES_SYSTEM_PASSWORD": "system-pw",
+		"APP_ENCRYPTION_KEY":       validKey,
+		"BFF_SHARED_SECRET":        strings.Repeat("x", 32),
+		"CENTRIFUGO_API_KEY":       "k",
+		"CENTRIFUGO_HMAC_SECRET":   "h",
 	}
 	cfg, err := loadFrom(envFrom(base), nil)
 	if err != nil {
@@ -93,6 +95,32 @@ func TestValidateByRole(t *testing.T) {
 		if err := cfg.Validate(r); err != nil {
 			t.Errorf("%s: unexpected error %v", r, err)
 		}
+	}
+
+	// The services never need the owner's password, only their roles'.
+	noOwner := maps.Clone(base)
+	delete(noOwner, "POSTGRES_PASSWORD")
+	cfg, _ = loadFrom(envFrom(noOwner), nil)
+	if err := cfg.Validate(RoleAPI); err != nil {
+		t.Errorf("api without the owner password: %v", err)
+	}
+	if err := cfg.Validate(RoleMigrate); err == nil {
+		t.Error("migrate needs the owner")
+	}
+	noApp := maps.Clone(base)
+	delete(noApp, "POSTGRES_APP_PASSWORD")
+	cfg, _ = loadFrom(envFrom(noApp), nil)
+	if err := cfg.Validate(RoleAPI); err == nil || !strings.Contains(err.Error(), "POSTGRES_APP_PASSWORD") {
+		t.Errorf("api without the app role: %v", err)
+	}
+	noSys := maps.Clone(base)
+	delete(noSys, "POSTGRES_SYSTEM_PASSWORD")
+	cfg, _ = loadFrom(envFrom(noSys), nil)
+	if err := cfg.Validate(RoleWorker); err == nil || !strings.Contains(err.Error(), "POSTGRES_SYSTEM_PASSWORD") {
+		t.Errorf("worker without the system role: %v", err)
+	}
+	if err := cfg.Validate(RoleAPI); err != nil {
+		t.Errorf("the api does not use the system role: %v", err)
 	}
 
 	migrateOnly, _ := loadFrom(envFrom(map[string]string{"POSTGRES_PASSWORD": "pw"}), nil)
@@ -180,5 +208,27 @@ func TestMetaSettings(t *testing.T) {
 		if err := c.Validate(RoleMigrate); err == nil {
 			t.Errorf("%v accepted", env)
 		}
+	}
+}
+
+func TestRoleDSNs(t *testing.T) {
+	cfg, err := loadFrom(envFrom(map[string]string{"POSTGRES_PASSWORD": "owner", "POSTGRES_APP_PASSWORD": "a p", "POSTGRES_HOST": "db"}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dsn, err := cfg.Database.AppDSN()
+	if err != nil || dsn != "postgres://messora_app:a%20p@db:5432/messora?sslmode=disable" {
+		t.Fatalf("app dsn %q %v", dsn, err)
+	}
+	cfg, _ = loadFrom(envFrom(map[string]string{"DATABASE_URL": "postgres://o:p@h:1/x?sslmode=require", "POSTGRES_SYSTEM_PASSWORD": "s"}), nil)
+	if dsn, _ := cfg.Database.SystemDSN(); dsn != "postgres://messora_system:s@h:1/x?sslmode=require" {
+		t.Fatalf("system dsn from DATABASE_URL: %q", dsn)
+	}
+	cfg, _ = loadFrom(envFrom(map[string]string{"DATABASE_URL": "host=h user=o", "DATABASE_SYSTEM_URL": "postgres://s@h/x"}), nil)
+	if _, err := cfg.Database.AppDSN(); err == nil {
+		t.Fatal("a keyword DSN cannot be rewritten for a role")
+	}
+	if dsn, _ := cfg.Database.SystemDSN(); dsn != "postgres://s@h/x" {
+		t.Fatalf("explicit system url: %q", dsn)
 	}
 }

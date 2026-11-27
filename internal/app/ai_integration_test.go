@@ -63,7 +63,7 @@ func TestAIProvidersNeverLeakTheKey(t *testing.T) {
 	h := newHarness(t)
 	emu := h.useAIEmulator()
 	owner, _ := h.setupOwner()
-	if err := h.svc.ai.EnsureSeed(context.Background()); err != nil {
+	if err := ai.EnsureSeed(h.ctx(), h.owner); err != nil {
 		t.Fatal(err)
 	}
 
@@ -172,7 +172,7 @@ func TestAIProfilesSettingsAndTestConsole(t *testing.T) {
 	h := newHarness(t)
 	emu := h.useAIEmulator()
 	owner, phoneID := h.connect()
-	if err := h.svc.ai.EnsureSeed(context.Background()); err != nil {
+	if err := ai.EnsureSeed(h.ctx(), h.owner); err != nil {
 		t.Fatal(err)
 	}
 	fake := h.aiProvider(owner, "fake", "Fake", "fake-key-for-tests")
@@ -320,8 +320,8 @@ func TestAIPricesConfirmImportAndSeedOnce(t *testing.T) {
 	h := newHarness(t)
 	h.useAIEmulator()
 	owner, _ := h.setupOwner()
-	ctx := context.Background()
-	if err := h.svc.ai.EnsureSeed(ctx); err != nil {
+	ctx := h.ctx()
+	if err := ai.EnsureSeed(ctx, h.owner); err != nil {
 		t.Fatal(err)
 	}
 	r := h.do(call{method: "GET", path: "/api/v1/ai/prices", token: owner})
@@ -390,7 +390,7 @@ func TestAIPricesConfirmImportAndSeedOnce(t *testing.T) {
 
 	// The seed is stored once: a deleted seed row does not come back.
 	h.expect(h.do(call{method: "DELETE", path: "/api/v1/ai/prices/" + id, token: owner}), 204, "")
-	if err := h.svc.ai.EnsureSeed(ctx); err != nil {
+	if err := ai.EnsureSeed(ctx, h.owner); err != nil {
 		t.Fatal(err)
 	}
 	if n := h.count(`SELECT count(*) FROM ai_model_prices WHERE model_pattern = 'deepseek-flash'`); n != 0 {

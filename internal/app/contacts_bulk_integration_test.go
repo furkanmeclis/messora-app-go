@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"testing"
 )
@@ -48,7 +47,7 @@ func TestContactPagesAndBulkActions(t *testing.T) {
 		t.Fatalf("re-tag: %s", r.raw)
 	}
 	var tagID string
-	if err := h.pool.QueryRow(context.Background(), "SELECT id::text FROM tags WHERE lower(name)='vip'").Scan(&tagID); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id::text FROM tags WHERE lower(name)='vip'").Scan(&tagID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -60,7 +59,7 @@ func TestContactPagesAndBulkActions(t *testing.T) {
 		t.Fatalf("opt_out: %s", r.raw)
 	}
 	var events int
-	_ = h.pool.QueryRow(context.Background(), "SELECT count(*) FROM consent_events WHERE kind='opt_out' AND note='bulk action'").Scan(&events)
+	_ = h.pool.QueryRow(h.ctx(), "SELECT count(*) FROM consent_events WHERE kind='opt_out' AND note='bulk action'").Scan(&events)
 	if events != 2 {
 		t.Fatalf("consent events: %d", events)
 	}
@@ -93,7 +92,7 @@ func TestContactPagesAndBulkActions(t *testing.T) {
 		t.Fatalf("left after delete: %s", r.raw)
 	}
 	var audits int
-	_ = h.pool.QueryRow(context.Background(), "SELECT count(*) FROM audit_logs WHERE action LIKE 'contact.bulk_%'").Scan(&audits)
+	_ = h.pool.QueryRow(h.ctx(), "SELECT count(*) FROM audit_logs WHERE action LIKE 'contact.bulk_%'").Scan(&audits)
 	if audits < 5 {
 		t.Fatalf("audit entries: %d", audits)
 	}

@@ -38,7 +38,9 @@ function sql(query: string): string {
             'postgres',
             'sh',
             '-c',
-            'psql -v ON_ERROR_STOP=1 -qtA -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
+            // Rows written here belong to tenant #1, the stack's only tenant
+            // (the tenant_id column defaults to the session's app.tenant_id).
+            'PGOPTIONS="-c app.tenant_id=00000000-0000-0000-0000-000000000001" psql -v ON_ERROR_STOP=1 -qtA -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
         ],
         { cwd: '..', input: query, encoding: 'utf8' },
     ).trim();

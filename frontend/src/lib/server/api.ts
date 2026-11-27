@@ -3,6 +3,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { serverConfig } from './config';
 import { getSessionToken } from './session';
+import { forwardHost } from './tenant-host';
 import type { ApiErrorBody } from '@/lib/types';
 
 export class ApiError extends Error {
@@ -58,7 +59,8 @@ type Options = {
 
 /**
  * Calls the Go API over the internal network. Every call carries the panel
- * secret, the user's session (unless `auth: 'none'`), the browser's address
+ * secret, the host the browser opened (the API serves the tenant of that
+ * host), the user's session (unless `auth: 'none'`), the browser's address
  * and user agent (for audit logs and rate limits) and a request ID that
  * appears in both services' logs.
  */
@@ -74,6 +76,7 @@ export async function api<T>(
         'X-Messora-BFF': bffSharedSecret,
         'X-Request-ID': requestId,
     });
+    forwardHost(incoming, h);
     const xff = incoming.get('x-forwarded-for');
     if (xff) h.set('X-Forwarded-For', xff.split(',').pop()!.trim());
     const ua = incoming.get('user-agent');

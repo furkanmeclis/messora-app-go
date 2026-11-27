@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -110,7 +109,7 @@ func (h *harness) createEndpoint(token string, rc *hookReceiver, events ...strin
 // how many ran.
 func (h *harness) pumpWebhooks() int {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	total := 0
 	for range 20 {
 		rows, err := h.pool.Query(ctx, `UPDATE outbox_events SET published_at = now()
@@ -156,7 +155,7 @@ func (h *harness) pumpWebhooks() int {
 // timeTravel makes scheduled webhook retries due now.
 func (h *harness) timeTravel() {
 	h.t.Helper()
-	ctx := context.Background()
+	ctx := h.ctx()
 	if _, err := h.pool.Exec(ctx, "UPDATE outbox_events SET available_at = now() WHERE published_at IS NULL AND topic LIKE 'task:webhook:%'"); err != nil {
 		h.t.Fatal(err)
 	}
@@ -234,7 +233,7 @@ func TestWebhookEndpointManagement(t *testing.T) {
 		t.Fatal("a secret reached the audit log")
 	}
 	var sealed []byte
-	if err := h.pool.QueryRow(context.Background(), "SELECT secret_enc FROM webhook_endpoints WHERE id = $1", id).Scan(&sealed); err != nil ||
+	if err := h.pool.QueryRow(h.ctx(), "SELECT secret_enc FROM webhook_endpoints WHERE id = $1", id).Scan(&sealed); err != nil ||
 		strings.Contains(string(sealed), "whsec_") {
 		t.Fatal("the secret must be stored encrypted")
 	}
@@ -390,10 +389,10 @@ func TestWebhookFanOutAndDeliveryAreIdempotent(t *testing.T) {
 
 	h.expect(h.do(call{method: "POST", path: "/api/v1/contacts", token: owner, body: map[string]any{"phone": "+905550001133"}}), 201, "")
 	var eventID uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT id FROM outgoing_webhook_events WHERE type = 'contact.created'").Scan(&eventID); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id FROM outgoing_webhook_events WHERE type = 'contact.created'").Scan(&eventID); err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := h.ctx()
 	for i, want := range []int{2, 0} {
 		n, err := h.svc.webhooks.FanOut(ctx, eventID)
 		if err != nil || n != want {
@@ -447,7 +446,7 @@ func TestWebhookEventsAreTransactional(t *testing.T) {
 	owner, _ := h.setupOwner()
 	h.allowLocalReceivers()
 	h.createEndpoint(owner, newHookReceiver(t), "campaign.completed")
-	ctx := context.Background()
+	ctx := h.ctx()
 	c := db.Campaign{ID: uuid.New(), Name: "Launch", Status: "completed", TotalRecipients: 3}
 
 	emitIn := func(commit bool) {
@@ -512,10 +511,10 @@ func TestWebhookDeliveryRefusesPrivateDestinations(t *testing.T) {
 		t.Fatal("a refused destination must not be retried")
 	}
 	// Retention removes old events with their deliveries.
-	if _, err := h.pool.Exec(context.Background(), "UPDATE outgoing_webhook_events SET created_at = now() - interval '40 days'"); err != nil {
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE outgoing_webhook_events SET created_at = now() - interval '40 days'"); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := h.svc.webhooks.Cleanup(context.Background(), webhooks.Retention); err != nil || n != 1 {
+	if n, err := h.svc.webhooks.Cleanup(h.ctx(), webhooks.Retention); err != nil || n != 1 {
 		t.Fatalf("cleanup: %d %v", n, err)
 	}
 	if h.count("SELECT count(*) FROM webhook_deliveries") != 0 {

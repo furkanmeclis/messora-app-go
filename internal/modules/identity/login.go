@@ -479,12 +479,12 @@ func (s *Service) ChangePassword(ctx context.Context, p *principal.Principal, re
 // ── Password reset ─────────────────────────────────────────────────────────
 
 // PasswordResetEnabled reports whether e-mail delivery is configured.
-func (s *Service) PasswordResetEnabled() bool { return s.mail.Enabled() }
+func (s *Service) PasswordResetEnabled(ctx context.Context) bool { return s.mail.Enabled(ctx) }
 
 // RequestPasswordReset e-mails a reset link. It never reveals whether the
 // address exists; errors after validation are logged, not returned.
 func (s *Service) RequestPasswordReset(ctx context.Context, req api.ForgotPasswordRequest) error {
-	if !s.mail.Enabled() {
+	if !s.mail.Enabled(ctx) {
 		return apperr.Unavailable("EMAIL_NOT_CONFIGURED", "Password reset by e-mail is not available. Ask an administrator.")
 	}
 	email, err := normalizeEmail("email", string(req.Email))

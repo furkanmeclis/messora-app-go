@@ -681,7 +681,7 @@ func (s *Service) external(ctx context.Context, st *Step, rc runCtx) stepResult 
 	}
 	switch st.Type {
 	case "send_email":
-		if s.mail == nil || !s.mail.Enabled() {
+		if s.mail == nil || !s.mail.Enabled(ctx) {
 			return stepResult{outcome: "skipped", detail: map[string]any{"reason": "email_not_configured"}}
 		}
 		if err := s.mail.Send(ctx, mailer.Message{To: rc.fill(st.To), Subject: rc.fill(st.Subject), Body: rc.fill(st.Body)}); err != nil {

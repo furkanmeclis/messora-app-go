@@ -4,7 +4,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -118,7 +117,7 @@ func TestMessageCostFromRateCard(t *testing.T) {
 	}
 	var country, model, source string
 	var billable bool
-	_ = h.pool.QueryRow(context.Background(), "SELECT recipient_country, pricing_model, billable, cost_source FROM messages WHERE id = $1", id).
+	_ = h.pool.QueryRow(h.ctx(), "SELECT recipient_country, pricing_model, billable, cost_source FROM messages WHERE id = $1", id).
 		Scan(&country, &model, &billable, &source)
 	if country != "TR" || model != "PMP" || !billable || source != "rate_card" {
 		t.Fatalf("stored pricing: %s %s %v %s", country, model, billable, source)
@@ -167,7 +166,7 @@ func TestUserPreferencesAreRecordedAndAnnounced(t *testing.T) {
 	var phone, value string
 	var occurred time.Time
 	var pn *uuid.UUID
-	if err := h.pool.QueryRow(context.Background(), "SELECT phone_e164, value, occurred_at, phone_number_id FROM meta_user_preferences").
+	if err := h.pool.QueryRow(h.ctx(), "SELECT phone_e164, value, occurred_at, phone_number_id FROM meta_user_preferences").
 		Scan(&phone, &value, &occurred, &pn); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +174,7 @@ func TestUserPreferencesAreRecordedAndAnnounced(t *testing.T) {
 		t.Fatalf("row: %s %s %v %v", phone, value, occurred, pn)
 	}
 	var payload []byte
-	if err := h.pool.QueryRow(context.Background(), "SELECT payload FROM outbox_events WHERE topic = 'task:"+messaging.TypeUserPreference+"'").Scan(&payload); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT payload FROM outbox_events WHERE topic = 'task:"+messaging.TypeUserPreference+"'").Scan(&payload); err != nil {
 		t.Fatalf("event not written: %v", err)
 	}
 	var ev messaging.UserPreferenceEvent
@@ -247,7 +246,7 @@ func TestAccountSignalWebhooksAndSync(t *testing.T) {
 
 	// The hourly sync reads Meta's current values.
 	h.meta.SetThroughput(testWABA, testPNID, "STANDARD")
-	if err := h.svc.channels.SyncSignals(context.Background(), nil); err != nil {
+	if err := h.svc.channels.SyncSignals(h.ctx(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if n := numbers(); n["throughput_mps"] != float64(80) || n["quality_rating"] != "GREEN" {
@@ -265,7 +264,7 @@ func TestDailyCostReconciliation(t *testing.T) {
 		{Start: day(23), End: day(24), PhoneNumber: "15550100000", Country: "TR", PricingCategory: "MARKETING", PricingType: "REGULAR", Volume: 10, Cost: &cost},
 		{Start: day(24), End: day(25), PhoneNumber: "15550100000", Country: "TR", PricingCategory: "SERVICE", PricingType: "FREE_CUSTOMER_SERVICE", Volume: 4},
 	})
-	if err := h.svc.channels.ReconcileCosts(context.Background(), now); err != nil {
+	if err := h.svc.channels.ReconcileCosts(h.ctx(), now); err != nil {
 		t.Fatal(err)
 	}
 	q := h.meta.PricingQueries()
@@ -275,7 +274,7 @@ func TestDailyCostReconciliation(t *testing.T) {
 	}
 	var vol int64
 	var c, cur *string
-	if err := h.pool.QueryRow(context.Background(), "SELECT volume, cost::text, currency FROM meta_cost_daily WHERE day = DATE '2026-11-23'").Scan(&vol, &c, &cur); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT volume, cost::text, currency FROM meta_cost_daily WHERE day = DATE '2026-11-23'").Scan(&vol, &c, &cur); err != nil {
 		t.Fatal(err)
 	}
 	// Meta's figures are in the account's currency.
@@ -283,7 +282,7 @@ func TestDailyCostReconciliation(t *testing.T) {
 		t.Fatalf("day 23: %d %v %v", vol, c, cur)
 	}
 	// No cost reported (partner credit line): volume only.
-	if err := h.pool.QueryRow(context.Background(), "SELECT volume, cost::text FROM meta_cost_daily WHERE day = DATE '2026-11-24'").Scan(&vol, &c); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT volume, cost::text FROM meta_cost_daily WHERE day = DATE '2026-11-24'").Scan(&vol, &c); err != nil {
 		t.Fatal(err)
 	}
 	if vol != 4 || c != nil {
@@ -293,7 +292,7 @@ func TestDailyCostReconciliation(t *testing.T) {
 	cost = 2
 	h.meta.SetPricingAnalytics(testWABA, []whatsapp.PricingDataPoint{
 		{Start: day(23), End: day(24), PhoneNumber: "15550100000", Country: "TR", PricingCategory: "MARKETING", PricingType: "REGULAR", Volume: 12, Cost: &cost}})
-	if err := h.svc.channels.ReconcileCosts(context.Background(), now); err != nil {
+	if err := h.svc.channels.ReconcileCosts(h.ctx(), now); err != nil {
 		t.Fatal(err)
 	}
 	if n := h.count("SELECT count(*) FROM meta_cost_daily"); n != 2 {
@@ -308,7 +307,7 @@ func TestThrottleUsesNumberThroughput(t *testing.T) {
 	h := newHarness(t)
 	_, phoneID := h.connect()
 	pn := uuid.MustParse(phoneID)
-	ctx := context.Background()
+	ctx := h.ctx()
 	other := uuid.Must(uuid.NewV7()) // a number without a known throughput
 	throttle := messaging.NewThrottle(testutil.Redis(t), messaging.DefaultThroughput).WithCeilings(h.svc.messaging.ThroughputCeiling)
 	if r := throttle.Rate(ctx, other); r != 80 {

@@ -8,11 +8,13 @@ import (
 
 func TestStorageSettings(t *testing.T) {
 	base := map[string]string{
-		"POSTGRES_PASSWORD":      "pw",
-		"APP_ENCRYPTION_KEY":     validKey,
-		"BFF_SHARED_SECRET":      strings.Repeat("x", 32),
-		"CENTRIFUGO_API_KEY":     "k",
-		"CENTRIFUGO_HMAC_SECRET": "h",
+		"POSTGRES_PASSWORD":        "pw",
+		"POSTGRES_APP_PASSWORD":    "app-pw",
+		"POSTGRES_SYSTEM_PASSWORD": "system-pw",
+		"APP_ENCRYPTION_KEY":       validKey,
+		"BFF_SHARED_SECRET":        strings.Repeat("x", 32),
+		"CENTRIFUGO_API_KEY":       "k",
+		"CENTRIFUGO_HMAC_SECRET":   "h",
 	}
 	load := func(extra map[string]string) *Config {
 		t.Helper()

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox/store"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
 // TaskTopicPrefix marks events that become queue tasks: "task:<task_type>".
@@ -35,7 +37,8 @@ type DBTX = store.DBTX
 
 // Write records an event, publishable after delay (0 = immediately). Pass the
 // caller's transaction so the event commits or rolls back together with the
-// business change.
+// business change. The event belongs to ctx's tenant; queue tasks made from
+// it run as that tenant.
 func Write(ctx context.Context, db DBTX, topic string, payload any, delay time.Duration) (int64, error) {
 	if topic == "" {
 		return 0, errors.New("outbox: empty topic")
@@ -47,7 +50,12 @@ func Write(ctx context.Context, db DBTX, topic string, payload any, delay time.D
 	if delay < 0 {
 		delay = 0
 	}
+	var tid pgtype.UUID
+	if id, ok := tenant.FromCtx(ctx); ok {
+		tid = pgtype.UUID{Bytes: id, Valid: true}
+	}
 	return store.New(db).InsertOutboxEvent(ctx, store.InsertOutboxEventParams{
+		TenantID:     tid,
 		Topic:        topic,
 		Payload:      b,
 		DelaySeconds: delay.Seconds(),
@@ -56,7 +64,9 @@ func Write(ctx context.Context, db DBTX, topic string, payload any, delay time.D
 
 // Event is a claimed outbox row handed to a Publisher.
 type Event struct {
-	ID       int64
+	ID int64
+	// TenantID is the tenant that wrote the event (uuid.Nil for none).
+	TenantID uuid.UUID
 	Topic    string
 	Payload  []byte
 	Attempts int32
@@ -78,7 +88,7 @@ func (f PublisherFunc) Publish(ctx context.Context, e Event) error { return f(ct
 func TaskPublisher(c *asynq.Client) Publisher {
 	return PublisherFunc(func(ctx context.Context, e Event) error {
 		taskType := strings.TrimPrefix(e.Topic, TaskTopicPrefix)
-		err := queue.Enqueue(ctx, c, taskType, e.Payload,
+		err := queue.EnqueueFor(ctx, c, e.TenantID, taskType, e.Payload,
 			asynq.TaskID(fmt.Sprintf("outbox:%d", e.ID)),
 			asynq.Retention(24*time.Hour), // keep the ID reserved after completion
 		)
@@ -119,7 +129,8 @@ type RelayOptions struct {
 	Registerer   prometheus.Registerer
 }
 
-// Relay drains the outbox.
+// Relay drains the outbox of every tenant. Its pool must be the system pool
+// (messora_system, which bypasses row-level security).
 type Relay struct {
 	pool   *pgxpool.Pool
 	router *Router
@@ -149,7 +160,7 @@ func NewRelay(pool *pgxpool.Pool, router *Router, o RelayOptions) *Relay {
 		}, func() float64 {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			n, err := store.New(pool).CountUnpublishedOutbox(ctx)
+			n, err := store.New(pool).CountUnpublishedOutbox(tenant.System(ctx))
 			if err != nil {
 				return -1
 			}
@@ -162,6 +173,7 @@ func NewRelay(pool *pgxpool.Pool, router *Router, o RelayOptions) *Relay {
 // Run drains until ctx is cancelled. It listens for NOTIFY 'outbox' and also
 // polls, so a lost notification only delays publication by PollInterval.
 func (r *Relay) Run(ctx context.Context) error {
+	ctx = tenant.System(ctx)
 	log := r.o.Logger
 	for ctx.Err() == nil {
 		if err := r.listenLoop(ctx); err != nil && ctx.Err() == nil {
@@ -207,6 +219,7 @@ func (r *Relay) listenLoop(ctx context.Context) error {
 // DrainOnce claims and publishes a single batch. It returns how many events
 // were claimed.
 func (r *Relay) DrainOnce(ctx context.Context) (int, error) {
+	ctx = tenant.System(ctx)
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return 0, err
@@ -221,6 +234,9 @@ func (r *Relay) DrainOnce(ctx context.Context) (int, error) {
 	var done []int64
 	for _, row := range rows {
 		e := Event{ID: row.ID, Topic: row.Topic, Payload: row.Payload, Attempts: row.Attempts}
+		if row.TenantID.Valid {
+			e.TenantID = row.TenantID.Bytes
+		}
 		pub, ok := r.router.lookup(e.Topic)
 		var perr error
 		if !ok {
@@ -265,9 +281,11 @@ func retryDelaySeconds(attempts int32) float64 {
 }
 
 // CleanupHandler deletes events published more than retention ago, in
-// batches, so a large backlog never holds a long lock.
+// batches, so a large backlog never holds a long lock. pool is the system
+// pool: the cleanup covers every tenant.
 func CleanupHandler(pool *pgxpool.Pool, retention time.Duration, log *slog.Logger) asynq.HandlerFunc {
 	return func(ctx context.Context, _ *asynq.Task) error {
+		ctx = tenant.System(ctx)
 		cutoff := pgtype.Timestamptz{Time: time.Now().Add(-retention).UTC(), Valid: true}
 		var total int64
 		for {

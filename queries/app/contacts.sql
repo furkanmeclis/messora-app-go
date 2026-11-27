@@ -88,7 +88,7 @@ FROM tags t ORDER BY lower(t.name);
 -- name: UpsertTag :one
 -- Tags are matched case-insensitively; the first spelling wins.
 INSERT INTO tags (name, color) VALUES (@name, @color)
-ON CONFLICT (lower(name)) DO UPDATE SET name = tags.name
+ON CONFLICT (tenant_id, lower(name)) DO UPDATE SET name = tags.name
 RETURNING *;
 
 -- name: UpdateTag :one

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +14,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
 const smtpKey = "smtp"
@@ -54,17 +54,15 @@ type SMTPInput struct {
 }
 
 // Mail is the e-mail sender for the whole application. SMTP_HOST in the
-// environment wins; otherwise the panel configuration is used, so a change
-// there applies without a restart.
+// environment wins (for every tenant); otherwise each tenant's panel
+// configuration is used, so a change there applies without a restart.
 type Mail struct {
 	q      db.Querier
 	sealer *crypto.Sealer
 	env    *mailer.Config // nil unless SMTP_HOST is set
-	ttl    time.Duration
+	fixed  mailer.Sender  // the SMTP_HOST sender
 
-	mu      sync.Mutex
-	sender  mailer.Sender
-	expires time.Time
+	senders *tenant.Cache[mailer.Sender]
 }
 
 const smtpAD = "settings:smtp"
@@ -72,13 +70,13 @@ const smtpAD = "settings:smtp"
 // NewMail returns the application sender. env is the environment
 // configuration (an empty Host means "not set").
 func NewMail(q db.Querier, sealer *crypto.Sealer, env mailer.Config) (*Mail, error) {
-	m := &Mail{q: q, sealer: sealer, ttl: 15 * time.Second}
+	m := &Mail{q: q, sealer: sealer, senders: tenant.NewCache[mailer.Sender](15 * time.Second)}
 	if env.Host != "" {
 		s, err := mailer.New(env)
 		if err != nil {
 			return nil, err
 		}
-		m.env, m.sender, m.expires = &env, s, time.Now().Add(100*365*24*time.Hour)
+		m.env, m.fixed = &env, s
 	}
 	return m, nil
 }
@@ -87,22 +85,19 @@ func NewMail(q db.Querier, sealer *crypto.Sealer, env mailer.Config) (*Mail, err
 func (m *Mail) ManagedByEnv() bool { return m.env != nil }
 
 func (m *Mail) current(ctx context.Context) mailer.Sender {
-	m.mu.Lock()
-	if m.sender != nil && time.Now().Before(m.expires) {
-		s := m.sender
-		m.mu.Unlock()
+	if m.fixed != nil {
+		return m.fixed
+	}
+	if s, ok := m.senders.Get(ctx); ok {
 		return s
 	}
-	m.mu.Unlock()
 	var s mailer.Sender = mailer.Disabled{}
 	if cfg, err := m.load(ctx, m.q); err == nil && cfg.Host != "" {
 		if built, err := m.build(cfg); err == nil {
 			s = built
 		}
 	}
-	m.mu.Lock()
-	m.sender, m.expires = s, time.Now().Add(m.ttl)
-	m.mu.Unlock()
+	m.senders.Set(ctx, s)
 	return s
 }
 
@@ -112,20 +107,13 @@ func (m *Mail) Send(ctx context.Context, msg mailer.Message) error {
 }
 
 // Enabled implements mailer.Sender.
-func (m *Mail) Enabled() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return m.current(ctx).Enabled()
+func (m *Mail) Enabled(ctx context.Context) bool {
+	return m.current(ctx).Enabled(ctx)
 }
 
 // Invalidate drops the cached sender after a change commits.
 func (m *Mail) Invalidate() {
-	if m.env != nil {
-		return
-	}
-	m.mu.Lock()
-	m.sender = nil
-	m.mu.Unlock()
+	m.senders.Clear()
 }
 
 func (m *Mail) load(ctx context.Context, q db.Querier) (SMTP, error) {
@@ -230,7 +218,7 @@ func (m *Mail) Test(ctx context.Context, in *SMTPInput, to, org string) error {
 			return err
 		}
 	}
-	if !s.Enabled() {
+	if !s.Enabled(ctx) {
 		return fmt.Errorf("%w: e-mail is not configured", ErrInvalid)
 	}
 	return s.Send(ctx, mailer.Message{

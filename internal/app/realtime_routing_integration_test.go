@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"net/url"
 	"slices"
 	"strings"
@@ -183,7 +182,7 @@ func TestRealtimeCampaignTicksStayInTheirThread(t *testing.T) {
 		t.Fatalf("status %s", st)
 	}
 	var msgID, wamid, phone string
-	if err := h.pool.QueryRow(context.Background(), `SELECT m.id::text, m.wamid, c.phone_e164 FROM messages m JOIN contacts c ON c.id = m.contact_id
+	if err := h.pool.QueryRow(h.ctx(), `SELECT m.id::text, m.wamid, c.phone_e164 FROM messages m JOIN contacts c ON c.id = m.contact_id
 		WHERE m.campaign_id = $1 AND m.wamid IS NOT NULL LIMIT 1`, id).Scan(&msgID, &wamid, &phone); err != nil {
 		t.Fatal(err)
 	}

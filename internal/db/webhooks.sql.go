@@ -19,7 +19,7 @@ UPDATE webhook_deliveries SET status = 'delivering', attempts = attempts + 1,
 WHERE id = $2
   AND ((status IN ('pending', 'retrying') AND next_attempt_at <= now() + interval '5 seconds')
        OR (status = 'delivering' AND locked_until < now()))
-RETURNING id, event_id, endpoint_id, status, attempts, next_attempt_at, locked_until, last_attempt_at, last_status_code, last_duration_ms, last_error, last_response_body, delivered_at, created_at, updated_at
+RETURNING id, event_id, endpoint_id, status, attempts, next_attempt_at, locked_until, last_attempt_at, last_status_code, last_duration_ms, last_error, last_response_body, delivered_at, created_at, updated_at, tenant_id
 `
 
 type ClaimWebhookDeliveryParams struct {
@@ -47,6 +47,7 @@ func (q *Queries) ClaimWebhookDelivery(ctx context.Context, arg ClaimWebhookDeli
 		&i.DeliveredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -182,7 +183,7 @@ func (q *Queries) FinishWebhookDelivery(ctx context.Context, arg FinishWebhookDe
 }
 
 const getOutgoingWebhookEvent = `-- name: GetOutgoingWebhookEvent :one
-SELECT id, type, payload, created_at FROM outgoing_webhook_events WHERE id = $1
+SELECT id, type, payload, created_at, tenant_id FROM outgoing_webhook_events WHERE id = $1
 `
 
 func (q *Queries) GetOutgoingWebhookEvent(ctx context.Context, id uuid.UUID) (OutgoingWebhookEvent, error) {
@@ -193,12 +194,13 @@ func (q *Queries) GetOutgoingWebhookEvent(ctx context.Context, id uuid.UUID) (Ou
 		&i.Type,
 		&i.Payload,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getWebhookDelivery = `-- name: GetWebhookDelivery :one
-SELECT id, event_id, endpoint_id, status, attempts, next_attempt_at, locked_until, last_attempt_at, last_status_code, last_duration_ms, last_error, last_response_body, delivered_at, created_at, updated_at FROM webhook_deliveries WHERE id = $1
+SELECT id, event_id, endpoint_id, status, attempts, next_attempt_at, locked_until, last_attempt_at, last_status_code, last_duration_ms, last_error, last_response_body, delivered_at, created_at, updated_at, tenant_id FROM webhook_deliveries WHERE id = $1
 `
 
 func (q *Queries) GetWebhookDelivery(ctx context.Context, id uuid.UUID) (WebhookDelivery, error) {
@@ -220,12 +222,13 @@ func (q *Queries) GetWebhookDelivery(ctx context.Context, id uuid.UUID) (Webhook
 		&i.DeliveredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getWebhookEndpoint = `-- name: GetWebhookEndpoint :one
-SELECT id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at FROM webhook_endpoints WHERE id = $1
+SELECT id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id FROM webhook_endpoints WHERE id = $1
 `
 
 func (q *Queries) GetWebhookEndpoint(ctx context.Context, id uuid.UUID) (WebhookEndpoint, error) {
@@ -243,6 +246,7 @@ func (q *Queries) GetWebhookEndpoint(ctx context.Context, id uuid.UUID) (Webhook
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -264,7 +268,7 @@ func (q *Queries) InsertOutgoingWebhookEvent(ctx context.Context, arg InsertOutg
 
 const insertWebhookDelivery = `-- name: InsertWebhookDelivery :one
 INSERT INTO webhook_deliveries (event_id, endpoint_id) VALUES ($1, $2)
-RETURNING id, event_id, endpoint_id, status, attempts, next_attempt_at, locked_until, last_attempt_at, last_status_code, last_duration_ms, last_error, last_response_body, delivered_at, created_at, updated_at
+RETURNING id, event_id, endpoint_id, status, attempts, next_attempt_at, locked_until, last_attempt_at, last_status_code, last_duration_ms, last_error, last_response_body, delivered_at, created_at, updated_at, tenant_id
 `
 
 type InsertWebhookDeliveryParams struct {
@@ -291,6 +295,7 @@ func (q *Queries) InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDe
 		&i.DeliveredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -298,7 +303,7 @@ func (q *Queries) InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDe
 const insertWebhookEndpoint = `-- name: InsertWebhookEndpoint :one
 INSERT INTO webhook_endpoints (id, url, description, event_types, active, secret_enc, secret_last4, created_by)
 VALUES ($1, $2, $3, $4::text[], $5, $6, $7, $8)
-RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at
+RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id
 `
 
 type InsertWebhookEndpointParams struct {
@@ -336,12 +341,13 @@ func (q *Queries) InsertWebhookEndpoint(ctx context.Context, arg InsertWebhookEn
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const listWebhookDeliveries = `-- name: ListWebhookDeliveries :many
-SELECT d.id, d.event_id, d.endpoint_id, d.status, d.attempts, d.next_attempt_at, d.locked_until, d.last_attempt_at, d.last_status_code, d.last_duration_ms, d.last_error, d.last_response_body, d.delivered_at, d.created_at, d.updated_at, e.type AS event_type FROM webhook_deliveries d
+SELECT d.id, d.event_id, d.endpoint_id, d.status, d.attempts, d.next_attempt_at, d.locked_until, d.last_attempt_at, d.last_status_code, d.last_duration_ms, d.last_error, d.last_response_body, d.delivered_at, d.created_at, d.updated_at, d.tenant_id, e.type AS event_type FROM webhook_deliveries d
 JOIN outgoing_webhook_events e ON e.id = d.event_id
 WHERE d.endpoint_id = $1
   AND ($2::text IS NULL OR d.status = $2::text)
@@ -372,6 +378,7 @@ type ListWebhookDeliveriesRow struct {
 	DeliveredAt      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	TenantID         uuid.UUID
 	EventType        string
 }
 
@@ -405,6 +412,7 @@ func (q *Queries) ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeli
 			&i.DeliveredAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 			&i.EventType,
 		); err != nil {
 			return nil, err
@@ -418,7 +426,7 @@ func (q *Queries) ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeli
 }
 
 const listWebhookEndpoints = `-- name: ListWebhookEndpoints :many
-SELECT id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at FROM webhook_endpoints ORDER BY id DESC
+SELECT id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id FROM webhook_endpoints ORDER BY id DESC
 `
 
 func (q *Queries) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, error) {
@@ -442,6 +450,7 @@ func (q *Queries) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, 
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -456,7 +465,7 @@ func (q *Queries) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, 
 const resetWebhookDelivery = `-- name: ResetWebhookDelivery :one
 UPDATE webhook_deliveries SET status = 'pending', attempts = 0, next_attempt_at = now(), locked_until = NULL, updated_at = now()
 WHERE id = $1 AND status <> 'delivering'
-RETURNING id, event_id, endpoint_id, status, attempts, next_attempt_at, locked_until, last_attempt_at, last_status_code, last_duration_ms, last_error, last_response_body, delivered_at, created_at, updated_at
+RETURNING id, event_id, endpoint_id, status, attempts, next_attempt_at, locked_until, last_attempt_at, last_status_code, last_duration_ms, last_error, last_response_body, delivered_at, created_at, updated_at, tenant_id
 `
 
 // Manual redelivery: a fresh attempt budget, due now.
@@ -479,6 +488,7 @@ func (q *Queries) ResetWebhookDelivery(ctx context.Context, id uuid.UUID) (Webho
 		&i.DeliveredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -486,7 +496,7 @@ func (q *Queries) ResetWebhookDelivery(ctx context.Context, id uuid.UUID) (Webho
 const setWebhookEndpointSecret = `-- name: SetWebhookEndpointSecret :one
 UPDATE webhook_endpoints SET secret_enc = $1, secret_last4 = $2, updated_at = now()
 WHERE id = $3
-RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at
+RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id
 `
 
 type SetWebhookEndpointSecretParams struct {
@@ -510,6 +520,7 @@ func (q *Queries) SetWebhookEndpointSecret(ctx context.Context, arg SetWebhookEn
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -523,7 +534,7 @@ UPDATE webhook_endpoints SET
     disabled_reason = CASE WHEN $4::boolean THEN NULL ELSE disabled_reason END,
     updated_at      = now()
 WHERE id = $5
-RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at
+RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id
 `
 
 type UpdateWebhookEndpointParams struct {
@@ -555,6 +566,7 @@ func (q *Queries) UpdateWebhookEndpoint(ctx context.Context, arg UpdateWebhookEn
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }

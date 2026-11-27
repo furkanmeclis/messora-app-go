@@ -32,7 +32,9 @@ function sql(query: string): string {
             'postgres',
             'sh',
             '-c',
-            'psql -v ON_ERROR_STOP=1 -qtA -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
+            // Rows written here belong to tenant #1, the stack's only tenant
+            // (the tenant_id column defaults to the session's app.tenant_id).
+            'PGOPTIONS="-c app.tenant_id=00000000-0000-0000-0000-000000000001" psql -v ON_ERROR_STOP=1 -qtA -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
         ],
         { cwd: '..', input: query, encoding: 'utf8' },
     ).trim();
@@ -204,7 +206,12 @@ test('right-click opens the panel menu; shift keeps the browser menu', async () 
     await expect(menu.getByRole('menuitem', { name: 'Back' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
-    // A contact row offers its own actions first.
+    // A contact row offers its own actions first. The narrow window makes
+    // the row wider than the screen, so the browser scrolls it into view
+    // right before the click; that late scroll event must not close the
+    // menu (regression: it did, whenever the table overflowed).
+    const viewport = page.viewportSize();
+    await page.setViewportSize({ width: 900, height: 720 });
     const row = page
         .getByTestId('contact-row')
         .filter({ visible: true })
@@ -216,4 +223,5 @@ test('right-click opens the panel menu; shift keeps the browser menu', async () 
         ).toBeVisible();
         await page.keyboard.press('Escape');
     }
+    if (viewport) await page.setViewportSize(viewport);
 });

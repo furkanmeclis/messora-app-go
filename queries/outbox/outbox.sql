@@ -1,14 +1,15 @@
 -- name: InsertOutboxEvent :one
 -- The database clock is the only clock: delays are relative to now() so
 -- skew between application hosts and PostgreSQL cannot hide events.
-INSERT INTO outbox_events (topic, payload, available_at)
-VALUES (@topic, @payload, now() + make_interval(secs => @delay_seconds::double precision))
+-- tenant_id is the writer's tenant; row-level security rejects any other.
+INSERT INTO outbox_events (tenant_id, topic, payload, available_at)
+VALUES (sqlc.narg(tenant_id)::uuid, @topic, @payload, now() + make_interval(secs => @delay_seconds::double precision))
 RETURNING id;
 
 -- name: ClaimOutboxBatch :many
 -- Rows stay locked until the surrounding transaction ends, so concurrent
 -- relays never publish the same event twice in parallel.
-SELECT id, topic, payload, attempts
+SELECT id, tenant_id, topic, payload, attempts
 FROM outbox_events
 WHERE published_at IS NULL
   AND available_at <= now()

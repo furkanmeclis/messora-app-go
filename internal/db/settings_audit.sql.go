@@ -67,7 +67,7 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 }
 
 const insertSettingIfAbsent = `-- name: InsertSettingIfAbsent :execrows
-INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING
+INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (tenant_id, key) DO NOTHING
 `
 
 type InsertSettingIfAbsentParams struct {
@@ -84,7 +84,7 @@ func (q *Queries) InsertSettingIfAbsent(ctx context.Context, arg InsertSettingIf
 }
 
 const listAuditLogs = `-- name: ListAuditLogs :many
-SELECT a.id, a.occurred_at, a.actor_type, a.actor_id, a.action, a.entity_type, a.entity_id, a.request_id, a.ip, a.user_agent, a.changes,
+SELECT a.id, a.occurred_at, a.actor_type, a.actor_id, a.action, a.entity_type, a.entity_id, a.request_id, a.ip, a.user_agent, a.changes, a.tenant_id,
        coalesce(u.name, k.name, '')::text AS actor_name
 FROM audit_logs a
 LEFT JOIN users u ON a.actor_type = 'user' AND u.id = a.actor_id
@@ -119,6 +119,7 @@ type ListAuditLogsRow struct {
 	Ip         *netip.Addr
 	UserAgent  *string
 	Changes    []byte
+	TenantID   uuid.UUID
 	ActorName  string
 }
 
@@ -150,6 +151,7 @@ func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([
 			&i.Ip,
 			&i.UserAgent,
 			&i.Changes,
+			&i.TenantID,
 			&i.ActorName,
 		); err != nil {
 			return nil, err
@@ -165,7 +167,7 @@ func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([
 const upsertSetting = `-- name: UpsertSetting :exec
 INSERT INTO settings (key, value, updated_by, updated_at)
 VALUES ($1, $2, $3, now())
-ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = now()
+ON CONFLICT (tenant_id, key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = now()
 `
 
 type UpsertSettingParams struct {

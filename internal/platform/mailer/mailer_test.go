@@ -106,7 +106,7 @@ func TestRejectsHeaderInjectionAndBadConfig(t *testing.T) {
 		t.Fatal("bad tls mode accepted")
 	}
 	d, _ := New(Config{})
-	if d.Enabled() || d.Send(context.Background(), Message{}) == nil {
+	if d.Enabled(context.Background()) || d.Send(context.Background(), Message{}) == nil {
 		t.Fatal("empty config must be disabled")
 	}
 }

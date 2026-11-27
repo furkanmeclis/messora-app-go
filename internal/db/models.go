@@ -21,6 +21,7 @@ type AiModel struct {
 	Capabilities  []byte
 	Lifecycle     *string
 	SyncedAt      time.Time
+	TenantID      uuid.UUID
 }
 
 type AiModelPrice struct {
@@ -61,6 +62,7 @@ type AiProfile struct {
 	CreatedBy      *uuid.UUID
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type AiProvider struct {
@@ -78,6 +80,7 @@ type AiProvider struct {
 	CreatedBy      *uuid.UUID
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type AiUsage struct {
@@ -104,6 +107,7 @@ type AiUsage struct {
 	Status             string
 	ErrorKind          *string
 	CreatedAt          time.Time
+	TenantID           uuid.UUID
 }
 
 type ApiKey struct {
@@ -117,6 +121,7 @@ type ApiKey struct {
 	LastUsedAt *time.Time
 	ExpiresAt  *time.Time
 	RevokedAt  *time.Time
+	TenantID   uuid.UUID
 }
 
 type AuditLog struct {
@@ -131,6 +136,7 @@ type AuditLog struct {
 	Ip         *netip.Addr
 	UserAgent  *string
 	Changes    []byte
+	TenantID   uuid.UUID
 }
 
 type Automation struct {
@@ -150,6 +156,7 @@ type Automation struct {
 	Setup         []byte
 	PresetKey     *string
 	PresetVersion *int32
+	TenantID      uuid.UUID
 }
 
 type AutomationRun struct {
@@ -173,6 +180,7 @@ type AutomationRun struct {
 	Vars              []byte
 	Attempt           int32
 	ErrorCode         *string
+	TenantID          uuid.UUID
 }
 
 type AutomationRunStep struct {
@@ -183,6 +191,7 @@ type AutomationRunStep struct {
 	Outcome   string
 	Detail    []byte
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 type AutomationSend struct {
@@ -190,6 +199,7 @@ type AutomationSend struct {
 	Pc        int32
 	MessageID uuid.UUID
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 type Campaign struct {
@@ -225,6 +235,7 @@ type Campaign struct {
 	RateWindowStart     *time.Time
 	RateWindowQueued    int64
 	ReactionMap         []byte
+	TenantID            uuid.UUID
 }
 
 type CampaignCounter struct {
@@ -271,6 +282,7 @@ type CampaignCounter struct {
 	Cost         pgtype.Numeric
 	ReconciledAt *time.Time
 	UpdatedAt    time.Time
+	TenantID     uuid.UUID
 }
 
 type CampaignEvent struct {
@@ -280,6 +292,7 @@ type CampaignEvent struct {
 	Detail     []byte
 	ActorID    *uuid.UUID
 	CreatedAt  time.Time
+	TenantID   uuid.UUID
 }
 
 type CampaignExport struct {
@@ -298,12 +311,14 @@ type CampaignExport struct {
 	CreatedAt   time.Time
 	FinishedAt  *time.Time
 	ExpiresAt   *time.Time
+	TenantID    uuid.UUID
 }
 
 type CampaignForecast struct {
 	CampaignID uuid.UUID
 	Forecast   []byte
 	CreatedAt  time.Time
+	TenantID   uuid.UUID
 }
 
 type CampaignPause struct {
@@ -319,6 +334,7 @@ type CampaignPause struct {
 	ResumedAt  *time.Time
 	ResumedBy  *uuid.UUID
 	Changes    []byte
+	TenantID   uuid.UUID
 }
 
 type CampaignRecipient struct {
@@ -350,6 +366,7 @@ type CampaignRecipient struct {
 	ReactionSource *string
 	ReactionAt     *time.Time
 	OptedOutAt     *time.Time
+	TenantID       uuid.UUID
 }
 
 type CampaignReplyClassification struct {
@@ -367,6 +384,7 @@ type CampaignReplyClassification struct {
 	AiUsageID      *uuid.UUID
 	CreatedAt      time.Time
 	ClassifiedAt   *time.Time
+	TenantID       uuid.UUID
 }
 
 type ConsentEvent struct {
@@ -379,6 +397,7 @@ type ConsentEvent struct {
 	CreatedAt time.Time
 	Category  *string
 	Status    *string
+	TenantID  uuid.UUID
 }
 
 type Contact struct {
@@ -417,6 +436,7 @@ type Contact struct {
 	CreatedByInboundAt     *time.Time
 	ProfileStatus          *string
 	ProfileProgress        []byte
+	TenantID               uuid.UUID
 }
 
 type ContactFieldSource struct {
@@ -429,6 +449,7 @@ type ContactFieldSource struct {
 	ConversationID *uuid.UUID
 	VerifiedBy     *uuid.UUID
 	VerifiedAt     *time.Time
+	TenantID       uuid.UUID
 }
 
 type ContactGroup struct {
@@ -438,12 +459,14 @@ type ContactGroup struct {
 	CreatedBy   *uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	TenantID    uuid.UUID
 }
 
 type ContactGroupMember struct {
 	GroupID   uuid.UUID
 	ContactID uuid.UUID
 	AddedAt   time.Time
+	TenantID  uuid.UUID
 }
 
 type ContactImport struct {
@@ -472,6 +495,7 @@ type ContactImport struct {
 	StartedAt       *time.Time
 	FinishedAt      *time.Time
 	UpdatedAt       time.Time
+	TenantID        uuid.UUID
 }
 
 type ContactNote struct {
@@ -480,12 +504,14 @@ type ContactNote struct {
 	AuthorID  *uuid.UUID
 	Body      string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 type ContactTag struct {
 	ContactID uuid.UUID
 	TagID     uuid.UUID
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 type Conversation struct {
@@ -511,6 +537,7 @@ type Conversation struct {
 	AiHandledMessageID *uuid.UUID
 	AiDisclosedAt      *time.Time
 	PendingHandoffID   *uuid.UUID
+	TenantID           uuid.UUID
 }
 
 type ConversationActivity struct {
@@ -521,6 +548,7 @@ type ConversationActivity struct {
 	ActorID        *uuid.UUID
 	Data           []byte
 	CreatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type ConversationAiDraft struct {
@@ -537,6 +565,7 @@ type ConversationAiDraft struct {
 	DecidedAt      *time.Time
 	SentMessageID  *uuid.UUID
 	CreatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type ConversationEvent struct {
@@ -547,6 +576,7 @@ type ConversationEvent struct {
 	ActorID        *uuid.UUID
 	AssigneeID     *uuid.UUID
 	CreatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type ConversationHandoff struct {
@@ -568,6 +598,7 @@ type ConversationHandoff struct {
 	CreatedAt           time.Time
 	AcceptedBy          *uuid.UUID
 	AcceptedAt          *time.Time
+	TenantID            uuid.UUID
 }
 
 type ConversationNote struct {
@@ -579,6 +610,7 @@ type ConversationNote struct {
 	Visibility     string
 	ForAi          bool
 	CreatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type IdempotencyKey struct {
@@ -589,6 +621,7 @@ type IdempotencyKey struct {
 	ResponseStatus *int32
 	ResponseBody   []byte
 	CreatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type MediaFile struct {
@@ -604,6 +637,7 @@ type MediaFile struct {
 	LastError   *string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	TenantID    uuid.UUID
 }
 
 type Message struct {
@@ -646,6 +680,7 @@ type Message struct {
 	RetryOf          *uuid.UUID
 	SentBy           *string
 	AiUsageID        *uuid.UUID
+	TenantID         uuid.UUID
 }
 
 type MessageTemplate struct {
@@ -663,6 +698,7 @@ type MessageTemplate struct {
 	SyncedAt        time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	TenantID        uuid.UUID
 }
 
 type MetaCostDaily struct {
@@ -676,6 +712,7 @@ type MetaCostDaily struct {
 	Cost            pgtype.Numeric
 	Currency        *string
 	FetchedAt       time.Time
+	TenantID        uuid.UUID
 }
 
 type MetaRate struct {
@@ -710,6 +747,7 @@ type MetaUserPreference struct {
 	Detail        string
 	OccurredAt    time.Time
 	ReceivedAt    time.Time
+	TenantID      uuid.UUID
 }
 
 type Offer struct {
@@ -729,6 +767,7 @@ type Offer struct {
 	CreatedBy    *uuid.UUID
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	TenantID     uuid.UUID
 }
 
 type OutboxEvent struct {
@@ -740,6 +779,7 @@ type OutboxEvent struct {
 	Attempts    int32
 	LastError   *string
 	CreatedAt   time.Time
+	TenantID    *uuid.UUID
 }
 
 type OutgoingWebhookEvent struct {
@@ -747,6 +787,7 @@ type OutgoingWebhookEvent struct {
 	Type      string
 	Payload   []byte
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 type PasswordResetToken struct {
@@ -756,6 +797,7 @@ type PasswordResetToken struct {
 	CreatedAt time.Time
 	ExpiresAt time.Time
 	UsedAt    *time.Time
+	TenantID  uuid.UUID
 }
 
 type Permission struct {
@@ -780,12 +822,20 @@ type PhoneNumber struct {
 	UpdatedAt              time.Time
 	ThroughputMps          *int32
 	SignalsCheckedAt       *time.Time
+	TenantID               uuid.UUID
+}
+
+type PlatformSetting struct {
+	Key       string
+	Value     []byte
+	UpdatedAt time.Time
 }
 
 type PortfolioReach struct {
 	AccountID uuid.UUID
 	ContactID uuid.UUID
 	LastAt    time.Time
+	TenantID  uuid.UUID
 }
 
 type Role struct {
@@ -810,6 +860,7 @@ type Segment struct {
 	CreatedBy   *uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	TenantID    uuid.UUID
 }
 
 type Setting struct {
@@ -817,6 +868,7 @@ type Setting struct {
 	Value     []byte
 	UpdatedBy *uuid.UUID
 	UpdatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 type Tag struct {
@@ -824,6 +876,28 @@ type Tag struct {
 	Name      string
 	Color     string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
+}
+
+type Tenant struct {
+	ID          uuid.UUID
+	Slug        string
+	Name        string
+	Status      string
+	SuspendedAt *time.Time
+	DeletedAt   *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type TenantDomain struct {
+	ID         uuid.UUID
+	TenantID   uuid.UUID
+	Hostname   string
+	Kind       string
+	VerifiedAt *time.Time
+	IsPrimary  bool
+	CreatedAt  time.Time
 }
 
 type User struct {
@@ -841,6 +915,7 @@ type User struct {
 	LastLoginAt     *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	TenantID        uuid.UUID
 }
 
 type UserInvitation struct {
@@ -853,6 +928,7 @@ type UserInvitation struct {
 	ExpiresAt  time.Time
 	AcceptedAt *time.Time
 	RevokedAt  *time.Time
+	TenantID   uuid.UUID
 }
 
 type UserRecoveryCode struct {
@@ -860,11 +936,13 @@ type UserRecoveryCode struct {
 	UserID   uuid.UUID
 	CodeHash []byte
 	UsedAt   *time.Time
+	TenantID uuid.UUID
 }
 
 type UserRole struct {
-	UserID uuid.UUID
-	RoleID uuid.UUID
+	UserID   uuid.UUID
+	RoleID   uuid.UUID
+	TenantID uuid.UUID
 }
 
 type UserSession struct {
@@ -878,6 +956,7 @@ type UserSession struct {
 	LastSeenAt time.Time
 	ExpiresAt  time.Time
 	RevokedAt  *time.Time
+	TenantID   uuid.UUID
 }
 
 type WebhookDelivery struct {
@@ -896,6 +975,7 @@ type WebhookDelivery struct {
 	DeliveredAt      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	TenantID         uuid.UUID
 }
 
 type WebhookEndpoint struct {
@@ -910,6 +990,7 @@ type WebhookEndpoint struct {
 	CreatedBy      *uuid.UUID
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type WebhookEvent struct {
@@ -921,6 +1002,7 @@ type WebhookEvent struct {
 	LastError     *string
 	ReceivedAt    time.Time
 	ProcessedAt   *time.Time
+	TenantID      uuid.UUID
 }
 
 type WhatsappAccount struct {
@@ -944,6 +1026,7 @@ type WhatsappAccount struct {
 	TokenWarning             *string
 	TokenNotifiedAt          *time.Time
 	Currency                 *string
+	TenantID                 uuid.UUID
 }
 
 type WhatsappAccountEvent struct {
@@ -954,4 +1037,5 @@ type WhatsappAccountEvent struct {
 	Payload       []byte
 	OccurredAt    time.Time
 	ReceivedAt    time.Time
+	TenantID      uuid.UUID
 }

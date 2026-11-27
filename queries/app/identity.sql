@@ -235,7 +235,7 @@ UPDATE api_keys SET revoked_at = now() WHERE id = @id AND revoked_at IS NULL RET
 WITH ins AS (
     INSERT INTO idempotency_keys (principal, key, request_hash, status)
     VALUES (@principal, @key, @request_hash, 'in_progress')
-    ON CONFLICT (principal, key) DO NOTHING
+    ON CONFLICT (tenant_id, principal, key) DO NOTHING
     RETURNING true AS inserted, request_hash, status, response_status, response_body
 )
 SELECT inserted, request_hash, status, response_status, response_body FROM ins
@@ -256,4 +256,4 @@ DELETE FROM idempotency_keys WHERE created_at < now() - interval '24 hours';
 -- name: LockOwnerChanges :exec
 -- Serializes changes that could remove an owner, so two concurrent
 -- demotions cannot both pass the "at least one owner" check.
-SELECT pg_advisory_xact_lock(hashtext('messora.owner_changes'));
+SELECT pg_advisory_xact_lock(hashtextextended(concat('messora.owner_changes:', app_tenant_id()), 0));

@@ -3,7 +3,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -20,7 +19,7 @@ import (
 // on the connected account.
 func (h *harness) addMarketingTemplate() {
 	h.t.Helper()
-	if _, err := h.pool.Exec(context.Background(), `INSERT INTO message_templates (account_id, meta_template_id, name, language, category, status, components)
+	if _, err := h.pool.Exec(h.ctx(), `INSERT INTO message_templates (account_id, meta_template_id, name, language, category, status, components)
 		SELECT id, '779', 'spring_sale', 'en', 'MARKETING', 'APPROVED', '[{"type":"BODY","text":"Spring sale!"}]' FROM whatsapp_accounts`); err != nil {
 		h.t.Fatal(err)
 	}
@@ -35,7 +34,7 @@ func tpl(to, name string) map[string]any {
 func (h *harness) contactID(phone string) string {
 	h.t.Helper()
 	var id string
-	if err := h.pool.QueryRow(context.Background(), "SELECT id::text FROM contacts WHERE phone_e164 = $1", phone).Scan(&id); err != nil {
+	if err := h.pool.QueryRow(h.ctx(), "SELECT id::text FROM contacts WHERE phone_e164 = $1", phone).Scan(&id); err != nil {
 		h.t.Fatalf("contact %s: %v", phone, err)
 	}
 	return id
@@ -129,8 +128,8 @@ func TestConsentRecheckedAtSendTime(t *testing.T) {
 	tag := h.seedContacts(5, "+90562")
 	id := h.createCampaign(token, tag, 10, nil)
 	h.expect(h.do(call{method: "POST", path: "/api/v1/campaigns/" + id + "/start", token: token}), 200, "")
-	h.pump(context.Background(), 1) // materialise
-	h.pump(context.Background(), 1) // dispatch: five messages queued
+	h.pump(h.ctx(), 1) // materialise
+	h.pump(h.ctx(), 1) // dispatch: five messages queued
 	if got := h.count("SELECT count(*) FROM messages WHERE campaign_id = $1 AND status = 'pending'", id); got != 5 {
 		t.Fatalf("queued: %d", got)
 	}
@@ -140,7 +139,7 @@ func TestConsentRecheckedAtSendTime(t *testing.T) {
 		t.Fatalf("campaign %s", st)
 	}
 	var status, code, class string
-	if err := h.pool.QueryRow(context.Background(), "SELECT status, error_code, failure_class FROM messages WHERE campaign_id = $1 AND contact_id = $2", id, late).
+	if err := h.pool.QueryRow(h.ctx(), "SELECT status, error_code, failure_class FROM messages WHERE campaign_id = $1 AND contact_id = $2", id, late).
 		Scan(&status, &code, &class); err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +214,7 @@ func TestMetaRefusalsFlagContacts(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.addMarketingTemplate()
-	ctx := context.Background()
+	ctx := h.ctx()
 
 	// Synchronous 131050 on a marketing template.
 	h.meta.Script(whatsapptest.Behavior{ErrorCode: 131050})
@@ -272,7 +271,7 @@ func TestEcosystemLimitDefersWithoutHoldingTheWindow(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.svc.campaigns.TickInterval = 0
-	ctx := context.Background()
+	ctx := h.ctx()
 	tag := h.seedContacts(3, "+90563")
 	id := h.createCampaign(token, tag, 1, nil) // one message in flight at a time
 	h.meta.Script(whatsapptest.Behavior{ErrorCode: 131049})
@@ -342,7 +341,7 @@ func TestEcosystemLimitDefersWithoutHoldingTheWindow(t *testing.T) {
 func TestKeywordOptOutFromInbound(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
-	ctx := context.Background()
+	ctx := h.ctx()
 	auto := h.automation(token, map[string]any{"name": "On stop", "active": true, "trigger_type": "subscription_request",
 		"trigger": map[string]any{"subscription": "stop"}, "steps": []any{map[string]any{"type": "add_tag", "tag": "unsubscribed"}}})
 	h.expect(h.do(call{method: "POST", path: "/api/v1/automations", token: token, body: map[string]any{"name": "bad", "trigger_type": "subscription_request",
@@ -415,7 +414,7 @@ func TestCampaignPreflightCounts(t *testing.T) {
 	h := newHarness(t)
 	token, _ := h.connect()
 	h.addMarketingTemplate()
-	ctx := context.Background()
+	ctx := h.ctx()
 	tag := h.seedContacts(7, "+90564")
 	for _, q := range []string{
 		"UPDATE contacts SET opted_out_at = now() WHERE phone_e164 = '+9056400000001'", // legacy full opt-out
