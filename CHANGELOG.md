@@ -88,6 +88,14 @@ docs/PHASE-16C.md.
   from the OpenAPI document; every public operation documented and linted
   in CI; `RateLimit-*` headers; `docs/API.md` inventory.
 
+### Fixed
+
+- Tables page through long lists with their own pager only (no separate
+  "load more" button): campaigns, campaign recipients, audit log, webhook
+  deliveries and automation runs. A campaign has one recipients table, with
+  one status and one reason column.
+- The sidebar meets the top bar without a light edge.
+
 ### Added — Phase 16C P1: subscription, consent and send blocking
 
 - Consent per category for every contact: marketing and service (utility,
