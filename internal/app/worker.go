@@ -31,6 +31,8 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/scheduler"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 )
 
@@ -84,8 +86,18 @@ func RunWorker(ctx context.Context) error {
 	}
 
 	mux := asynq.NewServeMux()
-	// Every handler runs as its task's tenant (queue.TenantMiddleware).
-	mux.Use(taskMetrics.Middleware, tracing.TaskMiddleware, queue.TenantMiddleware)
+	// Every handler runs as its task's tenant (queue.TenantMiddleware;
+	// tasks without one are refused unless they are platform tasks), and no
+	// tenant holds more than its share of this process's handler slots
+	// (queue.TenantLimiter, fairness setting).
+	limiter := queue.NewTenantLimiter(cfg.Worker.Concurrency, svc.fairness.TenantShare)
+	limiter.Register(reg)
+	mux.Use(taskMetrics.Middleware, tracing.TaskMiddleware, queue.TenantMiddleware, limiter.Middleware)
+	// Periodic jobs run once per active tenant: the scheduler enqueues one
+	// fan-out per slot, which lists the tenants on the system pool.
+	mux.Handle(queue.TypeTenantFanOut, scheduler.FanOutHandler(func(ctx context.Context) ([]uuid.UUID, error) {
+		return tenant.ListActive(ctx, sysPool)
+	}, client, log))
 	mux.Handle(queue.TypeOutboxCleanup, outbox.CleanupHandler(sysPool, outboxRetention, log))
 	mux.HandleFunc(queue.TypeIdentityCleanup, func(ctx context.Context, _ *asynq.Task) error {
 		sessions, keys, err := svc.identity.Cleanup(ctx)
@@ -141,6 +153,13 @@ func RunWorker(ctx context.Context) error {
 		n, err := svc.ai.ReconcileAttribution(ctx)
 		if n > 0 {
 			log.InfoContext(ctx, "ai usage attributed to campaigns", "count", n)
+		}
+		return err
+	})
+	mux.HandleFunc(contacts.TypeImportRetention, func(ctx context.Context, _ *asynq.Task) error {
+		n, err := svc.contacts.ExpireImports(ctx, contacts.ImportRetention)
+		if n > 0 {
+			log.InfoContext(ctx, "old contact imports removed", "count", n)
 		}
 		return err
 	})

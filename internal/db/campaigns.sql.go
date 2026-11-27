@@ -1342,10 +1342,11 @@ func (q *Queries) LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, err
 }
 
 const lockPortfolio = `-- name: LockPortfolio :exec
-SELECT pg_advisory_xact_lock(hashtextextended(concat('portfolio:', $1::uuid), 0))
+SELECT pg_advisory_xact_lock(hashtextextended(concat('messora.portfolio:', app_tenant_id(), ':', $1::uuid), 0))
 `
 
-// Serialises the limit checks of campaigns sharing an account.
+// Serialises the limit checks of campaigns sharing an account. Advisory
+// locks are database-wide, so the key names the tenant too.
 func (q *Queries) LockPortfolio(ctx context.Context, accountID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, lockPortfolio, accountID)
 	return err

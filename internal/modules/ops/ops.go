@@ -77,8 +77,8 @@ func Resolve(p *principal.Principal, requested []string) []string {
 // Deps are the parts of other modules the overview reads.
 type Deps struct {
 	Campaigns *campaigns.Service
-	// FailedJobs counts the dead letter (nil: 0).
-	FailedJobs func() (int, error)
+	// FailedJobs counts the tenant's part of the dead letter (nil: 0).
+	FailedJobs func(context.Context) (int, error)
 	// Budget reads the monthly AI budget (nil: none).
 	Budget func(ctx context.Context) (ai.Budget, error)
 }
@@ -229,7 +229,7 @@ func (s *Service) AlertSection(ctx context.Context) (Alerts, error) {
 	var out Alerts
 	var err error
 	if s.deps.FailedJobs != nil {
-		if out.FailedJobs, err = s.deps.FailedJobs(); err != nil {
+		if out.FailedJobs, err = s.deps.FailedJobs(ctx); err != nil {
 			return out, err
 		}
 	}

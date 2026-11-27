@@ -45,9 +45,18 @@ func NewHandler(version string, pool *pgxpool.Pool, rdb goredis.UniversalClient,
 	return &Handler{version: version, checker: c, jobs: NewFailedJobs(insp), q: db.New(pool), log: log}
 }
 
-// FailedJobsTotal is the number of failed jobs in every queue.
-func (h *Handler) FailedJobsTotal() (int, error) {
-	counts, err := h.jobs.Count()
+// FailedJobs is the dead letter, for the platform admin panel
+// (PlatformScope) and tests.
+func (h *Handler) FailedJobs() *FailedJobs { return h.jobs }
+
+// FailedJobsTotal is the number of ctx's tenant's failed jobs in every
+// queue.
+func (h *Handler) FailedJobsTotal(ctx context.Context) (int, error) {
+	sc, err := TenantScope(ctx)
+	if err != nil {
+		return 0, err
+	}
+	counts, err := h.jobs.Count(sc)
 	total := 0
 	for _, n := range counts {
 		total += n
@@ -58,7 +67,7 @@ func (h *Handler) FailedJobsTotal() (int, error) {
 // GetSystemStatus implements api.ServerInterface.
 func (h *Handler) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
 	var failed int64
-	if n, err := h.FailedJobsTotal(); err == nil { // Redis trouble shows in the redis check
+	if n, err := h.FailedJobsTotal(r.Context()); err == nil { // Redis trouble shows in the redis check
 		failed = int64(n)
 	}
 	results, ok := h.checker.Run(r.Context())

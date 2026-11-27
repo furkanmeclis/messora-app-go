@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
+
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
 // DefaultThroughput is Meta's default per-number throughput (messages per
@@ -39,8 +41,16 @@ type Throttle struct {
 
 	lookup CeilingFunc
 	mu     sync.Mutex
-	cache  map[uuid.UUID]cachedCeiling
+	cache  map[ceilingKey]cachedCeiling
+
+	// tenantCap is the combined campaign send rate of one tenant
+	// (messages per second, 0 = none; WithTenantCampaignCap).
+	tenantCap func(context.Context) float64
 }
+
+// ceilingKey: numbers are cached per tenant, so a lookup made under one
+// tenant can never answer another's.
+type ceilingKey struct{ tenant, pn uuid.UUID }
 
 type cachedCeiling struct {
 	v       int
@@ -52,8 +62,8 @@ func NewThrottle(rdb goredis.UniversalClient, ceiling int) *Throttle {
 	if ceiling <= 0 {
 		ceiling = DefaultThroughput
 	}
-	return &Throttle{rdb: rdb, Ceiling: ceiling, Floor: 1, prefix: "messora:aimd:", reserved: DefaultReservedShare,
-		cache: map[uuid.UUID]cachedCeiling{}}
+	return &Throttle{rdb: rdb, Ceiling: ceiling, Floor: 1, prefix: "aimd:", reserved: DefaultReservedShare,
+		cache: map[ceilingKey]cachedCeiling{}}
 }
 
 // WithCeilings makes each number's ceiling its own throughput as returned
@@ -69,8 +79,9 @@ func (t *Throttle) CeilingFor(ctx context.Context, pn uuid.UUID) int {
 		return t.Ceiling
 	}
 	now := time.Now()
+	ck := ceilingKey{tenant.ID(ctx), pn}
 	t.mu.Lock()
-	c, ok := t.cache[pn]
+	c, ok := t.cache[ck]
 	t.mu.Unlock()
 	if ok && now.Before(c.expires) {
 		return c.v
@@ -80,17 +91,20 @@ func (t *Throttle) CeilingFor(ctx context.Context, pn uuid.UUID) int {
 		v = t.Ceiling
 	}
 	t.mu.Lock()
-	t.cache[pn] = cachedCeiling{v: v, expires: now.Add(ceilingTTL)}
+	t.cache[ck] = cachedCeiling{v: v, expires: now.Add(ceilingTTL)}
 	t.mu.Unlock()
 	return v
 }
 
-func (t *Throttle) rateKey(pn uuid.UUID) string { return t.prefix + pn.String() }
+// rateKey is the AIMD rate of pn, under its tenant's Redis prefix.
+func (t *Throttle) rateKey(ctx context.Context, pn uuid.UUID) string {
+	return tenant.RedisKey(ctx, t.prefix+pn.String())
+}
 
 // Rate returns the current rate for a number.
 func (t *Throttle) Rate(ctx context.Context, pn uuid.UUID) int {
 	ceiling := t.CeilingFor(ctx, pn)
-	v, err := t.rdb.Get(ctx, t.rateKey(pn)).Result()
+	v, err := t.rdb.Get(ctx, t.rateKey(ctx, pn)).Result()
 	if err != nil {
 		return ceiling
 	}
@@ -105,8 +119,8 @@ func (t *Throttle) Rate(ctx context.Context, pn uuid.UUID) int {
 func (t *Throttle) Backoff(ctx context.Context, pn uuid.UUID) int {
 	r := max(t.Floor, t.Rate(ctx, pn)/2)
 	// The reduction decays after ten minutes without new errors.
-	_ = t.rdb.Set(ctx, t.rateKey(pn), r, 10*time.Minute).Err()
-	_ = t.rdb.Set(ctx, t.rateKey(pn)+":cool", 1, 5*time.Second).Err()
+	_ = t.rdb.Set(ctx, t.rateKey(ctx, pn), r, 10*time.Minute).Err()
+	_ = t.rdb.Set(ctx, t.rateKey(ctx, pn)+":cool", 1, 5*time.Second).Err()
 	return r
 }
 
@@ -118,10 +132,10 @@ func (t *Throttle) Succeeded(ctx context.Context, pn uuid.UUID) {
 		return
 	}
 	// No growth right after a backoff, and at most once per second.
-	if t.rdb.Exists(ctx, t.rateKey(pn)+":cool").Val() == 1 {
+	if t.rdb.Exists(ctx, t.rateKey(ctx, pn)+":cool").Val() == 1 {
 		return
 	}
-	if ok, _ := t.rdb.SetNX(ctx, t.rateKey(pn)+":inc", 1, time.Second).Result(); ok {
-		_ = t.rdb.Set(ctx, t.rateKey(pn), min(ceiling, r+1), 10*time.Minute).Err()
+	if ok, _ := t.rdb.SetNX(ctx, t.rateKey(ctx, pn)+":inc", 1, time.Second).Result(); ok {
+		_ = t.rdb.Set(ctx, t.rateKey(ctx, pn), min(ceiling, r+1), 10*time.Minute).Err()
 	}
 }
