@@ -31,13 +31,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -58,12 +51,7 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
-import type {
-    ActionResult,
-    PhoneNumber,
-    WebhookSetup,
-    WhatsAppAccount,
-} from '@/lib/types';
+import type { ActionResult, PhoneNumber, WhatsAppAccount } from '@/lib/types';
 import {
     connectAccountAction,
     disconnectAccountAction,
@@ -130,7 +118,11 @@ const CONNECT_FIELDS = [
     'app_secret',
 ];
 
-export function ConnectAccountDialog() {
+export function ConnectAccountDialog({
+    trigger,
+}: {
+    trigger?: React.ReactNode;
+}) {
     const t = useT();
     const { guard } = useReauth();
     const [open, setOpen] = useState(false);
@@ -167,9 +159,11 @@ export function ConnectAccountDialog() {
             }}
         >
             <DialogTrigger asChild>
-                <Button shortcut="n">
-                    <Plus /> {t('channels.connect.open')}
-                </Button>
+                {trigger ?? (
+                    <Button shortcut="n">
+                        <Plus /> {t('channels.connect.open')}
+                    </Button>
+                )}
             </DialogTrigger>
             <DialogContent className="max-h-[90svh] overflow-y-auto">
                 <DialogHeader>
@@ -219,16 +213,19 @@ export function ConnectAccountDialog() {
                         <TextField
                             label={t('channels.connect.appId')}
                             name="app_id"
+                            required
                             inputMode="numeric"
                             pattern="[0-9]{1,32}"
                             title={t('channels.connect.digitsOnly')}
                             autoComplete="off"
                             error={fe('app_id')}
+                            hint={t('channels.connect.appIdHint')}
                         />
                         <TextField
                             label={t('channels.connect.appSecret')}
                             name="app_secret"
                             type="password"
+                            required
                             minLength={8}
                             maxLength={256}
                             autoComplete="off"
@@ -851,7 +848,7 @@ function QualityBadge({ rating }: { rating: string }) {
 
 // ── Webhook ───────────────────────────────────────────────────────────────
 
-function CopyField({
+export function CopyField({
     id,
     label,
     copyLabel,
@@ -892,65 +889,5 @@ function CopyField({
                 </Button>
             </div>
         </div>
-    );
-}
-
-export function WebhookCard({ setup }: { setup: WebhookSetup }) {
-    const t = useT();
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{t('channels.webhook.title')}</CardTitle>
-                <CardDescription>
-                    {t('channels.webhook.description')}
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                {!setup.signature_verification && (
-                    <Alert
-                        variant="destructive"
-                        data-testid="signature-warning"
-                    >
-                        <AlertTriangle />
-                        <AlertTitle>
-                            {t('channels.webhook.signatureOff')}
-                        </AlertTitle>
-                        <AlertDescription>
-                            {t('channels.webhook.signatureOffHint')}
-                        </AlertDescription>
-                    </Alert>
-                )}
-                <CopyField
-                    id="webhook-callback"
-                    label={t('channels.webhook.callbackUrl')}
-                    copyLabel={t('channels.webhook.copyCallbackUrl')}
-                    value={setup.callback_url}
-                />
-                <CopyField
-                    id="webhook-verify-token"
-                    label={t('channels.webhook.verifyToken')}
-                    copyLabel={t('channels.webhook.copyVerifyToken')}
-                    value={setup.verify_token}
-                />
-                {setup.fields && setup.fields.length > 0 && (
-                    <div className="space-y-1.5">
-                        <p className="text-sm font-medium">
-                            {t('channels.webhook.fields')}
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                            {setup.fields.map((f) => (
-                                <Badge
-                                    key={f}
-                                    variant="outline"
-                                    className="font-mono"
-                                >
-                                    {f}
-                                </Badge>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
     );
 }

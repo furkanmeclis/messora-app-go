@@ -47,7 +47,7 @@ const wizard: Messages['wizard'] = {
         accessToken: "Kalıcı erişim token'ı",
         appSecret: 'Uygulama gizli anahtarı (app secret)',
         appSecretHint:
-            "Gelen webhook'ları doğrulamak için kullanılır. Önerilir.",
+            "Uygulamanızın gönderdiği her webhook'un imzasını doğrular. Zorunludur.",
         connect: 'Bağla',
         connecting: 'Bağlanıyor…',
         guide: 'Bunları nerede bulurum?',
