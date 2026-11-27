@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Logo konseptleri</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; padding: 56px 64px; background: #F4F6FB; color: #0B1220; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #3B4CCA">Logo konseptleri</span>
+<h1 style="margin: 0; font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 36px; font-weight: 800; letter-spacing: -0.02em">{{ title }}</h1>
+<p style="margin: 0; font-size: 16px; color: #4A5468; max-width: 760px">{{ idea }}</p>
+</div>
+<div role="group" aria-label="Konsept" style="display: flex; gap: 6px; padding: 5px; background: #E3E7F2; border-radius: 999px">
+<button type="button" onClick="{{ pickA }}" style="{{ tabA }}">A · Balon M</button>
+<button type="button" onClick="{{ pickB }}" style="{{ tabB }}">B · Yörünge</button>
+<button type="button" onClick="{{ pickC }}" style="{{ tabC }}">C · Diyalog</button>
+</div>
+</div>
+<div style="flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+<div style="background: #FFFFFF; border-radius: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 32px">
+<sc-if value="{{ isA }}" hint-placeholder-val="{{ true }}">
+<svg role="img" aria-label="Messora sembolü A" width="160" height="160" viewBox="0 0 64 64"><path d="M14 6h36a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H26l-12 9v-9a10 10 0 0 1-10-10V16A10 10 0 0 1 14 6z" fill="#3B4CCA"></path><path d="M19 39V24a5 5 0 0 1 10 0v15M29 24a5 5 0 0 1 10 0v15M39 24a5 5 0 0 1 6-4.9" fill="none" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round"></path><circle cx="47" cy="17" r="4" fill="#2DD4A7"></circle></svg>
+</sc-if>
+<sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}">
+<svg role="img" aria-label="Messora sembolü B" width="160" height="160" viewBox="0 0 64 64"><path d="M32 8c13.3 0 24 9.4 24 21s-10.7 21-24 21c-2.6 0-5.1-.4-7.4-1L12 54l2.8-10.2C10.6 40 8 34.8 8 29 8 17.4 18.7 8 32 8z" fill="#3B4CCA"></path><circle cx="24" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="32" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="40" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="52" cy="12" r="6" fill="#2DD4A7"></circle><path d="M44 6a16 16 0 0 1 14 14" fill="none" stroke="#2DD4A7" stroke-width="2.5" stroke-linecap="round"></path></svg>
+</sc-if>
+<sc-if value="{{ isC }}" hint-placeholder-val="{{ false }}">
+<svg role="img" aria-label="Messora sembolü C" width="160" height="160" viewBox="0 0 64 64"><path d="M8 14a8 8 0 0 1 8-8h22a8 8 0 0 1 8 8v12a8 8 0 0 1-8 8H20l-8 6v-6.4A8 8 0 0 1 8 26z" fill="#3B4CCA"></path><path d="M56 30a8 8 0 0 0-8-8H30a8 8 0 0 0-8 8v12a8 8 0 0 0 8 8h14l8 6v-6.4a8 8 0 0 0 4-6.9z" fill="#2DD4A7"></path><path d="M30 22h8a8 8 0 0 1 8 4v0a8 8 0 0 1-8 8h-16v-4a8 8 0 0 1 8-8z" fill="#1E2A8C"></path></svg>
+</sc-if>
+<span style="font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 44px; font-weight: 800; letter-spacing: -0.03em; color: #0B1220">messora</span>
+<span style="font-size: 13px; color: #4A5468">Açık zemin</span>
+</div>
+<div style="background: #0B1220; border-radius: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 32px">
+<sc-if value="{{ isA }}" hint-placeholder-val="{{ true }}">
+<svg aria-hidden="true" width="120" height="120" viewBox="0 0 64 64"><path d="M14 6h36a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H26l-12 9v-9a10 10 0 0 1-10-10V16A10 10 0 0 1 14 6z" fill="#5B6BF0"></path><path d="M19 39V24a5 5 0 0 1 10 0v15M29 24a5 5 0 0 1 10 0v15M39 24a5 5 0 0 1 6-4.9" fill="none" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round"></path><circle cx="47" cy="17" r="4" fill="#2DD4A7"></circle></svg>
+</sc-if>
+<sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}">
+<svg aria-hidden="true" width="120" height="120" viewBox="0 0 64 64"><path d="M32 8c13.3 0 24 9.4 24 21s-10.7 21-24 21c-2.6 0-5.1-.4-7.4-1L12 54l2.8-10.2C10.6 40 8 34.8 8 29 8 17.4 18.7 8 32 8z" fill="#5B6BF0"></path><circle cx="24" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="32" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="40" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="52" cy="12" r="6" fill="#2DD4A7"></circle><path d="M44 6a16 16 0 0 1 14 14" fill="none" stroke="#2DD4A7" stroke-width="2.5" stroke-linecap="round"></path></svg>
+</sc-if>
+<sc-if value="{{ isC }}" hint-placeholder-val="{{ false }}">
+<svg aria-hidden="true" width="120" height="120" viewBox="0 0 64 64"><path d="M8 14a8 8 0 0 1 8-8h22a8 8 0 0 1 8 8v12a8 8 0 0 1-8 8H20l-8 6v-6.4A8 8 0 0 1 8 26z" fill="#5B6BF0"></path><path d="M56 30a8 8 0 0 0-8-8H30a8 8 0 0 0-8 8v12a8 8 0 0 0 8 8h14l8 6v-6.4a8 8 0 0 0 4-6.9z" fill="#2DD4A7"></path><path d="M30 22h8a8 8 0 0 1 8 4v0a8 8 0 0 1-8 8h-16v-4a8 8 0 0 1 8-8z" fill="#3B4CCA"></path></svg>
+</sc-if>
+<span style="font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 40px; font-weight: 800; letter-spacing: -0.03em; color: #F4F6FB">messora</span>
+<span style="font-size: 13px; color: #8B95AD">Koyu zemin</span>
+</div>
+<div style="background: #FFFFFF; border-radius: 24px; display: flex; flex-direction: column; justify-content: center; gap: 28px; padding: 32px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 13px; font-weight: 600; color: #4A5468">Uygulama ikonu</span>
+<div style="display: flex; align-items: flex-end; gap: 18px">
+<div style="width: 96px; height: 96px; border-radius: 24px; background: #0B1220; display: flex; align-items: center; justify-content: center">
+<sc-if value="{{ isA }}" hint-placeholder-val="{{ true }}"><svg aria-hidden="true" width="64" height="64" viewBox="0 0 64 64"><path d="M14 6h36a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H26l-12 9v-9a10 10 0 0 1-10-10V16A10 10 0 0 1 14 6z" fill="#5B6BF0"></path><path d="M19 39V24a5 5 0 0 1 10 0v15M29 24a5 5 0 0 1 10 0v15M39 24a5 5 0 0 1 6-4.9" fill="none" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round"></path><circle cx="47" cy="17" r="4" fill="#2DD4A7"></circle></svg></sc-if>
+<sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}"><svg aria-hidden="true" width="64" height="64" viewBox="0 0 64 64"><path d="M32 8c13.3 0 24 9.4 24 21s-10.7 21-24 21c-2.6 0-5.1-.4-7.4-1L12 54l2.8-10.2C10.6 40 8 34.8 8 29 8 17.4 18.7 8 32 8z" fill="#5B6BF0"></path><circle cx="24" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="32" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="40" cy="29" r="3.5" fill="#FFFFFF"></circle><circle cx="52" cy="12" r="6" fill="#2DD4A7"></circle></svg></sc-if>
+<sc-if value="{{ isC }}" hint-placeholder-val="{{ false }}"><svg aria-hidden="true" width="64" height="64" viewBox="0 0 64 64"><path d="M8 14a8 8 0 0 1 8-8h22a8 8 0 0 1 8 8v12a8 8 0 0 1-8 8H20l-8 6v-6.4A8 8 0 0 1 8 26z" fill="#5B6BF0"></path><path d="M56 30a8 8 0 0 0-8-8H30a8 8 0 0 0-8 8v12a8 8 0 0 0 8 8h14l8 6v-6.4a8 8 0 0 0 4-6.9z" fill="#2DD4A7"></path></svg></sc-if>
+</div>
+<div style="width: 48px; height: 48px; border-radius: 12px; background: #3B4CCA; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-weight: 800; font-size: 26px">m</div>
+<div style="width: 24px; height: 24px; border-radius: 6px; background: #3B4CCA"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; font-weight: 600; color: #4A5468">Neden</span>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #2A3347">{{ why }}</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; font-weight: 600; color: #4A5468">Risk</span>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #2A3347">{{ risk }}</p>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { c: 'A' };
+}
+renderVals() {
+const c = this.state.c;
+const tab = (on) => 'border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; padding: 10px 16px; min-height: 44px; border-radius: 999px; ' + (on ? 'background: #0B1220; color: #FFFFFF' : 'background: transparent; color: #2A3347');
+const copy = {
+A: { title: 'A · Balon içinde M', idea: 'Söz balonunun içindeki iki kemer “m” harfini çiziyor; köşedeki nane nokta AI’ın varlığını işaret ediyor.', why: 'Hem mesajlaşmayı hem adı tek sembolde anlatıyor; küçük boyda (favicon) okunaklı.', risk: 'Balon + harf kalıbı yaygın; nane nokta ayırt edicilik için şart.' },
+B: { title: 'B · Yörünge', idea: 'Klasik yazışma balonu üç noktayla “yazıyor…” anını anlatıyor; dışındaki nane yörünge, konuşmayı izleyen ve yardım eden AI.', why: 'En samimi ve anlaşılır olanı; “yazıyor…” herkesin tanıdığı bir an.', risk: 'Harf içermediği için isimle bağı zayıf; wordmark’la birlikte kullanılmalı.' },
+C: { title: 'C · Diyalog', idea: 'Biri işletmenin (çivit), biri müşterinin (nane) iki balon kesişiyor; ortadaki koyu alan iki tarafın buluştuğu konuşma.', why: 'Ürünün özünü — işletme ile müşteri arasındaki konuşma — en iyi anlatan.', risk: 'Küçük boyda kesişim kayboluyor; favicon için sadeleştirilmiş sürüm gerekir.' }
+}[c];
+return {
+...copy,
+isA: c === 'A', isB: c === 'B', isC: c === 'C',
+tabA: tab(c === 'A'), tabB: tab(c === 'B'), tabC: tab(c === 'C'),
+pickA: () => this.setState({ c: 'A' }),
+pickB: () => this.setState({ c: 'B' }),
+pickC: () => this.setState({ c: 'C' })
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Platform paneli</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2563EB}a:hover{color:#1D4ED8}
+</style>
+</helmet>
+<div style="box-sizing: border-box; background: #F7F8FB; font-family: Inter, system-ui, sans-serif; color: #0F172A; display: flex; flex-wrap: wrap">
+<nav aria-label="Platform menüsü" style="flex: 1 1 220px; max-width: 260px; background: #0F1B3D; color: #CBD5E1; padding: 28px 18px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box">
+<span style="font-size: 16px; font-weight: 700; color: #FFFFFF; padding: 0 10px 18px">Messora Platform</span>
+<a href="#" style="color: #FFFFFF; background: rgba(255,255,255,0.10); text-decoration: none; padding: 11px 12px; border-radius: 10px; font-size: 15px; font-weight: 600">Firmalar</a>
+<a href="#" style="color: #CBD5E1; text-decoration: none; padding: 11px 12px; border-radius: 10px; font-size: 15px">Bekleyen ödemeler <span style="background: #F59E0B; color: #0F172A; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px">3</span></a>
+<a href="#" style="color: #CBD5E1; text-decoration: none; padding: 11px 12px; border-radius: 10px; font-size: 15px">Planlar ve fiyatlar</a>
+<a href="#" style="color: #CBD5E1; text-decoration: none; padding: 11px 12px; border-radius: 10px; font-size: 15px">Gelir</a>
+<a href="#" style="color: #CBD5E1; text-decoration: none; padding: 11px 12px; border-radius: 10px; font-size: 15px">Alan adları</a>
+<a href="#" style="color: #CBD5E1; text-decoration: none; padding: 11px 12px; border-radius: 10px; font-size: 15px">Denetim kaydı</a>
+</nav>
+<main style="flex: 999 1 560px; min-width: 0; padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.02em">Firmalar</h1>
+<p style="margin: 0; font-size: 15px; color: #475569">Tüm kiracılar, planları, kullanımları ve ödeme durumları.</p>
+</div>
+<button type="button" style="border: 0; background: #2563EB; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 600; padding: 11px 18px; border-radius: 10px">Firma oluştur</button>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px">
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #475569">Aktif firma</span><strong style="font-size: 28px">42</strong></div>
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #475569">Denemede</span><strong style="font-size: 28px">9</strong></div>
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #475569">Aylık yinelenen gelir</span><strong style="font-size: 28px">118.420 TL</strong></div>
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #475569">Ek süre / kısıtlı</span><strong style="font-size: 28px; color: #B45309">2 / 1</strong></div>
+</div>
+<section aria-labelledby="pending" style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 14px">
+<h2 id="pending" style="margin: 0; font-size: 18px; font-weight: 600">Onay bekleyen havaleler</h2>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 14px; border: 1px solid #E2E8F0; border-radius: 12px; font-size: 14px">
+<span style="flex: 1 1 220px"><strong>Easytrade Ltd.</strong> · Aralık aboneliği · ref <span style="font-family: ui-monospace, monospace; font-weight: 700">MSR-4F8K2Q</span></span>
+<span style="font-weight: 600">3.588,00 TL</span>
+<a href="#">Dekontu gör</a>
+<button type="button" style="border: 0; background: #059669; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600; padding: 9px 14px; border-radius: 10px">Onayla</button>
+<button type="button" style="border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A; font: inherit; font-size: 14px; font-weight: 600; padding: 9px 14px; border-radius: 10px">Reddet</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 14px; border: 1px solid #E2E8F0; border-radius: 12px; font-size: 14px">
+<span style="flex: 1 1 220px"><strong>Kuzey Mobilya</strong> · mesaj kredisi · ref <span style="font-family: ui-monospace, monospace; font-weight: 700">MSR-9TQ1HZ</span></span>
+<span style="font-weight: 600">5.000,00 TL</span>
+<a href="#">Dekontu gör</a>
+<button type="button" style="border: 0; background: #059669; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600; padding: 9px 14px; border-radius: 10px">Onayla</button>
+<button type="button" style="border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A; font: inherit; font-size: 14px; font-weight: 600; padding: 9px 14px; border-radius: 10px">Reddet</button>
+</div>
+</section>
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; overflow-x: auto">
+<table style="width: 100%; border-collapse: collapse; font-size: 14px; min-width: 860px">
+<thead><tr style="background: #F1F5F9; text-align: left; color: #475569"><th style="padding: 14px 18px; font-weight: 600">Firma</th><th style="padding: 14px 18px; font-weight: 600">Adres</th><th style="padding: 14px 18px; font-weight: 600">Plan</th><th style="padding: 14px 18px; font-weight: 600">Durum</th><th style="padding: 14px 18px; font-weight: 600">Mesaj (bu ay)</th><th style="padding: 14px 18px; font-weight: 600">Sonraki fatura</th></tr></thead>
+<tbody>
+<tr style="border-top: 1px solid #E2E8F0"><td style="padding: 14px 18px; font-weight: 600">Easytrade Ltd.</td><td style="padding: 14px 18px">easytrade.messora.tech</td><td style="padding: 14px 18px">Büyüme</td><td style="padding: 14px 18px"><span style="font-size: 12px; font-weight: 600; color: #92400E; background: #FEF3C7; padding: 4px 10px; border-radius: 999px">Ödeme bekliyor</span></td><td style="padding: 14px 18px">12.480</td><td style="padding: 14px 18px">01.12.2026</td></tr>
+<tr style="border-top: 1px solid #E2E8F0"><td style="padding: 14px 18px; font-weight: 600">Kuzey Mobilya</td><td style="padding: 14px 18px">panel.kuzeymobilya.com</td><td style="padding: 14px 18px">Pro</td><td style="padding: 14px 18px"><span style="font-size: 12px; font-weight: 600; color: #065F46; background: #D1FAE5; padding: 4px 10px; border-radius: 999px">Aktif</span></td><td style="padding: 14px 18px">48.920</td><td style="padding: 14px 18px">15.12.2026</td></tr>
+<tr style="border-top: 1px solid #E2E8F0"><td style="padding: 14px 18px; font-weight: 600">Ada Kozmetik</td><td style="padding: 14px 18px">adakozmetik.messora.tech</td><td style="padding: 14px 18px">Başlangıç</td><td style="padding: 14px 18px"><span style="font-size: 12px; font-weight: 600; color: #1E40AF; background: #DBEAFE; padding: 4px 10px; border-radius: 999px">Deneme · 9 gün</span></td><td style="padding: 14px 18px">1.204</td><td style="padding: 14px 18px">—</td></tr>
+<tr style="border-top: 1px solid #E2E8F0"><td style="padding: 14px 18px; font-weight: 600">Liman Lojistik</td><td style="padding: 14px 18px">liman.messora.tech</td><td style="padding: 14px 18px">Büyüme</td><td style="padding: 14px 18px"><span style="font-size: 12px; font-weight: 600; color: #991B1B; background: #FEE2E2; padding: 4px 10px; border-radius: 999px">Kısıtlı</span></td><td style="padding: 14px 18px">0</td><td style="padding: 14px 18px">gecikmiş 9 gün</td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

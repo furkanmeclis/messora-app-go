@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Renk ve tipografi</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 56px 64px; background: #FFFFFF; color: #0B1220; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #3B4CCA">Renk ve tipografi</span>
+<h1 style="margin: 0; font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 36px; font-weight: 800; letter-spacing: -0.02em">Gece laciverti, çivit ve nane</h1>
+</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px">
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="height: 150px; border-radius: 18px; background: #0B1220"></div><strong style="font-size: 16px">Gece</strong><span style="font-size: 14px; color: #4A5468">#0B1220 · zemin, metin</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="height: 150px; border-radius: 18px; background: #3B4CCA"></div><strong style="font-size: 16px">Çivit (ana)</strong><span style="font-size: 14px; color: #4A5468">#3B4CCA · düğme, bağlantı · beyazla 6,8:1</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="height: 150px; border-radius: 18px; background: #2DD4A7"></div><strong style="font-size: 16px">Nane (AI aksanı)</strong><span style="font-size: 14px; color: #4A5468">#2DD4A7 · yalnızca dolgu; üstüne Gece metin</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="height: 150px; border-radius: 18px; background: #FF7A59"></div><strong style="font-size: 16px">Mercan (vurgu)</strong><span style="font-size: 14px; color: #4A5468">#FF7A59 · kampanya, rozet · seyrek</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="height: 150px; border-radius: 18px; background: #F4F6FB; border: 1px solid #E3E7F2"></div><strong style="font-size: 16px">Sis</strong><span style="font-size: 14px; color: #4A5468">#F4F6FB · açık zemin</span></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div style="background: #F4F6FB; border-radius: 20px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 13px; font-weight: 600; color: #4A5468">Başlık · Plus Jakarta Sans 800</span>
+<span style="font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 52px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05">Müşteri konuşmaları, tek panelde.</span>
+<span style="font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 22px; font-weight: 700">Çağrı, şikâyet, sipariş: ğüşiöç ĞÜŞİÖÇ</span>
+<p style="margin: 0; font-size: 14px; color: #4A5468; line-height: 1.6">Geometrik ama sıcak; Türkçe karakterlerin tamamı var. Google Fonts, ücretsiz (OFL).</p>
+</div>
+<div style="background: #F4F6FB; border-radius: 20px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 13px; font-weight: 600; color: #4A5468">Metin ve arayüz · Inter 400–600</span>
+<p style="margin: 0; font-size: 18px; line-height: 1.65">Kampanyanız 1.200 kişiye ulaştı. 85 kişi mesaj almak istemediğini belirtmiş; onlara gönderim yapılmadı. Tahmini bitiş 14:35.</p>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #4A5468">Panelde zaten kullanılan yazı tipi; tablo ve rakamlarda okunaklı, eşit genişlikli rakamlar.</p>
+<div style="display: flex; gap: 10px; flex-wrap: wrap">
+<span style="font-size: 13px; font-weight: 600; background: #3B4CCA; color: #FFFFFF; padding: 6px 12px; border-radius: 999px">Gönderiliyor</span>
+<span style="font-size: 13px; font-weight: 600; background: #2DD4A7; color: #0B1220; padding: 6px 12px; border-radius: 999px">AI cevapladı</span>
+<span style="font-size: 13px; font-weight: 600; background: #FF7A59; color: #0B1220; padding: 6px 12px; border-radius: 999px">Süreli teklif</span>
+</div>
+</div>
+</div>
+<p style="margin: 0; font-size: 14px; color: #4A5468">Panelin tema motoru bu renklerle varsayılan “Messora” temasını alır; firmaların kendi tema seçimi değişmeden kalır.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

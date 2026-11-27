@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Faz 17 genel bakış</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2563EB}a:hover{color:#1D4ED8}
+</style>
+</helmet>
+<div style="width: 1440px; height: 980px; box-sizing: border-box; padding: 64px 72px; background: #F7F8FB; font-family: Inter, system-ui, sans-serif; color: #0F172A; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; align-items: center; gap: 16px">
+<div style="width: 48px; height: 48px; border-radius: 12px; background: #2563EB; display: flex; align-items: center; justify-content: center">
+<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 14px; font-weight: 600; color: #475569; letter-spacing: 0.04em; text-transform: uppercase">Messora · Faz 17</span>
+<span style="font-size: 15px; color: #475569">Tasarım kanvası — kod yazılmadan önce birlikte netleştiriyoruz</span>
+</div>
+</div>
+<h1 style="margin: 0; font-size: 52px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em">Messora artık bir SaaS: çok kiracılı, aboneliği içinde.</h1>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 13px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.04em">Karar</span>
+<h2 style="margin: 0; font-size: 22px; font-weight: 600">Yalnızca çok kiracılı mod</h2>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #334155">Lisanslı kurulum (self-hosted) kapatılıyor. Tek kod tabanı, ortak PostgreSQL + satır bazlı güvenlik (RLS), firma.messora.tech alt alan adları ve özel alan adı.</p>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 13px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.04em">Karar</span>
+<h2 style="margin: 0; font-size: 22px; font-weight: 600">Abonelik içeride, havale ile</h2>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #334155">Plan seçimi, fatura, IBAN + tekil referans kodu, dekont yükleme, senin onayın. Ödeme yöntemleri tek bir arayüzün arkasında; kart (iyzico/PayTR) sonra eklenir.</p>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 13px; font-weight: 600; color: #2563EB; text-transform: uppercase; letter-spacing: 0.04em">Öneri</span>
+<h2 style="margin: 0; font-size: 22px; font-weight: 600">Plan + iki kredi</h2>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #334155">Aylık plan, ayrıca mesaj kredisi (Meta ücreti + marj, TL) ve AI kredisi. Kendi AI anahtarını getiren firmaya AI kredisi düşmez — rakiplerde yok.</p>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 20px; font-weight: 600">Lansmandan önce netleşmesi gerekenler</h2>
+<ul style="margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.7; color: #334155">
+<li><strong>Meta'ya kim ödüyor?</strong> Mesaj kredisi satmak için Meta'ya biz ödemeliyiz (Solution Partner kredi hattı ya da BSP ortaklığı). Olmazsa: müşteri Meta'ya kendi kartıyla öder.</li>
+<li>Mesaj kredisinde %10 ÖİV var mı; kredi yüklemesi avans faturası mı? (vergi danışmanı)</li>
+<li>Meta'nın resmi Türkiye fiyat kartı (şimdilik 3 sağlayıcıdan teyitli: pazarlama $0,0109, utility $0,0009).</li>
+<li>e-Fatura / e-Arşiv entegratörü seçimi (Paraşüt, Sovos …).</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 20px; font-weight: 600">Senin kararın gerekenler (yorumla yaz)</h2>
+<ul style="margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.7; color: #334155">
+<li>Plan sayısı, isimleri ve fiyatları (öneri: 3 + Kurumsal).</li>
+<li>Deneme süresi (öneri: 14 gün) ve deneme kredileri.</li>
+<li>Ödenmeyen abonelikte ek süre (öneri: 7 gün) ve kısıtlı mod.</li>
+<li>Kısmi dönem (proration) — plan yükseltmede fark ödenir mi?</li>
+<li>Fiyatlar KDV hariç mi gösterilsin? (öneri: + KDV, TR B2B pratiği)</li>
+</ul>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

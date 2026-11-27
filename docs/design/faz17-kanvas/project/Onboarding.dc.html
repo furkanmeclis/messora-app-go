@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Kayıt</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2563EB}a:hover{color:#1D4ED8}
+</style>
+</helmet>
+<div style="box-sizing: border-box; min-height: 1000px; padding: 56px 32px; background: #F7F8FB; font-family: Inter, system-ui, sans-serif; color: #0F172A">
+<div style="max-width: 1040px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 32px">
+<div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.04em">Yeni firma</span>
+<h1 style="margin: 0 0 16px; font-size: 30px; font-weight: 700; letter-spacing: -0.02em">14 gün ücretsiz başla</h1>
+<sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+<button type="button" onClick="{{ s.go }}" style="{{ s.style }}"><span style="{{ s.dot }}">{{ s.n }}</span>{{ s.label }}</button>
+</sc-for>
+<p style="margin: 16px 0 0; font-size: 13px; color: #475569; line-height: 1.6">Deneme: Büyüme özellikleri, 100 TL mesaj kredisi ve 300 AI kredisi. Kart istenmez.</p>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 18px; padding: 36px; display: flex; flex-direction: column; gap: 22px">
+<sc-if value="{{ s1 }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 20px">
+<h2 style="margin: 0; font-size: 22px; font-weight: 600">Firma bilgileri</h2>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Firma adı<input type="text" value="Easytrade Ltd." style="font: inherit; font-size: 15px; padding: 11px 14px; border: 1px solid #CBD5E1; border-radius: 10px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Panel adresi
+<span style="display: flex; align-items: stretch; border: 1px solid #CBD5E1; border-radius: 10px; overflow: hidden"><input type="text" value="easytrade" style="flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 11px 14px; border: 0"><span style="display: flex; align-items: center; padding: 0 14px; background: #F1F5F9; color: #475569; font-size: 15px">.messora.tech</span></span>
+<span style="font-size: 13px; color: #047857; font-weight: 500">Kullanılabilir. Kendi alan adını (panel.easytrade.com) sonra ekleyebilirsin.</span>
+</label>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Vergi dairesi<input type="text" value="Kadıköy" style="font: inherit; font-size: 15px; padding: 11px 14px; border: 1px solid #CBD5E1; border-radius: 10px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Vergi no / TCKN<input type="text" value="1234567890" style="font: inherit; font-size: 15px; padding: 11px 14px; border: 1px solid #CBD5E1; border-radius: 10px"></label>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ s2 }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 22px; font-weight: 600">Plan (deneme sonunda geçerli)</h2>
+<label style="display: flex; gap: 14px; align-items: center; padding: 16px; border: 1px solid #E2E8F0; border-radius: 12px; font-size: 15px"><input type="radio" name="plan"><span style="flex: 1"><strong>Başlangıç</strong> · 1 numara, 2 kullanıcı</span><span>1.290 TL/ay</span></label>
+<label style="display: flex; gap: 14px; align-items: center; padding: 16px; border: 2px solid #2563EB; border-radius: 12px; font-size: 15px"><input type="radio" name="plan" checked><span style="flex: 1"><strong>Büyüme</strong> · 1 numara, 5 kullanıcı, 3 AI ajanı</span><span>2.990 TL/ay</span></label>
+<label style="display: flex; gap: 14px; align-items: center; padding: 16px; border: 1px solid #E2E8F0; border-radius: 12px; font-size: 15px"><input type="radio" name="plan"><span style="flex: 1"><strong>Pro</strong> · 3 numara, 12 kullanıcı</span><span>6.490 TL/ay</span></label>
+<span style="font-size: 13px; color: #475569">Plan, deneme bitmeden istediğin an değişir. Fiyatlara KDV dahil değildir.</span>
+</div>
+</sc-if>
+<sc-if value="{{ s3 }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 22px; font-weight: 600">Sahip hesabı</h2>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Ad soyad<input type="text" value="Furkan Meclis" style="font: inherit; font-size: 15px; padding: 11px 14px; border: 1px solid #CBD5E1; border-radius: 10px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">E-posta<input type="email" value="owner@easytrade.com" style="font: inherit; font-size: 15px; padding: 11px 14px; border: 1px solid #CBD5E1; border-radius: 10px"></label>
+<span style="font-size: 13px; color: #475569">E-postana doğrulama bağlantısı gider; şifreni orada belirlersin.</span>
+</div>
+</sc-if>
+<sc-if value="{{ s4 }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 22px; font-weight: 600">WhatsApp numaranı bağla</h2>
+<p style="margin: 0; font-size: 15px; color: #475569; line-height: 1.6">Meta ile giriş yapıp işletme hesabını ve numaranı seç (Embedded Signup). Sonra da yapabilirsin; panel numarasız da açılır.</p>
+<button type="button" style="align-self: flex-start; border: 0; background: #1877F2; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 600; padding: 12px 20px; border-radius: 10px">Meta ile bağla</button>
+</div>
+</sc-if>
+<div style="display: flex; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 8px">
+<button type="button" onClick="{{ back }}" style="border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A; font: inherit; font-size: 15px; font-weight: 600; padding: 11px 18px; border-radius: 10px; cursor: pointer">Geri</button>
+<button type="button" onClick="{{ next }}" style="border: 0; background: #2563EB; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 600; padding: 11px 22px; border-radius: 10px; cursor: pointer">{{ nextLabel }}</button>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { step: 1 };
+}
+renderVals() {
+const step = this.state.step;
+const labels = ['Firma bilgileri', 'Plan', 'Sahip hesabı', 'WhatsApp'];
+const steps = labels.map((label, i) => {
+const n = i + 1;
+const on = n === step;
+const done = n < step;
+return {
+n: done ? '✓' : String(n),
+label,
+go: () => this.setState({ step: n }),
+style: 'display: flex; align-items: center; gap: 12px; text-align: left; border: 0; font: inherit; font-size: 15px; font-weight: ' + (on ? '600' : '500') + '; color: ' + (on ? '#0F172A' : '#475569') + '; background: ' + (on ? '#FFFFFF' : 'transparent') + '; padding: 12px 14px; border-radius: 12px; cursor: pointer; min-height: 44px',
+dot: 'display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px; font-size: 13px; font-weight: 600; ' + (on || done ? 'background: #2563EB; color: #FFFFFF' : 'background: #E2E8F0; color: #475569')
+};
+});
+return {
+steps,
+s1: step === 1, s2: step === 2, s3: step === 3, s4: step === 4,
+nextLabel: step === 4 ? 'Paneli aç' : 'Devam',
+next: () => this.setState({ step: Math.min(4, step + 1) }),
+back: () => this.setState({ step: Math.max(1, step - 1) })
+};
+}
+}
+</script>
+</body>
+</html>
