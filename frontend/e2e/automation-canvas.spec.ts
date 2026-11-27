@@ -68,7 +68,7 @@ test.beforeAll(async ({ browser }) => {
     await page.goto(`/invite?token=${token}`);
     await expect(page.getByText('You were invited as Manager.')).toBeVisible();
     await page.getByLabel('Your name').fill(MANAGER.name);
-    await page.getByLabel('Password').fill(MANAGER.password);
+    await page.getByLabel('Password', { exact: true }).fill(MANAGER.password);
     await page.getByRole('button', { name: 'Join' }).click();
     await expect(
         page.getByRole('heading', { name: 'Welcome, Cora' }),

@@ -53,7 +53,8 @@ func RunAPI(ctx context.Context) error {
 	ready := health.NewChecker(2*time.Second).
 		Add("postgres", health.Postgres(pool)).
 		Add("schema", health.Schema(pool)).
-		Add("redis", health.Redis(rdb))
+		Add("redis", health.Redis(rdb)).
+		Add("storage", svc.stores.Check)
 	sys := newSystemHandler(pool, rdb, insp, cf, log)
 
 	r := chi.NewRouter()

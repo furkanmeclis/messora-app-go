@@ -1,11 +1,13 @@
 package messaging
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -86,10 +88,34 @@ func TestBuildValidatesEveryType(t *testing.T) {
 }
 
 func TestMediaStoreRejectsEscapes(t *testing.T) {
-	s := NewMediaStore(t.TempDir())
-	for _, k := range []string{"", "../etc/passwd", "/etc/passwd", "a/../../b"} {
-		if _, err := s.Open(k); err == nil {
+	st, err := storage.NewLocal(t.TempDir(), storage.Private, make([]byte, 32), "http://localhost", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewMediaStore(st)
+	ctx := storage.WithTenant(context.Background(), "acme")
+	for _, k := range []string{"", "../etc/passwd", "/etc/passwd", "a/../../b", "t/other/media/2026/11/x", "ab/cd/legacy"} {
+		if _, _, err := s.Open(ctx, k); err == nil {
 			t.Errorf("key %q opened", k)
+		}
+	}
+}
+
+func TestMediaType(t *testing.T) {
+	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+	for _, c := range []struct {
+		declared string
+		head     []byte
+		want     string
+	}{
+		{"image/png", png, "image/png"},
+		{"", png, "image/png"},
+		{"image/jpeg", []byte("<html><script>alert(1)</script>"), "text/html"},
+		{"audio/ogg; codecs=opus", []byte("OggS\x00"), "audio/ogg"},
+		{"application/vnd.ms-excel", []byte{0xd0, 0xcf, 0x11, 0xe0}, "application/vnd.ms-excel"},
+	} {
+		if got := mediaType(c.declared, c.head); got != c.want {
+			t.Errorf("mediaType(%q) = %q, want %q", c.declared, got, c.want)
 		}
 	}
 }

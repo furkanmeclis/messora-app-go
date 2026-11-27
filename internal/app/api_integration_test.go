@@ -88,8 +88,8 @@ func newHarness(t *testing.T) *harness {
 	meta := whatsapptest.New()
 	t.Cleanup(meta.Close)
 	cfg := &config.Config{PublicAppURL: "https://messora.test", EncryptionKey: bytes.Repeat([]byte{7}, 32),
-		MediaDir: t.TempDir(),
-		Meta:     config.MetaConfig{GraphBaseURL: meta.URL, GraphVersion: "v26.0", AppSecret: testAppSecret, VerifyToken: testVerifyToken}}
+		Storage: config.StorageConfig{Driver: config.StorageLocal, LocalDir: t.TempDir(), SigningKey: bytes.Repeat([]byte{9}, 32)},
+		Meta:    config.MetaConfig{GraphBaseURL: meta.URL, GraphVersion: "v26.0", AppSecret: testAppSecret, VerifyToken: testVerifyToken}}
 	cfg.Centrifugo.HMACSecret = testHMACSecret // see realtime_integration_test.go
 	// Tenant A is tenant #1, reached at the PUBLIC_APP_URL host.
 	if _, err := tenant.BootstrapDomains(context.Background(), tdb.Owner, cfg.PublicAppURL, ""); err != nil {

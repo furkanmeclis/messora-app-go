@@ -1,0 +1,8 @@
+{{define "content"}}
+{{template "h1" "Confirm your new e-mail address"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">You asked to change your Messora account's e-mail address to <strong>{{.D.NewEmail}}</strong>. Confirm to complete the change.</p>
+{{template "button" (dict "URL" .D.ConfirmURL "Label" "Confirm address" "L" .L)}}
+<p class="m-muted" style="{{css "muted"}}">The link is valid for <strong>{{dur .D.ExpiresIn}}</strong>. Your current address keeps working until you confirm.</p>
+{{template "note" "If you didn't ask for this, don't click the button; nothing will change. If you think your account may be at risk, change your password."}}
+{{end}}

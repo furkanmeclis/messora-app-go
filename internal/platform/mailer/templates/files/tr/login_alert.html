@@ -1,0 +1,10 @@
+{{define "content"}}
+{{template "h1" "Hesabınızda yeni bir oturum açıldı"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Messora hesabınıza yeni bir oturum açıldı.</p>
+{{template "rows" (rows "Zaman" (datetime .D.At) "IP adresi" .D.IP "Yaklaşık konum" .D.Location "Cihaz" .D.Device)}}
+<p class="m-text" style="{{css "p"}}">Bu sizseniz bir şey yapmanıza gerek yok.</p>
+{{template "note" "Siz değil misiniz? Şifrenizi hemen değiştirin ve açık oturumları kapatın."}}
+{{template "button" (dict "URL" .D.SecureURL "Label" "Bu ben değilim" "L" .L)}}
+<p class="m-muted" style="{{css "muted"}}">Konum, IP adresine göre yaklaşık olarak belirlenir.</p>
+{{end}}

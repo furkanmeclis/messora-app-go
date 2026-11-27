@@ -1,0 +1,18 @@
+{{define "subject"}}{{if .D.Overdue}}Ödemesi geciken fatura: {{.D.InvoiceNo}}{{else}}Yaklaşan ödeme: {{.D.InvoiceNo}}, {{date .D.DueDate}}{{end}}{{end}}
+{{define "preheader"}}{{if .D.Overdue}}Kesinti yaşamamak için {{date .D.GraceEndsAt}} tarihine kadar ödeme yapabilirsiniz.{{else}}{{money .D.Amount}} · son ödeme tarihi {{date .D.DueDate}}{{end}}{{end}}
+{{define "reason"}}Bu e-postayı, Messora aboneliğinizin fatura bildirimleri bu adrese gönderildiği için aldınız.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+{{if .D.Overdue -}}
+{{.D.InvoiceNo}} numaralı faturanızın son ödeme tarihi {{date .D.DueDate}} idi ve ödemesini henüz göremedik. Hesabınız şu an normal çalışıyor; {{date .D.GraceEndsAt}} tarihine kadar ödeme ulaşmazsa çalışma alanınız salt okunur moda geçer.
+{{- else -}}
+Küçük bir hatırlatma: {{.D.InvoiceNo}} numaralı faturanızın son ödeme tarihi {{date .D.DueDate}}.
+{{- end}}
+{{template "rows" (rows "Fatura no" .D.InvoiceNo "Tutar" (money .D.Amount) "Son ödeme tarihi" (date .D.DueDate) "Ek süre sonu" (opt .D.Overdue (date .D.GraceEndsAt)))}}
+{{- with .D.Bank}}
+{{template "bank" (dict "B" . "L" $.L)}}{{end}}
+Ödeme yapmak için:
+{{.D.PayURL}}
+
+Ödemeyi zaten yaptıysanız teşekkür ederiz; havalelerin eşleşmesi bir iş günü sürebilir, bu e-postayı görmezden gelebilirsiniz.
+{{end}}

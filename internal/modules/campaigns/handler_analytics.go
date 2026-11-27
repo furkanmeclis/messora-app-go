@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -382,22 +382,26 @@ func (h *Handler) CreateCampaignExport(w http.ResponseWriter, r *http.Request, i
 
 // DownloadCampaignExport implements api.ServerInterface.
 func (h *Handler) DownloadCampaignExport(w http.ResponseWriter, r *http.Request, id api.CampaignId, exportID openapi_types.UUID) {
-	file, e, err := h.svc.OpenExport(r.Context(), id, exportID)
+	key, e, err := h.svc.OpenExport(r.Context(), id, exportID)
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	defer func() { _ = file.Close() }()
 	name := "export." + e.Format
 	if e.Filename != nil {
 		name = *e.Filename
 	}
-	w.Header().Set("Content-Type", ContentType(e.Format))
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
-	if e.SizeBytes != nil {
-		w.Header().Set("Content-Length", fmt.Sprint(*e.SizeBytes))
+	// Local files are served here; S3 objects redirect to a short-lived
+	// presigned URL with the same type and file name.
+	err = storage.Serve(w, r, h.svc.ExportObjects(), key, storage.ServeOptions{ContentType: ContentType(e.Format),
+		ContentDisposition: storage.DispositionHeader("attachment", name), CacheControl: "private, no-store"})
+	if errors.Is(err, storage.ErrNotFound) {
+		h.fail(w, r, apperr.Conflict("EXPORT_NOT_READY", "The export file is gone."))
+		return
 	}
-	_, _ = io.Copy(w, file)
+	if err != nil {
+		h.fail(w, r, err)
+	}
 }
 
 func protectionAPI(s AnalyticsSettings) api.CampaignProtectionSettings {

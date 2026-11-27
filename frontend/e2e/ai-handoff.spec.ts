@@ -103,7 +103,7 @@ test.beforeAll(async ({ browser }) => {
     page = await context.newPage();
     await page.goto(`/invite?token=${token}`);
     await page.getByLabel('Your name').fill(ADMIN.name);
-    await page.getByLabel('Password').fill(ADMIN.password);
+    await page.getByLabel('Password', { exact: true }).fill(ADMIN.password);
     await page.getByRole('button', { name: 'Join' }).click();
     await expect(page).toHaveURL(/\/account\/security\?enroll=1/);
     await page.getByRole('button', { name: 'Set up now' }).click();

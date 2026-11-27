@@ -1,0 +1,9 @@
+{{define "content"}}
+{{template "h1" "E-posta adresinizi doğrulayın"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Messora'ya hoş geldiniz. Hesabınızı etkinleştirmek için aşağıdaki kodu girin ya da butona tıklayın.</p>
+{{template "code" .D.Code}}
+{{template "button" (dict "URL" .D.VerifyURL "Label" "E-postamı doğrula" "L" .L)}}
+<p class="m-muted" style="{{css "muted"}}">Kod ve bağlantı <strong>{{dur .D.ExpiresIn}}</strong> boyunca geçerlidir.</p>
+{{template "note" "Bu hesabı siz oluşturmadıysanız bu e-postayı görmezden gelebilirsiniz; adres doğrulanmadan hesap etkinleşmez."}}
+{{end}}

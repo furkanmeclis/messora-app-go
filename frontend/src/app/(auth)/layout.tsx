@@ -1,14 +1,13 @@
-import { Brand } from '@/components/brand';
+// The brand typefaces, bundled (no third-party request; the CSP allows
+// fonts from this origin only).
+import '@fontsource-variable/inter/wght.css';
+import '@fontsource-variable/plus-jakarta-sans/wght.css';
+import { AuthShell } from './_components/shell';
 
 export default function AuthLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    return (
-        <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/40 p-6">
-            <Brand />
-            <div className="w-full max-w-sm">{children}</div>
-        </main>
-    );
+    return <AuthShell>{children}</AuthShell>;
 }

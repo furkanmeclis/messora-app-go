@@ -1,0 +1,23 @@
+{{define "subject"}}Messora'ya hoş geldiniz{{end}}
+{{define "preheader"}}Hesabınız hazır. İlk kampanyanıza üç adım uzaktasınız.{{end}}
+{{define "reason"}}Bu e-postayı, Messora hesabınızı doğruladığınız için aldınız.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+Hesabınız hazır. Başlamak için şu üç adım yeterli:
+
+1. WhatsApp numaranızı bağlayın
+   Meta hesabınızla birkaç dakikada bağlanır; mesajlarınız bu numaradan gider.
+   {{.D.ConnectWhatsAppURL}}
+
+2. Kişilerinizi içe aktarın
+   CSV ya da Excel dosyanızı yükleyin, izin bilgilerini de birlikte taşıyın.
+   {{.D.ImportContactsURL}}
+
+3. İlk kampanyanızı oluşturun
+   Onaylı bir şablon seçin, kitlenizi belirleyin; hemen gönderin ya da planlayın.
+   {{.D.NewCampaignURL}}
+
+Panele gitmek için: {{.D.DashboardURL}}
+
+Takıldığınız bir yer olursa destek ekibimiz yardıma hazır.
+{{end}}

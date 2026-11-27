@@ -47,7 +47,7 @@ function sql(query: string): string {
 async function signIn(page: Page) {
     await page.goto('/login');
     await page.getByLabel('E-mail').fill(USER.email);
-    await page.getByLabel('Password').fill(USER.password);
+    await page.getByLabel('Password', { exact: true }).fill(USER.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(
         page.getByRole('heading', { name: 'Welcome, Tina' }),

@@ -2,9 +2,16 @@ package mailer
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
+	"mime/quotedprintable"
 	"net"
+	"net/mail"
 	"strings"
 	"testing"
 	"time"
@@ -105,3 +112,142 @@ func TestRejectsHeaderInjectionAndBadConfig(t *testing.T) {
 }
 
 func fmtSscan(s string, p *int) (int, error) { return fmt.Sscan(s, p) }
+
+func testSMTP(t *testing.T) *SMTP {
+	t.Helper()
+	s, err := New(Config{Host: "127.0.0.1", From: "Messora Bildirim <no-reply@messora.tech>", TLS: "none"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s.(*SMTP)
+}
+
+// parse reads a rendered message back the way a mail client would.
+func parse(t *testing.T, raw []byte) (*mail.Message, string) {
+	t.Helper()
+	for i, line := range strings.Split(string(raw), "\r\n") {
+		if len(line) > 998 {
+			t.Fatalf("line %d is %d bytes long", i, len(line))
+		}
+	}
+	msg, err := mail.ReadMessage(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	subject, err := new(mime.WordDecoder).DecodeHeader(msg.Header.Get("Subject"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return msg, subject
+}
+
+const turkish = "Şifreniz değişti — İğdır'da ÇAY içen öğrenci ışığı gördü: ğüşıöçĞÜŞİÖÇ"
+
+func TestMultipartRoundTripTurkish(t *testing.T) {
+	s := testSMTP(t)
+	to, _ := mail.ParseAddress("Ayşe Yılmaz <ayse@example.com>")
+	long := strings.Repeat("Güvenliğiniz için bağlantı 30 dakika geçerlidir. ", 6)
+	m := Message{
+		To:              to.String(),
+		Subject:         turkish,
+		Body:            "Merhaba Ayşe,\n" + long + "\n.nokta ile başlayan satır\n",
+		HTML:            `<p style="color:#0B1220">Merhaba <strong>Ayşe</strong>, ` + long + `</p>`,
+		ReplyTo:         "Destek <destek@messora.tech>",
+		ListUnsubscribe: "https://app.messora.tech/u/abc",
+	}
+	now := time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
+	raw, err := s.render(to, m, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, b := range raw {
+		if b > 127 {
+			t.Fatalf("non-ASCII byte at %d: rendered message must be 7-bit", i)
+		}
+	}
+	msg, subject := parse(t, raw)
+	if subject != turkish {
+		t.Fatalf("subject round-trip: got %q", subject)
+	}
+	h := msg.Header
+	if h.Get("Date") != "Fri, 27 Nov 2026 10:00:00 +0000" {
+		t.Errorf("date: %q", h.Get("Date"))
+	}
+	if id := h.Get("Message-ID"); !strings.HasPrefix(id, "<") || !strings.HasSuffix(id, "@messora.tech>") {
+		t.Errorf("message-id: %q", id)
+	}
+	if h.Get("Reply-To") != `"Destek" <destek@messora.tech>` {
+		t.Errorf("reply-to: %q", h.Get("Reply-To"))
+	}
+	if h.Get("List-Unsubscribe") != "<https://app.messora.tech/u/abc>" || h.Get("List-Unsubscribe-Post") != "List-Unsubscribe=One-Click" {
+		t.Errorf("list-unsubscribe: %q / %q", h.Get("List-Unsubscribe"), h.Get("List-Unsubscribe-Post"))
+	}
+	mt, params, err := mime.ParseMediaType(h.Get("Content-Type"))
+	if err != nil || mt != "multipart/alternative" {
+		t.Fatalf("content-type: %q %v", h.Get("Content-Type"), err)
+	}
+	mr := multipart.NewReader(msg.Body, params["boundary"])
+	var types, bodies []string
+	for {
+		p, err := mr.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(p) // multipart decodes quoted-printable transparently
+		types = append(types, p.Header.Get("Content-Type"))
+		bodies = append(bodies, strings.ReplaceAll(string(b), "\r\n", "\n"))
+	}
+	if len(types) != 2 || types[0] != "text/plain; charset=utf-8" || types[1] != "text/html; charset=utf-8" {
+		t.Fatalf("parts: %v", types)
+	}
+	if bodies[0] != m.Body {
+		t.Errorf("text part round-trip:\n%q\n%q", bodies[0], m.Body)
+	}
+	if bodies[1] != m.HTML+"\n" {
+		t.Errorf("html part round-trip:\n%q", bodies[1])
+	}
+}
+
+func TestPlainTextStaysSinglePart(t *testing.T) {
+	s := testSMTP(t)
+	to, _ := mail.ParseAddress("a@example.com")
+	raw, err := s.render(to, Message{To: "a@example.com", Subject: "Hello", Body: "Çok güzel"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, subject := parse(t, raw)
+	if subject != "Hello" || msg.Header.Get("Subject") != "Hello" {
+		t.Errorf("ASCII subject must not be encoded: %q", msg.Header.Get("Subject"))
+	}
+	if msg.Header.Get("Content-Type") != "text/plain; charset=utf-8" || msg.Header.Get("Content-Transfer-Encoding") != "quoted-printable" {
+		t.Errorf("headers: %v", msg.Header)
+	}
+	if msg.Header.Get("List-Unsubscribe") != "" || msg.Header.Get("Reply-To") != "" {
+		t.Error("optional headers must be absent")
+	}
+	b, _ := io.ReadAll(quotedprintable.NewReader(msg.Body))
+	if string(b) != "Çok güzel\r\n" {
+		t.Errorf("body: %q", b)
+	}
+}
+
+func TestRejectsBadOptionalHeaders(t *testing.T) {
+	s := testSMTP(t)
+	for _, m := range []Message{
+		{To: "a@example.com", ReplyTo: "x@example.com\r\nBcc: evil@example.com"},
+		{To: "a@example.com", ReplyTo: "not an address"},
+		{To: "a@example.com", ListUnsubscribe: "http://insecure.example.com"},
+		{To: "a@example.com", ListUnsubscribe: "https://a.example.com>\r\nBcc: e@x.co"},
+		{To: "a@example.com", ListUnsubscribe: "javascript:alert(1)"},
+	} {
+		if err := s.Send(context.Background(), m); err == nil {
+			t.Errorf("accepted %+v", m)
+		}
+	}
+	if err := validateOptional(Message{ListUnsubscribe: "mailto:unsubscribe@messora.tech"}); err != nil {
+		t.Errorf("mailto rejected: %v", err)
+	}
+}

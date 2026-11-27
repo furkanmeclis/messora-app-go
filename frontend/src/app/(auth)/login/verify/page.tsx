@@ -1,15 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { ShieldCheck } from 'lucide-react';
 import { getT } from '@/i18n/server';
 import { safeNext } from '@/lib/server/actions';
 import { getMfaToken } from '@/lib/server/session';
+import { AuthCard, AuthLink } from '../../_components/shell';
 import { VerifyForm } from '../../forms';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -26,16 +21,17 @@ export default async function VerifyPage({
     const sp = await searchParams;
     const t = await getT();
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{t('auth.verify.title')}</CardTitle>
-                <CardDescription>
-                    {t('auth.verify.description')}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <VerifyForm next={safeNext(sp.next)} />
-            </CardContent>
-        </Card>
+        <AuthCard
+            icon={ShieldCheck}
+            title={t('auth.verify.title')}
+            description={t('auth.verify.description')}
+            footer={
+                <AuthLink href="/logout" prefetch={false}>
+                    {t('auth.verify.backToSignIn')}
+                </AuthLink>
+            }
+        >
+            <VerifyForm next={safeNext(sp.next)} />
+        </AuthCard>
     );
 }

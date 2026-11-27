@@ -1,0 +1,11 @@
+{{define "content"}}
+{{template "h1" "Your workspace is now read-only"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Because of an unpaid invoice, {{with .C.TenantName}}the <strong>{{.}}</strong> workspace{{else}}your workspace{{end}} switched to read-only mode on {{datetime .D.SuspendedAt}}.</p>
+{{template "rows" (rows "Invoice no." .D.InvoiceNo "Open balance" (opt (gt .D.Amount.Minor 0) (money .D.Amount)))}}
+<p class="m-text" style="{{css "h2"}}">What changed?</p>
+<p class="m-text" style="{{css "p"}}">Your data is safe; nothing has been deleted. You can still view the dashboard, but sending messages, campaigns and automations are paused.</p>
+<p class="m-text" style="{{css "h2"}}">How to fix it</p>
+<p class="m-text" style="{{css "p"}}">Once the open balance is paid, full access usually returns within a few minutes. Bank transfers can take a business day to match.</p>
+{{template "button" (dict "URL" .D.BillingURL "Label" "Complete payment" "L" .L)}}
+{{end}}

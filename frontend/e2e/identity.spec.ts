@@ -50,7 +50,7 @@ test('owner sets up the installation, runs the wizard and enrols two-factor auth
     await page.getByLabel('Organization name').fill(OWNER.org);
     await page.getByLabel('Your name').fill(OWNER.name);
     await page.getByLabel('E-mail').fill(OWNER.email);
-    await page.getByLabel('Password').fill(OWNER.password);
+    await page.getByLabel('Password', { exact: true }).fill(OWNER.password);
     await page.getByRole('button', { name: 'Create owner account' }).click();
 
     // The first-run wizard opens; two-factor is not required by default.
@@ -148,12 +148,12 @@ test('invitee joins as an agent and sees only what the role allows', async ({
     await page.goto(url.pathname + url.search);
     await expect(page.getByText('You were invited as Agent.')).toBeVisible();
     await page.getByLabel('Your name').fill(AGENT.name);
-    await page.getByLabel('Password').fill('password1234');
+    await page.getByLabel('Password', { exact: true }).fill('password1234');
     await page.getByRole('button', { name: 'Join' }).click();
     await expect(page.getByText(/too common|varied/)).toBeVisible();
     // A rejected submission keeps what the user typed (except the password).
     await expect(page.getByLabel('Your name')).toHaveValue(AGENT.name);
-    await page.getByLabel('Password').fill(AGENT.password);
+    await page.getByLabel('Password', { exact: true }).fill(AGENT.password);
     await page.getByRole('button', { name: 'Join' }).click();
 
     await expect(
@@ -208,7 +208,9 @@ test('wrong password and unknown e-mail look the same', async ({ page }) => {
     await page.goto('/login');
     for (const email of [OWNER.email, 'nobody@example.com']) {
         await page.getByLabel('E-mail').fill(email);
-        await page.getByLabel('Password').fill('definitely-wrong');
+        await page
+            .getByLabel('Password', { exact: true })
+            .fill('definitely-wrong');
         await page.getByRole('button', { name: 'Sign in' }).click();
         await expect(
             page.getByText('E-mail or password is incorrect'),
@@ -224,7 +226,7 @@ async function signIn(
 ) {
     await page.goto('/login');
     await page.getByLabel('E-mail').fill(email);
-    await page.getByLabel('Password').fill(password);
+    await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/login\/verify/);
     const code = secondFactor();
@@ -234,7 +236,8 @@ async function signIn(
             .click();
         await page.getByLabel('Recovery code').fill(code);
     } else {
-        await page.getByLabel('Authenticator code').fill(code);
+        // Six boxes; a whole code typed or pasted into the first fills them all.
+        await page.getByLabel('Digit 1 of 6').fill(code);
     }
     await page.getByRole('button', { name: 'Verify' }).click();
     await expect(page).not.toHaveURL(/\/login/);

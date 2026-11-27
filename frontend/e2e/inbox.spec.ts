@@ -72,7 +72,7 @@ test('an agent opens a conversation, replies and sees the delivery update', asyn
 
     await page.goto('/login');
     await page.getByLabel('E-mail').fill(AGENT.email);
-    await page.getByLabel('Password').fill(AGENT.password);
+    await page.getByLabel('Password', { exact: true }).fill(AGENT.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(
         page.getByRole('heading', { name: 'Welcome, Ari' }),

@@ -1,0 +1,17 @@
+{{define "subject"}}Çalışma alanınız salt okunur moda geçti{{end}}
+{{define "preheader"}}Ödemeyi tamamladığınızda her şey kaldığı yerden devam eder.{{end}}
+{{define "reason"}}Bu e-postayı, Messora aboneliğinizin fatura bildirimleri bu adrese gönderildiği için aldınız.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+Ödenmemiş bir fatura nedeniyle {{with .C.TenantName}}{{.}} çalışma alanı{{else}}çalışma alanınız{{end}} {{datetime .D.SuspendedAt}} itibarıyla salt okunur moda geçti.
+{{template "rows" (rows "Fatura no" .D.InvoiceNo "Açık bakiye" (opt (gt .D.Amount.Minor 0) (money .D.Amount)))}}
+Ne değişti?
+- Verileriniz güvende; hiçbir şey silinmedi.
+- Paneli görüntüleyebilirsiniz, ancak mesaj gönderimi, kampanyalar ve otomasyonlar duraklatıldı.
+
+Nasıl düzeltilir?
+Açık bakiyeyi ödediğinizde çalışma alanınız genellikle birkaç dakika içinde yeniden tam erişime açılır. Havale ile ödemelerde eşleşme bir iş günü sürebilir.
+
+Ödemeyi tamamlamak için:
+{{.D.BillingURL}}
+{{end}}

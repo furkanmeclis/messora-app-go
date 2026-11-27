@@ -1,0 +1,8 @@
+{{define "content"}}
+{{template "h1" (printf "Your %s are running low" (credit .D.CreditType))}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">The {{credit .D.CreditType}} balance {{with .C.TenantName}}of the <strong>{{.}}</strong> workspace{{else}}of your workspace{{end}} has dropped below the threshold you set.</p>
+{{template "rows" (rows "Remaining balance" (num .D.Balance) "Alert threshold" (num .D.Threshold))}}
+<p class="m-text" style="{{css "p"}}">When the balance runs out, {{if eq .D.CreditType "ai"}}AI replies and suggestions{{else}}campaigns and message sending{{end}} will pause. Top up now to avoid any interruption.</p>
+{{template "button" (dict "URL" .D.TopUpURL "Label" "Top up credits" "L" .L)}}
+{{end}}

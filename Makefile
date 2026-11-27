@@ -116,6 +116,10 @@ api-docs: ## Regenerate docs/API.md (public endpoint inventory) and bin/openapi.
 api-docs-check: ## Fail if a public operation is undocumented or docs/API.md is stale
 	go run ./cmd/apidocs -md docs/API.md -check
 
+.PHONY: mail-preview
+mail-preview: ## Render every e-mail template (TR/EN) into tmp/mail-preview with an index.html gallery
+	go run ./cmd/mailpreview -out tmp/mail-preview
+
 .PHONY: fmt
 fmt: ## Format Go and frontend code
 	gofmt -w cmd internal migrations

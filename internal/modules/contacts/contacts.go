@@ -23,6 +23,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -34,9 +35,10 @@ type Service struct {
 	imp  *ImportStore
 }
 
-// New returns the service; imports are stored under importDir.
-func New(pool *pgxpool.Pool, importDir string, log *slog.Logger) *Service {
-	return &Service{pool: pool, q: db.New(pool), log: log, imp: &ImportStore{root: importDir}}
+// New returns the service; import files are kept in the private object
+// store, temporary files in its scratch directory.
+func New(pool *pgxpool.Pool, stores *storage.Stores, log *slog.Logger) *Service {
+	return &Service{pool: pool, q: db.New(pool), log: log, imp: &ImportStore{st: stores.Private, scratch: stores.Scratch}}
 }
 
 var e164 = regexp.MustCompile(`^\+[1-9][0-9]{6,14}$`)

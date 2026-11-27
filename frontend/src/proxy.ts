@@ -7,6 +7,8 @@ const PUBLIC = [
     '/invite',
     '/forgot-password',
     '/reset-password',
+    '/signup',
+    '/verify-email',
     '/logout',
     // The public API reference and the document it renders.
     '/docs/api',

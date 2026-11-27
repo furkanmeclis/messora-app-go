@@ -6,6 +6,8 @@
 package config
 
 import (
+	"crypto/hkdf"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -85,8 +87,9 @@ type Config struct {
 	// (AI_FAKE_PROVIDER); refused in production.
 	AIFakeProvider bool
 
-	// MediaDir stores downloaded WhatsApp media (a volume in Compose).
-	MediaDir string
+	// Storage configures the object store for media, imports, exports and
+	// branding assets (internal/platform/storage, docs/STORAGE.md).
+	Storage StorageConfig
 
 	// Workspace holds workspace settings set by environment variables
 	// (APP_ORGANIZATION_NAME …), keyed by setting name. They win over the
@@ -116,6 +119,40 @@ type MetaConfig struct {
 	DryRun       bool   // refuse requests to Meta (forced in APP_ENV=test)
 	AccessToken  Secret
 	WABAID       string
+}
+
+// Storage drivers.
+const (
+	StorageLocal = "local"
+	StorageS3    = "s3"
+)
+
+// StorageConfig selects and configures the object store.
+type StorageConfig struct {
+	Driver string // STORAGE_DRIVER: local (default) | s3
+	// LocalDir holds the objects of the local driver and, for every
+	// driver, the scratch space (STORAGE_LOCAL_DIR; MEDIA_DIR is read as
+	// its older name).
+	LocalDir string
+	S3       S3Config
+	// PublicAssetBaseURL is the CDN in front of the public bucket
+	// (PUBLIC_ASSET_BASE_URL); empty serves public assets from the app.
+	PublicAssetBaseURL string
+	// SigningKey signs local download links: MEDIA_SIGNING_KEY, or derived
+	// from APP_ENCRYPTION_KEY when unset.
+	SigningKey []byte
+}
+
+// S3Config configures the s3 driver (AWS S3, Cloudflare R2, MinIO).
+type S3Config struct {
+	Region          string
+	BucketPrivate   string
+	BucketPublic    string
+	Endpoint        string
+	ForcePathStyle  bool
+	AccessKeyID     string
+	SecretAccessKey Secret
+	SSE             string
 }
 
 // SMTPConfig configures outgoing e-mail; an empty Host disables e-mail.
@@ -292,8 +329,22 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 			WABAID:       l.str("META_WABA_ID", ""),
 		},
 		AIFakeProvider: l.bool("AI_FAKE_PROVIDER", false),
-		MediaDir:       l.str("MEDIA_DIR", "/var/lib/messora/media"),
-		Workspace:      map[string]string{},
+		Storage: StorageConfig{
+			Driver:   strings.ToLower(l.str("STORAGE_DRIVER", StorageLocal)),
+			LocalDir: l.str("STORAGE_LOCAL_DIR", l.str("MEDIA_DIR", "/var/lib/messora/media")),
+			S3: S3Config{
+				Region:          l.str("S3_REGION", l.str("AWS_REGION", "")),
+				BucketPrivate:   l.str("S3_BUCKET_PRIVATE", ""),
+				BucketPublic:    l.str("S3_BUCKET_PUBLIC", ""),
+				Endpoint:        strings.TrimRight(l.str("S3_ENDPOINT", ""), "/"),
+				ForcePathStyle:  l.bool("S3_FORCE_PATH_STYLE", false),
+				AccessKeyID:     l.str("S3_ACCESS_KEY_ID", ""),
+				SecretAccessKey: Secret(l.str("S3_SECRET_ACCESS_KEY", "")),
+				SSE:             l.str("S3_SSE", "AES256"),
+			},
+			PublicAssetBaseURL: strings.TrimRight(l.str("PUBLIC_ASSET_BASE_URL", ""), "/"),
+		},
+		Workspace: map[string]string{},
 	}
 	for name, env := range WorkspaceEnv {
 		if v := strings.TrimSpace(l.str(env, "")); v != "" {
@@ -323,10 +374,76 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 		}
 	}
 
+	if raw := l.str("MEDIA_SIGNING_KEY", ""); raw != "" {
+		cfg.Storage.SigningKey = []byte(raw)
+	} else if cfg.EncryptionKey != nil {
+		cfg.Storage.SigningKey = deriveKey(cfg.EncryptionKey, "messora media signing v1")
+	}
+
 	if len(l.errs) > 0 {
 		return nil, errors.Join(l.errs...)
 	}
 	return cfg, nil
+}
+
+// deriveKey derives a purpose-bound 32-byte key from the master key
+// (HKDF-SHA256), so one leaked derived key reveals nothing else.
+func deriveKey(master []byte, info string) []byte {
+	k, err := hkdf.Key(sha256.New, master, nil, info, 32)
+	if err != nil {
+		panic(err) // only for impossible lengths
+	}
+	return k
+}
+
+// validateStorage checks the object store settings.
+func (c *Config) validateStorage() []error {
+	var errs []error
+	s := c.Storage
+	if s.LocalDir == "" {
+		errs = append(errs, errors.New("STORAGE_LOCAL_DIR is required (scratch space for every driver)"))
+	}
+	switch s.Driver {
+	case StorageLocal:
+		if len(s.SigningKey) < 32 {
+			errs = append(errs, errors.New("MEDIA_SIGNING_KEY must be at least 32 characters (or set APP_ENCRYPTION_KEY to derive it)"))
+		}
+	case StorageS3:
+		if s.S3.Region == "" {
+			errs = append(errs, errors.New("S3_REGION is required with STORAGE_DRIVER=s3"))
+		}
+		if s.S3.BucketPrivate == "" || s.S3.BucketPublic == "" {
+			errs = append(errs, errors.New("S3_BUCKET_PRIVATE and S3_BUCKET_PUBLIC are required with STORAGE_DRIVER=s3"))
+		}
+		if s.S3.BucketPrivate != "" && s.S3.BucketPrivate == s.S3.BucketPublic {
+			errs = append(errs, errors.New("S3_BUCKET_PRIVATE and S3_BUCKET_PUBLIC must be different buckets"))
+		}
+		if (s.S3.AccessKeyID != "") != s.S3.SecretAccessKey.IsSet() {
+			errs = append(errs, errors.New("S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY must be set together (or both left empty for the default credential chain)"))
+		}
+		if s.S3.Endpoint != "" {
+			if u, err := url.Parse(s.S3.Endpoint); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+				errs = append(errs, fmt.Errorf("S3_ENDPOINT must be an http(s) URL (got %q)", s.S3.Endpoint))
+			}
+		}
+		switch strings.ToLower(s.S3.SSE) {
+		case "aes256", "none":
+		default:
+			errs = append(errs, fmt.Errorf("S3_SSE must be AES256 or none (got %q)", s.S3.SSE))
+		}
+	default:
+		errs = append(errs, fmt.Errorf("STORAGE_DRIVER must be local or s3 (got %q)", s.Driver))
+	}
+	if b := s.PublicAssetBaseURL; b != "" {
+		u, err := url.Parse(b)
+		switch {
+		case err != nil || u.Host == "" || u.RawQuery != "" || u.Fragment != "":
+			errs = append(errs, fmt.Errorf("PUBLIC_ASSET_BASE_URL must be an absolute URL such as https://cdn.example.com (got %q)", b))
+		case u.Scheme != "https" && (u.Scheme != "http" || c.Env == EnvProduction):
+			errs = append(errs, errors.New("PUBLIC_ASSET_BASE_URL must use https in production"))
+		}
+	}
+	return errs
 }
 
 // Validate checks that everything the given role needs is present.
@@ -373,6 +490,9 @@ func (c *Config) Validate(role Role) error {
 		if p := c.Worker.CampaignReservedPercent; p < 5 || p > 90 {
 			errs = append(errs, fmt.Errorf("CAMPAIGN_RESERVED_PERCENT must be between 5 and 90 (got %d)", p))
 		}
+	}
+	if role == RoleAPI || role == RoleWorker {
+		errs = append(errs, c.validateStorage()...)
 	}
 	if role == RoleAPI {
 		req(c.BFFSharedSecret.IsSet(), "BFF_SHARED_SECRET")

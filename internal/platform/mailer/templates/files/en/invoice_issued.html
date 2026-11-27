@@ -1,0 +1,9 @@
+{{define "content"}}
+{{template "h1" "Your invoice is ready"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">{{with .D.Period}}Your invoice for <strong>{{.}}</strong>{{else}}Your new invoice{{end}} is ready.</p>
+{{template "rows" (rows "Invoice no." .D.InvoiceNo "Period" .D.Period "Amount" (money .D.Amount) "Due date" (date .D.DueDate))}}
+{{with .D.Bank}}{{template "bank" (dict "B" . "L" $.L)}}{{end}}
+{{template "button" (dict "URL" .D.InvoiceURL "Label" "View invoice" "L" .L)}}
+<p class="m-muted" style="{{css "muted"}}">We'll let you know once your payment arrives.</p>
+{{end}}

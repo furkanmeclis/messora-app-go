@@ -1,0 +1,9 @@
+{{define "content"}}
+{{template "h1" "Confirm your e-mail address"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Welcome to Messora. To activate your account, enter the code below or use the button.</p>
+{{template "code" .D.Code}}
+{{template "button" (dict "URL" .D.VerifyURL "Label" "Confirm my e-mail" "L" .L)}}
+<p class="m-muted" style="{{css "muted"}}">The code and the link are valid for <strong>{{dur .D.ExpiresIn}}</strong>.</p>
+{{template "note" "If you didn't create this account, you can ignore this e-mail; the account stays inactive until the address is confirmed."}}
+{{end}}

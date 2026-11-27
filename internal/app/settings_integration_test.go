@@ -170,8 +170,8 @@ func TestLogoUploadAndServe(t *testing.T) {
 	if r.data()["logo"] != nil {
 		t.Fatal("logo not cleared")
 	}
-	if _, err := os.Stat(filepath.Join(h.svc.cfg.MediaDir, "branding", "logo")); !os.IsNotExist(err) {
-		t.Fatalf("logo file left behind: %v", err)
+	if entries, _ := os.ReadDir(filepath.Join(h.svc.cfg.Storage.LocalDir, "_public", "t", "default", "branding")); len(entries) != 0 {
+		t.Fatalf("logo file left behind: %v", entries)
 	}
 	h.expect(h.do(call{method: "GET", path: "/api/v1/appearance/logo"}), 404, "NOT_FOUND")
 }
