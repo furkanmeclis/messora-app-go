@@ -129,8 +129,9 @@ export function AppSidebar({
 
     return (
         <Sidebar collapsible="icon" data-chrome>
-            <SidebarHeader>
-                <div className="flex items-center gap-2.5 px-1 py-1.5">
+            {/* As tall as the top bar, so their bottom edges meet. */}
+            <SidebarHeader className="h-14 shrink-0 justify-center border-b border-sidebar-border">
+                <div className="flex items-center gap-2.5 px-1 py-0.5">
                     <OrgMark
                         logoVersion={logoVersion}
                         className="size-8 shrink-0"
