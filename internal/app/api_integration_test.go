@@ -592,7 +592,7 @@ func TestAuditTrailAndPagination(t *testing.T) {
 		}
 		cursor = next
 	}
-	for _, a := range []string{"setup.complete", "user.login", "user.mfa_enable", "invitation.create"} {
+	for _, a := range []string{"invitation.accept", "user.login", "user.mfa_enable", "invitation.create"} {
 		if !seen[a] {
 			t.Errorf("audit log missing %s (saw %v)", a, seen)
 		}
@@ -600,8 +600,9 @@ func TestAuditTrailAndPagination(t *testing.T) {
 	if pages < 3 {
 		t.Fatalf("expected several pages, got %d", pages)
 	}
+	// The owner's own invitation (from the platform) and three more.
 	r := h.do(call{method: "GET", path: "/api/v1/audit-logs?action=invitation.create", token: owner})
-	if len(r.list()) != 3 {
+	if len(r.list()) != 4 {
 		t.Fatalf("filter by action: %s", r.raw)
 	}
 }

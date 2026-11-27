@@ -304,8 +304,13 @@ func TestAIProfilesSettingsAndTestConsole(t *testing.T) {
 		"default_model": "", "disclosure": map[string]any{"tr": "x", "en": ""}, "data_sharing_notice": map[string]any{"tr": "", "en": ""}}})
 	h.expect(r, 200, "")
 	h.expect(h.do(call{method: "POST", path: "/api/v1/ai/profiles/" + pid + "/test", token: owner, body: map[string]any{"messages": msgs}}), 409, "AI_DISABLED")
-	if n := h.count(`SELECT count(*) FROM audit_logs WHERE action IN ('ai.settings.update', 'ai.profile.create', 'ai.profile.update', 'ai.price.create', 'ai.price.update')`); n < 7 {
+	if n := h.count(`SELECT count(*) FROM audit_logs WHERE action IN ('ai.settings.update', 'ai.profile.create', 'ai.profile.update')`); n < 5 {
 		t.Fatalf("audit rows = %d", n)
+	}
+	// Prices are platform data: the platform's audit trail has them.
+	var platformRows int
+	if err := h.owner.QueryRow(context.Background(), `SELECT count(*) FROM platform_audit_logs WHERE action IN ('ai.price.create', 'ai.price.update')`).Scan(&platformRows); err != nil || platformRows < 2 {
+		t.Fatalf("platform audit rows = %d %v", platformRows, err)
 	}
 
 	r = h.do(call{method: "GET", path: "/api/v1/ai/profiles", token: owner})
