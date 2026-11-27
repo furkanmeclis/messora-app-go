@@ -1,21 +1,23 @@
--- ── Users ───────────────────────────────────────────────────────────────────
-
--- name: CountUsers :one
-SELECT count(*) FROM users;
+-- ── Users (global) and memberships (per tenant) ─────────────────────────────
 
 -- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, locale, timezone)
-VALUES (@email, @name, @password_hash, @locale, @timezone)
+INSERT INTO users (email, name, password_hash, locale, timezone, email_verified_at)
+VALUES (@email, @name, @password_hash, @locale, @timezone, sqlc.narg(email_verified_at))
 RETURNING *;
 
--- name: AssignRole :exec
-INSERT INTO user_roles (user_id, role_id)
-SELECT @user_id, r.id FROM roles r WHERE r.key = @role_key;
+-- name: CreateMembership :exec
+-- Adds the user to the connection's tenant with role_key.
+INSERT INTO tenant_memberships (user_id, role_id, invited_by)
+SELECT @user_id, r.id, sqlc.narg(invited_by) FROM roles r WHERE r.key = @role_key;
+
+-- name: CreateMembershipIn :exec
+-- Adds the user to tenant_id (platform role: sign-up and tenant creation).
+INSERT INTO tenant_memberships (tenant_id, user_id, role_id, invited_by)
+SELECT @tenant_id, @user_id, r.id, sqlc.narg(invited_by) FROM roles r WHERE r.key = @role_key;
 
 -- name: ReplaceRole :exec
-WITH removed AS (DELETE FROM user_roles WHERE user_id = @user_id)
-INSERT INTO user_roles (user_id, role_id)
-SELECT @user_id, r.id FROM roles r WHERE r.key = @role_key;
+UPDATE tenant_memberships SET role_id = (SELECT r.id FROM roles r WHERE r.key = @role_key), updated_at = now()
+WHERE user_id = @user_id;
 
 -- name: GetUserByEmail :one
 SELECT * FROM users WHERE email = @email;
@@ -27,30 +29,46 @@ SELECT * FROM users WHERE id = @id;
 SELECT * FROM users WHERE id = @id FOR UPDATE;
 
 -- name: ListUsersWithRole :many
-SELECT u.*, r.key AS role_key, r.name AS role_name, r.rank AS role_rank
-FROM users u
-JOIN user_roles ur ON ur.user_id = u.id
-JOIN roles r ON r.id = ur.role_id
-ORDER BY u.created_at;
+-- The members of the connection's tenant. status is the membership's,
+-- or disabled when the account itself is.
+SELECT u.id, u.email, u.name, u.totp_confirmed_at, u.locale, u.timezone, u.last_login_at, m.created_at,
+       CASE WHEN u.status = 'active' THEN m.status ELSE 'disabled' END::text AS status,
+       r.key AS role_key, r.name AS role_name, r.rank AS role_rank
+FROM tenant_memberships m
+JOIN users u ON u.id = m.user_id
+JOIN roles r ON r.id = m.role_id
+ORDER BY m.created_at;
 
 -- name: GetUserRole :one
-SELECT r.key AS role_key, r.name AS role_name, r.rank AS role_rank
-FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-WHERE ur.user_id = @user_id
-ORDER BY r.rank
-LIMIT 1;
+-- The user's membership in the connection's tenant.
+SELECT r.key AS role_key, r.name AS role_name, r.rank AS role_rank, m.status AS membership_status
+FROM tenant_memberships m JOIN roles r ON r.id = m.role_id
+WHERE m.user_id = @user_id;
+
+-- name: GetMembershipForUpdate :one
+SELECT m.status, r.key AS role_key, r.rank AS role_rank
+FROM tenant_memberships m JOIN roles r ON r.id = m.role_id
+WHERE m.user_id = @user_id
+FOR UPDATE OF m;
 
 -- name: CountActiveOwners :one
-SELECT count(*) FROM users u
-JOIN user_roles ur ON ur.user_id = u.id
-JOIN roles r ON r.id = ur.role_id
-WHERE r.key = 'owner' AND u.status = 'active';
+SELECT count(*) FROM tenant_memberships m
+JOIN users u ON u.id = m.user_id
+JOIN roles r ON r.id = m.role_id
+WHERE r.key = 'owner' AND m.status = 'active' AND u.status = 'active';
 
 -- name: UserPermissions :many
 SELECT DISTINCT rp.permission_key
-FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
-WHERE ur.user_id = @user_id
+FROM tenant_memberships m JOIN role_permissions rp ON rp.role_id = m.role_id
+WHERE m.user_id = @user_id AND m.status = 'active'
 ORDER BY rp.permission_key;
+
+-- name: RolePermissionKeys :many
+SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id
+WHERE r.key = @role_key ORDER BY rp.permission_key;
+
+-- name: SetMembershipStatus :exec
+UPDATE tenant_memberships SET status = @status, updated_at = now() WHERE user_id = @user_id;
 
 -- name: RecordLoginFailure :one
 -- Counts consecutive failures and locks the account for lock_minutes once
@@ -74,7 +92,7 @@ UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now(), 
 WHERE id = @id;
 
 -- name: UpdatePasswordHash :exec
-UPDATE users SET password_hash = @password_hash, updated_at = now() WHERE id = @id;
+UPDATE users SET password_hash = @password_hash, password_reset_required = false, updated_at = now() WHERE id = @id;
 
 -- name: UpdateProfile :one
 UPDATE users SET
@@ -85,12 +103,15 @@ UPDATE users SET
 WHERE id = @id
 RETURNING *;
 
--- name: SetUserStatus :exec
-UPDATE users SET status = @status, updated_at = now() WHERE id = @id;
-
 -- name: SetTotpSecret :exec
 UPDATE users SET totp_secret_enc = @totp_secret_enc, totp_confirmed_at = sqlc.narg(totp_confirmed_at), updated_at = now()
 WHERE id = @id;
+
+-- name: UpdateUserEmail :exec
+UPDATE users SET email = @email, email_verified_at = now(), updated_at = now() WHERE id = @id;
+
+-- name: MarkEmailVerified :execrows
+UPDATE users SET email_verified_at = now(), updated_at = now() WHERE id = @id AND email_verified_at IS NULL;
 
 -- ── Roles ───────────────────────────────────────────────────────────────────
 
@@ -111,13 +132,17 @@ SELECT * FROM roles WHERE key = @key;
 -- ── Sessions ────────────────────────────────────────────────────────────────
 
 -- name: CreateSession :one
-INSERT INTO user_sessions (user_id, token_hash, ip, user_agent, reauth_at, expires_at)
-VALUES (@user_id, @token_hash, sqlc.narg(ip), sqlc.narg(user_agent), now(), @expires_at)
+INSERT INTO user_sessions (user_id, token_hash, ip, user_agent, reauth_at, expires_at, support_grant_id, read_only)
+VALUES (@user_id, @token_hash, sqlc.narg(ip), sqlc.narg(user_agent), now(), @expires_at, sqlc.narg(support_grant_id), @read_only)
 RETURNING *;
 
 -- name: GetActiveSessionByTokenHash :one
-SELECT s.*, u.status AS user_status
-FROM user_sessions s JOIN users u ON u.id = s.user_id
+-- A member's session needs an active account and an active membership; a
+-- support session (support_grant_id) has no membership.
+SELECT s.*, u.status AS user_status, m.status AS membership_status
+FROM user_sessions s
+JOIN users u ON u.id = s.user_id
+LEFT JOIN tenant_memberships m ON m.tenant_id = s.tenant_id AND m.user_id = s.user_id
 WHERE s.token_hash = @token_hash AND s.revoked_at IS NULL AND s.expires_at > now();
 
 -- name: TouchSession :exec
@@ -138,6 +163,12 @@ WHERE id = @id AND user_id = @user_id AND revoked_at IS NULL;
 -- name: RevokeUserSessions :execrows
 UPDATE user_sessions SET revoked_at = now()
 WHERE user_id = @user_id AND revoked_at IS NULL AND id <> coalesce(sqlc.narg(except_id), '00000000-0000-0000-0000-000000000000'::uuid);
+
+-- name: CountSessionsFrom :one
+-- Earlier sessions of the user in this tenant, and those from ip, for the
+-- "new sign-in" e-mail.
+SELECT count(*) AS total, count(*) FILTER (WHERE ip = sqlc.narg(ip)::inet) AS from_ip
+FROM user_sessions WHERE user_id = @user_id AND support_grant_id IS NULL;
 
 -- name: DeleteExpiredSessions :execrows
 DELETE FROM user_sessions WHERE expires_at < now() - interval '7 days' OR revoked_at < now() - interval '7 days';
@@ -175,8 +206,9 @@ WHERE i.accepted_at IS NULL AND i.revoked_at IS NULL
 ORDER BY i.created_at DESC;
 
 -- name: GetOpenInvitationByTokenHash :one
-SELECT i.id, i.email, i.expires_at, r.key AS role_key, r.name AS role_name
+SELECT i.id, i.email, i.expires_at, i.invited_by, r.key AS role_key, r.name AS role_name, inviter.name AS invited_by_name
 FROM user_invitations i JOIN roles r ON r.id = i.role_id
+LEFT JOIN users inviter ON inviter.id = i.invited_by
 WHERE i.token_hash = @token_hash AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now();
 
 -- name: AcceptInvitation :execrows

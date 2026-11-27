@@ -15,8 +15,8 @@ import (
 const getAssignableUser = `-- name: GetAssignableUser :one
 SELECT u.id, u.name FROM users u
 WHERE u.id = $1 AND u.status = 'active' AND EXISTS (
-    SELECT 1 FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
-    WHERE ur.user_id = u.id AND rp.permission_key IN ('conversations.read', 'conversations.read_all'))
+    SELECT 1 FROM tenant_memberships m JOIN role_permissions rp ON rp.role_id = m.role_id
+    WHERE m.user_id = u.id AND m.status = 'active' AND rp.permission_key IN ('conversations.read', 'conversations.read_all'))
 `
 
 type GetAssignableUserRow struct {

@@ -31,7 +31,16 @@ var platformTables = []string{
 	"goose_db_version", "tenants", "tenant_domains", "platform_settings",
 	"permissions", "roles", "role_permissions",
 	"meta_rates", "meta_rate_markets", "ai_model_prices",
+	// Global accounts (WP2): a person, their password and second factor
+	// belong to no company; memberships and sessions do.
+	"users", "user_recovery_codes",
+	// The platform admin panel.
+	"platform_sessions", "email_verification_tokens", "platform_audit_logs",
 }
+
+// platformTenantRef are platform tables whose tenant_id names the company
+// a row is about (routing, the sign-up to verify, the audit subject).
+var platformTenantRef = []string{"tenant_domains", "email_verification_tokens", "platform_audit_logs"}
 
 // nullableTenant may hold rows without a tenant (platform events).
 var nullableTenant = []string{"outbox_events"}
@@ -67,7 +76,7 @@ func TestEveryTableIsTenantScoped(t *testing.T) {
 		if slices.Contains(platformTables, name) {
 			// tenant_domains belongs to the registry: its tenant_id names
 			// the tenant a host routes to, read before any tenant is known.
-			if hasCol && name != "tenant_domains" {
+			if hasCol && !slices.Contains(platformTenantRef, name) {
 				t.Errorf("platform table %s has a tenant_id: scope it or drop it from the allowlist", name)
 			}
 			continue
@@ -365,5 +374,119 @@ SELECT n.id, c.id, 'outbound', 'text', 'hi', 'sent', k.id FROM n, c, k;`
 	}
 	if _, err := res.Resolve(ctx, "other.messora.tech"); !errors.Is(err, tenant.ErrUnknownHost) {
 		t.Errorf("unknown host: %v", err)
+	}
+}
+
+// WP2: accounts become global. Every user of tenant #1 becomes a member
+// with their role and status, recovery codes stay with the person, and the
+// account keeps working.
+func TestMigrationMovesUsersIntoMemberships(t *testing.T) {
+	ctx := context.Background()
+	owner := testutil.Postgres(t)
+	sqlDB := stdlib.OpenDBFromPool(owner)
+	defer sqlDB.Close()
+	p, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 29); err != nil {
+		t.Fatal(err)
+	}
+	seed := `
+SELECT set_config('app.tenant_id', '00000000-0000-0000-0000-000000000001', false);
+WITH o AS (INSERT INTO users (email, name, password_hash) VALUES ('owner@example.com', 'Owner', 'x') RETURNING id),
+     a AS (INSERT INTO users (email, name, password_hash, status) VALUES ('agent@example.com', 'Agent', 'x', 'disabled') RETURNING id),
+     r1 AS (INSERT INTO user_roles (user_id, role_id) SELECT o.id, r.id FROM o, roles r WHERE r.key = 'owner'),
+     r2 AS (INSERT INTO user_roles (user_id, role_id) SELECT a.id, r.id FROM a, roles r WHERE r.key = 'agent')
+INSERT INTO user_recovery_codes (user_id, code_hash) SELECT id, '\x01' FROM o;`
+	if _, err := owner.Exec(ctx, seed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, "RESET app.tenant_id"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := owner.Query(ctx, `
+		SELECT u.email, u.status, u.email_verified_at IS NOT NULL, m.tenant_id, r.key, m.status
+		FROM users u JOIN tenant_memberships m ON m.user_id = u.id JOIN roles r ON r.id = m.role_id ORDER BY u.email`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type row struct {
+		email, status    string
+		verified         bool
+		tenantID         uuid.UUID
+		role, membership string
+	}
+	var got []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.email, &r.status, &r.verified, &r.tenantID, &r.role, &r.membership); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	rows.Close()
+	want := []row{
+		{"agent@example.com", "active", true, tenant.DefaultID, "agent", "disabled"},
+		{"owner@example.com", "active", true, tenant.DefaultID, "owner", "active"},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("memberships %+v, want %+v", got, want)
+	}
+	var codes int
+	if err := owner.QueryRow(ctx, "SELECT count(*) FROM user_recovery_codes").Scan(&codes); err != nil || codes != 1 {
+		t.Fatalf("recovery codes %d %v", codes, err)
+	}
+	// Down restores the per-tenant accounts while nobody is in two tenants.
+	if _, err := p.Down(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err := owner.QueryRow(ctx, "SELECT status FROM users WHERE email = 'agent@example.com' AND tenant_id = $1", tenant.DefaultID).Scan(&status); err != nil || status != "disabled" {
+		t.Fatalf("down: agent %q %v", status, err)
+	}
+}
+
+// messora_platform is reached only through messora_app (SET ROLE), cannot
+// log in or bypass row-level security, and owns nothing.
+func TestPlatformRole(t *testing.T) {
+	db := testutil.TenantDB(t)
+	ctx := context.Background()
+	var super, bypass, login bool
+	if err := db.Owner.QueryRow(ctx, `SELECT rolsuper, rolbypassrls, rolcanlogin FROM pg_roles WHERE rolname = 'messora_platform'`).Scan(&super, &bypass, &login); err != nil {
+		t.Fatal(err)
+	}
+	if super || bypass || login {
+		t.Fatalf("messora_platform: super=%v bypassrls=%v login=%v", super, bypass, login)
+	}
+	// messora_app does not inherit it: it cannot write the registry...
+	if _, err := db.App.Exec(tenant.System(ctx), "UPDATE tenants SET name = name"); err == nil {
+		t.Fatal("messora_app wrote tenants")
+	}
+	if _, err := db.App.Exec(tenant.System(ctx), "UPDATE ai_model_prices SET notes = notes"); err == nil {
+		t.Fatal("messora_app wrote the AI price table")
+	}
+	// ...but platform work can, and sees every tenant's memberships.
+	pctx := tenant.Platform(ctx)
+	if _, err := db.App.Exec(pctx, "UPDATE tenants SET name = name"); err != nil {
+		t.Fatalf("platform work cannot write tenants: %v", err)
+	}
+	var role string
+	if err := db.App.QueryRow(pctx, "SELECT current_user").Scan(&role); err != nil || role != "messora_platform" {
+		t.Fatalf("platform connection runs as %q %v", role, err)
+	}
+	// The role is reset when the connection goes back to the pool.
+	for range 5 {
+		if err := db.App.QueryRow(tenant.System(ctx), "SELECT current_user").Scan(&role); err != nil || role != "messora_app" {
+			t.Fatalf("pooled connection still %q %v", role, err)
+		}
+	}
+	// Other tenant tables stay limited to app.tenant_id.
+	var n int
+	if err := db.App.QueryRow(pctx, "SELECT count(*) FROM settings").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("platform work sees %d settings rows without a tenant (%v)", n, err)
 	}
 }
