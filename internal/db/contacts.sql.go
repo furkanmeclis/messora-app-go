@@ -145,6 +145,15 @@ func (q *Queries) DeleteContactGroup(ctx context.Context, id uuid.UUID) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const deleteContactImport = `-- name: DeleteContactImport :exec
+DELETE FROM contact_imports WHERE id = $1
+`
+
+func (q *Queries) DeleteContactImport(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteContactImport, id)
+	return err
+}
+
 const deleteContactNote = `-- name: DeleteContactNote :execrows
 DELETE FROM contact_notes WHERE id = $1 AND contact_id = $2
 `
@@ -184,6 +193,48 @@ func (q *Queries) DeleteTag(ctx context.Context, id uuid.UUID) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const expiredContactImports = `-- name: ExpiredContactImports :many
+SELECT id, storage_key, error_report_key FROM contact_imports
+WHERE status IN ('uploaded', 'completed', 'failed', 'cancelled')
+  AND coalesce(finished_at, created_at) < $1::timestamptz
+ORDER BY id
+LIMIT $2
+`
+
+type ExpiredContactImportsParams struct {
+	Before  time.Time
+	MaxRows int32
+}
+
+type ExpiredContactImportsRow struct {
+	ID             uuid.UUID
+	StorageKey     string
+	ErrorReportKey *string
+}
+
+// Imports past the retention period (finished, or uploaded and never
+// started), oldest first; their files and the rows are removed
+// (contacts.ExpireImports). Running and queued imports are left alone.
+func (q *Queries) ExpiredContactImports(ctx context.Context, arg ExpiredContactImportsParams) ([]ExpiredContactImportsRow, error) {
+	rows, err := q.db.Query(ctx, expiredContactImports, arg.Before, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ExpiredContactImportsRow{}
+	for rows.Next() {
+		var i ExpiredContactImportsRow
+		if err := rows.Scan(&i.ID, &i.StorageKey, &i.ErrorReportKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const finishContactImport = `-- name: FinishContactImport :exec

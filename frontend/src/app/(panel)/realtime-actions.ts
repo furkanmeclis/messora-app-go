@@ -10,13 +10,22 @@ import type { ActionResult, Schemas } from '@/lib/types';
  * session, so neither the session token nor any secret reaches the browser.
  */
 
-export async function realtimeConnectionToken(): Promise<ActionResult<string>> {
+/**
+ * A connection token and the prefix of the workspace's channel names
+ * (`tenant:<tenant_id>:`): the browser subscribes to prefix + channel.
+ */
+export async function realtimeConnectionToken(): Promise<
+    ActionResult<{ token: string; channelPrefix: string }>
+> {
     return runAction(async () => {
         const r = await api<Schemas['RealtimeToken']>(
             '/realtime/connection-token',
             { method: 'POST' },
         );
-        return r.data.token;
+        return {
+            token: r.data.token,
+            channelPrefix: r.data.channel_prefix ?? '',
+        };
     });
 }
 

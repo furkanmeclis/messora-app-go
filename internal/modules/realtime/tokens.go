@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/centrifugal/gocent/v4/token"
+	"github.com/google/uuid"
 
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
@@ -39,29 +40,42 @@ func NewIssuer(hmacSecret string) (*Issuer, error) {
 	return &Issuer{key: token.HMAC([]byte(hmacSecret)), ttl: TokenTTL, now: time.Now}, nil
 }
 
+// ConnectionUser is the Centrifugo user of p's tokens: the tenant and the
+// user. A person who belongs to several tenants (WP2) has one connection
+// per tenant session, and Centrifugo accepts a subscription token only on
+// a connection of the same user, so a token issued in one tenant's session
+// cannot be used on a connection opened for another.
+func ConnectionUser(p *principal.Principal) string { return p.TenantID.String() + ":" + p.ID.String() }
+
 // Token is a signed JWT and the moment it stops being accepted.
 type Token struct {
 	Token     string
 	ExpiresAt time.Time
+	// ChannelPrefix is the wire prefix of the session tenant's channels
+	// (connection tokens only): the client subscribes to prefix + logical
+	// name.
+	ChannelPrefix string
 }
 
 // Connection issues a connection token for a panel user. The user's personal
-// channel and the installation notices are subscribed server-side, so the
-// client needs no subscription token for them.
+// channel and the tenant's notices are subscribed server-side, so the
+// client needs no subscription token for them; both are channels of the
+// session's tenant. The namespace allows no client-side subscription
+// without a token, so the token's grants are the whole of the access.
 func (i *Issuer) Connection(p *principal.Principal) (Token, error) {
-	if p == nil || p.Kind != principal.KindUser {
+	if p == nil || p.Kind != principal.KindUser || p.TenantID == uuid.Nil {
 		return Token{}, ErrChannelForbidden
 	}
 	now := i.now()
 	exp := now.Add(i.ttl)
 	tok, err := token.Connection(i.key, token.ConnectionClaims{
-		User: p.ID.String(), ExpiresAt: exp, IssuedAt: now,
+		User: ConnectionUser(p), ExpiresAt: exp, IssuedAt: now,
 		Subs: map[string]token.SubscribeOptions{
-			PersonalChannel(p.ID): {},
-			NotificationsChannel:  {},
+			TenantChannel(p.TenantID, PersonalChannel(p.ID)): {},
+			TenantChannel(p.TenantID, NotificationsChannel):  {},
 		},
 	})
-	return Token{Token: tok, ExpiresAt: exp}, err
+	return Token{Token: tok, ExpiresAt: exp, ChannelPrefix: ChannelPrefix(p.TenantID)}, err
 }
 
 // Subscription issues a subscription token for channel after checking that
@@ -79,7 +93,7 @@ func (i *Issuer) SubscriptionContext(ctx context.Context, p *principal.Principal
 	now := i.now()
 	exp := now.Add(i.ttl)
 	tok, err := token.Subscription(i.key, token.SubscriptionClaims{
-		User: p.ID.String(), Channel: channel, ExpiresAt: exp, IssuedAt: now,
+		User: ConnectionUser(p), Channel: channel, ExpiresAt: exp, IssuedAt: now,
 	})
 	return Token{Token: tok, ExpiresAt: exp}, err
 }

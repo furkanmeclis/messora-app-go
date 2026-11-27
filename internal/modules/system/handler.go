@@ -21,7 +21,12 @@ func (h *Handler) ListFailedJobs(w http.ResponseWriter, r *http.Request, p api.L
 	if p.Queue != nil {
 		q = string(*p.Queue)
 	}
-	jobs, total, err := h.jobs.List(q, page, limit)
+	sc, err := TenantScope(r.Context())
+	if err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	jobs, total, err := h.jobs.List(sc, q, page, limit)
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return
@@ -35,7 +40,11 @@ func (h *Handler) ListFailedJobs(w http.ResponseWriter, r *http.Request, p api.L
 
 // RetryFailedJob implements api.ServerInterface.
 func (h *Handler) RetryFailedJob(w http.ResponseWriter, r *http.Request, q api.QueuePath, id api.JobId) {
-	j, err := h.jobs.Retry(string(q), id)
+	sc, err := TenantScope(r.Context())
+	var j FailedJob
+	if err == nil {
+		j, err = h.jobs.Retry(sc, string(q), id)
+	}
 	if err == nil {
 		err = h.audit(r, "failed_job.retry", j)
 	}
@@ -48,7 +57,11 @@ func (h *Handler) RetryFailedJob(w http.ResponseWriter, r *http.Request, q api.Q
 
 // DeleteFailedJob implements api.ServerInterface.
 func (h *Handler) DeleteFailedJob(w http.ResponseWriter, r *http.Request, q api.QueuePath, id api.JobId) {
-	j, err := h.jobs.Delete(string(q), id)
+	sc, err := TenantScope(r.Context())
+	var j FailedJob
+	if err == nil {
+		j, err = h.jobs.Delete(sc, string(q), id)
+	}
 	if err == nil {
 		err = h.audit(r, "failed_job.delete", j)
 	}
@@ -68,6 +81,9 @@ func (h *Handler) audit(r *http.Request, action string, j FailedJob) error {
 	}
 	return audit.Record(r.Context(), h.q, audit.Entry{Action: action, EntityType: "failed_job", Changes: changes})
 }
+
+// ToAPI is the API view of a failed job.
+func ToAPI(j FailedJob) api.FailedJob { return toAPI(j) }
 
 func toAPI(j FailedJob) api.FailedJob {
 	out := api.FailedJob{Id: j.ID, Queue: api.QueueName(j.Queue), Type: j.Type, LastError: j.LastError,

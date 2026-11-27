@@ -2429,8 +2429,11 @@ paths:
       summary: Token for opening a Centrifugo connection
       description: >-
         A short-lived HS256 JWT for Centrifugo with the user as subject. The
-        user's personal channel and system notices are subscribed server-side.
-        The client asks for a new token before this one expires.
+        user's personal channel and the workspace's notices are subscribed
+        server-side. Every channel belongs to the session's workspace: its
+        wire name is `channel_prefix` (`tenant:<tenant_id>:`) followed by the
+        channel, e.g. `tenant:<tenant_id>:inbox:all`. The client asks for a
+        new token before this one expires.
       security: [{ session: [] }]
       responses:
         "200":
@@ -2446,7 +2449,9 @@ paths:
       tags: [realtime]
       summary: Token for subscribing to one channel
       description: >-
-        Issued only when the user may read the channel: `inbox:all` needs
+        Issued only for a channel of the session's workspace (its wire name,
+        `tenant:<tenant_id>:<channel>`; see the connection token's
+        `channel_prefix`) that the user may read: `inbox:all` needs
         conversations.read_all, `inbox:unassigned` needs conversations.read
         or conversations.read_all, `conversation:<id>` needs
         conversations.read_all, or conversations.read when the
@@ -2480,9 +2485,10 @@ paths:
         channel would announce), `campaign.updated` for `campaign:all` and
         `campaign:<id>` (changed since, plus every active campaign). At most
         200 conversations or 50 campaigns; `has_more` asks the client to
-        reload instead. Channel permissions are those of the subscription
-        token; a channel the caller may not read answers 403
-        CHANNEL_FORBIDDEN.
+        reload instead. `channel` is the wire name
+        (`tenant:<tenant_id>:<channel>`). Channel permissions are those of
+        the subscription token; a channel of another workspace, or one the
+        caller may not read, answers 403 CHANNEL_FORBIDDEN.
       security: [{ session: [] }]
       parameters:
         - { name: channel, in: query, required: true, schema: { type: string, minLength: 3, maxLength: 128 } }
@@ -5087,6 +5093,58 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PlatformAuditLogListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/failed-jobs:
+    get:
+      operationId: listPlatformFailedJobs
+      tags: [platform]
+      summary: Background jobs of every company that ran out of retries, newest first
+      description: Like /system/failed-jobs, across companies; each job names the company it ran for.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - name: queue
+          in: query
+          schema: { $ref: "#/components/schemas/QueueName" }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Failed jobs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformFailedJobListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/failed-jobs/{queue}/{jobId}:
+    parameters:
+      - { $ref: "#/components/parameters/QueuePath" }
+      - { $ref: "#/components/parameters/JobId" }
+    delete:
+      operationId: deletePlatformFailedJob
+      tags: [platform]
+      summary: Discard a failed job of any company
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: "Deleted" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/failed-jobs/{queue}/{jobId}/retry:
+    parameters:
+      - { $ref: "#/components/parameters/QueuePath" }
+      - { $ref: "#/components/parameters/JobId" }
+    post:
+      operationId: retryPlatformFailedJob
+      tags: [platform]
+      summary: Run a failed job of any company again now
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: "Queued" }
         default: { $ref: "#/components/responses/Error" }
 
   /platform/meta-rates:
@@ -8455,13 +8513,19 @@ components:
       additionalProperties: false
       required: [channel]
       properties:
-        channel: { type: string, minLength: 3, maxLength: 128, description: "Channel name, e.g. inbox:all or campaign:<id>." }
+        channel: { type: string, minLength: 3, maxLength: 128, description: "Wire channel name, e.g. tenant:<tenant_id>:inbox:all or tenant:<tenant_id>:campaign:<id>." }
     RealtimeToken:
       type: object
       required: [token, expires_at]
       properties:
         token: { type: string, description: Centrifugo JWT. }
         expires_at: { type: string, format: date-time }
+        channel_prefix:
+          type: string
+          description: >-
+            Connection tokens only: the prefix of the workspace's channel
+            names (`tenant:<tenant_id>:`). Subscribe to the prefix followed
+            by the channel, e.g. `inbox:all`.
     RealtimeTokenResponse:
       type: object
       required: [data, meta]
@@ -10800,4 +10864,17 @@ components:
       required: [data, meta]
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/PlatformAuditLog" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    PlatformFailedJob:
+      allOf:
+        - { $ref: "#/components/schemas/FailedJob" }
+        - type: object
+          required: [tenant_id]
+          properties:
+            tenant_id: { type: [string, "null"], format: uuid, description: "The company the job ran for (null: a platform job)." }
+    PlatformFailedJobListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformFailedJob" } }
         meta: { $ref: "#/components/schemas/Meta" }

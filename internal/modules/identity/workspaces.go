@@ -67,8 +67,10 @@ type handoff struct {
 	ReadOnly bool       `json:"read_only,omitempty"`
 }
 
+// handoffKey is platform-global: the token is issued at one workspace and
+// redeemed at another (its payload names the target).
 func handoffKey(token string) string {
-	return fmt.Sprintf("messora:handoff:%x", crypto.HashToken(token))
+	return tenant.GlobalRedisKey(fmt.Sprintf("handoff:%x", crypto.HashToken(token)))
 }
 
 // newHandoff stores h and returns the link that completes it at the
@@ -193,8 +195,10 @@ type emailChange struct {
 	Email    string    `json:"email"`
 }
 
-func emailChangeKey(token string) string {
-	return fmt.Sprintf("messora:email-change:%x", crypto.HashToken(token))
+// emailChangeKey lives under the workspace the change was asked at: the
+// link is confirmed there.
+func emailChangeKey(ctx context.Context, token string) string {
+	return tenant.RedisKey(ctx, fmt.Sprintf("email-change:%x", crypto.HashToken(token)))
 }
 
 // RequestEmailChange e-mails a confirmation link to the new address; the
@@ -230,7 +234,7 @@ func (s *Service) RequestEmailChange(ctx context.Context, p *principal.Principal
 		return err
 	}
 	b, _ := json.Marshal(emailChange{UserID: u.ID, TenantID: p.TenantID, Email: email})
-	if err := s.rdb.Set(ctx, emailChangeKey(token), b, emailChangeTTL).Err(); err != nil {
+	if err := s.rdb.Set(ctx, emailChangeKey(ctx, token), b, emailChangeTTL).Err(); err != nil {
 		return err
 	}
 	w, err := s.workspaceOf(ctx, p.TenantID)
@@ -250,7 +254,7 @@ func (s *Service) ConfirmEmailChange(ctx context.Context, token string) error {
 	if !strings.HasPrefix(token, emailTokenPrefix) {
 		return errEmailChangeInvalid
 	}
-	raw, err := s.rdb.GetDel(ctx, emailChangeKey(token)).Bytes()
+	raw, err := s.rdb.GetDel(ctx, emailChangeKey(ctx, token)).Bytes()
 	if err == goredis.Nil {
 		return errEmailChangeInvalid
 	}

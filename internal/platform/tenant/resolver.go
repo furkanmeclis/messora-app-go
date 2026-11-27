@@ -16,6 +16,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/logger"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 )
 
 // HostHeader carries the host the browser asked for from the panel BFF,
@@ -215,8 +216,21 @@ func Middleware(res *Resolver, hosts Hosts, log *slog.Logger) func(http.Handler)
 				return
 			}
 			ctx := WithHostKind(WithID(r.Context(), info.ID), HostTenant)
+			// Presigned local links made for this request point back here.
+			ctx = storage.WithRequestHost(ctx, strings.TrimSpace(host))
 			ctx = logger.WithAttrs(ctx, slog.String("tenant_id", info.ID.String()))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// ListActive returns the IDs of every active tenant, for the per-tenant
+// fan-out of periodic jobs. Suspended and deleted tenants are left out.
+// pool is the system pool (messora_system) of the worker.
+func ListActive(ctx context.Context, pool *pgxpool.Pool) ([]uuid.UUID, error) {
+	rows, err := pool.Query(System(ctx), `SELECT id FROM tenants WHERE status = $1 ORDER BY id`, StatusActive)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
 }

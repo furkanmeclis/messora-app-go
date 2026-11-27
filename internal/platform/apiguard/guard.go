@@ -437,6 +437,9 @@ func (g *Guard) rateLimit(w http.ResponseWriter, r *http.Request, p *principal.P
 	if g.o.Limiter == nil {
 		return nil
 	}
+	// Sessions and API keys count per tenant (messora:t:{<tenant>}:rl:api:…);
+	// anonymous callers per IP address across tenants, so moving between
+	// tenants' addresses gives no extra budget.
 	var key string
 	lim := g.o.AnonymousLimit
 	switch {
@@ -445,20 +448,19 @@ func (g *Guard) rateLimit(w http.ResponseWriter, r *http.Request, p *principal.P
 		if !ip.IsValid() {
 			return nil
 		}
-		key = "anon:" + ip.String()
+		key = tenant.GlobalRedisKey("rl:api:anon:" + ip.String())
 	case p.Kind == principal.KindAPIKey:
-		key, lim = p.TenantID.String()+":"+p.Key(), g.o.APIKeyLimit
+		key, lim = tenant.RedisKey(r.Context(), "rl:api:"+p.Key()), g.o.APIKeyLimit
 	case p.Platform:
-		key, lim = "platform:"+p.Key(), g.o.SessionLimit
+		// The admin panel's sessions belong to no tenant.
+		key, lim = tenant.GlobalRedisKey("rl:api:platform:"+p.Key()), g.o.SessionLimit
 	default:
-		// Per workspace: a person's budget in one company is not spent by
-		// their work in another.
-		key, lim = p.TenantID.String()+":"+p.Key(), g.o.SessionLimit
+		key, lim = tenant.RedisKey(r.Context(), "rl:api:"+p.Key()), g.o.SessionLimit
 	}
 	if lim.Rate == 0 {
 		return nil
 	}
-	res, err := g.o.Limiter.Allow(r.Context(), "api:"+key, lim)
+	res, err := g.o.Limiter.AllowRaw(r.Context(), key, lim)
 	if err != nil {
 		g.o.Logger.WarnContext(r.Context(), "rate limiter unavailable; allowing request", "err", err)
 		return nil // fail open: Redis outages must not take the panel down

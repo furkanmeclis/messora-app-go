@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -168,6 +169,7 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		"/api/v1/ai/providers", "/api/v1/ai/profiles", "/api/v1/ai/usage/summary?from=" + time.Now().Add(-24*time.Hour).UTC().Format(time.RFC3339) + "&to=" + time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "/api/v1/offers", "/api/v1/users",
 		"/api/v1/invitations", "/api/v1/channels/accounts", "/api/v1/channels/phone-numbers", "/api/v1/contact-imports",
 		"/api/v1/ops/overview", "/api/v1/me", "/api/v1/me/sessions", "/api/v1/contacts/attribute-keys",
+		"/api/v1/system/failed-jobs", "/api/v1/system/status",
 		// WP2: memberships, support access, the shared catalogue.
 		"/api/v1/me/memberships", "/api/v1/support-access", "/api/v1/settings/meta-rates", "/api/v1/ai/prices",
 	}
@@ -290,6 +292,24 @@ func TestTenantIsolationMatrix(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != 401 {
 		t.Errorf("forged tenant host header: %d", res.StatusCode)
+	}
+
+	// Realtime: B's session gets no token for, and no re-sync of, any of
+	// A's channels; its own channels carry its own prefix.
+	since := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	for _, ch := range []string{"inbox:all", "inbox:unassigned", "campaign:all", "campaign:" + campA, "conversation:" + convA,
+		"personal:#" + userA, "system:ops", "system:notifications"} {
+		hb.expect(hb.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: ownerB,
+			body: map[string]any{"channel": h.wire(ch)}}), 403, "CHANNEL_FORBIDDEN")
+		hb.expect(hb.do(call{method: "GET", path: "/api/v1/realtime/sync?channel=" + url.QueryEscape(h.wire(ch)) + "&since=" + url.QueryEscape(since),
+			token: ownerB}), 403, "CHANNEL_FORBIDDEN")
+	}
+	hb.expect(hb.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: ownerB,
+		body: map[string]any{"channel": hb.wire("inbox:all")}}), 200, "")
+	r = hb.do(call{method: "POST", path: "/api/v1/realtime/connection-token", token: ownerB})
+	hb.expect(r, 200, "")
+	if r.data()["channel_prefix"] != "tenant:"+hb.tenantID.String()+":" {
+		t.Errorf("B's channel prefix %v", r.data()["channel_prefix"])
 	}
 
 	// Unknown hosts and suspended tenants.

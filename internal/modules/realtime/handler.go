@@ -50,7 +50,8 @@ func (h *Handler) CreateRealtimeConnectionToken(w http.ResponseWriter, r *http.R
 		httpx.WriteError(w, r, err, h.log)
 		return
 	}
-	httpx.JSON(w, r, http.StatusOK, api.RealtimeToken{Token: t.Token, ExpiresAt: t.ExpiresAt.UTC()})
+	prefix := t.ChannelPrefix
+	httpx.JSON(w, r, http.StatusOK, api.RealtimeToken{Token: t.Token, ExpiresAt: t.ExpiresAt.UTC(), ChannelPrefix: &prefix})
 }
 
 // CreateRealtimeSubscriptionToken implements api.ServerInterface.

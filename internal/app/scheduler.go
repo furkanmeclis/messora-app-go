@@ -12,6 +12,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
@@ -20,11 +21,11 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/scheduler"
 )
 
-// PeriodicJobs is the schedule. Later phases append campaign, reaper and
-// template-sync jobs here.
+// PeriodicJobs is the schedule. Every job runs once per active tenant
+// (scheduler fan-out) except the platform jobs, which run once.
 func PeriodicJobs() []scheduler.Job {
 	return []scheduler.Job{
-		{Name: "outbox_cleanup", Every: time.Hour, TaskType: queue.TypeOutboxCleanup},
+		{Name: "outbox_cleanup", Every: time.Hour, TaskType: queue.TypeOutboxCleanup, Platform: true},
 		{Name: "identity_cleanup", Every: time.Hour, TaskType: queue.TypeIdentityCleanup},
 		{Name: "campaigns_due", Every: time.Minute, TaskType: campaigns.TypeStartDue},
 		{Name: "campaign_reaper", Every: time.Minute, TaskType: campaigns.TypeReaper},
@@ -38,6 +39,7 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "meta_cost_reconcile", Every: 24 * time.Hour, TaskType: channels.TypeCostReconcile},
 		{Name: "ai_model_sync", Every: 24 * time.Hour, TaskType: ai.TypeModelSync},
 		{Name: "ai_attribution_reconcile", Every: time.Hour, TaskType: ai.TypeAttributionReconcile},
+		{Name: "contact_import_retention", Every: 6 * time.Hour, TaskType: contacts.TypeImportRetention},
 	}
 }
 

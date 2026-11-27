@@ -2,6 +2,7 @@ package system
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"regexp"
@@ -11,9 +12,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -24,6 +27,9 @@ const maxScan = 1000
 // FailedJob is a dead-lettered task as shown to operators: identifiers only,
 // never the payload.
 type FailedJob struct {
+	// TenantID is the tenant the task ran for (uuid.Nil: a platform task,
+	// or one refused for having no tenant).
+	TenantID  uuid.UUID
 	ID        string
 	Queue     string
 	Type      string
@@ -34,10 +40,48 @@ type FailedJob struct {
 	Refs      map[string]string
 }
 
-// FailedJobs lists, retries and deletes archived asynq tasks.
+// FailedJobs lists, retries and deletes archived asynq tasks. The queues
+// are shared by every tenant; each call sees the tasks of one Scope.
 type FailedJobs struct {
 	insp   *asynq.Inspector
 	queues []string
+}
+
+// Scope selects whose failed jobs a call sees: one tenant's (the task's
+// tenant header, queue.TenantHeader), or — for the platform admin panel
+// (WP2) — every task, platform tasks included.
+type Scope struct {
+	tenant   uuid.UUID
+	platform bool
+}
+
+// TenantScope is the scope of ctx's tenant. Without a tenant it fails
+// closed.
+func TenantScope(ctx context.Context) (Scope, error) {
+	id, ok := tenant.FromCtx(ctx)
+	if !ok {
+		return Scope{}, tenant.ErrNoTenant
+	}
+	return Scope{tenant: id}, nil
+}
+
+// PlatformScope sees every failed job of every tenant. Only the platform
+// admin panel may use it; no tenant route does.
+func PlatformScope() Scope { return Scope{platform: true} }
+
+func (s Scope) sees(t *asynq.TaskInfo) bool {
+	if s.platform {
+		return true
+	}
+	return s.tenant != uuid.Nil && taskTenant(t) == s.tenant
+}
+
+func taskTenant(t *asynq.TaskInfo) uuid.UUID {
+	id, err := uuid.Parse(t.Headers[queue.TenantHeader])
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
 }
 
 // NewFailedJobs uses insp for every queue in queue.AllQueues.
@@ -65,8 +109,10 @@ func (f *FailedJobs) existing(queues []string) ([]string, error) {
 	return out, nil
 }
 
-// Count returns the number of failed jobs per existing queue.
-func (f *FailedJobs) Count() (map[string]int, error) {
+// Count returns the number of failed jobs of the scope per existing queue.
+// A tenant's count reads the newest failed jobs of each queue (about
+// maxScan of them), so it never exceeds what List can show.
+func (f *FailedJobs) Count(sc Scope) (map[string]int, error) {
 	queues, err := f.existing(f.queues)
 	if err != nil {
 		return nil, err
@@ -77,14 +123,28 @@ func (f *FailedJobs) Count() (map[string]int, error) {
 		if err != nil {
 			return nil, err
 		}
-		out[q] = info.Archived
+		if sc.platform || info.Archived == 0 {
+			out[q] = info.Archived
+			continue
+		}
+		tasks, err := f.newest(q, info.Archived)
+		if err != nil {
+			return nil, err
+		}
+		n := 0
+		for _, t := range tasks {
+			if sc.sees(t) {
+				n++
+			}
+		}
+		out[q] = n
 	}
 	return out, nil
 }
 
-// List returns a page (1-based) of failed jobs, newest first, from one queue
-// or all of them, and the total number of failed jobs.
-func (f *FailedJobs) List(queueName string, page, limit int) ([]FailedJob, int64, error) {
+// List returns a page (1-based) of the scope's failed jobs, newest first,
+// from one queue or all of them, and their total.
+func (f *FailedJobs) List(sc Scope, queueName string, page, limit int) ([]FailedJob, int64, error) {
 	queues := f.queues
 	if queueName != "" {
 		if !f.known(queueName) {
@@ -106,12 +166,23 @@ func (f *FailedJobs) List(queueName string, page, limit int) ([]FailedJob, int64
 		if info.Archived == 0 {
 			continue
 		}
-		total += int64(info.Archived)
 		tasks, err := f.newest(q, info.Archived)
 		if err != nil {
 			return nil, 0, err
 		}
-		all = append(all, tasks...)
+		if sc.platform {
+			total += int64(info.Archived)
+			all = append(all, tasks...)
+			continue
+		}
+		for _, t := range tasks {
+			if sc.sees(t) {
+				all = append(all, t)
+			}
+		}
+	}
+	if !sc.platform {
+		total = int64(len(all))
 	}
 	slices.SortFunc(all, func(a, b *asynq.TaskInfo) int {
 		if c := b.LastFailedAt.Compare(a.LastFailedAt); c != 0 {
@@ -152,8 +223,9 @@ func (f *FailedJobs) newest(q string, n int) ([]*asynq.TaskInfo, error) {
 	return tasks, nil
 }
 
-// get returns a task only while it is archived.
-func (f *FailedJobs) get(q, id string) (*asynq.TaskInfo, error) {
+// get returns a task of the scope only while it is archived; another
+// tenant's task is not found.
+func (f *FailedJobs) get(sc Scope, q, id string) (*asynq.TaskInfo, error) {
 	if !f.known(q) {
 		return nil, errJobNotFound
 	}
@@ -164,15 +236,15 @@ func (f *FailedJobs) get(q, id string) (*asynq.TaskInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	if t.State != asynq.TaskStateArchived {
+	if t.State != asynq.TaskStateArchived || !sc.sees(t) {
 		return nil, errJobNotFound
 	}
 	return t, nil
 }
 
-// Retry moves a failed job back to the pending state.
-func (f *FailedJobs) Retry(q, id string) (FailedJob, error) {
-	t, err := f.get(q, id)
+// Retry moves a failed job of the scope back to the pending state.
+func (f *FailedJobs) Retry(sc Scope, q, id string) (FailedJob, error) {
+	t, err := f.get(sc, q, id)
 	if err != nil {
 		return FailedJob{}, err
 	}
@@ -185,9 +257,9 @@ func (f *FailedJobs) Retry(q, id string) (FailedJob, error) {
 	return toFailedJob(t), nil
 }
 
-// Delete discards a failed job.
-func (f *FailedJobs) Delete(q, id string) (FailedJob, error) {
-	t, err := f.get(q, id)
+// Delete discards a failed job of the scope.
+func (f *FailedJobs) Delete(sc Scope, q, id string) (FailedJob, error) {
+	t, err := f.get(sc, q, id)
 	if err != nil {
 		return FailedJob{}, err
 	}
@@ -201,7 +273,7 @@ func (f *FailedJobs) Delete(q, id string) (FailedJob, error) {
 }
 
 func toFailedJob(t *asynq.TaskInfo) FailedJob {
-	return FailedJob{ID: t.ID, Queue: t.Queue, Type: t.Type, LastError: redactError(t.LastErr),
+	return FailedJob{TenantID: taskTenant(t), ID: t.ID, Queue: t.Queue, Type: t.Type, LastError: redactError(t.LastErr),
 		FailedAt: t.LastFailedAt, Retried: t.Retried, MaxRetry: t.MaxRetry, Refs: payloadRefs(t.Payload)}
 }
 

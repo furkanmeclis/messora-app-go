@@ -9,20 +9,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
 	"github.com/furkanmeclis/messora-app-go/internal/testutil"
 )
 
-// failJob makes a real worker run a task that fails with no retries left,
-// so asynq archives it with its error.
+// failJob makes a real worker run a task of the harness's tenant that
+// fails with no retries left, so asynq archives it with its error.
 func (h *harness) failJob(taskType, payload, id string) {
+	h.t.Helper()
+	h.failJobOf(h.tenantID, taskType, payload, id)
+}
+
+// failJobOf is failJob for a task of tenant tid (uuid.Nil: no tenant).
+func (h *harness) failJobOf(tid uuid.UUID, taskType, payload, id string) {
 	h.t.Helper()
 	ctx := h.ctx()
 	client := queue.NewClient(h.rdb)
 	defer client.Close()
-	if err := queue.Enqueue(ctx, client, taskType, []byte(payload), asynq.TaskID(id), asynq.MaxRetry(0)); err != nil {
+	if err := queue.EnqueueFor(ctx, client, tid, taskType, []byte(payload), asynq.TaskID(id), asynq.MaxRetry(0)); err != nil {
 		h.t.Fatal(err)
 	}
 	mux := asynq.NewServeMux()
@@ -123,5 +131,61 @@ func TestFailedJobs(t *testing.T) {
 	if n := h.count(`SELECT count(*) FROM audit_logs WHERE action IN ('failed_job.retry', 'failed_job.delete')
 		AND entity_type = 'failed_job' AND changes->>'job_id' IN ('job-campaign', 'job-inbox')`); n != 2 {
 		t.Fatalf("audit entries = %d, want 2", n)
+	}
+}
+
+// Every tenant sees only its own failed jobs: the list, the counts, retry
+// and delete; the platform scope (admin panel) sees all of them.
+func TestFailedJobsAreTenantScoped(t *testing.T) {
+	a := newHarness(t)
+	ownerA, _ := a.setupOwner()
+	b := a.tenant("beta")
+	ownerB := b.setupOwnerAs("owner@beta.test")
+
+	a.failJob("whatsapp:send", `{"message_id":"0193a5a0-0000-7000-8000-00000000000a"}`, "job-a")
+	b.failJob("whatsapp:send", `{"message_id":"0193a5a0-0000-7000-8000-00000000000b"}`, "job-b")
+	a.failJobOf(uuid.Nil, "whatsapp:send", `{"message_id":"0193a5a0-0000-7000-8000-00000000000c"}`, "job-none")
+
+	for _, tc := range []struct {
+		h     *harness
+		token string
+		want  string
+	}{{a, ownerA, "job-a"}, {b, ownerB, "job-b"}} {
+		r := tc.h.do(call{method: "GET", path: "/api/v1/system/failed-jobs", token: tc.token})
+		tc.h.expect(r, 200, "")
+		if total := r.body["meta"].(map[string]any)["total"]; total != float64(1) || len(r.list()) != 1 ||
+			r.list()[0].(map[string]any)["id"] != tc.want {
+			t.Fatalf("%s: %s", tc.want, r.raw)
+		}
+		r = tc.h.do(call{method: "GET", path: "/api/v1/system/status", token: tc.token})
+		tc.h.expect(r, 200, "")
+		if n := r.data()["failed_jobs"]; n != float64(1) {
+			t.Fatalf("%s: status failed_jobs = %v", tc.want, n)
+		}
+	}
+	// Another tenant's job is not found, neither for retry nor delete.
+	a.expect(a.do(call{method: "POST", path: "/api/v1/system/failed-jobs/critical/job-b/retry", token: ownerA}), 404, "NOT_FOUND")
+	a.expect(a.do(call{method: "DELETE", path: "/api/v1/system/failed-jobs/critical/job-b", token: ownerA}), 404, "NOT_FOUND")
+	a.expect(a.do(call{method: "DELETE", path: "/api/v1/system/failed-jobs/critical/job-none", token: ownerA}), 404, "NOT_FOUND")
+	insp := queue.NewInspector(a.rdb)
+	defer insp.Close()
+	if info, err := insp.GetTaskInfo(queue.Critical, "job-b"); err != nil || info.State != asynq.TaskStateArchived {
+		t.Fatalf("tenant B's job after A's attempts: %v %v", info, err)
+	}
+
+	jobs := system.NewFailedJobs(insp)
+	all, total, err := jobs.List(system.PlatformScope(), "", 1, 50)
+	if err != nil || total != 3 || len(all) != 3 {
+		t.Fatalf("platform view: %d jobs, total %d, %v", len(all), total, err)
+	}
+	tenants := map[string]uuid.UUID{}
+	for _, j := range all {
+		tenants[j.ID] = j.TenantID
+	}
+	if tenants["job-a"] != a.tenantID || tenants["job-b"] != b.tenantID || tenants["job-none"] != uuid.Nil {
+		t.Fatalf("platform view tenants %v", tenants)
+	}
+	if _, err := system.TenantScope(context.Background()); err == nil {
+		t.Fatal("a context without a tenant must not get a scope")
 	}
 }

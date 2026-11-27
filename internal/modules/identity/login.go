@@ -84,7 +84,7 @@ func (s *Service) checkPassword(ctx context.Context, rawEmail, password string) 
 			_ = s.q.UpdatePasswordHash(ctx, db.UpdatePasswordHashParams{ID: u.ID, PasswordHash: h})
 		}
 	}
-	_ = s.limiter.Reset(ctx, "login:email:"+email)
+	_ = s.rdb.Del(ctx, rateKey("login:email:"+email)).Err()
 	return u, nil
 }
 
@@ -155,8 +155,14 @@ func (s *Service) loginFailed(ctx context.Context, u db.User, reason string) err
 	return errInvalidCredentials
 }
 
+// rateKey is the Redis key of an identity rate limit. Every one of them
+// is person- or address-global (tenant.GlobalRedisKey): an account signs in
+// to several workspaces, so guessing its password, resetting it or probing
+// sign-up shares one budget whatever address is used.
+func rateKey(key string) string { return tenant.GlobalRedisKey("rl:" + key) }
+
 func (s *Service) rateLimit(ctx context.Context, key string, lim ratelimit.Limit) error {
-	r, err := s.limiter.Allow(ctx, key, lim)
+	r, err := s.limiter.AllowRaw(ctx, rateKey(key), lim)
 	if err != nil {
 		return err
 	}
@@ -184,8 +190,17 @@ func scopeOf(ctx context.Context) string {
 	return "platform"
 }
 
+// mfaKey is the Redis key of a pending sign-in: under the workspace's
+// prefix (tenant.RedisKey) for a workspace sign-in, platform-global for the
+// admin panel. A challenge is never found from another scope.
 func mfaKey(scope, token string) string {
-	return fmt.Sprintf("messora:mfa:%s:%x", scope, crypto.HashToken(token))
+	hash := fmt.Sprintf("%x", crypto.HashToken(token))
+	if id, ok := strings.CutPrefix(scope, "tenant:"); ok {
+		if tid, err := uuid.Parse(id); err == nil {
+			return tenant.RedisPrefix(tid) + "mfa:" + hash
+		}
+	}
+	return tenant.GlobalRedisKey("mfa:platform:" + hash)
 }
 
 func (s *Service) newMFAChallenge(ctx context.Context, userID uuid.UUID, scope string) (string, error) {

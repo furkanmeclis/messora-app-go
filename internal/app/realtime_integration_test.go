@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
@@ -94,13 +96,16 @@ func TestRealtimeTokensAndChannelPermissions(t *testing.T) {
 	r = h.do(call{method: "POST", path: "/api/v1/realtime/connection-token", token: agent})
 	h.expect(r, 200, "")
 	c := jwtClaims(t, r.data()["token"].(string))
-	if c["sub"] != agentID {
+	if c["sub"] != h.tenantID.String()+":"+agentID {
 		t.Fatalf("sub %v, want %s", c["sub"], agentID)
+	}
+	if r.data()["channel_prefix"] != "tenant:"+h.tenantID.String()+":" {
+		t.Fatalf("channel prefix %v", r.data()["channel_prefix"])
 	}
 	if exp := time.Unix(int64(c["exp"].(float64)), 0); time.Until(exp) > realtime.TokenTTL || time.Until(exp) < time.Minute {
 		t.Fatalf("exp %v", exp)
 	}
-	if subs := c["subs"].(map[string]any); subs["personal:#"+agentID] == nil || subs[realtime.NotificationsChannel] == nil || len(subs) != 2 {
+	if subs := c["subs"].(map[string]any); subs[h.wire("personal:#"+agentID)] == nil || subs[h.wire(realtime.NotificationsChannel)] == nil || len(subs) != 2 {
 		t.Fatalf("subs %v", subs)
 	}
 
@@ -112,7 +117,7 @@ func TestRealtimeTokensAndChannelPermissions(t *testing.T) {
 	h.expect(h.do(call{method: "POST", path: "/api/v1/realtime/connection-token", token: key}), 403, "FORBIDDEN")
 
 	sub := func(token, channel string) resp {
-		return h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: token, body: map[string]any{"channel": channel}})
+		return h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: token, body: map[string]any{"channel": h.wire(channel)}})
 	}
 	campaign := "campaign:0193a6c4-7f2e-7b3c-9d1e-4a5b6c7d8e9f"
 	for _, tc := range []struct {
@@ -139,9 +144,14 @@ func TestRealtimeTokensAndChannelPermissions(t *testing.T) {
 		}
 		h.expect(r, 200, "")
 		c := jwtClaims(t, r.data()["token"].(string))
-		if c["channel"] != tc.channel || (tc.who == "agent" && c["sub"] != agentID) || (tc.who == "owner" && c["sub"] != ownerID) {
+		if c["channel"] != h.wire(tc.channel) || (tc.who == "agent" && c["sub"] != h.tenantID.String()+":"+agentID) ||
+			(tc.who == "owner" && c["sub"] != h.tenantID.String()+":"+ownerID) {
 			t.Fatalf("%s %s: claims %v", tc.who, tc.channel, c)
 		}
+	}
+	// Unprefixed names and other tenants' channels are refused.
+	for _, ch := range []string{realtime.InboxChannel, realtime.TenantChannel(uuid.Must(uuid.NewV7()), realtime.InboxChannel)} {
+		h.expect(h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: owner, body: map[string]any{"channel": ch}}), 403, "CHANNEL_FORBIDDEN")
 	}
 	h.expect(h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: owner, body: map[string]any{}}), 422, "VALIDATION_ERROR")
 	h.expect(h.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: key, body: map[string]any{"channel": realtime.InboxChannel}}), 403, "FORBIDDEN")
@@ -239,7 +249,8 @@ func TestMessageActivityIsPublishedThroughTheOutbox(t *testing.T) {
 		t.Fatalf("published %d realtime events, want %d", len(rec.events), len(all))
 	}
 	for i, e := range rec.events {
-		if e.Topic != all[i].channel || (!strings.HasPrefix(e.Topic, "inbox:") && !strings.HasPrefix(e.Topic, "conversation:")) || !json.Valid(e.Payload) {
+		// Published on the tenant's wire channel (tenant:<id>:<channel>).
+		if e.Topic != h.wire(all[i].channel) || (!strings.HasPrefix(all[i].channel, "inbox:") && !strings.HasPrefix(all[i].channel, "conversation:")) || !json.Valid(e.Payload) {
 			t.Fatalf("published %q %s", e.Topic, e.Payload)
 		}
 	}

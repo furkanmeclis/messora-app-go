@@ -337,7 +337,7 @@ func TestMembershipsHandoffAndHostBoundSessions(t *testing.T) {
 		return u.Query().Get("token")
 	}
 	tok := switchTo()
-	if ttl := h.rdb.TTL(context.Background(), "messora:handoff:"+fmt.Sprintf("%x", sha(tok))).Val(); ttl <= 0 || ttl > time.Minute {
+	if ttl := h.rdb.TTL(context.Background(), tenant.GlobalRedisKey("handoff:"+fmt.Sprintf("%x", sha(tok)))).Val(); ttl <= 0 || ttl > time.Minute {
 		t.Fatalf("hand-over token TTL %v", ttl)
 	}
 	// Presented at the wrong workspace it fails and is gone.
@@ -356,6 +356,14 @@ func TestMembershipsHandoffAndHostBoundSessions(t *testing.T) {
 	if code, _ := h.rawAt(h.host, "GET", "/api/v1/me", sessB, true); code != 401 {
 		t.Fatalf("beta session at tenant #1: %d", code)
 	}
+	// Realtime after the hand-over: the token is for beta's channels only.
+	r = hb.do(call{method: "POST", path: "/api/v1/realtime/connection-token", token: sessB})
+	h.expect(r, 200, "")
+	if r.data()["channel_prefix"] != "tenant:"+idB.String()+":" {
+		t.Fatalf("realtime after hand-over: %s", r.raw)
+	}
+	h.expect(hb.do(call{method: "POST", path: "/api/v1/realtime/subscription-token", token: sessB,
+		body: map[string]any{"channel": "tenant:" + h.tenantID.String() + ":inbox:all"}}), 403, "")
 	// No membership, no hand-over.
 	other := uuid.MustParse(h.signup("gamma", "gamma@example.com"))
 	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/switch-workspace", token: sessA, body: map[string]any{"tenant_id": other.String()}}), 403, "FORBIDDEN")
@@ -509,6 +517,11 @@ func TestPlatformAdminAuthAndScopes(t *testing.T) {
 	if code, _ := h.rawAt(adminHost, "GET", "/api/v1/platform/tenants", root, false); code != 401 && code != 403 {
 		t.Fatalf("platform session from outside: %d", code)
 	}
+	// Every company's dead letters, on the admin host only.
+	h.expect(h.admin(root, "GET", "/failed-jobs", nil), 200, "")
+	if code, _ := h.rawAt(h.host, "GET", "/api/v1/platform/failed-jobs", root, true); code != 404 {
+		t.Fatalf("platform failed jobs at a workspace: %d", code)
+	}
 	// Logout.
 	h.expect(h.admin(root, "POST", "/auth/logout", nil), 204, "")
 	h.expect(h.admin(root, "GET", "/me", nil), 401, "SESSION_INVALID")
@@ -659,6 +672,12 @@ func TestSupportAccessIsAuditedAndReadOnly(t *testing.T) {
 		t.Fatalf("me of a support session: %s", r.raw)
 	}
 	h.expect(h.do(call{method: "GET", path: "/api/v1/tags", token: support}), 200, "")
+	// Realtime works read-only, for this workspace only.
+	r = h.do(call{method: "POST", path: "/api/v1/realtime/connection-token", token: support})
+	h.expect(r, 200, "")
+	if r.data()["channel_prefix"] != "tenant:"+h.tenantID.String()+":" {
+		t.Fatalf("support realtime token: %s", r.raw)
+	}
 	h.expect(h.do(call{method: "DELETE", path: "/api/v1/tags/" + tag, token: support}), 403, "SUPPORT_READ_ONLY")
 	h.expect(h.do(call{method: "POST", path: "/api/v1/tags", token: support, body: map[string]any{"name": "x"}}), 403, "SUPPORT_READ_ONLY")
 	// Sensitive actions stay closed even with write access.

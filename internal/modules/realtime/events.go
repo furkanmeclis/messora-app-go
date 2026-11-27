@@ -328,15 +328,21 @@ type publishClient interface {
 	Publish(ctx context.Context, channel string, data []byte, idempotencyKey string) error
 }
 
-// Publisher relays "rt:<channel>" outbox events to Centrifugo. The outbox
-// ID is the idempotency key, so a publication repeated after a lost reply is
-// dropped by Centrifugo instead of reaching clients twice.
+// Publisher relays "rt:<channel>" outbox events to Centrifugo, on the
+// channel of the tenant that wrote the event (TenantChannel): the prefix
+// always comes from the outbox row, never from the topic, so no event can
+// reach another tenant's channel. An event without a tenant is refused.
+// The outbox ID is the idempotency key, so a publication repeated after a
+// lost reply is dropped by Centrifugo instead of reaching clients twice.
 func Publisher(c publishClient) outbox.Publisher {
 	return outbox.PublisherFunc(func(ctx context.Context, e outbox.Event) error {
 		channel := strings.TrimPrefix(e.Topic, TopicPrefix)
 		if channel == "" {
 			return fmt.Errorf("realtime: outbox event %d has no channel", e.ID)
 		}
-		return c.Publish(ctx, channel, e.Payload, fmt.Sprintf("outbox:%d", e.ID))
+		if e.TenantID == uuid.Nil {
+			return fmt.Errorf("realtime: outbox event %d has no tenant", e.ID)
+		}
+		return c.Publish(ctx, TenantChannel(e.TenantID, channel), e.Payload, fmt.Sprintf("outbox:%d", e.ID))
 	})
 }

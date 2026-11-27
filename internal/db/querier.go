@@ -177,6 +177,7 @@ type Querier interface {
 	DeleteContact(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteContactFieldSource(ctx context.Context, arg DeleteContactFieldSourceParams) error
 	DeleteContactGroup(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteContactImport(ctx context.Context, id uuid.UUID) error
 	DeleteContactNote(ctx context.Context, arg DeleteContactNoteParams) (int64, error)
 	DeleteExpiredPlatformSessions(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
@@ -212,6 +213,10 @@ type Querier interface {
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
 	ExpireStaleInvitation(ctx context.Context, email string) error
 	ExpiredCampaignExports(ctx context.Context) ([]ExpiredCampaignExportsRow, error)
+	// Imports past the retention period (finished, or uploaded and never
+	// started), oldest first; their files and the rows are removed
+	// (contacts.ExpireImports). Running and queued imports are left alone.
+	ExpiredContactImports(ctx context.Context, arg ExpiredContactImportsParams) ([]ExpiredContactImportsRow, error)
 	FailCampaignExport(ctx context.Context, arg FailCampaignExportParams) error
 	// One delivery per subscribed active endpoint; running it again for the
 	// same event inserts nothing.
@@ -488,7 +493,8 @@ type Querier interface {
 	// Serializes changes that could remove an owner, so two concurrent
 	// demotions cannot both pass the "at least one owner" check.
 	LockOwnerChanges(ctx context.Context) error
-	// Serialises the limit checks of campaigns sharing an account.
+	// Serialises the limit checks of campaigns sharing an account. Advisory
+	// locks are database-wide, so the key names the tenant too.
 	LockPortfolio(ctx context.Context, accountID uuid.UUID) error
 	MarkAIModelsSynced(ctx context.Context, id uuid.UUID) error
 	MarkConversationAIDisclosed(ctx context.Context, id uuid.UUID) error

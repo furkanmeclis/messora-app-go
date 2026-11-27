@@ -16,6 +16,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
@@ -51,7 +52,7 @@ func (s *Service) validateTOTP(ctx context.Context, userID uuid.UUID, secret, co
 			continue
 		}
 		step := t.Unix() / 30
-		set, err := s.rdb.SetNX(ctx, fmt.Sprintf("messora:totp:used:%s:%d", userID, step), 1, 3*time.Minute).Result()
+		set, err := s.rdb.SetNX(ctx, tenant.GlobalRedisKey(fmt.Sprintf("totp:used:%s:%d", userID, step)), 1, 3*time.Minute).Result()
 		if err != nil {
 			return false, err
 		}

@@ -39,6 +39,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/apiguard"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/fairness"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
@@ -119,6 +120,8 @@ type services struct {
 	// hosts are the platform's own addresses (base domain, admin host).
 	hosts    tenant.Hosts
 	platform *platform.Service
+	// fairness holds the noisy-neighbour limits (platform setting).
+	fairness *fairness.Source
 }
 
 // openStorage opens the object store the configuration selects.
@@ -211,8 +214,11 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	camp.SetExportStore(campaigns.NewExportStore(stores))
 	// The send scheduler: the worker paces sends with it, the dispatcher
 	// and the queue view read capacities and shares from it.
+	// Each tenant's campaigns together send at most the fairness setting's
+	// rate, whatever numbers they use.
+	fair := fairness.NewSource(pool)
 	throttle := messaging.NewThrottle(rdb, messaging.DefaultThroughput).WithCeilings(msg.ThroughputCeiling).
-		SetReservedShare(float64(cfg.Worker.CampaignReservedPercent) / 100)
+		SetReservedShare(float64(cfg.Worker.CampaignReservedPercent) / 100).WithTenantCampaignCap(fair.TenantCampaignMPS)
 	camp.SetScheduler(throttle)
 	inbox := conversations.New(pool, msg, media, log)
 	// Outgoing webhooks: https only outside development; private
@@ -236,7 +242,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	auto.SetFieldWriter(inbox)
 	return &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
-		automation: auto, stores: stores, tenants: resolver, hosts: hosts, platform: plat}, nil
+		automation: auto, stores: stores, tenants: resolver, hosts: hosts, platform: plat, fairness: fair}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -281,7 +287,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		consentHandler:    consent.NewHandler(pool, log),
 		offersHandler:     offers.NewHandler(svc.offers, log),
 		aiHandler:         aih,
-		platformHandler:   platform.NewHandler(svc.platform, ch.ListMetaRates, aih.ListAIPrices, log),
+		platformHandler:   platform.NewHandler(svc.platform, ch.ListMetaRates, aih.ListAIPrices, sys.FailedJobs(), log),
 		opsHandler: ops.NewHandler(ops.New(pool, ops.Deps{Campaigns: svc.campaigns, FailedJobs: sys.FailedJobsTotal,
 			Budget: svc.ai.BudgetStatus}), log),
 	}
@@ -296,13 +302,16 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	}
 	r.Method(http.MethodGet, apidocs.Path, apidocs.Handler(public))
 	r.Method(http.MethodHead, apidocs.Path, apidocs.Handler(public))
-	// Presigned local downloads and public assets without a CDN:
-	// authenticated by signature (or public), not by the API guard. The
-	// key names its tenant (t/<tenant>/…) and the signature covers the key.
-	r.Handle("/media/*", svc.stores.Handler())
 	// Everything below runs as the tenant of the request's host (unknown
 	// hosts get 404, suspended tenants 403).
 	byHost := tenant.Middleware(svc.tenants, svc.hosts, log)
+	// Presigned local downloads and public assets without a CDN:
+	// authenticated by signature (or public), not by the API guard. The
+	// key names its tenant (t/<tenant>/…) and the signature covers it; a
+	// signed link answers only at an address of that tenant. Public assets
+	// (logos) stay reachable from any host, e.g. in e-mails.
+	r.Handle(storage.PublicPrefix+"*", svc.stores.Handler())
+	r.With(byHost).Handle(storage.SignedPrefix+"*", svc.stores.Handler())
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.With(byHost).Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
 	r.Group(func(g chi.Router) {

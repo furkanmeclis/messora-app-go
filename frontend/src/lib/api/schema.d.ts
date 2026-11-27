@@ -1788,7 +1788,7 @@ export interface paths {
         put?: never;
         /**
          * Token for opening a Centrifugo connection
-         * @description A short-lived HS256 JWT for Centrifugo with the user as subject. The user's personal channel and system notices are subscribed server-side. The client asks for a new token before this one expires.
+         * @description A short-lived HS256 JWT for Centrifugo with the user as subject. The user's personal channel and the workspace's notices are subscribed server-side. Every channel belongs to the session's workspace: its wire name is `channel_prefix` (`tenant:<tenant_id>:`) followed by the channel, e.g. `tenant:<tenant_id>:inbox:all`. The client asks for a new token before this one expires.
          */
         post: operations['createRealtimeConnectionToken'];
         delete?: never;
@@ -1808,7 +1808,7 @@ export interface paths {
         put?: never;
         /**
          * Token for subscribing to one channel
-         * @description Issued only when the user may read the channel: `inbox:all` needs conversations.read_all, `inbox:unassigned` needs conversations.read or conversations.read_all, `conversation:<id>` needs conversations.read_all, or conversations.read when the conversation is assigned to the user or to nobody, `campaign:all` and `campaign:<id>` need campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
+         * @description Issued only for a channel of the session's workspace (its wire name, `tenant:<tenant_id>:<channel>`; see the connection token's `channel_prefix`) that the user may read: `inbox:all` needs conversations.read_all, `inbox:unassigned` needs conversations.read or conversations.read_all, `conversation:<id>` needs conversations.read_all, or conversations.read when the conversation is assigned to the user or to nobody, `campaign:all` and `campaign:<id>` need campaigns.read. Any other channel answers 403 CHANNEL_FORBIDDEN.
          */
         post: operations['createRealtimeSubscriptionToken'];
         delete?: never;
@@ -1826,7 +1826,7 @@ export interface paths {
         };
         /**
          * Current state of what changed on a channel since a moment
-         * @description For clients that missed events and could not recover them from Centrifugo's history. Returns snapshots as the events the channel carries, oldest change first: `conversation.updated` for `inbox:all`, `inbox:unassigned`, the caller's `personal:#<id>` and `conversation:<id>` (only conversations the caller may read and the channel would announce), `campaign.updated` for `campaign:all` and `campaign:<id>` (changed since, plus every active campaign). At most 200 conversations or 50 campaigns; `has_more` asks the client to reload instead. Channel permissions are those of the subscription token; a channel the caller may not read answers 403 CHANNEL_FORBIDDEN.
+         * @description For clients that missed events and could not recover them from Centrifugo's history. Returns snapshots as the events the channel carries, oldest change first: `conversation.updated` for `inbox:all`, `inbox:unassigned`, the caller's `personal:#<id>` and `conversation:<id>` (only conversations the caller may read and the channel would announce), `campaign.updated` for `campaign:all` and `campaign:<id>` (changed since, plus every active campaign). At most 200 conversations or 50 campaigns; `has_more` asks the client to reload instead. `channel` is the wire name (`tenant:<tenant_id>:<channel>`). Channel permissions are those of the subscription token; a channel of another workspace, or one the caller may not read, answers 403 CHANNEL_FORBIDDEN.
          */
         get: operations['getRealtimeSync'];
         put?: never;
@@ -3691,6 +3691,66 @@ export interface paths {
         get: operations['listPlatformAuditLogs'];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/failed-jobs': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Background jobs of every company that ran out of retries, newest first
+         * @description Like /system/failed-jobs, across companies; each job names the company it ran for.
+         */
+        get: operations['listPlatformFailedJobs'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/failed-jobs/{queue}/{jobId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Discard a failed job of any company */
+        delete: operations['deletePlatformFailedJob'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/failed-jobs/{queue}/{jobId}/retry': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a failed job of any company again now */
+        post: operations['retryPlatformFailedJob'];
         delete?: never;
         options?: never;
         head?: never;
@@ -6785,7 +6845,7 @@ export interface components {
             meta: components['schemas']['Meta'];
         };
         RealtimeSubscriptionRequest: {
-            /** @description Channel name, e.g. inbox:all or campaign:<id>. */
+            /** @description Wire channel name, e.g. tenant:<tenant_id>:inbox:all or tenant:<tenant_id>:campaign:<id>. */
             channel: string;
         };
         RealtimeToken: {
@@ -6793,6 +6853,8 @@ export interface components {
             token: string;
             /** Format: date-time */
             expires_at: string;
+            /** @description Connection tokens only: the prefix of the workspace's channel names (`tenant:<tenant_id>:`). Subscribe to the prefix followed by the channel, e.g. `inbox:all`. */
+            channel_prefix?: string;
         };
         RealtimeTokenResponse: {
             data: components['schemas']['RealtimeToken'];
@@ -9739,6 +9801,17 @@ export interface components {
         };
         PlatformAuditLogListResponse: {
             data: components['schemas']['PlatformAuditLog'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformFailedJob: components['schemas']['FailedJob'] & {
+            /**
+             * Format: uuid
+             * @description The company the job ran for (null: a platform job).
+             */
+            tenant_id: string | null;
+        };
+        PlatformFailedJobListResponse: {
+            data: components['schemas']['PlatformFailedJob'][];
             meta: components['schemas']['Meta'];
         };
     };
@@ -16174,6 +16247,75 @@ export interface operations {
                 content: {
                     'application/json': components['schemas']['PlatformAuditLogListResponse'];
                 };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformFailedJobs: {
+        parameters: {
+            query?: {
+                queue?: components['schemas']['QueueName'];
+                page?: number;
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Failed jobs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformFailedJobListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deletePlatformFailedJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    retryPlatformFailedJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components['responses']['Error'];
         };

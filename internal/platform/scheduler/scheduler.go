@@ -5,6 +5,12 @@
 //  2. Each tick's TaskID contains the time slot, and the ID stays reserved for
 //     two periods, so a leader change inside a slot cannot enqueue it twice.
 //  3. Task handlers claim their work atomically in PostgreSQL.
+//
+// Periodic jobs are per tenant unless marked Platform: a slot is enqueued as
+// one platform task (queue.TypeTenantFanOut) that a worker turns into one
+// task per active tenant, each carrying the tenant header and its own
+// deterministic TaskID (FanOutHandler). The scheduler itself needs no
+// database.
 package scheduler
 
 import (
@@ -31,6 +37,10 @@ type Job struct {
 	Every    time.Duration // period; slots are aligned to the Unix epoch
 	TaskType string
 	Payload  []byte
+	// Platform jobs run once per slot without a tenant; their task type
+	// must be a platform task (queue.IsPlatformTask). Every other job runs
+	// once per active tenant.
+	Platform bool
 }
 
 // Options configures a Scheduler.
@@ -62,6 +72,9 @@ func New(rdb goredis.UniversalClient, client *asynq.Client, jobs []Job, o Option
 		}
 		if seen[j.Name] {
 			return nil, fmt.Errorf("scheduler: duplicate job name %q", j.Name)
+		}
+		if j.Platform != queue.IsPlatformTask(j.TaskType) {
+			return nil, fmt.Errorf("scheduler: job %q: platform jobs and platform task types must match", j.Name)
 		}
 		seen[j.Name] = true
 	}
@@ -146,7 +159,11 @@ func (s *Scheduler) tick(ctx context.Context, lastSlot map[string]int64) {
 		if lastSlot[j.Name] == slot {
 			continue
 		}
-		err := queue.Enqueue(ctx, s.client, j.TaskType, j.Payload,
+		taskType, payload := j.TaskType, j.Payload
+		if !j.Platform {
+			taskType, payload = queue.TypeTenantFanOut, FanOut{Job: j.Name, TaskType: j.TaskType, Slot: slot, Every: j.Every, Payload: j.Payload}.encode()
+		}
+		err := queue.Enqueue(ctx, s.client, taskType, payload,
 			asynq.TaskID(SlotTaskID(j.Name, slot)),
 			asynq.Retention(2*j.Every),
 			asynq.Timeout(j.Every),

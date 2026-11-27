@@ -6,7 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/furkanmeclis/messora-app-go/internal/api"
+	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/system"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
@@ -18,12 +23,13 @@ type Handler struct {
 	log *slog.Logger
 	// The catalogue reads are the same as the companies' (read-only there).
 	listRates, listPrices http.HandlerFunc
+	jobs                  *system.FailedJobs
 }
 
 // NewHandler returns the HTTP handler for s. listRates and listPrices serve
 // the Meta rate card and the AI price table.
-func NewHandler(s *Service, listRates, listPrices http.HandlerFunc, log *slog.Logger) *Handler {
-	return &Handler{svc: s, log: log, listRates: listRates, listPrices: listPrices}
+func NewHandler(s *Service, listRates, listPrices http.HandlerFunc, jobs *system.FailedJobs, log *slog.Logger) *Handler {
+	return &Handler{svc: s, log: log, listRates: listRates, listPrices: listPrices, jobs: jobs}
 }
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
@@ -276,3 +282,73 @@ func (h *Handler) ListPlatformMetaRates(w http.ResponseWriter, r *http.Request) 
 
 // ListPlatformAIPrices implements api.ServerInterface.
 func (h *Handler) ListPlatformAIPrices(w http.ResponseWriter, r *http.Request) { h.listPrices(w, r) }
+
+// ListPlatformFailedJobs implements api.ServerInterface: every company's
+// dead letters (system.PlatformScope).
+func (h *Handler) ListPlatformFailedJobs(w http.ResponseWriter, r *http.Request, p api.ListPlatformFailedJobsParams) {
+	page, limit := 1, 50
+	if p.Page != nil {
+		page = *p.Page
+	}
+	if p.Limit != nil {
+		limit = *p.Limit
+	}
+	q := ""
+	if p.Queue != nil {
+		q = string(*p.Queue)
+	}
+	jobs, total, err := h.jobs.List(system.PlatformScope(), q, page, limit)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	out := make([]api.PlatformFailedJob, len(jobs))
+	for i, j := range jobs {
+		v := system.ToAPI(j)
+		out[i] = api.PlatformFailedJob{Id: v.Id, Queue: v.Queue, Type: v.Type, LastError: v.LastError, FailedAt: v.FailedAt,
+			Retried: v.Retried, MaxRetry: v.MaxRetry, Refs: v.Refs}
+		if j.TenantID != uuid.Nil {
+			id := j.TenantID
+			out[i].TenantId = &id
+		}
+	}
+	httpx.JSONTotal(w, r, http.StatusOK, out, total)
+}
+
+// RetryPlatformFailedJob implements api.ServerInterface.
+func (h *Handler) RetryPlatformFailedJob(w http.ResponseWriter, r *http.Request, q api.QueuePath, id api.JobId) {
+	j, err := h.jobs.Retry(system.PlatformScope(), string(q), id)
+	if err == nil {
+		err = h.auditJob(r, "failed_job.retry", j)
+	}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.NoContent(w)
+}
+
+// DeletePlatformFailedJob implements api.ServerInterface.
+func (h *Handler) DeletePlatformFailedJob(w http.ResponseWriter, r *http.Request, q api.QueuePath, id api.JobId) {
+	j, err := h.jobs.Delete(system.PlatformScope(), string(q), id)
+	if err == nil {
+		err = h.auditJob(r, "failed_job.delete", j)
+	}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.NoContent(w)
+}
+
+func (h *Handler) auditJob(r *http.Request, action string, j system.FailedJob) error {
+	var t *uuid.UUID
+	if j.TenantID != uuid.Nil {
+		id := j.TenantID
+		t = &id
+	}
+	return h.svc.tx(r.Context(), func(q *db.Queries) error {
+		return audit.Record(pctx(r.Context()), q, audit.Entry{Action: action, EntityType: "failed_job", Tenant: t,
+			Changes: map[string]any{"queue": j.Queue, "job_id": j.ID, "task_type": j.Type}})
+	})
+}

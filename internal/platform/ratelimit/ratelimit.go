@@ -58,8 +58,14 @@ func New(rdb goredis.UniversalClient, prefix string) *Limiter {
 	return &Limiter{rdb: rdb, prefix: prefix}
 }
 
-// Allow consumes one event for key.
+// Allow consumes one event for key, stored as "<prefix>:<key>".
 func (l *Limiter) Allow(ctx context.Context, key string, lim Limit) (Result, error) {
+	return l.AllowRaw(ctx, l.prefix+":"+key, lim)
+}
+
+// AllowRaw consumes one event for the Redis key redisKey as given (no
+// prefix), e.g. a tenant-namespaced key (tenant.RedisKey).
+func (l *Limiter) AllowRaw(ctx context.Context, redisKey string, lim Limit) (Result, error) {
 	if lim.Rate <= 0 || lim.Period <= 0 {
 		return Result{}, fmt.Errorf("ratelimit: invalid limit %+v", lim)
 	}
@@ -68,7 +74,7 @@ func (l *Limiter) Allow(ctx context.Context, key string, lim Limit) (Result, err
 		burst = 1
 	}
 	intervalMs := float64(lim.Period.Milliseconds()) / float64(lim.Rate)
-	res, err := gcra.Run(ctx, l.rdb, []string{l.prefix + ":" + key}, intervalMs, intervalMs*float64(burst)).Int64Slice()
+	res, err := gcra.Run(ctx, l.rdb, []string{redisKey}, intervalMs, intervalMs*float64(burst)).Int64Slice()
 	if err != nil {
 		return Result{}, err
 	}
