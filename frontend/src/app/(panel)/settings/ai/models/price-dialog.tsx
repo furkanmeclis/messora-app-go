@@ -26,7 +26,10 @@ import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n/client';
 import type { Schemas } from '@/lib/types';
-import { createPriceAction, updatePriceAction } from '../actions';
+import {
+    createPriceAction,
+    updatePriceAction,
+} from '@/app/platform-admin/price-actions';
 
 type Price = Schemas['AIPrice'];
 type Kind = Schemas['AIProviderKind'];

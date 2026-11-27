@@ -10,7 +10,8 @@ const device =
 
 /**
  * End-to-end tests against a running Messora stack (see scripts/e2e.sh).
- * The base URL and one-time setup link come from the environment.
+ * The base URL (tenant #1), the admin host, the platform address and the
+ * mail catcher come from the environment.
  */
 export default defineConfig({
     testDir: './e2e',
@@ -27,9 +28,9 @@ export default defineConfig({
         screenshot: 'only-on-failure',
     },
     // CI runs Chromium; E2E_BROWSER=webkit|firefox runs another engine locally.
-    // identity.spec.ts sets the installation up and creates the users the
-    // other specs sign in with, so it always runs first (files would
-    // otherwise run in alphabetical order).
+    // identity.spec.ts enrols the platform admin, opens the first workspace
+    // and creates the users the other specs sign in with, so it always runs
+    // first (files would otherwise run in alphabetical order).
     projects: [
         { name: 'identity', testMatch: 'identity.spec.ts', use: { ...device } },
         {

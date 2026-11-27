@@ -37,11 +37,11 @@ import { rules, useAuthForm } from './_components/use-auth-form';
 import {
     acceptInvitationAction,
     checkSlugAction,
+    confirmEmailChangeAction,
     forgotPasswordAction,
     loginAction,
     resendVerificationAction,
     resetPasswordAction,
-    setupAction,
     signupAction,
     verifyEmailAction,
     verifyMfaAction,
@@ -104,66 +104,112 @@ export function LoginForm({
         email: r.email,
         password: r.required,
     });
+    const code = f.state && !f.state.ok ? f.state.code : null;
     return (
-        <form {...f.formProps} className="flex flex-col gap-5">
-            <input type="hidden" name="next" value={next} />
-            <ErrorSummary
-                title={t('auth.validation.summary', {
-                    count: Object.values(f.summaryErrors).filter(Boolean)
-                        .length,
-                })}
-                errors={f.summaryErrors}
-                labels={{
-                    email: t('auth.email'),
-                    password: t('auth.password'),
-                }}
-                summaryRef={f.summaryRef}
-            />
-            <ServerAlert state={f.state} />
-            <AuthField
-                label={t('auth.email')}
-                name="email"
-                defaultValue={f.values.email}
-                type="email"
-                inputMode="email"
-                autoComplete="username email"
-                autoCapitalize="none"
-                spellCheck={false}
-                required
-                autoFocus
-                error={f.errorFor('email')}
-            />
-            <div className="flex flex-col gap-1">
-                <PasswordField
-                    label={t('auth.password')}
-                    name="password"
-                    autoComplete="current-password"
-                    required
-                    error={f.errorFor('password')}
-                />
-            </div>
-            <div className="-my-1 flex flex-wrap items-center justify-between gap-x-4">
-                <Label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm font-normal">
-                    <Checkbox
-                        name="remember"
-                        defaultChecked={
-                            f.values.remember !== undefined || !f.state
-                        }
-                        className="size-[18px] rounded-[5px]"
+        <div className="flex flex-col gap-5">
+            {code === AUTH_ERROR_CODES.emailNotVerified && (
+                <div className="flex flex-col gap-3" role="alert">
+                    <FormAlert tone="info">
+                        <MailCheck
+                            className="mt-0.5 size-4 shrink-0 text-primary"
+                            aria-hidden
+                        />
+                        <span>
+                            <strong className="block font-semibold">
+                                {t('auth.login.notVerifiedTitle')}
+                            </strong>
+                            {t('auth.login.notVerifiedBody')}
+                        </span>
+                    </FormAlert>
+                    <ResendVerificationForm
+                        email={f.values.email || null}
+                        initialCooldown={0}
                     />
-                    {t('auth.login.remember')}
-                </Label>
-                {canReset && (
-                    <Link
-                        href="/forgot-password"
-                        className="inline-flex min-h-11 items-center rounded-md text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                    >
-                        {t('auth.login.forgot')}
-                    </Link>
-                )}
-            </div>
-            <AuthSubmit>{t('auth.login.submit')}</AuthSubmit>
-        </form>
+                </div>
+            )}
+            {code === AUTH_ERROR_CODES.passwordResetRequired && (
+                <FormAlert tone="info">
+                    <KeyRound
+                        className="mt-0.5 size-4 shrink-0 text-primary"
+                        aria-hidden
+                    />
+                    <span>
+                        <strong className="block font-semibold">
+                            {t('auth.login.resetRequiredTitle')}
+                        </strong>
+                        {t('auth.login.resetRequiredBody')}{' '}
+                        <Link
+                            href="/forgot-password"
+                            className="font-medium text-primary underline underline-offset-2"
+                        >
+                            {t('auth.login.resetRequiredLink')}
+                        </Link>
+                    </span>
+                </FormAlert>
+            )}
+            <form {...f.formProps} className="flex flex-col gap-5">
+                <input type="hidden" name="next" value={next} />
+                <ErrorSummary
+                    title={t('auth.validation.summary', {
+                        count: Object.values(f.summaryErrors).filter(Boolean)
+                            .length,
+                    })}
+                    errors={f.summaryErrors}
+                    labels={{
+                        email: t('auth.email'),
+                        password: t('auth.password'),
+                    }}
+                    summaryRef={f.summaryRef}
+                />
+                {code !== AUTH_ERROR_CODES.emailNotVerified &&
+                    code !== AUTH_ERROR_CODES.passwordResetRequired && (
+                        <ServerAlert state={f.state} />
+                    )}
+                <AuthField
+                    label={t('auth.email')}
+                    name="email"
+                    defaultValue={f.values.email}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="username email"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    required
+                    autoFocus
+                    error={f.errorFor('email')}
+                />
+                <div className="flex flex-col gap-1">
+                    <PasswordField
+                        label={t('auth.password')}
+                        name="password"
+                        autoComplete="current-password"
+                        required
+                        error={f.errorFor('password')}
+                    />
+                </div>
+                <div className="-my-1 flex flex-wrap items-center justify-between gap-x-4">
+                    <Label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm font-normal">
+                        <Checkbox
+                            name="remember"
+                            defaultChecked={
+                                f.values.remember !== undefined || !f.state
+                            }
+                            className="size-[18px] rounded-[5px]"
+                        />
+                        {t('auth.login.remember')}
+                    </Label>
+                    {canReset && (
+                        <Link
+                            href="/forgot-password"
+                            className="inline-flex min-h-11 items-center rounded-md text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                        >
+                            {t('auth.login.forgot')}
+                        </Link>
+                    )}
+                </div>
+                <AuthSubmit>{t('auth.login.submit')}</AuthSubmit>
+            </form>
+        </div>
     );
 }
 
@@ -225,91 +271,23 @@ export function VerifyForm({ next }: { next: string }) {
     );
 }
 
-export function SetupForm({ token }: { token: string }) {
-    const t = useT();
-    const r = useCommonRules();
-    const f = useAuthForm(setupAction, {
-        name: r.required,
-        email: r.email,
-        password: r.newPassword,
-    });
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    return (
-        <form {...f.formProps} className="flex flex-col gap-5">
-            <input type="hidden" name="token" value={token} />
-            <ErrorSummary
-                title={t('auth.validation.summary', {
-                    count: Object.values(f.summaryErrors).filter(Boolean)
-                        .length,
-                })}
-                errors={f.summaryErrors}
-                labels={{
-                    name: t('auth.yourName'),
-                    email: t('auth.email'),
-                    password: t('auth.password'),
-                }}
-                summaryRef={f.summaryRef}
-            />
-            <ServerAlert state={f.state} />
-            <AuthField
-                label={t('auth.setup.organizationName')}
-                name="organization_name"
-                defaultValue={f.values.organization_name}
-                placeholder={t('auth.setup.organizationPlaceholder')}
-                autoComplete="organization"
-                maxLength={120}
-                autoFocus
-                error={f.errorFor('organization_name')}
-            />
-            <AuthField
-                label={t('auth.yourName')}
-                name="name"
-                defaultValue={f.values.name}
-                autoComplete="name"
-                required
-                maxLength={120}
-                onChange={(e) => setName(e.target.value)}
-                error={f.errorFor('name')}
-            />
-            <AuthField
-                label={t('auth.email')}
-                name="email"
-                defaultValue={f.values.email}
-                type="email"
-                autoComplete="username email"
-                required
-                onChange={(e) => setEmail(e.target.value)}
-                error={f.errorFor('email')}
-            />
-            <PasswordField
-                label={t('auth.password')}
-                name="password"
-                autoComplete="new-password"
-                required
-                meter
-                personal={[name, email]}
-                hint={t('auth.passwordHint')}
-                error={f.errorFor('password')}
-            />
-            <AuthSubmit>{t('auth.setup.submit')}</AuthSubmit>
-        </form>
-    );
-}
-
 export function AcceptInvitationForm({
     token,
     email,
+    accountExists = false,
 }: {
     token: string;
     email: string;
+    accountExists?: boolean;
 }) {
     const t = useT();
     const r = useCommonRules();
-    const f = useAuthForm(acceptInvitationAction, {
-        name: r.required,
-        password: r.newPassword,
-    });
+    const f = useAuthForm(
+        acceptInvitationAction,
+        accountExists
+            ? { password: r.required }
+            : { name: r.required, password: r.newPassword },
+    );
     const [name, setName] = useState('');
     return (
         <form {...f.formProps} className="flex flex-col gap-5">
@@ -336,28 +314,51 @@ export function AcceptInvitationForm({
                 readOnly
                 className="bg-muted text-muted-foreground dark:bg-input/20"
             />
-            <AuthField
-                label={t('auth.yourName')}
-                name="name"
-                defaultValue={f.values.name}
-                autoComplete="name"
-                required
-                maxLength={120}
-                autoFocus
-                onChange={(e) => setName(e.target.value)}
-                error={f.errorFor('name')}
-            />
-            <PasswordField
-                label={t('auth.password')}
-                name="password"
-                autoComplete="new-password"
-                required
-                meter
-                personal={[name, email]}
-                hint={t('auth.passwordHint')}
-                error={f.errorFor('password')}
-            />
-            <AuthSubmit>{t('auth.invite.submit')}</AuthSubmit>
+            {accountExists ? (
+                <>
+                    <FormAlert tone="info">
+                        <KeyRound
+                            className="mt-0.5 size-4 shrink-0 text-primary"
+                            aria-hidden
+                        />
+                        <span>{t('auth.invite.existingAccount')}</span>
+                    </FormAlert>
+                    <PasswordField
+                        label={t('auth.password')}
+                        name="password"
+                        autoComplete="current-password"
+                        required
+                        autoFocus
+                        error={f.errorFor('password')}
+                    />
+                    <AuthSubmit>{t('auth.invite.submitExisting')}</AuthSubmit>
+                </>
+            ) : (
+                <>
+                    <AuthField
+                        label={t('auth.yourName')}
+                        name="name"
+                        defaultValue={f.values.name}
+                        autoComplete="name"
+                        required
+                        maxLength={120}
+                        autoFocus
+                        onChange={(e) => setName(e.target.value)}
+                        error={f.errorFor('name')}
+                    />
+                    <PasswordField
+                        label={t('auth.password')}
+                        name="password"
+                        autoComplete="new-password"
+                        required
+                        meter
+                        personal={[name, email]}
+                        hint={t('auth.passwordHint')}
+                        error={f.errorFor('password')}
+                    />
+                    <AuthSubmit>{t('auth.invite.submit')}</AuthSubmit>
+                </>
+            )}
         </form>
     );
 }
@@ -495,9 +496,12 @@ function useSlugAvailability(slug: string) {
 export function SignupForm({
     baseDomain,
     contactUrl,
+    closed = false,
 }: {
     baseDomain: string;
     contactUrl: string;
+    /** The platform setting signup_enabled is off. */
+    closed?: boolean;
 }) {
     const t = useT();
     const r = useCommonRules();
@@ -525,9 +529,10 @@ export function SignupForm({
     const availability = useSlugAvailability(slug);
 
     if (
-        f.state &&
-        !f.state.ok &&
-        f.state.code === AUTH_ERROR_CODES.signupUnavailable
+        closed ||
+        (f.state &&
+            !f.state.ok &&
+            f.state.code === AUTH_ERROR_CODES.signupDisabled)
     ) {
         return (
             <div className="flex flex-col gap-5">
@@ -802,17 +807,6 @@ export function ResendVerificationForm({
     const t = useT();
     const [state, action] = useActionState(resendVerificationAction, null);
     const left = useCooldown(state, email ? initialCooldown : 0);
-    if (state?.status === 'unavailable') {
-        return (
-            <FormAlert tone="info">
-                <ShieldCheck
-                    className="mt-0.5 size-4 shrink-0 text-primary"
-                    aria-hidden
-                />
-                <span>{t('auth.verifyEmail.soonBody')}</span>
-            </FormAlert>
-        );
-    }
     return (
         <form action={action} className="flex flex-col gap-4">
             {state?.status === 'sent' && (
@@ -983,22 +977,6 @@ function VerifyEmailResult({
             </div>
         );
     }
-    if (state.status === 'unavailable') {
-        return (
-            <FormAlert tone="info">
-                <ShieldCheck
-                    className="mt-0.5 size-4 shrink-0 text-primary"
-                    aria-hidden
-                />
-                <span>
-                    <strong className="block font-semibold">
-                        {t('auth.verifyEmail.soonTitle')}
-                    </strong>
-                    {t('auth.verifyEmail.soonBody')}
-                </span>
-            </FormAlert>
-        );
-    }
     const expired = state.status === 'expired';
     return (
         <div className="flex flex-col gap-5">
@@ -1019,5 +997,55 @@ function VerifyEmailResult({
             </FormAlert>
             <ResendVerificationForm email={null} initialCooldown={0} />
         </div>
+    );
+}
+
+/** Confirms a new e-mail address from the e-mailed link (on request). */
+export function ConfirmEmailForm({ token }: { token: string }) {
+    const t = useT();
+    const [state, action] = useActionState(confirmEmailChangeAction, null);
+    if (state?.status === 'changed') {
+        return (
+            <div className="flex flex-col gap-5">
+                <FormAlert tone="success">
+                    <CheckCircle2
+                        className="mt-0.5 size-4 shrink-0"
+                        aria-hidden
+                    />
+                    <span>
+                        <strong className="block font-semibold">
+                            {t('auth.confirmEmail.successTitle')}
+                        </strong>
+                        {t('auth.confirmEmail.successBody')}
+                    </span>
+                </FormAlert>
+                <Button
+                    asChild
+                    className="h-11 w-full rounded-xl text-[15px] font-semibold"
+                >
+                    <Link href="/login">{t('auth.confirmEmail.continue')}</Link>
+                </Button>
+            </div>
+        );
+    }
+    return (
+        <form action={action} className="flex flex-col gap-5">
+            <input type="hidden" name="token" value={token} />
+            {state?.status === 'invalid' && (
+                <FormAlert>
+                    <AlertCircle
+                        className="mt-0.5 size-4 shrink-0"
+                        aria-hidden
+                    />
+                    <span>
+                        <strong className="block font-semibold">
+                            {t('auth.confirmEmail.invalidTitle')}
+                        </strong>
+                        {state.message || t('auth.confirmEmail.invalidBody')}
+                    </span>
+                </FormAlert>
+            )}
+            <AuthSubmit>{t('auth.confirmEmail.submit')}</AuthSubmit>
+        </form>
     );
 }

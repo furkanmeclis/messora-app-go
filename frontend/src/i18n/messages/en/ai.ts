@@ -197,6 +197,8 @@ const ai = {
         addPrice: 'Add price',
     },
     prices: {
+        managedByPlatform:
+            'Messora manages the price table for every workspace; AI costs are calculated from it.',
         title: 'Price table',
         description:
             'No provider publishes prices through an API. Seeded and imported rows are unconfirmed until an admin checks them against the source.',
