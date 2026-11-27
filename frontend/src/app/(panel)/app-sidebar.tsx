@@ -128,7 +128,7 @@ export function AppSidebar({
     };
 
     return (
-        <Sidebar collapsible="icon" data-chrome>
+        <Sidebar collapsible="icon">
             {/* As tall as the top bar, so their bottom edges meet. */}
             <SidebarHeader className="h-14 shrink-0 justify-center border-b border-sidebar-border">
                 <div className="flex items-center gap-2.5 px-1 py-0.5">

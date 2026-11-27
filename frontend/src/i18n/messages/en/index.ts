@@ -13,7 +13,6 @@ import wizard from './wizard';
 import topbar from './topbar';
 import shortcuts from './shortcuts';
 import table from './table';
-import desktop from './desktop';
 import contextMenu from './contextMenu';
 import pwa from './pwa';
 import params from './params';
@@ -47,7 +46,6 @@ export const en = {
     topbar,
     shortcuts,
     table,
-    desktop,
     contextMenu,
     pwa,
     params,

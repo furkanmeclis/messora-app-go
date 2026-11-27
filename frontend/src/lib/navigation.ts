@@ -31,7 +31,7 @@ export type NavItem = {
 };
 
 /**
- * Every section of the panel. The sidebar and desktop mode both render
+ * Every section of the panel. The sidebar and the command palette render
  * this list, filtered by the user's permissions.
  */
 export const NAV: NavItem[] = [

@@ -11,13 +11,11 @@ import {
     UserPlus,
     Workflow,
     Search,
-    AppWindow,
     Download,
     type LucideIcon,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useT } from '@/i18n/client';
-import { useDesktop } from '@/components/desktop/desktop-context';
 import { usePwa } from '@/components/pwa';
 import { visibleNav } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
@@ -46,7 +44,6 @@ export function CommandPalette({
     const router = useRouter();
     const { resolvedTheme, setTheme } = useTheme();
     const [query, setQuery] = useState('');
-    const desktop = useDesktop();
     const pwa = usePwa();
     const [active, setActive] = useState(0);
     const list = useRef<HTMLDivElement>(null);
@@ -94,14 +91,6 @@ export function CommandPalette({
                     icon: UserPlus,
                     run: go('/users'),
                 },
-            !restricted &&
-                desktop.available && {
-                    id: 'desktop',
-                    label: t('desktop.enter'),
-                    group: t('topbar.actions'),
-                    icon: AppWindow,
-                    run: desktop.enter,
-                },
             pwa.canInstall && {
                 id: 'install',
                 label: t('pwa.install'),
@@ -119,16 +108,7 @@ export function CommandPalette({
             },
         ];
         return [...pages, ...actions.filter((a): a is Item => !!a)];
-    }, [
-        permissions,
-        restricted,
-        router,
-        t,
-        resolvedTheme,
-        setTheme,
-        desktop,
-        pwa,
-    ]);
+    }, [permissions, restricted, router, t, resolvedTheme, setTheme, pwa]);
 
     const filtered = useMemo(() => {
         const q = query.trim().toLocaleLowerCase();

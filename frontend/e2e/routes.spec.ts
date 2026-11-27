@@ -196,28 +196,6 @@ test('failed jobs page is reachable and lists the dead letter', async () => {
     ).toBeVisible();
 });
 
-test('desktop mode opens sections in windows', async () => {
-    await page.goto('/');
-    await page
-        .getByRole('button', { name: 'Desktop mode' })
-        .click({ force: true });
-    await page
-        .getByRole('button', { name: 'Contacts', exact: true })
-        .first()
-        .dblclick();
-    const win = page.getByRole('dialog', { name: /Contacts/ });
-    await expect(win).toBeVisible();
-    const frame = page.frameLocator('iframe[title*="Contacts"]');
-    await expect(frame.locator('main h1').first()).toHaveText('Contacts');
-    // The panel chrome is hidden inside a window.
-    await expect(frame.locator('[data-chrome]').first()).toBeHidden();
-    await win.getByRole('button', { name: 'Close' }).click();
-    await expect(win).toHaveCount(0);
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
-    await page.getByRole('button', { name: 'Exit desktop mode' }).click();
-    await expect(page.locator('main h1').first()).toBeVisible();
-});
-
 test('right-click opens the panel menu; shift keeps the browser menu', async () => {
     await page.goto('/contacts');
     await page.locator('main h1').first().click({ button: 'right' });

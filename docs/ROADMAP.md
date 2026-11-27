@@ -97,7 +97,7 @@ Güvenlik denetimi (SECURITY.md checklist, bağımlılık taraması, CSP doğrul
 
 **Durum:** `@xyflow/react` tuvali; adımların kalıcı `id`'si, `layout` (düğüm konumları) ve çalıştırma izi (`visited`) migration 00011 ile. Koşulun üç çıkışı var: evet, hayır ve iki daldan sonra çalışan "sonra"; graf her zaman ağaçtır, adım ağacına kayıpsız çevrilir. Testler: id/derleme tablo testleri, `FuzzStepIDs`, eski otomasyonların konumdan türetilen id'leri ve izleri, dallı akışın API üzerinden tetiklenip izinin doğrulandığı entegrasyon testi, `e2e/automation-canvas.spec.ts` (kur, kaydet, yeniden yükle). Ayrıntılar: [AUTOMATIONS.md](AUTOMATIONS.md).
 
-## Phase 15 — Masaüstü modu ✅ (2026-11-23)
+## Phase 15 — Masaüstü modu ✅ (2026-11-23; Phase 17 WP0'da kaldırıldı)
 - F11 (tarayıcı tam ekranı) veya menüden: masaüstü, görev çubuğu, uygulama ikonları; bölümler taşınabilir, boyutlandırılabilir, küçültülüp büyütülebilir pencerelerde açılır; birden çok pencere aynı anda açık kalır. Pencere düzeni kullanıcı başına hatırlanır. Tam ekrandan çıkınca normal panele dönülür.
 
 **Bitti kriteri:** Her bölüm bir pencerede çalışır (E2E); klavye ile pencere değiştirme; mobilde masaüstü modu kapalıdır.

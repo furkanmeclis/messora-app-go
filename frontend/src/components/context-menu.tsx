@@ -15,7 +15,6 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import {
-    AppWindow,
     ArrowLeft,
     ArrowRight,
     Command,
@@ -31,7 +30,6 @@ import {
 } from 'lucide-react';
 import { useT } from '@/i18n/client';
 import { cn } from '@/lib/utils';
-import { useDesktop } from './desktop/desktop-context';
 
 export type MenuItem = {
     id: string;
@@ -48,13 +46,6 @@ type Provider = (target: HTMLElement) => MenuGroup[] | null | undefined;
 
 type Ctx = { register: (id: string, fn: Provider) => () => void };
 const MenuContext = createContext<Ctx | null>(null);
-
-/** Message a desktop window sends to open a URL in another window. */
-export const DESKTOP_OPEN_MESSAGE = 'messora:desktop-open';
-
-function inDesktopWindow() {
-    return typeof window !== 'undefined' && window.top !== window.self;
-}
 
 /** Fields keep the browser's own menu (paste, spelling, …). */
 function editable(el: HTMLElement) {
@@ -89,7 +80,6 @@ export function ContextMenuProvider({
     const t = useT();
     const router = useRouter();
     const { resolvedTheme, setTheme } = useTheme();
-    const desktop = useDesktop();
     const providers = useRef(new Map<string, Provider>());
     const [menu, setMenu] = useState<{
         x: number;
@@ -145,18 +135,6 @@ export function ContextMenuProvider({
                         run: () => window.open(link.href, '_blank', 'noopener'),
                     },
                 ];
-                if (internal && inDesktopWindow()) {
-                    g.push({
-                        id: 'window',
-                        label: t('contextMenu.openNewWindow'),
-                        icon: AppWindow,
-                        run: () =>
-                            window.parent.postMessage(
-                                { type: DESKTOP_OPEN_MESSAGE, url: href },
-                                window.location.origin,
-                            ),
-                    });
-                }
                 g.push({
                     id: 'copy-link',
                     label: t('contextMenu.copyLink'),
@@ -241,33 +219,6 @@ export function ContextMenuProvider({
                         ),
                 },
             ];
-            if (inDesktopWindow()) {
-                panel.push({
-                    id: 'here',
-                    label: t('contextMenu.openWindowHere'),
-                    icon: AppWindow,
-                    run: () =>
-                        window.parent.postMessage(
-                            {
-                                type: DESKTOP_OPEN_MESSAGE,
-                                url:
-                                    window.location.pathname +
-                                    window.location.search,
-                            },
-                            window.location.origin,
-                        ),
-                });
-            } else if (desktop.available) {
-                panel.push({
-                    id: 'desktop',
-                    label: desktop.active
-                        ? t('contextMenu.desktopOff')
-                        : t('contextMenu.desktopOn'),
-                    icon: AppWindow,
-                    shortcut: '⌘⇧D',
-                    run: desktop.active ? desktop.exit : desktop.enter,
-                });
-            }
             panel.push({
                 id: 'theme',
                 label: t('contextMenu.theme'),
@@ -284,7 +235,7 @@ export function ContextMenuProvider({
         };
         document.addEventListener('contextmenu', onContext);
         return () => document.removeEventListener('contextmenu', onContext);
-    }, [t, router, desktop, resolvedTheme, setTheme]);
+    }, [t, router, resolvedTheme, setTheme]);
 
     const flat = useMemo(
         () => menu?.groups.flat().filter((i) => !i.disabled) ?? [],

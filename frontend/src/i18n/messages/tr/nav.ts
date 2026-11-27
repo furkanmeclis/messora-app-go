@@ -21,9 +21,6 @@ const nav: Messages['nav'] = {
     profile: 'Profil',
     security: 'Güvenlik',
     toggleSidebar: 'Kenar çubuğunu aç/kapat',
-    desktopMode: 'Masaüstü modu',
-    desktopModeHint:
-        "F11'e basın ya da pencerelerle çalışmak için buraya tıklayın",
     finishSetup: '{organization} kurulumunu tamamlayın',
     finishSetupHint: '{total} adımdan {done} tanesi tamam.',
     resumeSetup: 'Kuruluma devam et',

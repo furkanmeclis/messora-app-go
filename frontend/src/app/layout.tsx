@@ -69,13 +69,6 @@ export default async function RootLayout({
     return (
         <html lang={locale} className="font-sans" suppressHydrationWarning>
             <head>
-                {/* Pages inside a desktop-mode window hide the panel chrome. */}
-                <script
-                    nonce={nonce}
-                    dangerouslySetInnerHTML={{
-                        __html: "if(window.top!==window.self)document.documentElement.setAttribute('data-embedded','')",
-                    }}
-                />
                 {/* The workspace theme, before first paint (no flash). */}
                 <style
                     id="messora-theme"

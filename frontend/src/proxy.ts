@@ -63,8 +63,8 @@ export function proxy(req: NextRequest) {
         `object-src 'none'`,
         `base-uri 'self'`,
         `form-action 'self'`,
-        // Same origin only: desktop mode shows panel pages in windows.
-        `frame-ancestors 'self'`,
+        // Nothing frames the panel, not even its own pages.
+        `frame-ancestors 'none'`,
     ].join('; ');
 
     const requestHeaders = new Headers(req.headers);

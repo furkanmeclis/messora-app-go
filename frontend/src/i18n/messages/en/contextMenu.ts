@@ -1,7 +1,6 @@
 const contextMenu = {
     open: 'Open',
     openNewTab: 'Open in new tab',
-    openNewWindow: 'Open in new window',
     copyLink: 'Copy link address',
     copy: 'Copy',
     copied: 'Copied to clipboard',
@@ -12,14 +11,11 @@ const contextMenu = {
     reload: 'Reload',
     palette: 'Search pages and actions',
     shortcuts: 'Keyboard shortcuts',
-    desktopOn: 'Desktop mode',
-    desktopOff: 'Exit desktop mode',
     theme: 'Switch light / dark',
     nativeHint: 'Shift + right-click opens the browser menu',
     copyPhone: 'Copy phone number',
     copyEmail: 'Copy e-mail address',
     select: 'Select',
     deselect: 'Deselect',
-    openWindowHere: 'Open this page in a new window',
 };
 export default contextMenu;

@@ -7,10 +7,7 @@ import { getT } from '@/i18n/server';
 export async function SetupBanner({ organization }: { organization: string }) {
     const t = await getT();
     return (
-        <div
-            data-chrome
-            className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-linear-to-r from-primary/10 via-accent/40 to-transparent p-4"
-        >
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-linear-to-r from-primary/10 via-accent/40 to-transparent p-4">
             <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Sparkles className="size-4" />
             </span>
