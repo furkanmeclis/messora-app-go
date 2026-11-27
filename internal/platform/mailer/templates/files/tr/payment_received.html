@@ -1,0 +1,7 @@
+{{define "content"}}
+{{template "h1" "Ödemeniz alındı"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Ödemeniz bize ulaştı, teşekkür ederiz.</p>
+{{template "rows" (rows "Fatura no" .D.InvoiceNo "Tutar" (money .D.Amount) "Ödeme tarihi" (date .D.PaidAt) "Yöntem" .D.Method)}}
+{{template "button" (dict "URL" .D.InvoiceURL "Label" "Faturayı görüntüle" "L" .L)}}
+{{end}}

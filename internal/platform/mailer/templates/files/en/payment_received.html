@@ -1,0 +1,7 @@
+{{define "content"}}
+{{template "h1" "Payment received"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Your payment has arrived. Thank you.</p>
+{{template "rows" (rows "Invoice no." .D.InvoiceNo "Amount" (money .D.Amount) "Paid on" (date .D.PaidAt) "Method" .D.Method)}}
+{{template "button" (dict "URL" .D.InvoiceURL "Label" "View invoice" "L" .L)}}
+{{end}}

@@ -1,0 +1,13 @@
+{{define "subject"}}Your Messora sign-in code{{end}}
+{{define "preheader"}}Your one-time code is valid for {{dur .D.ExpiresIn}}.{{end}}
+{{define "reason"}}You're receiving this because a two-step verification code was requested while signing in to your account.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+Enter this one-time code to finish signing in:
+
+    {{.D.Code}}
+
+The code is valid for {{dur .D.ExpiresIn}} and can be used once.
+
+Never share this code with anyone; the Messora team will never ask you for it. If you aren't trying to sign in, we recommend changing your password.
+{{end}}

@@ -7,6 +7,7 @@
 
 # Local-only scratch directory
 /reference/
+/tmp/
 
 # Go
 /bin/

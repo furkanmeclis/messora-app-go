@@ -1,0 +1,69 @@
+{{/* Reusable HTML blocks. All styles are inline presets from format.go. */}}
+
+{{define "greeting"}}<p class="m-text" style="{{css "p"}}">{{if .C.Name}}{{.L.Hello}} {{.C.Name}},{{else}}{{.L.HelloAnon}}{{end}}</p>{{end}}
+
+{{define "h1"}}<h1 class="m-text" style="{{css "h1"}}">{{.}}</h1>{{end}}
+
+{{/* dict "URL" .. "Label" .. "L" $.L — bulletproof button: the cell carries the colour, so it renders even where <a> padding is ignored. */}}
+{{define "button"}}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="{{css "btnTable"}}">
+<tr>
+<td align="center" bgcolor="#3B4CCA" class="m-btn" style="{{css "btnCell"}}"><a class="m-btn" href="{{.URL}}" target="_blank" rel="noopener" style="{{css "btnLink"}}">{{.Label}}</a></td>
+</tr>
+</table>
+<p class="m-muted" style="{{css "fallback"}}">{{.L.ButtonFallback}}<br><a class="m-link" href="{{.URL}}" target="_blank" rel="noopener" style="{{css "urlLink"}}">{{.URL}}</a></p>
+{{end}}
+
+{{define "code"}}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="{{css "codeTable"}}">
+<tr>
+<td class="m-box m-text m-code" style="{{css "code"}}">{{.}}</td>
+</tr>
+</table>
+{{end}}
+
+{{/* rows: []kv from the rows func */}}
+{{define "rows"}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="m-box" style="{{css "box"}}">
+<tr>
+<td style="{{css "boxPad"}}">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+{{range .}}
+<tr>
+<td class="m-muted" style="{{css "rowLabel"}}">{{.K}}</td>
+<td class="m-text" style="{{css "rowValue"}}">{{.V}}</td>
+</tr>
+{{end}}
+</table>
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="{{css "spacer"}}">&nbsp;</td></tr></table>
+{{end}}
+
+{{define "note"}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="{{css "noteTable"}}">
+<tr>
+<td class="m-box m-text" style="{{css "note"}}">{{.}}</td>
+</tr>
+</table>
+{{end}}
+
+{{/* dict "B" *BankTransfer "L" $.L */}}
+{{define "bank"}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="m-box" style="{{css "box"}}">
+<tr>
+<td style="{{css "boxPad"}}">
+<p class="m-text" style="{{css "boxTitle"}}">{{.L.BankTitle}}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+{{with .B.BankName}}<tr><td class="m-muted" style="{{css "rowLabel"}}">{{$.L.BankName}}</td><td class="m-text" style="{{css "rowValue"}}">{{.}}</td></tr>{{end}}
+<tr><td class="m-muted" style="{{css "rowLabel"}}">{{.L.AccountHolder}}</td><td class="m-text" style="{{css "rowValue"}}">{{.B.AccountHolder}}</td></tr>
+<tr><td class="m-muted" style="{{css "rowLabel"}}">IBAN</td><td class="m-text" style="{{css "rowValue"}}"><span style="{{css "mono"}}">{{iban .B.IBAN}}</span></td></tr>
+<tr><td class="m-muted" style="{{css "rowLabel"}}">{{.L.Reference}}</td><td class="m-text" style="{{css "rowValue"}}"><span style="{{css "mono"}}">{{.B.Reference}}</span></td></tr>
+</table>
+<p class="m-muted" style="{{css "hint"}}">{{.L.ReferenceHint}}</p>
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="{{css "spacer"}}">&nbsp;</td></tr></table>
+{{end}}

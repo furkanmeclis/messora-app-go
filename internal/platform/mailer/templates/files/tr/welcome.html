@@ -1,0 +1,21 @@
+{{define "content"}}
+{{template "h1" "Messora'ya hoş geldiniz"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Hesabınız hazır. Başlamak için şu üç adım yeterli:</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 8px 0;">
+<tr>
+<td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="m-mint" style="{{css "badge"}}">1</td></tr></table></td>
+<td style="{{css "stepText"}}"><p class="m-text" style="{{css "h2"}}">WhatsApp numaranızı bağlayın</p><p class="m-muted" style="{{css "muted"}}">Meta hesabınızla birkaç dakikada bağlanır; mesajlarınız bu numaradan gider. <a class="m-link" href="{{.D.ConnectWhatsAppURL}}" target="_blank" rel="noopener" style="{{css "link"}}">Numara bağla</a></p></td>
+</tr>
+<tr>
+<td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="m-mint" style="{{css "badge"}}">2</td></tr></table></td>
+<td style="{{css "stepText"}}"><p class="m-text" style="{{css "h2"}}">Kişilerinizi içe aktarın</p><p class="m-muted" style="{{css "muted"}}">CSV ya da Excel dosyanızı yükleyin, izin bilgilerini de birlikte taşıyın. <a class="m-link" href="{{.D.ImportContactsURL}}" target="_blank" rel="noopener" style="{{css "link"}}">Kişileri içe aktar</a></p></td>
+</tr>
+<tr>
+<td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="m-mint" style="{{css "badge"}}">3</td></tr></table></td>
+<td style="{{css "stepText"}}"><p class="m-text" style="{{css "h2"}}">İlk kampanyanızı oluşturun</p><p class="m-muted" style="{{css "muted"}}">Onaylı bir şablon seçin, kitlenizi belirleyin; hemen gönderin ya da planlayın. <a class="m-link" href="{{.D.NewCampaignURL}}" target="_blank" rel="noopener" style="{{css "link"}}">Kampanya oluştur</a></p></td>
+</tr>
+</table>
+{{template "button" (dict "URL" .D.DashboardURL "Label" "Panele git" "L" .L)}}
+<p class="m-muted" style="{{css "muted"}}">Takıldığınız bir yer olursa destek ekibimiz yardıma hazır.</p>
+{{end}}

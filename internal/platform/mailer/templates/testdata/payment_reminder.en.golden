@@ -1,0 +1,31 @@
+Subject: Overdue invoice: MSR-2026-0142
+Preheader: To avoid any interruption, please pay by 1 December 2026.
+
+Acme Gıda · with Messora
+========================================
+
+Hi Ayşe,
+
+Invoice MSR-2026-0142 was due on 24 November 2026 and we haven't seen the payment yet. Your account is working normally for now; if the payment doesn't arrive by 1 December 2026, your workspace will switch to read-only mode.
+
+  Invoice no.: MSR-2026-0142
+  Amount: ₺2,490.00
+  Due date: 24 November 2026
+  Grace period ends: 1 December 2026
+
+Bank transfer details
+  Bank: Örnek Bankası
+  Account holder: Messora Yazılım A.Ş.
+  IBAN: TR33 0006 1005 1978 6457 8413 26
+  Reference: MSR-2026-0142
+Please put the reference above in the transfer description so we can match your payment quickly.
+
+Pay here:
+https://acme.messora.tech/billing/invoices/MSR-2026-0142
+
+Already paid? Thank you. Bank transfers can take a business day to match; you can ignore this e-mail.
+
+----------------------------------------
+You're receiving this because billing notices for your Messora subscription are sent to this address.
+Questions? Write to our support team: https://messora.tech/destek
+This e-mail was sent automatically. © Messora · https://messora.tech

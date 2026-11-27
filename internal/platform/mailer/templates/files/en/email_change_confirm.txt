@@ -1,0 +1,13 @@
+{{define "subject"}}Confirm your new e-mail address{{end}}
+{{define "preheader"}}One confirmation left to link {{.D.NewEmail}} to your account.{{end}}
+{{define "reason"}}You're receiving this because someone asked to change a Messora account's e-mail address to this one.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+You asked to change your Messora account's e-mail address to {{.D.NewEmail}}. Open this link to complete the change:
+
+{{.D.ConfirmURL}}
+
+The link is valid for {{dur .D.ExpiresIn}}. Your current address keeps working until you confirm.
+
+If you didn't ask for this, don't open the link; nothing will change. If you think your account may be at risk, change your password.
+{{end}}

@@ -1,0 +1,28 @@
+{{define "layout"}}{{if .C.TenantName}}{{.C.TenantName}} · {{.L.With}}{{else}}{{.Brand.ProductName}}{{end}}
+========================================
+
+{{template "content" .}}
+
+----------------------------------------
+{{.Reason}}
+{{.L.NeedHelp}} {{.L.Support}}: {{.Brand.SupportURL}}
+{{- if .C.UnsubscribeURL}}
+{{.L.Unsubscribe}}: {{.C.UnsubscribeURL}}
+{{- end}}
+{{.L.Automated}} © {{.Brand.CompanyName}}{{with .Brand.CompanyAddress}} · {{.}}{{end}} · {{.Brand.WebsiteURL}}
+{{end}}
+
+{{- define "greeting"}}{{if .C.Name}}{{.L.Hello}} {{.C.Name}},{{else}}{{.L.HelloAnon}}{{end}}{{end}}
+
+{{- define "rows"}}{{range .}}
+  {{.K}}: {{.V}}{{end}}
+{{end}}
+
+{{- define "bank"}}{{.L.BankTitle}}
+{{- with .B.BankName}}
+  {{$.L.BankName}}: {{.}}{{end}}
+  {{.L.AccountHolder}}: {{.B.AccountHolder}}
+  IBAN: {{iban .B.IBAN}}
+  {{.L.Reference}}: {{.B.Reference}}
+{{.L.ReferenceHint}}
+{{end}}

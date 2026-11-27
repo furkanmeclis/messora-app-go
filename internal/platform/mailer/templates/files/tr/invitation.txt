@@ -1,0 +1,14 @@
+{{define "subject"}}{{.D.InviterName}} sizi {{.D.WorkspaceName}} çalışma alanına davet etti{{end}}
+{{define "preheader"}}{{.D.Role}} rolüyle katılın. Davet {{dur .D.ExpiresIn}} boyunca geçerli.{{end}}
+{{define "reason"}}Bu e-postayı, {{.D.InviterName}} sizi Messora'daki {{.D.WorkspaceName}} çalışma alanına davet ettiği için aldınız.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+{{.D.InviterName}}, sizi Messora'da {{.D.WorkspaceName}} çalışma alanına {{.D.Role}} rolüyle davet etti. Ekibiniz WhatsApp konuşmalarını, kampanyaları ve otomasyonları burada birlikte yönetiyor.
+
+Daveti kabul etmek için bu bağlantıyı açın:
+{{.D.AcceptURL}}
+
+Davet {{dur .D.ExpiresIn}} boyunca geçerlidir.
+
+Bu daveti beklemiyorsanız e-postayı görmezden gelebilirsiniz; kabul etmediğiniz sürece sizin adınıza hesap oluşturulmaz.
+{{end}}

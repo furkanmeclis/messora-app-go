@@ -1,0 +1,10 @@
+{{define "subject"}}Your {{credit .D.CreditType}} are running low{{end}}
+{{define "preheader"}}{{num .D.Balance}} left, below your alert threshold of {{num .D.Threshold}}.{{end}}
+{{define "reason"}}You're receiving this because credit alerts are turned on{{with .C.TenantName}} for {{.}}{{end}}. You can turn these notifications off at any time.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+The {{credit .D.CreditType}} balance {{with .C.TenantName}}of the {{.}} workspace{{else}}of your workspace{{end}} has dropped below the threshold you set.
+{{template "rows" (rows "Remaining balance" (num .D.Balance) "Alert threshold" (num .D.Threshold))}}
+When the balance runs out, {{if eq .D.CreditType "ai"}}AI replies and suggestions{{else}}campaigns and message sending{{end}} will pause. Top up now to avoid any interruption:
+{{.D.TopUpURL}}
+{{end}}

@@ -1,0 +1,13 @@
+{{define "subject"}}Yeni e-posta adresinizi onaylayın{{end}}
+{{define "preheader"}}{{.D.NewEmail}} adresini hesabınıza bağlamak için tek bir onay kaldı.{{end}}
+{{define "reason"}}Bu e-postayı, bir Messora hesabının e-posta adresi bu adresle değiştirilmek istendiği için aldınız.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+Messora hesabınızın e-posta adresini {{.D.NewEmail}} olarak değiştirmek istediniz. Değişikliği tamamlamak için bu bağlantıyı açın:
+
+{{.D.ConfirmURL}}
+
+Bağlantı {{dur .D.ExpiresIn}} boyunca geçerlidir. Onaylayana kadar eski adresiniz kullanılmaya devam eder.
+
+Bu isteği siz yapmadıysanız bağlantıyı açmayın; adres değişmez. Hesabınızın güvenliğinden şüpheleniyorsanız şifrenizi değiştirin.
+{{end}}
