@@ -2,7 +2,7 @@ import 'server-only';
 
 import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
-import { api } from './api';
+import { api, ApiError } from './api';
 import { getAppearance } from './appearance';
 import type { Schemas } from '@/lib/types';
 import { tenantSlugFromHost } from '@/lib/auth/tenant-host';
@@ -44,6 +44,30 @@ export const getCapabilities = cache(async (): Promise<Capabilities> => {
             .data;
     } catch {
         return { password_reset: true, signup_enabled: true };
+    }
+});
+
+export type WorkspaceState = 'ok' | 'suspended' | 'unknown';
+
+/**
+ * Whether this address serves a workspace: a suspended company's addresses
+ * answer 403 TENANT_SUSPENDED and unknown ones 404 TENANT_NOT_FOUND for
+ * every workspace endpoint (the platform hosts serve none, which is fine).
+ */
+export const getWorkspaceState = cache(async (): Promise<WorkspaceState> => {
+    try {
+        await api('/invitations/lookup', {
+            method: 'POST',
+            auth: 'none',
+            body: { token: 'msi_probe-probe-probe-probe' },
+        });
+        return 'ok';
+    } catch (err) {
+        if (err instanceof ApiError) {
+            if (err.code === 'TENANT_SUSPENDED') return 'suspended';
+            if (err.code === 'TENANT_NOT_FOUND') return 'unknown';
+        }
+        return 'ok';
     }
 });
 

@@ -203,6 +203,10 @@ const auth = {
         continue: 'Continue to the panel',
         signOut: 'Sign out',
     },
+    suspended: {
+        title: 'This workspace is suspended',
+        body: 'Signing in is not possible at the moment. Contact Messora support or the workspace owner.',
+    },
     confirmEmail: {
         metaTitle: 'Confirm your new address',
         title: 'Confirm your new e-mail address',

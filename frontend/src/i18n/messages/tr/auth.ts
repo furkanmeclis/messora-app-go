@@ -208,6 +208,10 @@ const auth: Messages['auth'] = {
         continue: 'Panele devam et',
         signOut: 'Çıkış yap',
     },
+    suspended: {
+        title: 'Bu çalışma alanı askıya alındı',
+        body: 'Şu anda giriş yapılamıyor. Messora destek ekibine ya da çalışma alanının sahibine başvurun.',
+    },
     confirmEmail: {
         metaTitle: 'Yeni adresinizi doğrulayın',
         title: 'Yeni e-posta adresinizi doğrulayın',
