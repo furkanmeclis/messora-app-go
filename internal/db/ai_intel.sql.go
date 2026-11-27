@@ -235,7 +235,7 @@ func (q *Queries) FinishReplyClassification(ctx context.Context, arg FinishReply
 }
 
 const getReplyClassification = `-- name: GetReplyClassification :one
-SELECT id, campaign_id, contact_id, recipient_id, conversation_id, message_id, status, sentiment, confidence, reason, error, ai_usage_id, created_at, classified_at FROM campaign_reply_classifications WHERE id = $1
+SELECT id, campaign_id, contact_id, recipient_id, conversation_id, message_id, status, sentiment, confidence, reason, error, ai_usage_id, created_at, classified_at, tenant_id FROM campaign_reply_classifications WHERE id = $1
 `
 
 func (q *Queries) GetReplyClassification(ctx context.Context, id uuid.UUID) (CampaignReplyClassification, error) {
@@ -256,6 +256,7 @@ func (q *Queries) GetReplyClassification(ctx context.Context, id uuid.UUID) (Cam
 		&i.AiUsageID,
 		&i.CreatedAt,
 		&i.ClassifiedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -352,7 +353,7 @@ func (q *Queries) ListAIManagers(ctx context.Context) ([]uuid.UUID, error) {
 }
 
 const listContactFieldSources = `-- name: ListContactFieldSources :many
-SELECT contact_id, field, source, verified, collected_at, ai_usage_id, conversation_id, verified_by, verified_at FROM contact_field_sources WHERE contact_id = $1 ORDER BY field
+SELECT contact_id, field, source, verified, collected_at, ai_usage_id, conversation_id, verified_by, verified_at, tenant_id FROM contact_field_sources WHERE contact_id = $1 ORDER BY field
 `
 
 func (q *Queries) ListContactFieldSources(ctx context.Context, contactID uuid.UUID) ([]ContactFieldSource, error) {
@@ -374,6 +375,7 @@ func (q *Queries) ListContactFieldSources(ctx context.Context, contactID uuid.UU
 			&i.ConversationID,
 			&i.VerifiedBy,
 			&i.VerifiedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -499,11 +501,11 @@ const upsertInboundContact = `-- name: UpsertInboundContact :one
 
 INSERT INTO contacts (phone_e164, wa_id, profile_name, created_by_inbound_at, profile_status)
 VALUES ($1, $2, $3, now(), 'new')
-ON CONFLICT (phone_e164) DO UPDATE SET
+ON CONFLICT (tenant_id, phone_e164) DO UPDATE SET
     wa_id        = coalesce(excluded.wa_id, contacts.wa_id),
     profile_name = CASE WHEN excluded.profile_name <> '' THEN excluded.profile_name ELSE contacts.profile_name END,
     updated_at   = now()
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress, tenant_id
 `
 
 type UpsertInboundContactParams struct {
@@ -557,6 +559,7 @@ func (q *Queries) UpsertInboundContact(ctx context.Context, arg UpsertInboundCon
 		&i.CreatedByInboundAt,
 		&i.ProfileStatus,
 		&i.ProfileProgress,
+		&i.TenantID,
 	)
 	return i, err
 }

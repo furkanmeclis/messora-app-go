@@ -28,7 +28,7 @@ UPDATE messages SET
     failure_class = CASE WHEN $3::text = 'failed' AND status_rank < 4 THEN $7 ELSE failure_class END,
     updated_at   = now()
 WHERE id = $8 AND direction = 'outbound'
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id, tenant_id
 `
 
 type ApplyMessageStatusParams struct {
@@ -95,6 +95,7 @@ func (q *Queries) ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatus
 		&i.RetryOf,
 		&i.SentBy,
 		&i.AiUsageID,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -102,7 +103,7 @@ func (q *Queries) ApplyMessageStatus(ctx context.Context, arg ApplyMessageStatus
 const claimMessageForSend = `-- name: ClaimMessageForSend :one
 UPDATE messages SET status = 'sending', status_rank = 1, attempts = attempts + 1, next_attempt_at = NULL, updated_at = now()
 WHERE id = $1 AND (status = 'pending' OR (status = 'deferred' AND next_attempt_at <= now()))
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id, tenant_id
 `
 
 // Only a pending message, or a deferred one whose time has come, can be
@@ -151,6 +152,7 @@ func (q *Queries) ClaimMessageForSend(ctx context.Context, id uuid.UUID) (Messag
 		&i.RetryOf,
 		&i.SentBy,
 		&i.AiUsageID,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -277,7 +279,7 @@ func (q *Queries) DeleteWhatsAppAccount(ctx context.Context, id uuid.UUID) (int6
 }
 
 const findApprovedTemplate = `-- name: FindApprovedTemplate :one
-SELECT id, account_id, meta_template_id, name, language, category, status, parameter_format, components, rejected_reason, quality_score, synced_at, created_at, updated_at FROM message_templates
+SELECT id, account_id, meta_template_id, name, language, category, status, parameter_format, components, rejected_reason, quality_score, synced_at, created_at, updated_at, tenant_id FROM message_templates
 WHERE account_id = $1 AND name = $2 AND language = $3
 `
 
@@ -305,12 +307,13 @@ func (q *Queries) FindApprovedTemplate(ctx context.Context, arg FindApprovedTemp
 		&i.SyncedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getContact = `-- name: GetContact :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress FROM contacts WHERE id = $1
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress, tenant_id FROM contacts WHERE id = $1
 `
 
 func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (Contact, error) {
@@ -352,12 +355,13 @@ func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (Contact, error)
 		&i.CreatedByInboundAt,
 		&i.ProfileStatus,
 		&i.ProfileProgress,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getDefaultPhoneNumber = `-- name: GetDefaultPhoneNumber :one
-SELECT id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at FROM phone_numbers ORDER BY is_default DESC, created_at LIMIT 1
+SELECT id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at, tenant_id FROM phone_numbers ORDER BY is_default DESC, created_at LIMIT 1
 `
 
 func (q *Queries) GetDefaultPhoneNumber(ctx context.Context) (PhoneNumber, error) {
@@ -379,12 +383,13 @@ func (q *Queries) GetDefaultPhoneNumber(ctx context.Context) (PhoneNumber, error
 		&i.UpdatedAt,
 		&i.ThroughputMps,
 		&i.SignalsCheckedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getMediaFile = `-- name: GetMediaFile :one
-SELECT id, message_id, meta_media_id, mime_type, filename, size_bytes, sha256, storage_key, status, last_error, created_at, updated_at FROM media_files WHERE id = $1
+SELECT id, message_id, meta_media_id, mime_type, filename, size_bytes, sha256, storage_key, status, last_error, created_at, updated_at, tenant_id FROM media_files WHERE id = $1
 `
 
 func (q *Queries) GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, error) {
@@ -403,12 +408,13 @@ func (q *Queries) GetMediaFile(ctx context.Context, id uuid.UUID) (MediaFile, er
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id FROM messages WHERE id = $1
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id, tenant_id FROM messages WHERE id = $1
 `
 
 func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error) {
@@ -454,12 +460,13 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 		&i.RetryOf,
 		&i.SentBy,
 		&i.AiUsageID,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getMessageByWAMID = `-- name: GetMessageByWAMID :one
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id FROM messages WHERE wamid = $1
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id, tenant_id FROM messages WHERE wamid = $1
 `
 
 func (q *Queries) GetMessageByWAMID(ctx context.Context, wamid *string) (Message, error) {
@@ -505,12 +512,13 @@ func (q *Queries) GetMessageByWAMID(ctx context.Context, wamid *string) (Message
 		&i.RetryOf,
 		&i.SentBy,
 		&i.AiUsageID,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getPhoneNumber = `-- name: GetPhoneNumber :one
-SELECT id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at FROM phone_numbers WHERE id = $1
+SELECT id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at, tenant_id FROM phone_numbers WHERE id = $1
 `
 
 func (q *Queries) GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber, error) {
@@ -532,12 +540,13 @@ func (q *Queries) GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber
 		&i.UpdatedAt,
 		&i.ThroughputMps,
 		&i.SignalsCheckedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getPhoneNumberByMetaID = `-- name: GetPhoneNumberByMetaID :one
-SELECT id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at FROM phone_numbers WHERE phone_number_id = $1
+SELECT id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at, tenant_id FROM phone_numbers WHERE phone_number_id = $1
 `
 
 func (q *Queries) GetPhoneNumberByMetaID(ctx context.Context, phoneNumberID string) (PhoneNumber, error) {
@@ -559,12 +568,13 @@ func (q *Queries) GetPhoneNumberByMetaID(ctx context.Context, phoneNumberID stri
 		&i.UpdatedAt,
 		&i.ThroughputMps,
 		&i.SignalsCheckedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getTemplate = `-- name: GetTemplate :one
-SELECT id, account_id, meta_template_id, name, language, category, status, parameter_format, components, rejected_reason, quality_score, synced_at, created_at, updated_at FROM message_templates WHERE id = $1
+SELECT id, account_id, meta_template_id, name, language, category, status, parameter_format, components, rejected_reason, quality_score, synced_at, created_at, updated_at, tenant_id FROM message_templates WHERE id = $1
 `
 
 func (q *Queries) GetTemplate(ctx context.Context, id uuid.UUID) (MessageTemplate, error) {
@@ -585,12 +595,13 @@ func (q *Queries) GetTemplate(ctx context.Context, id uuid.UUID) (MessageTemplat
 		&i.SyncedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getWebhookEvent = `-- name: GetWebhookEvent :one
-SELECT id, payload_sha256, body, status, attempts, last_error, received_at, processed_at FROM webhook_events WHERE id = $1
+SELECT id, payload_sha256, body, status, attempts, last_error, received_at, processed_at, tenant_id FROM webhook_events WHERE id = $1
 `
 
 func (q *Queries) GetWebhookEvent(ctx context.Context, id uuid.UUID) (WebhookEvent, error) {
@@ -605,12 +616,13 @@ func (q *Queries) GetWebhookEvent(ctx context.Context, id uuid.UUID) (WebhookEve
 		&i.LastError,
 		&i.ReceivedAt,
 		&i.ProcessedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getWhatsAppAccount = `-- name: GetWhatsAppAccount :one
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency FROM whatsapp_accounts WHERE id = $1
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts WHERE id = $1
 `
 
 func (q *Queries) GetWhatsAppAccount(ctx context.Context, id uuid.UUID) (WhatsappAccount, error) {
@@ -637,12 +649,13 @@ func (q *Queries) GetWhatsAppAccount(ctx context.Context, id uuid.UUID) (Whatsap
 		&i.TokenWarning,
 		&i.TokenNotifiedAt,
 		&i.Currency,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getWhatsAppAccountByWABA = `-- name: GetWhatsAppAccountByWABA :one
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency FROM whatsapp_accounts WHERE waba_id = $1
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts WHERE waba_id = $1
 `
 
 func (q *Queries) GetWhatsAppAccountByWABA(ctx context.Context, wabaID string) (WhatsappAccount, error) {
@@ -669,6 +682,7 @@ func (q *Queries) GetWhatsAppAccountByWABA(ctx context.Context, wabaID string) (
 		&i.TokenWarning,
 		&i.TokenNotifiedAt,
 		&i.Currency,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -678,8 +692,8 @@ INSERT INTO messages (phone_number_id, contact_id, direction, wamid, type, body,
                       reply_to_wamid, source, occurred_at)
 VALUES ($1, $2, 'inbound', $3, $4, $5, $6, 'received', 0,
         $7, 'webhook', $8)
-ON CONFLICT (wamid) DO NOTHING
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id
+ON CONFLICT (tenant_id, wamid) DO NOTHING
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id, tenant_id
 `
 
 type InsertInboundMessageParams struct {
@@ -746,6 +760,7 @@ func (q *Queries) InsertInboundMessage(ctx context.Context, arg InsertInboundMes
 		&i.RetryOf,
 		&i.SentBy,
 		&i.AiUsageID,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -754,7 +769,7 @@ const insertMediaFile = `-- name: InsertMediaFile :one
 
 INSERT INTO media_files (message_id, meta_media_id, mime_type, filename, sha256)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, message_id, meta_media_id, mime_type, filename, size_bytes, sha256, storage_key, status, last_error, created_at, updated_at
+RETURNING id, message_id, meta_media_id, mime_type, filename, size_bytes, sha256, storage_key, status, last_error, created_at, updated_at, tenant_id
 `
 
 type InsertMediaFileParams struct {
@@ -788,6 +803,7 @@ func (q *Queries) InsertMediaFile(ctx context.Context, arg InsertMediaFileParams
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -799,7 +815,7 @@ INSERT INTO messages (id, phone_number_id, contact_id, direction, type, body, pa
 VALUES ($1, $2, $3, 'outbound', $4, $5, $6, 'pending', 0,
         $7, $8, $9, $10,
         $11, $12)
-RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id
+RETURNING id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id, tenant_id
 `
 
 type InsertOutboundMessageParams struct {
@@ -874,6 +890,7 @@ func (q *Queries) InsertOutboundMessage(ctx context.Context, arg InsertOutboundM
 		&i.RetryOf,
 		&i.SentBy,
 		&i.AiUsageID,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -881,7 +898,7 @@ func (q *Queries) InsertOutboundMessage(ctx context.Context, arg InsertOutboundM
 const insertWebhookEvent = `-- name: InsertWebhookEvent :one
 
 INSERT INTO webhook_events (payload_sha256, body) VALUES ($1, $2)
-ON CONFLICT (payload_sha256) DO NOTHING
+ON CONFLICT (tenant_id, payload_sha256) DO NOTHING
 RETURNING id
 `
 
@@ -903,7 +920,7 @@ const insertWhatsAppAccount = `-- name: InsertWhatsAppAccount :one
 
 INSERT INTO whatsapp_accounts (id, name, waba_id, app_id, access_token_enc, app_secret_enc, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency
+RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id
 `
 
 type InsertWhatsAppAccountParams struct {
@@ -949,6 +966,7 @@ func (q *Queries) InsertWhatsAppAccount(ctx context.Context, arg InsertWhatsAppA
 		&i.TokenWarning,
 		&i.TokenNotifiedAt,
 		&i.Currency,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -983,7 +1001,7 @@ func (q *Queries) ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, erro
 }
 
 const listMediaForMessage = `-- name: ListMediaForMessage :many
-SELECT id, message_id, meta_media_id, mime_type, filename, size_bytes, sha256, storage_key, status, last_error, created_at, updated_at FROM media_files WHERE message_id = $1 ORDER BY created_at
+SELECT id, message_id, meta_media_id, mime_type, filename, size_bytes, sha256, storage_key, status, last_error, created_at, updated_at, tenant_id FROM media_files WHERE message_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListMediaForMessage(ctx context.Context, messageID *uuid.UUID) ([]MediaFile, error) {
@@ -1008,6 +1026,7 @@ func (q *Queries) ListMediaForMessage(ctx context.Context, messageID *uuid.UUID)
 			&i.LastError,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -1020,7 +1039,7 @@ func (q *Queries) ListMediaForMessage(ctx context.Context, messageID *uuid.UUID)
 }
 
 const listMessagesByContact = `-- name: ListMessagesByContact :many
-SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id FROM messages
+SELECT id, phone_number_id, contact_id, direction, wamid, type, body, payload, status, status_rank, reply_to_wamid, error_code, error_title, attempts, source, created_by, sent_at, delivered_at, read_at, failed_at, occurred_at, created_at, updated_at, campaign_id, meta_status, pricing_type, pricing_category, pricing_model, billable, recipient_country, cost_amount, cost_currency, cost_source, failure_class, consent_category, next_attempt_at, retry_of, sent_by, ai_usage_id, tenant_id FROM messages
 WHERE contact_id = $1 AND ($2::uuid IS NULL OR id < $2::uuid)
 ORDER BY id DESC
 LIMIT $3
@@ -1081,6 +1100,7 @@ func (q *Queries) ListMessagesByContact(ctx context.Context, arg ListMessagesByC
 			&i.RetryOf,
 			&i.SentBy,
 			&i.AiUsageID,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -1093,7 +1113,7 @@ func (q *Queries) ListMessagesByContact(ctx context.Context, arg ListMessagesByC
 }
 
 const listPhoneNumbers = `-- name: ListPhoneNumbers :many
-SELECT p.id, p.account_id, p.phone_number_id, p.display_phone_number, p.verified_name, p.quality_rating, p.messaging_limit, p.throughput_level, p.code_verification_status, p.meta_status, p.is_default, p.created_at, p.updated_at, p.throughput_mps, p.signals_checked_at, a.name AS account_name, a.waba_id
+SELECT p.id, p.account_id, p.phone_number_id, p.display_phone_number, p.verified_name, p.quality_rating, p.messaging_limit, p.throughput_level, p.code_verification_status, p.meta_status, p.is_default, p.created_at, p.updated_at, p.throughput_mps, p.signals_checked_at, p.tenant_id, a.name AS account_name, a.waba_id
 FROM phone_numbers p JOIN whatsapp_accounts a ON a.id = p.account_id
 ORDER BY p.is_default DESC, p.created_at
 `
@@ -1114,6 +1134,7 @@ type ListPhoneNumbersRow struct {
 	UpdatedAt              time.Time
 	ThroughputMps          *int32
 	SignalsCheckedAt       *time.Time
+	TenantID               uuid.UUID
 	AccountName            string
 	WabaID                 string
 }
@@ -1143,6 +1164,7 @@ func (q *Queries) ListPhoneNumbers(ctx context.Context) ([]ListPhoneNumbersRow, 
 			&i.UpdatedAt,
 			&i.ThroughputMps,
 			&i.SignalsCheckedAt,
+			&i.TenantID,
 			&i.AccountName,
 			&i.WabaID,
 		); err != nil {
@@ -1157,7 +1179,7 @@ func (q *Queries) ListPhoneNumbers(ctx context.Context) ([]ListPhoneNumbersRow, 
 }
 
 const listTemplates = `-- name: ListTemplates :many
-SELECT t.id, t.account_id, t.meta_template_id, t.name, t.language, t.category, t.status, t.parameter_format, t.components, t.rejected_reason, t.quality_score, t.synced_at, t.created_at, t.updated_at, a.name AS account_name FROM message_templates t JOIN whatsapp_accounts a ON a.id = t.account_id
+SELECT t.id, t.account_id, t.meta_template_id, t.name, t.language, t.category, t.status, t.parameter_format, t.components, t.rejected_reason, t.quality_score, t.synced_at, t.created_at, t.updated_at, t.tenant_id, a.name AS account_name FROM message_templates t JOIN whatsapp_accounts a ON a.id = t.account_id
 WHERE ($1::uuid IS NULL OR t.account_id = $1::uuid)
   AND ($2::text IS NULL OR t.status = $2::text)
 ORDER BY t.name, t.language
@@ -1183,6 +1205,7 @@ type ListTemplatesRow struct {
 	SyncedAt        time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	TenantID        uuid.UUID
 	AccountName     string
 }
 
@@ -1210,6 +1233,7 @@ func (q *Queries) ListTemplates(ctx context.Context, arg ListTemplatesParams) ([
 			&i.SyncedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 			&i.AccountName,
 		); err != nil {
 			return nil, err
@@ -1223,7 +1247,7 @@ func (q *Queries) ListTemplates(ctx context.Context, arg ListTemplatesParams) ([
 }
 
 const listWhatsAppAccounts = `-- name: ListWhatsAppAccounts :many
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency FROM whatsapp_accounts ORDER BY created_at
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts ORDER BY created_at
 `
 
 func (q *Queries) ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error) {
@@ -1256,6 +1280,7 @@ func (q *Queries) ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, 
 			&i.TokenWarning,
 			&i.TokenNotifiedAt,
 			&i.Currency,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -1268,7 +1293,7 @@ func (q *Queries) ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, 
 }
 
 const listWhatsAppAccountsToCheck = `-- name: ListWhatsAppAccountsToCheck :many
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency FROM whatsapp_accounts WHERE status <> 'disabled' ORDER BY created_at
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts WHERE status <> 'disabled' ORDER BY created_at
 `
 
 func (q *Queries) ListWhatsAppAccountsToCheck(ctx context.Context) ([]WhatsappAccount, error) {
@@ -1301,6 +1326,7 @@ func (q *Queries) ListWhatsAppAccountsToCheck(ctx context.Context) ([]WhatsappAc
 			&i.TokenWarning,
 			&i.TokenNotifiedAt,
 			&i.Currency,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -1546,7 +1572,7 @@ UPDATE whatsapp_accounts SET
     token_checked_at             = now(),
     updated_at                   = now()
 WHERE id = $6
-RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency
+RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id
 `
 
 type SetWhatsAppTokenInfoParams struct {
@@ -1590,6 +1616,7 @@ func (q *Queries) SetWhatsAppTokenInfo(ctx context.Context, arg SetWhatsAppToken
 		&i.TokenWarning,
 		&i.TokenNotifiedAt,
 		&i.Currency,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1640,7 +1667,7 @@ UPDATE whatsapp_accounts SET
     last_error       = CASE WHEN $5::text = 'active' THEN NULL ELSE last_error END,
     updated_at       = now()
 WHERE id = $6
-RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency
+RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id
 `
 
 type UpdateWhatsAppAccountParams struct {
@@ -1683,6 +1710,7 @@ func (q *Queries) UpdateWhatsAppAccount(ctx context.Context, arg UpdateWhatsAppA
 		&i.TokenWarning,
 		&i.TokenNotifiedAt,
 		&i.Currency,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1691,11 +1719,11 @@ const upsertContactByPhone = `-- name: UpsertContactByPhone :one
 
 INSERT INTO contacts (phone_e164, wa_id, profile_name)
 VALUES ($1, $2, $3)
-ON CONFLICT (phone_e164) DO UPDATE SET
+ON CONFLICT (tenant_id, phone_e164) DO UPDATE SET
     wa_id        = coalesce(excluded.wa_id, contacts.wa_id),
     profile_name = CASE WHEN excluded.profile_name <> '' THEN excluded.profile_name ELSE contacts.profile_name END,
     updated_at   = now()
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress, tenant_id
 `
 
 type UpsertContactByPhoneParams struct {
@@ -1744,6 +1772,7 @@ func (q *Queries) UpsertContactByPhone(ctx context.Context, arg UpsertContactByP
 		&i.CreatedByInboundAt,
 		&i.ProfileStatus,
 		&i.ProfileProgress,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1767,7 +1796,7 @@ ON CONFLICT (phone_number_id) DO UPDATE SET
     meta_status              = excluded.meta_status,
     updated_at               = now()
 WHERE phone_numbers.account_id = excluded.account_id
-RETURNING id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at
+RETURNING id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at, tenant_id
 `
 
 type UpsertPhoneNumberParams struct {
@@ -1816,6 +1845,7 @@ func (q *Queries) UpsertPhoneNumber(ctx context.Context, arg UpsertPhoneNumberPa
 		&i.UpdatedAt,
 		&i.ThroughputMps,
 		&i.SignalsCheckedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1836,7 +1866,7 @@ ON CONFLICT (account_id, name, language) DO UPDATE SET
     quality_score    = excluded.quality_score,
     synced_at        = now(),
     updated_at       = now()
-RETURNING id, account_id, meta_template_id, name, language, category, status, parameter_format, components, rejected_reason, quality_score, synced_at, created_at, updated_at
+RETURNING id, account_id, meta_template_id, name, language, category, status, parameter_format, components, rejected_reason, quality_score, synced_at, created_at, updated_at, tenant_id
 `
 
 type UpsertTemplateParams struct {
@@ -1882,6 +1912,7 @@ func (q *Queries) UpsertTemplate(ctx context.Context, arg UpsertTemplateParams) 
 		&i.SyncedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }

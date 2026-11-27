@@ -9,7 +9,7 @@
 -- status new). An existing contact keeps its marks.
 INSERT INTO contacts (phone_e164, wa_id, profile_name, created_by_inbound_at, profile_status)
 VALUES (@phone_e164, sqlc.narg(wa_id), @profile_name, now(), 'new')
-ON CONFLICT (phone_e164) DO UPDATE SET
+ON CONFLICT (tenant_id, phone_e164) DO UPDATE SET
     wa_id        = coalesce(excluded.wa_id, contacts.wa_id),
     profile_name = CASE WHEN excluded.profile_name <> '' THEN excluded.profile_name ELSE contacts.profile_name END,
     updated_at   = now()

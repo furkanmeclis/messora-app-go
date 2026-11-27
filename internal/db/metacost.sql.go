@@ -66,7 +66,7 @@ func (q *Queries) CountBillableInMonth(ctx context.Context, arg CountBillableInM
 }
 
 const findPhoneNumberByDisplay = `-- name: FindPhoneNumberByDisplay :one
-SELECT id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at FROM phone_numbers
+SELECT id, account_id, phone_number_id, display_phone_number, verified_name, quality_rating, messaging_limit, throughput_level, code_verification_status, meta_status, is_default, created_at, updated_at, throughput_mps, signals_checked_at, tenant_id FROM phone_numbers
 WHERE account_id = $1
   AND regexp_replace(display_phone_number, '[^0-9]', '', 'g') = regexp_replace($2::text, '[^0-9]', '', 'g')
 LIMIT 1
@@ -96,6 +96,7 @@ func (q *Queries) FindPhoneNumberByDisplay(ctx context.Context, arg FindPhoneNum
 		&i.UpdatedAt,
 		&i.ThroughputMps,
 		&i.SignalsCheckedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -149,8 +150,8 @@ const insertMetaUserPreference = `-- name: InsertMetaUserPreference :one
 
 INSERT INTO meta_user_preferences (phone_number_id, wa_id, user_id, phone_e164, category, value, detail, occurred_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-ON CONFLICT (wa_id, user_id, category, value, occurred_at) DO NOTHING
-RETURNING id, phone_number_id, wa_id, user_id, phone_e164, category, value, detail, occurred_at, received_at
+ON CONFLICT (tenant_id, wa_id, user_id, category, value, occurred_at) DO NOTHING
+RETURNING id, phone_number_id, wa_id, user_id, phone_e164, category, value, detail, occurred_at, received_at, tenant_id
 `
 
 type InsertMetaUserPreferenceParams struct {
@@ -188,6 +189,7 @@ func (q *Queries) InsertMetaUserPreference(ctx context.Context, arg InsertMetaUs
 		&i.Detail,
 		&i.OccurredAt,
 		&i.ReceivedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -218,7 +220,7 @@ func (q *Queries) InsertWhatsAppAccountEvent(ctx context.Context, arg InsertWhat
 }
 
 const latestMetaUserPreference = `-- name: LatestMetaUserPreference :one
-SELECT id, phone_number_id, wa_id, user_id, phone_e164, category, value, detail, occurred_at, received_at FROM meta_user_preferences
+SELECT id, phone_number_id, wa_id, user_id, phone_e164, category, value, detail, occurred_at, received_at, tenant_id FROM meta_user_preferences
 WHERE phone_e164 = $1 AND category = $2
 ORDER BY occurred_at DESC, id DESC LIMIT 1
 `
@@ -244,12 +246,13 @@ func (q *Queries) LatestMetaUserPreference(ctx context.Context, arg LatestMetaUs
 		&i.Detail,
 		&i.OccurredAt,
 		&i.ReceivedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const listActiveWhatsAppAccounts = `-- name: ListActiveWhatsAppAccounts :many
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency FROM whatsapp_accounts WHERE status = 'active' ORDER BY created_at
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts WHERE status = 'active' ORDER BY created_at
 `
 
 func (q *Queries) ListActiveWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error) {
@@ -282,6 +285,7 @@ func (q *Queries) ListActiveWhatsAppAccounts(ctx context.Context) ([]WhatsappAcc
 			&i.TokenWarning,
 			&i.TokenNotifiedAt,
 			&i.Currency,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}

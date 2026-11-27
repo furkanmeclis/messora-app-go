@@ -133,7 +133,7 @@ func (q *Queries) OpsAccountProblems(ctx context.Context) ([]OpsAccountProblemsR
 }
 
 const opsActiveCampaigns = `-- name: OpsActiveCampaigns :many
-SELECT c.id, c.name, c.status, c.phone_number_id, c.template_name, c.template_language, c.template_params, c.audience, c.scheduled_at, c.started_at, c.finished_at, c.materialize_cursor, c.dispatch_gen, c.window_size, c.total_recipients, c.last_error, c.created_by, c.created_at, c.updated_at, c.progress_published_at, c.progress_dirty, c.offer_id, c.priority, c.max_mps, c.paused_reason, c.paused_at, c.paused_by, c.resume_at, c.send_rate, c.rate_window_start, c.rate_window_queued, c.reaction_map, coalesce(wa.currency, '')::text AS currency, pn.display_phone_number
+SELECT c.id, c.name, c.status, c.phone_number_id, c.template_name, c.template_language, c.template_params, c.audience, c.scheduled_at, c.started_at, c.finished_at, c.materialize_cursor, c.dispatch_gen, c.window_size, c.total_recipients, c.last_error, c.created_by, c.created_at, c.updated_at, c.progress_published_at, c.progress_dirty, c.offer_id, c.priority, c.max_mps, c.paused_reason, c.paused_at, c.paused_by, c.resume_at, c.send_rate, c.rate_window_start, c.rate_window_queued, c.reaction_map, c.tenant_id, coalesce(wa.currency, '')::text AS currency, pn.display_phone_number
 FROM campaigns c
 JOIN phone_numbers pn ON pn.id = c.phone_number_id
 JOIN whatsapp_accounts wa ON wa.id = pn.account_id
@@ -176,6 +176,7 @@ type OpsActiveCampaignsRow struct {
 	RateWindowStart     *time.Time
 	RateWindowQueued    int64
 	ReactionMap         []byte
+	TenantID            uuid.UUID
 	Currency            string
 	DisplayPhoneNumber  string
 }
@@ -224,6 +225,7 @@ func (q *Queries) OpsActiveCampaigns(ctx context.Context, lim int32) ([]OpsActiv
 			&i.RateWindowStart,
 			&i.RateWindowQueued,
 			&i.ReactionMap,
+			&i.TenantID,
 			&i.Currency,
 			&i.DisplayPhoneNumber,
 		); err != nil {

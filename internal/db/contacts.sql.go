@@ -92,7 +92,7 @@ func (q *Queries) ContactGroupIDs(ctx context.Context, contactID uuid.UUID) ([]u
 }
 
 const contactTags = `-- name: ContactTags :many
-SELECT t.id, t.name, t.color, t.created_at FROM tags t JOIN contact_tags ct ON ct.tag_id = t.id WHERE ct.contact_id = $1 ORDER BY lower(t.name)
+SELECT t.id, t.name, t.color, t.created_at, t.tenant_id FROM tags t JOIN contact_tags ct ON ct.tag_id = t.id WHERE ct.contact_id = $1 ORDER BY lower(t.name)
 `
 
 func (q *Queries) ContactTags(ctx context.Context, contactID uuid.UUID) ([]Tag, error) {
@@ -109,6 +109,7 @@ func (q *Queries) ContactTags(ctx context.Context, contactID uuid.UUID) ([]Tag, 
 			&i.Name,
 			&i.Color,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -209,7 +210,7 @@ func (q *Queries) FinishContactImport(ctx context.Context, arg FinishContactImpo
 }
 
 const getContactByPhone = `-- name: GetContactByPhone :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress FROM contacts WHERE phone_e164 = $1
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress, tenant_id FROM contacts WHERE phone_e164 = $1
 `
 
 func (q *Queries) GetContactByPhone(ctx context.Context, phoneE164 string) (Contact, error) {
@@ -251,12 +252,13 @@ func (q *Queries) GetContactByPhone(ctx context.Context, phoneE164 string) (Cont
 		&i.CreatedByInboundAt,
 		&i.ProfileStatus,
 		&i.ProfileProgress,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getContactGroup = `-- name: GetContactGroup :one
-SELECT id, name, description, created_by, created_at, updated_at FROM contact_groups WHERE id = $1
+SELECT id, name, description, created_by, created_at, updated_at, tenant_id FROM contact_groups WHERE id = $1
 `
 
 func (q *Queries) GetContactGroup(ctx context.Context, id uuid.UUID) (ContactGroup, error) {
@@ -269,12 +271,13 @@ func (q *Queries) GetContactGroup(ctx context.Context, id uuid.UUID) (ContactGro
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getContactImport = `-- name: GetContactImport :one
-SELECT id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at FROM contact_imports WHERE id = $1
+SELECT id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at, tenant_id FROM contact_imports WHERE id = $1
 `
 
 func (q *Queries) GetContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error) {
@@ -306,12 +309,13 @@ func (q *Queries) GetContactImport(ctx context.Context, id uuid.UUID) (ContactIm
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getSegment = `-- name: GetSegment :one
-SELECT id, name, description, definition, created_by, created_at, updated_at FROM segments WHERE id = $1
+SELECT id, name, description, definition, created_by, created_at, updated_at, tenant_id FROM segments WHERE id = $1
 `
 
 func (q *Queries) GetSegment(ctx context.Context, id uuid.UUID) (Segment, error) {
@@ -325,12 +329,13 @@ func (q *Queries) GetSegment(ctx context.Context, id uuid.UUID) (Segment, error)
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getTag = `-- name: GetTag :one
-SELECT id, name, color, created_at FROM tags WHERE id = $1
+SELECT id, name, color, created_at, tenant_id FROM tags WHERE id = $1
 `
 
 func (q *Queries) GetTag(ctx context.Context, id uuid.UUID) (Tag, error) {
@@ -341,6 +346,7 @@ func (q *Queries) GetTag(ctx context.Context, id uuid.UUID) (Tag, error) {
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -348,7 +354,7 @@ func (q *Queries) GetTag(ctx context.Context, id uuid.UUID) (Tag, error) {
 const insertConsentEvent = `-- name: InsertConsentEvent :one
 INSERT INTO consent_events (contact_id, kind, source, note, actor_id, category, status)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, contact_id, kind, source, note, actor_id, created_at, category, status
+RETURNING id, contact_id, kind, source, note, actor_id, created_at, category, status, tenant_id
 `
 
 type InsertConsentEventParams struct {
@@ -382,6 +388,7 @@ func (q *Queries) InsertConsentEvent(ctx context.Context, arg InsertConsentEvent
 		&i.CreatedAt,
 		&i.Category,
 		&i.Status,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -391,7 +398,7 @@ const insertContact = `-- name: InsertContact :one
 INSERT INTO contacts (phone_e164, name, email, var1, var2, var3, var4, var5, attributes, source)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10)
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress, tenant_id
 `
 
 type InsertContactParams struct {
@@ -459,13 +466,14 @@ func (q *Queries) InsertContact(ctx context.Context, arg InsertContactParams) (C
 		&i.CreatedByInboundAt,
 		&i.ProfileStatus,
 		&i.ProfileProgress,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const insertContactGroup = `-- name: InsertContactGroup :one
 INSERT INTO contact_groups (name, description, created_by) VALUES ($1, $2, $3)
-RETURNING id, name, description, created_by, created_at, updated_at
+RETURNING id, name, description, created_by, created_at, updated_at, tenant_id
 `
 
 type InsertContactGroupParams struct {
@@ -484,6 +492,7 @@ func (q *Queries) InsertContactGroup(ctx context.Context, arg InsertContactGroup
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -492,7 +501,7 @@ const insertContactImport = `-- name: InsertContactImport :one
 
 INSERT INTO contact_imports (filename, storage_key, size_bytes, headers, preview, total_rows, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at
+RETURNING id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at, tenant_id
 `
 
 type InsertContactImportParams struct {
@@ -543,6 +552,7 @@ func (q *Queries) InsertContactImport(ctx context.Context, arg InsertContactImpo
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -550,7 +560,7 @@ func (q *Queries) InsertContactImport(ctx context.Context, arg InsertContactImpo
 const insertContactNote = `-- name: InsertContactNote :one
 
 INSERT INTO contact_notes (contact_id, author_id, body) VALUES ($1, $2, $3)
-RETURNING id, contact_id, author_id, body, created_at
+RETURNING id, contact_id, author_id, body, created_at, tenant_id
 `
 
 type InsertContactNoteParams struct {
@@ -569,6 +579,7 @@ func (q *Queries) InsertContactNote(ctx context.Context, arg InsertContactNotePa
 		&i.AuthorID,
 		&i.Body,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -576,7 +587,7 @@ func (q *Queries) InsertContactNote(ctx context.Context, arg InsertContactNotePa
 const insertSegment = `-- name: InsertSegment :one
 INSERT INTO segments (name, description, definition, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, name, description, definition, created_by, created_at, updated_at
+RETURNING id, name, description, definition, created_by, created_at, updated_at, tenant_id
 `
 
 type InsertSegmentParams struct {
@@ -602,12 +613,13 @@ func (q *Queries) InsertSegment(ctx context.Context, arg InsertSegmentParams) (S
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const listConsentEvents = `-- name: ListConsentEvents :many
-SELECT e.id, e.contact_id, e.kind, e.source, e.note, e.actor_id, e.created_at, e.category, e.status, coalesce(u.name, k.name, '')::text AS actor_name
+SELECT e.id, e.contact_id, e.kind, e.source, e.note, e.actor_id, e.created_at, e.category, e.status, e.tenant_id, coalesce(u.name, k.name, '')::text AS actor_name
 FROM consent_events e
 LEFT JOIN users u ON u.id = e.actor_id
 LEFT JOIN api_keys k ON k.id = e.actor_id
@@ -624,6 +636,7 @@ type ListConsentEventsRow struct {
 	CreatedAt time.Time
 	Category  *string
 	Status    *string
+	TenantID  uuid.UUID
 	ActorName string
 }
 
@@ -646,6 +659,7 @@ func (q *Queries) ListConsentEvents(ctx context.Context, contactID uuid.UUID) ([
 			&i.CreatedAt,
 			&i.Category,
 			&i.Status,
+			&i.TenantID,
 			&i.ActorName,
 		); err != nil {
 			return nil, err
@@ -689,7 +703,7 @@ func (q *Queries) ListContactAttributeKeys(ctx context.Context) ([]string, error
 
 const listContactGroups = `-- name: ListContactGroups :many
 
-SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, (SELECT count(*) FROM contact_group_members m WHERE m.group_id = g.id) AS member_count
+SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, g.tenant_id, (SELECT count(*) FROM contact_group_members m WHERE m.group_id = g.id) AS member_count
 FROM contact_groups g ORDER BY lower(g.name)
 `
 
@@ -700,6 +714,7 @@ type ListContactGroupsRow struct {
 	CreatedBy   *uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	TenantID    uuid.UUID
 	MemberCount int64
 }
 
@@ -720,6 +735,7 @@ func (q *Queries) ListContactGroups(ctx context.Context) ([]ListContactGroupsRow
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 			&i.MemberCount,
 		); err != nil {
 			return nil, err
@@ -733,7 +749,7 @@ func (q *Queries) ListContactGroups(ctx context.Context) ([]ListContactGroupsRow
 }
 
 const listContactImports = `-- name: ListContactImports :many
-SELECT id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at FROM contact_imports ORDER BY id DESC LIMIT 50
+SELECT id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at, tenant_id FROM contact_imports ORDER BY id DESC LIMIT 50
 `
 
 func (q *Queries) ListContactImports(ctx context.Context) ([]ContactImport, error) {
@@ -771,6 +787,7 @@ func (q *Queries) ListContactImports(ctx context.Context) ([]ContactImport, erro
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -783,7 +800,7 @@ func (q *Queries) ListContactImports(ctx context.Context) ([]ContactImport, erro
 }
 
 const listContactNotes = `-- name: ListContactNotes :many
-SELECT n.id, n.contact_id, n.author_id, n.body, n.created_at, coalesce(u.name, '')::text AS author_name
+SELECT n.id, n.contact_id, n.author_id, n.body, n.created_at, n.tenant_id, coalesce(u.name, '')::text AS author_name
 FROM contact_notes n LEFT JOIN users u ON u.id = n.author_id
 WHERE n.contact_id = $1 ORDER BY n.id DESC LIMIT 200
 `
@@ -794,6 +811,7 @@ type ListContactNotesRow struct {
 	AuthorID   *uuid.UUID
 	Body       string
 	CreatedAt  time.Time
+	TenantID   uuid.UUID
 	AuthorName string
 }
 
@@ -812,6 +830,7 @@ func (q *Queries) ListContactNotes(ctx context.Context, contactID uuid.UUID) ([]
 			&i.AuthorID,
 			&i.Body,
 			&i.CreatedAt,
+			&i.TenantID,
 			&i.AuthorName,
 		); err != nil {
 			return nil, err
@@ -826,7 +845,7 @@ func (q *Queries) ListContactNotes(ctx context.Context, contactID uuid.UUID) ([]
 
 const listSegments = `-- name: ListSegments :many
 
-SELECT id, name, description, definition, created_by, created_at, updated_at FROM segments ORDER BY lower(name)
+SELECT id, name, description, definition, created_by, created_at, updated_at, tenant_id FROM segments ORDER BY lower(name)
 `
 
 // ── Segments ────────────────────────────────────────────────────────────────
@@ -847,6 +866,7 @@ func (q *Queries) ListSegments(ctx context.Context) ([]Segment, error) {
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -860,7 +880,7 @@ func (q *Queries) ListSegments(ctx context.Context) ([]Segment, error) {
 
 const listTags = `-- name: ListTags :many
 
-SELECT t.id, t.name, t.color, t.created_at, (SELECT count(*) FROM contact_tags ct WHERE ct.tag_id = t.id) AS contact_count
+SELECT t.id, t.name, t.color, t.created_at, t.tenant_id, (SELECT count(*) FROM contact_tags ct WHERE ct.tag_id = t.id) AS contact_count
 FROM tags t ORDER BY lower(t.name)
 `
 
@@ -869,6 +889,7 @@ type ListTagsRow struct {
 	Name         string
 	Color        string
 	CreatedAt    time.Time
+	TenantID     uuid.UUID
 	ContactCount int64
 }
 
@@ -887,6 +908,7 @@ func (q *Queries) ListTags(ctx context.Context) ([]ListTagsRow, error) {
 			&i.Name,
 			&i.Color,
 			&i.CreatedAt,
+			&i.TenantID,
 			&i.ContactCount,
 		); err != nil {
 			return nil, err
@@ -900,7 +922,7 @@ func (q *Queries) ListTags(ctx context.Context) ([]ListTagsRow, error) {
 }
 
 const lockContact = `-- name: LockContact :one
-SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress FROM contacts WHERE id = $1 FOR UPDATE
+SELECT id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress, tenant_id FROM contacts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockContact(ctx context.Context, id uuid.UUID) (Contact, error) {
@@ -942,6 +964,7 @@ func (q *Queries) LockContact(ctx context.Context, id uuid.UUID) (Contact, error
 		&i.CreatedByInboundAt,
 		&i.ProfileStatus,
 		&i.ProfileProgress,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -982,7 +1005,7 @@ const queueContactImport = `-- name: QueueContactImport :one
 UPDATE contact_imports SET status = 'queued', mapping = $1, duplicate_policy = $2,
     add_tags = $3, group_id = $4, updated_at = now()
 WHERE id = $5 AND status = 'uploaded'
-RETURNING id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at
+RETURNING id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at, tenant_id
 `
 
 type QueueContactImportParams struct {
@@ -1028,6 +1051,7 @@ func (q *Queries) QueueContactImport(ctx context.Context, arg QueueContactImport
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1055,7 +1079,7 @@ UPDATE contact_imports SET cancel_requested = true,
     finished_at = CASE WHEN status IN ('uploaded', 'queued') THEN now() ELSE finished_at END,
     updated_at = now()
 WHERE id = $1 AND status IN ('uploaded', 'queued', 'running')
-RETURNING id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at
+RETURNING id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at, tenant_id
 `
 
 func (q *Queries) RequestImportCancel(ctx context.Context, id uuid.UUID) (ContactImport, error) {
@@ -1087,6 +1111,7 @@ func (q *Queries) RequestImportCancel(ctx context.Context, id uuid.UUID) (Contac
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1109,7 +1134,7 @@ UPDATE contacts SET
                                     THEN coalesce($4::text, opt_out_reason) ELSE NULL END,
     updated_at               = now()
 WHERE id = $6
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress, tenant_id
 `
 
 type SetContactConsentParams struct {
@@ -1169,6 +1194,7 @@ func (q *Queries) SetContactConsent(ctx context.Context, arg SetContactConsentPa
 		&i.CreatedByInboundAt,
 		&i.ProfileStatus,
 		&i.ProfileProgress,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1216,7 +1242,7 @@ func (q *Queries) SetMetaMarketingStopped(ctx context.Context, arg SetMetaMarket
 const startContactImport = `-- name: StartContactImport :one
 UPDATE contact_imports SET status = 'running', started_at = coalesce(started_at, now()), updated_at = now()
 WHERE id = $1 AND status IN ('queued', 'running') AND NOT cancel_requested
-RETURNING id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at
+RETURNING id, filename, storage_key, size_bytes, status, headers, preview, mapping, duplicate_policy, add_tags, group_id, total_rows, processed_rows, created_count, updated_count, skipped_count, failed_count, error_report_key, last_error, cancel_requested, created_by, created_at, started_at, finished_at, updated_at, tenant_id
 `
 
 func (q *Queries) StartContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error) {
@@ -1248,6 +1274,7 @@ func (q *Queries) StartContactImport(ctx context.Context, id uuid.UUID) (Contact
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1303,7 +1330,7 @@ UPDATE contacts SET
     attributes = coalesce($14, attributes),
     updated_at = now()
 WHERE id = $15
-RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress
+RETURNING id, phone_e164, wa_id, name, profile_name, last_inbound_at, created_at, updated_at, email, var1, var2, var3, var4, var5, attributes, opted_out_at, opt_out_reason, source, automations_muted_until, marketing_consent, marketing_consent_at, marketing_consent_source, marketing_consent_reason, service_consent, service_consent_at, service_consent_source, service_consent_reason, meta_marketing_stopped_at, undeliverable_at, undeliverable_code, ai_disabled, contact_type, created_by_inbound_at, profile_status, profile_progress, tenant_id
 `
 
 type UpdateContactParams struct {
@@ -1379,6 +1406,7 @@ func (q *Queries) UpdateContact(ctx context.Context, arg UpdateContactParams) (C
 		&i.CreatedByInboundAt,
 		&i.ProfileStatus,
 		&i.ProfileProgress,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1386,7 +1414,7 @@ func (q *Queries) UpdateContact(ctx context.Context, arg UpdateContactParams) (C
 const updateContactGroup = `-- name: UpdateContactGroup :one
 UPDATE contact_groups SET name = coalesce($1, name),
     description = coalesce($2, description), updated_at = now()
-WHERE id = $3 RETURNING id, name, description, created_by, created_at, updated_at
+WHERE id = $3 RETURNING id, name, description, created_by, created_at, updated_at, tenant_id
 `
 
 type UpdateContactGroupParams struct {
@@ -1405,6 +1433,7 @@ func (q *Queries) UpdateContactGroup(ctx context.Context, arg UpdateContactGroup
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1413,7 +1442,7 @@ const updateSegment = `-- name: UpdateSegment :one
 UPDATE segments SET name = coalesce($1, name),
     description = coalesce($2, description),
     definition = coalesce($3, definition), updated_at = now()
-WHERE id = $4 RETURNING id, name, description, definition, created_by, created_at, updated_at
+WHERE id = $4 RETURNING id, name, description, definition, created_by, created_at, updated_at, tenant_id
 `
 
 type UpdateSegmentParams struct {
@@ -1439,13 +1468,14 @@ func (q *Queries) UpdateSegment(ctx context.Context, arg UpdateSegmentParams) (S
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const updateTag = `-- name: UpdateTag :one
 UPDATE tags SET name = coalesce($1, name), color = coalesce($2, color)
-WHERE id = $3 RETURNING id, name, color, created_at
+WHERE id = $3 RETURNING id, name, color, created_at, tenant_id
 `
 
 type UpdateTagParams struct {
@@ -1462,14 +1492,15 @@ func (q *Queries) UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, erro
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const upsertTag = `-- name: UpsertTag :one
 INSERT INTO tags (name, color) VALUES ($1, $2)
-ON CONFLICT (lower(name)) DO UPDATE SET name = tags.name
-RETURNING id, name, color, created_at
+ON CONFLICT (tenant_id, lower(name)) DO UPDATE SET name = tags.name
+RETURNING id, name, color, created_at, tenant_id
 `
 
 type UpsertTagParams struct {
@@ -1486,6 +1517,7 @@ func (q *Queries) UpsertTag(ctx context.Context, arg UpsertTagParams) (Tag, erro
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
