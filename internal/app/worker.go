@@ -89,8 +89,14 @@ func RunWorker(ctx context.Context) error {
 	mux.Handle(queue.TypeOutboxCleanup, outbox.CleanupHandler(sysPool, outboxRetention, log))
 	mux.HandleFunc(queue.TypeIdentityCleanup, func(ctx context.Context, _ *asynq.Task) error {
 		sessions, keys, err := svc.identity.Cleanup(ctx)
+		if err != nil {
+			return err
+		}
+		// The platform admin panel's sessions belong to no tenant.
+		platform, err := svc.identity.CleanupPlatform(ctx)
 		if err == nil {
-			log.InfoContext(ctx, "identity cleanup finished", "sessions_deleted", sessions, "idempotency_keys_deleted", keys)
+			log.InfoContext(ctx, "identity cleanup finished", "sessions_deleted", sessions, "idempotency_keys_deleted", keys,
+				"platform_sessions_deleted", platform)
 		}
 		return err
 	})

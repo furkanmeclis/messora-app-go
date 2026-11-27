@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"strings"
 
@@ -103,6 +104,7 @@ func (s *Service) sendTo(ctx context.Context, w workspace, to, locale string, ki
 		s.o.Logger.ErrorContext(ctx, "render e-mail", "kind", kind, "err", err)
 		return false
 	}
+	msg.ReplyTo = s.replyTo(ctx)
 	if err := s.mail.Send(mctx, msg); err != nil {
 		s.o.Logger.ErrorContext(ctx, "send e-mail", "kind", kind, "tenant_id", w.ID, "err", err)
 		return false
@@ -118,6 +120,19 @@ func (s *Service) sendToUser(ctx context.Context, id uuid.UUID, u db.User, kind 
 		return false
 	}
 	return s.sendTo(ctx, w, u.Email, u.Locale, kind, build(w))
+}
+
+// replyTo is the platform's reply-to address (platform setting), or "".
+func (s *Service) replyTo(ctx context.Context) string {
+	raw, err := s.q.GetPlatformSetting(tenant.System(ctx), SettingReplyTo)
+	if err != nil {
+		return ""
+	}
+	var v string
+	if json.Unmarshal(raw, &v) != nil {
+		return ""
+	}
+	return v
 }
 
 // roleLabel is the role's name in the recipient's language.

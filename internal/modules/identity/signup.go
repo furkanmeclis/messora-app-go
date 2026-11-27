@@ -27,6 +27,9 @@ import (
 const (
 	// SettingSignupEnabled holds a JSON boolean; missing means enabled.
 	SettingSignupEnabled = "signup_enabled"
+	// SettingReplyTo holds the Reply-To address of the platform's e-mail
+	// (a JSON string; missing means none).
+	SettingReplyTo = "email.reply_to"
 )
 
 var (

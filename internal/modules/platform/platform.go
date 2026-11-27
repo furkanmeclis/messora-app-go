@@ -32,10 +32,8 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
 
-// Platform setting keys.
-const (
-	settingReplyTo = "email.reply_to"
-)
+// settingReplyTo is the platform's Reply-To address.
+const settingReplyTo = identity.SettingReplyTo
 
 // Sender describes the platform's outgoing e-mail (SMTP_* settings).
 type Sender struct {

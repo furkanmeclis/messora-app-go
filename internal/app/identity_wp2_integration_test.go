@@ -197,7 +197,7 @@ func TestSignupVerifyAndLogin(t *testing.T) {
 	if r.data()["login_url"] != "https://"+host+"/login?verified=1" || r.data()["tenant"].(map[string]any)["slug"] != "acme" {
 		t.Fatalf("verify: %s", r.raw)
 	}
-	if h.countMailTo("kurucu@example.com", "Hoş geldiniz") != 1 {
+	if h.countMailTo("kurucu@example.com", "hoş geldiniz") != 1 {
 		t.Fatalf("no welcome e-mail")
 	}
 	h.expect(h.do(call{host: platformHost, method: "POST", path: "/api/v1/auth/verify-email", body: map[string]any{"token": tok}}), 409, "EMAIL_ALREADY_VERIFIED")
@@ -688,9 +688,11 @@ func TestSupportAccessIsAuditedAndReadOnly(t *testing.T) {
 	u, _ = url.Parse(r.data()["redirect_url"].(string))
 	r = h.do(call{method: "POST", path: "/api/v1/auth/handoff", body: map[string]any{"token": u.Query().Get("token")}})
 	h.expect(r, 200, "")
-	h.expect(h.do(call{method: "DELETE", path: "/api/v1/tags/" + tag, token: r.data()["session_token"].(string)}), 204, "")
+	writer := r.data()["session_token"].(string)
+	h.expect(h.do(call{method: "DELETE", path: "/api/v1/tags/" + tag, token: writer}), 204, "")
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: writer, body: map[string]any{"default_timezone": "Europe/Berlin"}}), 200, "")
 	var actor string
-	if err := h.owner.QueryRow(context.Background(), `SELECT u.email FROM audit_logs a JOIN users u ON u.id = a.actor_id WHERE a.tenant_id = $1 AND a.action = 'tag.delete'`, h.tenantID).Scan(&actor); err != nil || actor != "ops@messora.test" {
+	if err := h.owner.QueryRow(context.Background(), `SELECT u.email FROM audit_logs a JOIN users u ON u.id = a.actor_id WHERE a.tenant_id = $1 AND a.action = 'settings.update'`, h.tenantID).Scan(&actor); err != nil || actor != "ops@messora.test" {
 		t.Fatalf("support change recorded as %q %v", actor, err)
 	}
 }
@@ -767,15 +769,20 @@ func TestPlatformDisablesAccountsAndForcesReset(t *testing.T) {
 	h.expect(h.login(h.host, "owner@example.com"), 401, "INVALID_CREDENTIALS")
 	h.expect(h.admin(admin, "POST", "/users/"+uid+"/enable", nil), 200, "")
 
+	r = h.admin(admin, "PATCH", "/settings", map[string]any{"reply_to": "help@messora.test"})
+	h.expect(r, 200, "")
+	if r.data()["email"].(map[string]any)["reply_to"] != "help@messora.test" || r.data()["base_domain"] != testBaseDomain {
+		t.Fatalf("platform settings %s", r.raw)
+	}
 	r = h.admin(admin, "POST", "/users/"+uid+"/force-password-reset", nil)
 	h.expect(r, 200, "")
 	if r.data()["user"].(map[string]any)["password_reset_required"] != true {
 		t.Fatalf("force reset %s", r.raw)
 	}
 	h.expect(h.login(h.host, "owner@example.com"), 403, "PASSWORD_RESET_REQUIRED")
-	_, resetTok := h.mailTo("owner@example.com")
-	if !strings.HasPrefix(resetTok, "msr_") {
-		t.Fatalf("reset e-mail token %q", resetTok)
+	resetMail, resetTok := h.mailTo("owner@example.com")
+	if !strings.HasPrefix(resetTok, "msr_") || resetMail.ReplyTo != "help@messora.test" {
+		t.Fatalf("reset e-mail token %q reply-to %q", resetTok, resetMail.ReplyTo)
 	}
 	h.expect(h.do(call{method: "POST", path: "/api/v1/auth/password/reset", body: map[string]any{"token": resetTok, "password": "A-fresh-passphrase-77"}}), 204, "")
 	r = h.do(fromNewIP(call{method: "POST", path: "/api/v1/auth/login", body: map[string]any{"email": "owner@example.com", "password": "A-fresh-passphrase-77"}}))
