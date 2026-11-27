@@ -25,6 +25,16 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 - Ayrıntılar: `reports/WhatsApp SaaS rakip fiyat analizi.md` ve kanvastaki "Faz 17 · Abonelik" sayfası.
 - **Kredi modelinin ön koşulu:** Meta'ya Messora'nın ödeme yapabilmesi (Solution Partner kredi hattı / BSP).
 
+### 1.5 Planlar ve yetkiler (entitlements)
+- Her firma bir **plana** bağlıdır. Plan, limitleri (numara, kullanıcı, AI ajanı, API kotası, mesaj ve AI kredisi) ve **özellik yetkilerini** belirler. Yetkiler hem backend'de hem panelde kontrol edilir.
+- **E-posta:** platformun e-postaları ve firma bildirimleri **Resend** üzerinden gider (platform ayarı; SMTP `smtp.resend.com` ya da Resend API).
+  - **Kendi SMTP sunucusunu kullanma yetkisi (`custom_smtp`) yalnızca Enterprise** planda vardır.
+  - Diğer planlarda firma ayarlarında SMTP alanı görünmez; e-postalar platform göndericisinden, firmanın adıyla gider.
+- **AI:** platformun kendi sağlayıcı anahtarları vardır (platform ayarı, şifreli). Firmalar varsayılan olarak bunları kullanır, maliyet **AI kredisinden** düşer.
+  - **Kendi AI anahtarını ekleme yetkisi (`byo_ai_keys`) yalnızca Enterprise** planda vardır. Bu firmalarda platform anahtarı ve kredi kullanılmaz.
+- **Meta fiyat kartı:** platform genelinde tek bir kart vardır; platform panelinden yönetilir, tüm firmalar okur. Mesaj maliyeti ve tahminler bu karttan hesaplanır.
+- **Diğer yetkiler:** `custom_domain`, `public_api`, `ai_agents` ve benzerleri; plan tablosunda tutulur.
+
 ## 2. Firma başına API ve webhook
 
 - **Her firmanın kendi API adresi:**
@@ -144,7 +154,8 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 | WP5 | Firmanın kendi Meta uygulaması: kiracıya özel webhook adresi, doğrulama ve sırlar | M | WP1, WP3 |
 | WP6 | Tech Provider / Embedded Signup (anahtarla kapalı, sahte Meta ile) | M–L | WP5 |
 | WP7 | Dağıtım: wildcard + on-demand TLS, alan adı iletimi, Centrifugo origin'leri, alt alan adında E2E | M | WP2 (erken başlayabilir) |
-| — | Abonelik, plan ve kredi | L | WP2, WP4 — sonra |
+| WP8 | Planlar ve yetkiler: plan tablosu, limitler ve yetki kontrolü; Resend platform göndericisi + Enterprise'a özel SMTP; platform AI anahtarları + Enterprise'a özel kendi anahtarı; platform geneli Meta fiyat kartı | M | WP2, WP3 |
+| WP9 | Abonelik ve faturalama: havale/EFT, fatura, mesaj ve AI kredisi bakiyeleri, platform onayı, ek süre ve kısıtlı mod (docs/design/faz17-kanvas) | L | WP8 |
 
 ## 6. Kabul kriterleri (taslak)
 1. İki firmanın verisi hiçbir API, olay, dışa aktarma, kuyruk işi ya da realtime kanalında birbirine görünmez. RLS ve uygulama katmanı testlerle doğrulanır; bir firmanın anahtarıyla diğerinin adresine yapılan istek reddedilir.
