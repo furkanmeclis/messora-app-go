@@ -240,7 +240,7 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 				return
 			}
 			// A read-only support session changes nothing (sign-out aside).
-			if p.ReadOnly() && r.Method != http.MethodGet && r.Method != http.MethodHead && !strings.EqualFold(op.OperationID, "logout") {
+			if p.ReadOnly() && r.Method != http.MethodGet && r.Method != http.MethodHead && !slices.ContainsFunc(readOnlyOps, func(id string) bool { return strings.EqualFold(id, op.OperationID) }) {
 				httpx.WriteError(w, r, apperr.Forbidden("SUPPORT_READ_ONLY", "This support session is read-only"), g.o.Logger)
 				return
 			}
@@ -274,6 +274,10 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// readOnlyOps change nothing despite their method: a read-only support
+// session may call them (signing out, realtime connection tokens).
+var readOnlyOps = []string{"logout", "createRealtimeConnectionToken", "createRealtimeSubscriptionToken"}
 
 // checkHost refuses an operation on the wrong kind of host with 404, as if
 // it did not exist there.

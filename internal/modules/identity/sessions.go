@@ -188,8 +188,8 @@ func (s *Service) AuthenticateSession(ctx context.Context, token string) (*princ
 }
 
 // supportPrincipal completes the principal of a support session: the
-// grant must still be open; read-only sessions get every read permission,
-// write sessions those of an admin.
+// grant must still be open; it gets an admin's permissions, and a
+// read-only one is kept from changing anything by the API guard.
 func (s *Service) supportPrincipal(ctx context.Context, p *principal.Principal, grantID uuid.UUID, readOnly bool) (*principal.Principal, error) {
 	g, err := s.q.GetSupportGrantForSession(ctx, grantID)
 	if isNoRows(err) {
@@ -205,12 +205,8 @@ func (s *Service) supportPrincipal(ctx context.Context, p *principal.Principal, 
 	if err != nil {
 		return nil, err
 	}
-	if readOnly {
-		perms = slices.DeleteFunc(perms, func(k string) bool {
-			_, action, _ := strings.Cut(k, ".")
-			return action != "read" && action != "read_all"
-		})
-	}
+	// A read-only session sees what an admin sees; the API guard refuses
+	// every change it attempts (SUPPORT_READ_ONLY), whatever the method.
 	slices.Sort(perms)
 	p.RoleKey, p.RoleRank, p.Permissions = "admin", roleRank["admin"], perms
 	// Support never re-authenticates: sensitive actions stay closed.
