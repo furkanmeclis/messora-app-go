@@ -31,6 +31,7 @@
 - **Danışma kilidi:** sahip değişikliği kilidi kiracıyı içerir (`messora.owner_changes:<tenant>`).
 - **Roller:** sahip (`messora`) migrasyonları çalıştırır; `messora_app` (`NOBYPASSRLS`) servislerin rolüdür; `messora_system` (`BYPASSRLS`) yalnızca outbox aktarıcısı ve temizliği içindir. Sonraki migrasyonların tabloları `ALTER DEFAULT PRIVILEGES` ile iki role de DML hakkı alır; yeni bir platform tablosu ekleyen migrasyon `messora_app`'in yazma hakkını açıkça geri almalıdır.
 - **Mevcut verinin taşınması (00024–00028):** `tenant_id` önce boş eklenir, mevcut satırlar tek transaction'da 1 numaralı kiracıya (`00000000-0000-0000-0000-000000000001`) taşınır, `CHECK (tenant_id IS NOT NULL) NOT VALID` eklenir; sonraki migrasyonda doğrulanır, `SET NOT NULL` taramasız yapılır ve kontrol düşürülür. 1 numaralı kiracının `slug`'ı organizasyon adından türetilir (`Acme Şirketi` → `acme-sirketi`, kullanılamıyorsa `default`). Alan adlarını `messora migrate` kaydeder: `<slug>.TENANT_BASE_DOMAIN` ve `PUBLIC_APP_URL` host'u. Down migrasyonları tersine çalışır (iki kiracı aynı anahtarı paylaşıyorsa 00027 Down bilerek başarısız olur).
+- **Platform tohumları:** AI fiyat tablosunu `messora migrate` sahip rolüyle tohumlar; işaret `platform_settings.ai_prices_seeded`'dadır (00029).
 - **CI kontrolü:** `TestEveryTableIsTenantScoped` yeni bir tablonun kiracıya bağlanmadan eklenmesini engeller.
 
 ## 2. Kimlik, yetki, sistem

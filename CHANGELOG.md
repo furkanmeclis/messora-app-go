@@ -55,6 +55,14 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
   idempotency keys are unique per tenant; child rows reference parents by
   `(tenant_id, id)`.
 - Queue tasks made from the outbox carry their tenant and run as it.
+- `messora migrate` seeds the platform AI price table (the API no longer
+  does at start-up); its marker moves to `platform_settings` (migration
+  00029).
+
+### Fixed
+
+- The panel's right-click menu no longer closes at once when the browser
+  scrolls the clicked row into view (tables wider than the window).
 
 ## [0.12.0] - 2026-11-26
 
