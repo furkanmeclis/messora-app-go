@@ -27,24 +27,30 @@ import (
 //nolint:gosec // G101 false positive: no credentials here
 const (
 	KeyPostgresPassword = "POSTGRES_PASSWORD"
-	KeyRedisPassword    = "REDIS_PASSWORD"
-	KeyEncryptionKey    = "APP_ENCRYPTION_KEY"
-	KeyBFFSecret        = "BFF_SHARED_SECRET"
-	KeyCentrifugoAPIKey = "CENTRIFUGO_API_KEY"
-	KeyCentrifugoHMAC   = "CENTRIFUGO_HMAC_SECRET"
-	KeyMetaVerifyToken  = "META_VERIFY_TOKEN"
+	// The roles the services connect as (migration 00024); `messora
+	// migrate` sets their passwords.
+	KeyPostgresAppPassword    = "POSTGRES_APP_PASSWORD"
+	KeyPostgresSystemPassword = "POSTGRES_SYSTEM_PASSWORD"
+	KeyRedisPassword          = "REDIS_PASSWORD"
+	KeyEncryptionKey          = "APP_ENCRYPTION_KEY"
+	KeyBFFSecret              = "BFF_SHARED_SECRET"
+	KeyCentrifugoAPIKey       = "CENTRIFUGO_API_KEY"
+	KeyCentrifugoHMAC         = "CENTRIFUGO_HMAC_SECRET"
+	KeyMetaVerifyToken        = "META_VERIFY_TOKEN"
 )
 
 type generator func() (string, error)
 
 var managed = map[string]generator{
-	KeyPostgresPassword: urlToken(24),
-	KeyRedisPassword:    urlToken(24),
-	KeyEncryptionKey:    stdKey(32),
-	KeyBFFSecret:        urlToken(32),
-	KeyCentrifugoAPIKey: urlToken(32),
-	KeyCentrifugoHMAC:   urlToken(48),
-	KeyMetaVerifyToken:  urlToken(24),
+	KeyPostgresPassword:       urlToken(24),
+	KeyPostgresAppPassword:    urlToken(24),
+	KeyPostgresSystemPassword: urlToken(24),
+	KeyRedisPassword:          urlToken(24),
+	KeyEncryptionKey:          stdKey(32),
+	KeyBFFSecret:              urlToken(32),
+	KeyCentrifugoAPIKey:       urlToken(32),
+	KeyCentrifugoHMAC:         urlToken(48),
+	KeyMetaVerifyToken:        urlToken(24),
 }
 
 // ManagedKeys lists the keys in a stable order.
@@ -150,7 +156,7 @@ func validate(v map[string]string) error {
 	if len(v[KeyBFFSecret]) < 32 {
 		return errors.New("provision: BFF_SHARED_SECRET must be at least 32 characters")
 	}
-	for _, k := range []string{KeyPostgresPassword, KeyRedisPassword, KeyCentrifugoAPIKey, KeyCentrifugoHMAC, KeyMetaVerifyToken} {
+	for _, k := range []string{KeyPostgresPassword, KeyPostgresAppPassword, KeyPostgresSystemPassword, KeyRedisPassword, KeyCentrifugoAPIKey, KeyCentrifugoHMAC, KeyMetaVerifyToken} {
 		if len(v[k]) < 16 {
 			return fmt.Errorf("provision: %s must be at least 16 characters", k)
 		}

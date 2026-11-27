@@ -13,6 +13,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/database"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/logger"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/provision"
 )
 
@@ -22,7 +23,7 @@ func RunMigrate(ctx context.Context) error {
 	if err != nil {
 		return reportFatal(log, err)
 	}
-	pool, err := openPostgres(ctx, cfg, config.RoleMigrate, log)
+	pool, err := openOwnerPool(ctx, cfg, config.RoleMigrate, log)
 	if err != nil {
 		return reportFatal(log, err)
 	}
@@ -32,6 +33,23 @@ func RunMigrate(ctx context.Context) error {
 		return reportFatal(log, err)
 	}
 	log.Info("database schema up to date", "version", v)
+	// The services connect as these roles; their passwords come from the
+	// provisioned secrets.
+	if err := database.SetRolePasswords(ctx, pool, map[string]string{
+		database.AppRole: cfg.Database.App.Password.Reveal(), database.SystemRole: cfg.Database.System.Password.Reveal(),
+	}); err != nil {
+		return reportFatal(log, err)
+	}
+	if !cfg.Database.App.Password.IsSet() {
+		log.Warn("POSTGRES_APP_PASSWORD is not set: the services cannot log in as messora_app (run messora init)")
+	}
+	added, err := tenant.BootstrapDomains(ctx, pool, cfg.PublicAppURL, cfg.TenantBaseDomain)
+	if err != nil {
+		return reportFatal(log, err)
+	}
+	if len(added) > 0 {
+		log.Info("tenant #1 host names registered", "hosts", added)
+	}
 	return nil
 }
 
@@ -64,7 +82,7 @@ func RunSetupToken(ctx context.Context) error {
 	if err != nil {
 		return reportFatal(log, err)
 	}
-	pool, err := openPostgres(ctx, cfg, config.RoleAPI, log)
+	pool, err := openAppPool(ctx, cfg, config.RoleAPI, log)
 	if err != nil {
 		return reportFatal(log, err)
 	}
@@ -78,6 +96,9 @@ func RunSetupToken(ctx context.Context) error {
 	if err != nil {
 		return reportFatal(log, err)
 	}
+	// TODO(WP2): the platform admin opens tenants; until then setup links
+	// are for tenant #1.
+	ctx = tenant.WithID(ctx, tenant.DefaultID)
 	token, err := svc.identity.EnsureSetupToken(ctx, true)
 	if err != nil {
 		return reportFatal(log, err)

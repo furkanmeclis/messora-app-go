@@ -13,6 +13,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/furkanmeclis/messora-app-go/internal/platform/database"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
 // Check probes one dependency. It returns optional detail and an error when
@@ -93,7 +94,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 // Postgres pings the pool and reports pool statistics.
 func Postgres(pool *pgxpool.Pool) Check {
 	return func(ctx context.Context) (any, error) {
-		if err := pool.Ping(ctx); err != nil {
+		if err := pool.Ping(tenant.System(ctx)); err != nil {
 			return nil, fmt.Errorf("ping: %w", err)
 		}
 		s := pool.Stat()

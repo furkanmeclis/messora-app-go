@@ -8,6 +8,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -35,9 +36,16 @@ func DiscardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// Postgres starts a fresh PostgreSQL container and returns a pool to it. The
+// Postgres starts a fresh PostgreSQL container and returns a pool to it, as
+// the owner (a superuser, so row-level security does not apply to it). The
 // database is empty (no migrations applied).
 func Postgres(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	pool, _ := postgres(t)
+	return pool
+}
+
+func postgres(t testing.TB) (*pgxpool.Pool, string) {
 	t.Helper()
 	ctx := context.Background()
 	c, err := tcpostgres.Run(ctx, PostgresImage,
@@ -59,7 +67,7 @@ func Postgres(t testing.TB) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	return pool
+	return pool, dsn
 }
 
 // MigratedPostgres is Postgres with all migrations applied.
@@ -69,6 +77,54 @@ func MigratedPostgres(t testing.TB) *pgxpool.Pool {
 	if _, err := database.Migrate(context.Background(), pool, DiscardLogger()); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	return pool
+}
+
+// DB is a migrated database with a pool per role.
+type DB struct {
+	// Owner runs migrations; a superuser here, so it sees every tenant.
+	Owner *pgxpool.Pool
+	// App is the services' pool: messora_app, tenant-scoped (fail-closed,
+	// row-level security applies).
+	App *pgxpool.Pool
+	// System is messora_system (BYPASSRLS), for the outbox relay.
+	System *pgxpool.Pool
+}
+
+// Test passwords of the service roles.
+const (
+	appPassword    = "app-test-password"    // gitleaks:allow (test fixture)
+	systemPassword = "system-test-password" // gitleaks:allow (test fixture)
+)
+
+// TenantDB starts PostgreSQL, applies the migrations and connects as each
+// role, exactly as the services do.
+func TenantDB(t testing.TB) *DB {
+	t.Helper()
+	ctx := context.Background()
+	owner, dsn := postgres(t)
+	if _, err := database.Migrate(ctx, owner, DiscardLogger()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := database.SetRolePasswords(ctx, owner, map[string]string{database.AppRole: appPassword, database.SystemRole: systemPassword}); err != nil {
+		t.Fatal(err)
+	}
+	return &DB{Owner: owner, App: RolePool(t, dsn, database.AppRole, appPassword, true), System: RolePool(t, dsn, database.SystemRole, systemPassword, false)}
+}
+
+// RolePool connects to the database of dsn as another role.
+func RolePool(t testing.TB, dsn, user, password string, tenantScoped bool) *pgxpool.Pool {
+	t.Helper()
+	u, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.User = url.UserPassword(user, password)
+	pool, err := database.Open(context.Background(), database.PoolOptions{DSN: u.String(), MaxConns: 10, TenantScoped: tenantScoped}, 30*time.Second, DiscardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
 	return pool
 }
 

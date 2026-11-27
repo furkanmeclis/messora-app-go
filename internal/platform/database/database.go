@@ -18,6 +18,7 @@ import (
 	"github.com/pressly/goose/v3/lock"
 
 	"github.com/furkanmeclis/messora-app-go/internal/platform/startup"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 	"github.com/furkanmeclis/messora-app-go/migrations"
 )
@@ -30,6 +31,10 @@ type PoolOptions struct {
 	ApplicationName string
 	// Traced records a span per query (OpenTelemetry).
 	Traced bool
+	// TenantScoped makes every connection carry the tenant of the context
+	// that acquires it (see TenantHooks). Required for the application
+	// pool (messora_app); the owner and system pools leave it off.
+	TenantScoped bool
 }
 
 // Open creates a pgx pool and verifies connectivity, retrying for up to
@@ -55,16 +60,51 @@ func Open(ctx context.Context, o PoolOptions, connectTimeout time.Duration, log 
 	if o.Traced {
 		cfg.ConnConfig.Tracer = tracing.PgxTracer{}
 	}
+	if o.TenantScoped {
+		cfg.PrepareConn, cfg.AfterRelease = TenantHooks()
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("database: create pool: %w", err)
 	}
-	if err := startup.Retry(ctx, connectTimeout, log, "postgres", func(ctx context.Context) error { return pool.Ping(ctx) }); err != nil {
+	if err := startup.Retry(ctx, connectTimeout, log, "postgres", func(ctx context.Context) error { return pool.Ping(tenant.System(ctx)) }); err != nil {
 		pool.Close()
 		return nil, err
 	}
 	return pool, nil
+}
+
+// resetTimeout bounds the RESET a released connection runs before it goes
+// back to the pool.
+const resetTimeout = 5 * time.Second
+
+// TenantHooks returns the pgxpool hooks of a tenant-scoped pool. On every
+// acquire the connection's app.tenant_id is set from the context (the
+// tenant's ID, or empty for tenant.System work); a context with neither
+// fails with tenant.ErrNoTenant before any statement runs. On release the
+// setting is reset, and a connection whose reset fails is destroyed rather
+// than reused. Transactions (pool.Begin) acquire through the same hook, so
+// every statement of a request or job runs as its tenant; row-level
+// security does the rest (migration 00028).
+func TenantHooks() (prepare func(context.Context, *pgx.Conn) (bool, error), release func(*pgx.Conn) bool) {
+	prepare = func(ctx context.Context, c *pgx.Conn) (bool, error) {
+		v, err := tenant.Setting(ctx)
+		if err != nil {
+			return true, err // the connection is untouched and goes back to the pool
+		}
+		if _, err := c.Exec(ctx, "SELECT set_config('app.tenant_id', $1, false)", v); err != nil {
+			return false, fmt.Errorf("database: set tenant: %w", err)
+		}
+		return true, nil
+	}
+	release = func(c *pgx.Conn) bool {
+		ctx, cancel := context.WithTimeout(context.Background(), resetTimeout)
+		defer cancel()
+		_, err := c.Exec(ctx, "RESET app.tenant_id")
+		return err == nil
+	}
+	return prepare, release
 }
 
 // InTx runs fn inside a transaction, committing on nil and rolling back on
@@ -150,6 +190,7 @@ func (s SchemaStatus) UpToDate() bool { return s.Current >= s.Target }
 // Status returns the schema version without changing anything. It does not
 // take the migration lock, so readiness probes never block on a migration.
 func Status(ctx context.Context, pool *pgxpool.Pool) (SchemaStatus, error) {
+	ctx = tenant.System(ctx) // reads only goose_db_version
 	db := stdlib.OpenDBFromPool(pool)
 	defer db.Close()
 	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
@@ -161,4 +202,30 @@ func Status(ctx context.Context, pool *pgxpool.Pool) (SchemaStatus, error) {
 		return SchemaStatus{}, err
 	}
 	return SchemaStatus{Current: cur, Target: target}, nil
+}
+
+// Database roles created by migration 00024.
+const (
+	AppRole    = "messora_app"
+	SystemRole = "messora_system"
+)
+
+// SetRolePasswords lets each role log in with its password (empty
+// passwords are skipped). It runs as the owner after migrating; the
+// statement is built by format() so PostgreSQL quotes the password.
+func SetRolePasswords(ctx context.Context, owner *pgxpool.Pool, passwords map[string]string) error {
+	for _, role := range []string{AppRole, SystemRole} {
+		pw := passwords[role]
+		if pw == "" {
+			continue
+		}
+		var stmt string
+		if err := owner.QueryRow(ctx, "SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', $1::text, $2::text)", role, pw).Scan(&stmt); err != nil {
+			return fmt.Errorf("database: role %s: %w", role, err)
+		}
+		if _, err := owner.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("database: role %s: %w", role, err)
+		}
+	}
+	return nil
 }

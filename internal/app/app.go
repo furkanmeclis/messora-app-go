@@ -65,13 +65,43 @@ func flushTracing() {
 	_ = shutdownTracing(ctx)
 }
 
-func openPostgres(ctx context.Context, cfg *config.Config, role config.Role, log *slog.Logger) (*pgxpool.Pool, error) {
+// openOwnerPool connects as the owner of the schema; only `messora migrate`
+// does.
+func openOwnerPool(ctx context.Context, cfg *config.Config, role config.Role, log *slog.Logger) (*pgxpool.Pool, error) {
+	return openPool(ctx, cfg, cfg.Database.DSN(), role, false, log)
+}
+
+// openAppPool connects as messora_app, the role of every request and job:
+// each connection carries the tenant of its context and row-level
+// security limits it to that tenant's rows (fail-closed).
+func openAppPool(ctx context.Context, cfg *config.Config, role config.Role, log *slog.Logger) (*pgxpool.Pool, error) {
+	dsn, err := cfg.Database.AppDSN()
+	if err != nil {
+		return nil, err
+	}
+	return openPool(ctx, cfg, dsn, role, true, log)
+}
+
+// openSystemPool connects as messora_system (BYPASSRLS), for the outbox
+// relay and maintenance only. It is small: nothing request-driven uses it.
+func openSystemPool(ctx context.Context, cfg *config.Config, role config.Role, log *slog.Logger) (*pgxpool.Pool, error) {
+	dsn, err := cfg.Database.SystemDSN()
+	if err != nil {
+		return nil, err
+	}
 	return database.Open(ctx, database.PoolOptions{
-		DSN:             cfg.Database.DSN(),
+		DSN: dsn, MaxConns: 4, ApplicationName: "messora-" + string(role) + "-system", Traced: tracing.Enabled(),
+	}, dependencyTimeout, log)
+}
+
+func openPool(ctx context.Context, cfg *config.Config, dsn string, role config.Role, scoped bool, log *slog.Logger) (*pgxpool.Pool, error) {
+	return database.Open(ctx, database.PoolOptions{
+		DSN:             dsn,
 		MaxConns:        cfg.Database.MaxConns,
 		MinConns:        cfg.Database.MinConns,
 		ApplicationName: "messora-" + string(role),
 		Traced:          tracing.Enabled(),
+		TenantScoped:    scoped,
 	}, dependencyTimeout, log)
 }
 
