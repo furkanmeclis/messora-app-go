@@ -88,6 +88,8 @@ export function ContextMenuProvider({
     } | null>(null);
     const [active, setActive] = useState(0);
     const box = useRef<HTMLDivElement>(null);
+    // Where the clicked element was when the menu opened (see onScroll).
+    const anchor = useRef<{ el: HTMLElement; top: number; left: number }>(null);
     const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
     const register = useCallback((id: string, fn: Provider) => {
@@ -229,6 +231,8 @@ export function ContextMenuProvider({
             groups.push(general, panel);
 
             e.preventDefault();
+            const r = target.getBoundingClientRect();
+            anchor.current = { el: target, top: r.top, left: r.left };
             setActive(-1);
             setPos(null);
             setMenu({ x: e.clientX, y: e.clientY, groups });
@@ -268,17 +272,27 @@ export function ContextMenuProvider({
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') close();
         };
+        // Close when what the menu belongs to scrolls away. Scroll events
+        // arrive a frame late, so the event of a scroll that happened just
+        // before the right-click (the browser bringing the element into
+        // view) may come after the menu opened; it must not close it.
+        const onScroll = () => {
+            const a = anchor.current;
+            if (!a || !a.el.isConnected) return close();
+            const r = a.el.getBoundingClientRect();
+            if (r.top !== a.top || r.left !== a.left) close();
+        };
         window.addEventListener('pointerdown', onDown, true);
         window.addEventListener('keydown', onKey);
         window.addEventListener('blur', close);
         window.addEventListener('resize', close);
-        window.addEventListener('scroll', close, true);
+        window.addEventListener('scroll', onScroll, true);
         return () => {
             window.removeEventListener('pointerdown', onDown, true);
             window.removeEventListener('keydown', onKey);
             window.removeEventListener('blur', close);
             window.removeEventListener('resize', close);
-            window.removeEventListener('scroll', close, true);
+            window.removeEventListener('scroll', onScroll, true);
         };
     }, [menu, close]);
 
