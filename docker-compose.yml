@@ -36,7 +36,9 @@ x-messora-app: &messora-app
       read_only: true
       volume:
         subpath: app
-    # Downloaded WhatsApp media (inbound files are kept after Meta's expiry).
+    # Files of the local storage driver (media, imports, exports, logos)
+    # and, with STORAGE_DRIVER=s3 as well, scratch space for temporary
+    # files (the root filesystem is read-only). See docs/STORAGE.md.
     - messora-media:/var/lib/messora/media
   read_only: true
   cap_drop: [ALL]

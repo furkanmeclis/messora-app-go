@@ -22,10 +22,11 @@
 		Strict-Transport-Security "max-age=31536000"
 	}
 
-	# Public developer API and Meta webhooks go straight to the Go API.
-	# The BFF secret header is stripped so it can only come from the
-	# internal network.
-	@api path /api/v1/* /webhooks/*
+	# Public developer API, Meta webhooks and media links (presigned
+	# downloads and public assets of the local storage driver) go straight
+	# to the Go API. The BFF secret header is stripped so it can only come
+	# from the internal network.
+	@api path /api/v1/* /webhooks/* /media/*
 	handle @api {
 		request_header -X-Messora-BFF
 		reverse_proxy messora-api:8080 {

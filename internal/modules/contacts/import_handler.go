@@ -118,12 +118,12 @@ func (h *Handler) GetContactImportErrors(w http.ResponseWriter, r *http.Request,
 		h.fail(w, r, apperr.NotFound("This import has no error report."))
 		return
 	}
-	f, err := h.svc.imp.Open(*imp.ErrorReportKey)
+	f, err := h.svc.imp.Open(r.Context(), *imp.ErrorReportKey)
 	if err != nil {
 		h.fail(w, r, apperr.NotFound("The error report is no longer available."))
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="import-errors.csv"`)
 	_, _ = io.Copy(w, f)

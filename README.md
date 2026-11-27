@@ -127,6 +127,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and controls |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Deployment, backup/restore, upgrades, monitoring |
 | [docs/WHATSAPP.md](docs/WHATSAPP.md) | WhatsApp setup, delivery guarantees, inbox rules |
+| [docs/STORAGE.md](docs/STORAGE.md) | File storage: local and S3 drivers, keys, presigned links, CDN |
 | [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md) | Automation triggers, steps and guarantees |
 | [docs/WEBHOOKS.md](docs/WEBHOOKS.md) | Outgoing webhooks for integrators |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases and exit criteria |

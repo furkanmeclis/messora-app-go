@@ -2,6 +2,7 @@ package conversations
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
@@ -294,27 +296,25 @@ func (h *Handler) ListConversationEvents(w http.ResponseWriter, r *http.Request,
 
 // DownloadConversationMedia implements api.ServerInterface.
 func (h *Handler) DownloadConversationMedia(w http.ResponseWriter, r *http.Request, id api.ConversationId, mediaID api.MediaId) {
-	f, file, err := h.svc.OpenMedia(r.Context(), principal.From(r.Context()), id, mediaID)
-	if err != nil {
-		h.fail(w, r, err)
-		return
-	}
-	defer func() { _ = file.Close() }()
-	st, err := file.Stat()
+	f, key, err := h.svc.OpenMedia(r.Context(), principal.From(r.Context()), id, mediaID)
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
 	ctype, disp := mediaHeaders(f.MimeType, f.Filename, f.ID)
-	hd := w.Header()
-	hd.Set("Content-Type", ctype)
-	hd.Set("Content-Disposition", disp)
-	hd.Set("X-Content-Type-Options", "nosniff")
-	hd.Set("Content-Security-Policy", "default-src 'none'; sandbox")
-	hd.Set("Cache-Control", "private, max-age=300")
-	// ServeContent adds Content-Length and range support (audio and video
-	// seeking); the content type is already fixed, so it does not sniff.
-	http.ServeContent(w, r, "", st.ModTime(), file)
+	// Local files are served here with Content-Length and range support
+	// (audio and video seeking); S3 objects redirect to a short-lived
+	// presigned URL carrying the same type and disposition.
+	err = storage.Serve(w, r, h.svc.MediaStore().Store(), key, storage.ServeOptions{ContentType: ctype, ContentDisposition: disp,
+		CacheControl: "private, max-age=300"})
+	if errors.Is(err, storage.ErrNotFound) {
+		h.svc.MediaMissing(r.Context(), mediaID)
+		h.fail(w, r, apperr.NotFound("Media not found."))
+		return
+	}
+	if err != nil {
+		h.fail(w, r, err)
+	}
 }
 
 // inlineTypes are rendered by browsers without running code; everything

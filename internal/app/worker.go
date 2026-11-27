@@ -156,7 +156,8 @@ func RunWorker(ctx context.Context) error {
 	ready := health.NewChecker(2*time.Second).
 		Add("postgres", health.Postgres(pool)).
 		Add("schema", health.Schema(pool)).
-		Add("redis", health.Redis(rdb))
+		Add("redis", health.Redis(rdb)).
+		Add("storage", svc.stores.Check)
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {

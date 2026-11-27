@@ -9,6 +9,19 @@ All notable changes to this project are documented here. The format follows
 Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
 (docs/PHASE-17.md). Features of the self-hosted product are removed.
 
+### Added
+
+- **Object storage** (`internal/platform/storage`, docs/STORAGE.md): media,
+  contact imports and error reports, campaign exports and the logo go
+  through one store with a `local` driver (the media volume, HMAC-signed
+  `/media/s/` links) and an `s3` driver (AWS S3, Cloudflare R2, MinIO;
+  SSE-S3, multipart uploads, presigned URLs, EC2 instance role). Private and
+  public buckets; public assets via `PUBLIC_ASSET_BASE_URL` (CDN) or
+  `/media/p/`. Tenant-scoped keys `t/<tenant>/<kind>/<yyyy>/<mm>/<uuid>`.
+  New settings `STORAGE_DRIVER`, `STORAGE_LOCAL_DIR` (was `MEDIA_DIR`, still
+  read), `MEDIA_SIGNING_KEY`, `S3_*`, `PUBLIC_ASSET_BASE_URL`; `/readyz`
+  checks storage.
+
 ### Removed
 
 - **Licensing:** licence verification, restricted mode, the

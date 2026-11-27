@@ -39,6 +39,8 @@ TRUSTED_PROXIES=private_ranges
 **Dokploy:** create a *Compose* service from this repository, run
 `docker compose up -d --no-build` with the settings above (plus
 `PUBLIC_APP_URL`) in its Environment tab, and add a domain for service
-`caddy`, port 80, with HTTPS.
+`caddy`, port 80, with HTTPS. To keep files in S3 instead of the volume,
+add the `STORAGE_DRIVER=s3` and `S3_*` settings of
+[STORAGE.md](STORAGE.md) to the same Environment tab.
 
 Backups, monitoring and troubleshooting: [OPERATIONS.md](OPERATIONS.md).

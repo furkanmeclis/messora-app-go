@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -426,36 +425,43 @@ func (s *Service) Events(ctx context.Context, p *principal.Principal, id uuid.UU
 	return s.q.ListConversationEvents(ctx, db.ListConversationEventsParams{ConversationID: id, Lim: 100})
 }
 
-// OpenMedia opens a stored media file of a message in the conversation.
-func (s *Service) OpenMedia(ctx context.Context, p *principal.Principal, id, mediaID uuid.UUID) (db.MediaFile, *os.File, error) {
+// OpenMedia finds a stored media file of a message in the conversation and
+// returns its object key (in MediaStore().Store()).
+func (s *Service) OpenMedia(ctx context.Context, p *principal.Principal, id, mediaID uuid.UUID) (db.MediaFile, string, error) {
 	c, err := s.load(ctx, s.q, p, id)
 	if err != nil {
-		return db.MediaFile{}, nil, err
+		return db.MediaFile{}, "", err
 	}
 	notFound := apperr.NotFound("Media not found.")
 	f, err := s.q.GetMediaFile(ctx, mediaID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && f.MessageID == nil) {
-		return f, nil, notFound
+		return f, "", notFound
 	}
 	if err != nil {
-		return f, nil, err
+		return f, "", err
 	}
 	m, err := s.q.GetMessage(ctx, *f.MessageID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (m.ContactID != c.ContactID || m.PhoneNumberID != c.PhoneNumberID)) {
-		return f, nil, notFound // a file of another conversation
+		return f, "", notFound // a file of another conversation
 	}
 	if err != nil {
-		return f, nil, err
+		return f, "", err
 	}
 	if f.Status != "stored" || f.StorageKey == nil {
-		return f, nil, apperr.Conflict("MEDIA_NOT_STORED", "The file has not been downloaded from WhatsApp (yet).")
+		return f, "", apperr.Conflict("MEDIA_NOT_STORED", "The file has not been downloaded from WhatsApp (yet).")
 	}
-	file, err := s.media.Open(*f.StorageKey)
-	if errors.Is(err, os.ErrNotExist) {
-		s.log.ErrorContext(ctx, "stored media file is missing from MEDIA_DIR", "media_id", mediaID)
-		return f, nil, notFound
+	if err := s.media.Check(ctx, *f.StorageKey); err != nil {
+		return f, "", notFound
 	}
-	return f, file, err
+	return f, *f.StorageKey, nil
+}
+
+// MediaStore returns where conversation media is kept.
+func (s *Service) MediaStore() *messaging.MediaStore { return s.media }
+
+// MediaMissing logs a stored file whose object is gone.
+func (s *Service) MediaMissing(ctx context.Context, mediaID uuid.UUID) {
+	s.log.ErrorContext(ctx, "stored media file is missing from the object store", "media_id", mediaID)
 }
 
 func sameUser(a, b *uuid.UUID) bool {

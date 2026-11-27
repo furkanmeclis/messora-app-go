@@ -41,6 +41,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -107,6 +108,18 @@ type services struct {
 	webhooks   *webhooks.Service
 	automation *automation.Service
 	ai         *ai.Service
+	stores     *storage.Stores
+}
+
+// openStorage opens the object store the configuration selects.
+func openStorage(cfg *config.Config) (*storage.Stores, error) {
+	s := cfg.Storage
+	return storage.Open(context.Background(), storage.Options{
+		Driver: s.Driver, LocalDir: s.LocalDir, AppURL: cfg.PublicAppURL, PublicAssetBaseURL: s.PublicAssetBaseURL,
+		SigningKey: s.SigningKey, BucketPrivate: s.S3.BucketPrivate, BucketPublic: s.S3.BucketPublic,
+		S3: storage.S3Options{Region: s.S3.Region, Endpoint: s.S3.Endpoint, ForcePathStyle: s.S3.ForcePathStyle,
+			AccessKeyID: s.S3.AccessKeyID, SecretAccessKey: s.S3.SecretAccessKey.Reveal(), SSE: s.S3.SSE},
+	})
 }
 
 func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger) (*services, error) {
@@ -118,6 +131,10 @@ func newServices(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalCl
 // configuration chosen in the panel.
 func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.UniversalClient, log *slog.Logger, mail mailer.Sender, argon crypto.Argon2Params) (*services, error) {
 	sealer, err := crypto.NewSealer(cfg.EncryptionKey, nil)
+	if err != nil {
+		return nil, err
+	}
+	stores, err := openStorage(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -163,9 +180,9 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 			}
 		}
 	})
-	media := messaging.NewMediaStore(cfg.MediaDir)
+	media := messaging.NewMediaStore(stores.Private)
 	msg := messaging.New(pool, ch, media, log)
-	cts := contacts.New(pool, cfg.MediaDir, log)
+	cts := contacts.New(pool, stores, log)
 	camp := campaigns.New(pool, cts, log)
 	msg.SetCampaignProgress(camp.PublishProgress)
 	msg.SetCampaignWithheld(camp.ScheduleResend)
@@ -176,7 +193,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 			return camp.AccountSignal(ctx, tx, q, campaigns.AccountSignalInfo(sig))
 		}})
 	consent.ObserveOptOuts(camp.RecordOptOut)
-	camp.SetExportStore(campaigns.NewExportStore(cfg.MediaDir))
+	camp.SetExportStore(campaigns.NewExportStore(stores))
 	// The send scheduler: the worker paces sends with it, the dispatcher
 	// and the queue view read capacities and shares from it.
 	throttle := messaging.NewThrottle(rdb, messaging.DefaultThroughput).WithCeilings(msg.ThroughputCeiling).
@@ -204,7 +221,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	auto.SetFieldWriter(inbox)
 	return &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
-		automation: auto}, nil
+		automation: auto, stores: stores}, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -230,7 +247,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	if err != nil {
 		return err
 	}
-	sh := settings.NewHandler(pool, svc.settings, svc.mail, svc.cfg.MediaDir, log)
+	sh := settings.NewHandler(pool, svc.settings, svc.mail, svc.stores, log)
 	srv := apiServer{
 		identityHandler:   identity.NewHandler(svc.identity, log),
 		settingsHandler:   sh,
@@ -261,6 +278,9 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	}
 	r.Method(http.MethodGet, apidocs.Path, apidocs.Handler(public))
 	r.Method(http.MethodHead, apidocs.Path, apidocs.Handler(public))
+	// Presigned local downloads and public assets without a CDN:
+	// authenticated by signature (or public), not by the API guard.
+	r.Handle("/media/*", svc.stores.Handler())
 	// Meta's webhooks: authenticated by signature, not by the API guard.
 	r.Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
 	r.Group(func(g chi.Router) {
