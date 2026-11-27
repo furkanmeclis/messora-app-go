@@ -30,8 +30,12 @@ import (
 var platformTables = []string{
 	"goose_db_version", "tenants", "tenant_domains", "platform_settings",
 	"permissions", "roles", "role_permissions",
-	"meta_rates", "meta_rate_markets", "ai_model_prices",
+	"meta_rates", "meta_rate_markets", "ai_model_prices", "meta_webhook_keys",
 }
+
+// routingTables are platform tables whose tenant_id names the tenant a
+// request routes to, read before any tenant is known.
+var routingTables = []string{"tenant_domains", "meta_webhook_keys"}
 
 // nullableTenant may hold rows without a tenant (platform events).
 var nullableTenant = []string{"outbox_events"}
@@ -67,7 +71,7 @@ func TestEveryTableIsTenantScoped(t *testing.T) {
 		if slices.Contains(platformTables, name) {
 			// tenant_domains belongs to the registry: its tenant_id names
 			// the tenant a host routes to, read before any tenant is known.
-			if hasCol && name != "tenant_domains" {
+			if hasCol && !slices.Contains(routingTables, name) {
 				t.Errorf("platform table %s has a tenant_id: scope it or drop it from the allowlist", name)
 			}
 			continue

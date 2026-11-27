@@ -28,18 +28,18 @@ import (
 
 // Service is the channels API.
 type Service struct {
-	pool      *pgxpool.Pool
-	q         *db.Queries
-	sealer    *crypto.Sealer
-	wa        *whatsapp.Client
-	log       *slog.Logger
-	envSecret string // META_APP_SECRET, also accepted for webhook signatures
-	notify    Notifier
+	pool   *pgxpool.Pool
+	q      *db.Queries
+	sealer *crypto.Sealer
+	wa     *whatsapp.Client
+	log    *slog.Logger
+	notify Notifier
 }
 
-// New returns the service.
-func New(pool *pgxpool.Pool, sealer *crypto.Sealer, wa *whatsapp.Client, envAppSecret string, log *slog.Logger) *Service {
-	return &Service{pool: pool, q: db.New(pool), sealer: sealer, wa: wa, log: log, envSecret: envAppSecret}
+// New returns the service. Every Meta credential is the tenant's own and
+// lives in the database: there is no platform-wide app, token or secret.
+func New(pool *pgxpool.Pool, sealer *crypto.Sealer, wa *whatsapp.Client, log *slog.Logger) *Service {
+	return &Service{pool: pool, q: db.New(pool), sealer: sealer, wa: wa, log: log}
 }
 
 // Client returns the Graph API client.
@@ -80,13 +80,18 @@ func metaFailure(err error) error {
 // and its phone numbers.
 func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID) (db.WhatsappAccount, error) {
 	in.Name, in.WABAID, in.AppID = strings.TrimSpace(in.Name), strings.TrimSpace(in.WABAID), strings.TrimSpace(in.AppID)
+	in.AppSecret, in.AccessToken = strings.TrimSpace(in.AppSecret), strings.TrimSpace(in.AccessToken)
 	switch {
 	case in.Name == "":
 		return db.WhatsappAccount{}, apperr.Validation("name", "Name is required.")
 	case !digits.MatchString(in.WABAID):
 		return db.WhatsappAccount{}, apperr.Validation("waba_id", "WhatsApp Business Account ID must be numeric.")
-	case in.AppID != "" && !digits.MatchString(in.AppID):
+	case !digits.MatchString(in.AppID):
 		return db.WhatsappAccount{}, apperr.Validation("app_id", "App ID must be numeric.")
+	case len(strings.TrimSpace(in.AppSecret)) < 8:
+		// The app secret signs the webhooks of this account; without it
+		// nothing Meta sends could be accepted.
+		return db.WhatsappAccount{}, apperr.Validation("app_secret", "The App secret is required (Meta app → App settings → Basic).")
 	case len(in.AccessToken) < 20:
 		return db.WhatsappAccount{}, apperr.Validation("access_token", "Access token looks too short.")
 	}
@@ -107,11 +112,9 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 	if err != nil {
 		return db.WhatsappAccount{}, err
 	}
-	var sec []byte
-	if in.AppSecret != "" {
-		if sec, err = s.sealer.Seal([]byte(in.AppSecret), secretAD(id)); err != nil {
-			return db.WhatsappAccount{}, err
-		}
+	sec, err := s.sealer.Seal([]byte(in.AppSecret), secretAD(id))
+	if err != nil {
+		return db.WhatsappAccount{}, err
 	}
 	var acc db.WhatsappAccount
 	err = s.tx(ctx, func(q *db.Queries) error {
@@ -133,6 +136,11 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 		return db.WhatsappAccount{}, apperr.Conflict("ACCOUNT_EXISTS", "This WhatsApp Business Account or one of its numbers is already connected.")
 	}
 	if err == nil {
+		// The workspace's webhook address and health exist from the first
+		// account on, so the webhooks it is about to receive are recorded.
+		if _, cerr := s.Connection(ctx); cerr != nil {
+			s.log.WarnContext(ctx, "create the Meta connection", "error", cerr)
+		}
 		// Import templates in the background; the request does not wait
 		// for (or cancel) it.
 		go s.syncTemplatesDetached(context.WithoutCancel(ctx), acc.ID)
@@ -514,16 +522,15 @@ func (s *Service) SenderFor(ctx context.Context, id uuid.UUID) (Sender, error) {
 	return Sender{PhoneNumber: pn, Account: acc, Token: token}, err
 }
 
-// AppSecrets returns every app secret webhooks may be signed with.
+// AppSecrets returns the app secrets the context's tenant's webhooks may be
+// signed with: those of its active accounts (row-level security keeps
+// every other tenant's out).
 func (s *Service) AppSecrets(ctx context.Context) ([]string, error) {
 	rows, err := s.q.ListAppSecrets(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(rows)+1)
-	if s.envSecret != "" {
-		out = append(out, s.envSecret)
-	}
+	out := make([]string, 0, len(rows))
 	for _, r := range rows {
 		b, err := s.sealer.Open(r.AppSecretEnc, secretAD(r.ID))
 		if err != nil {
@@ -568,38 +575,6 @@ func (s *Service) accountToken(ctx context.Context, id uuid.UUID) (db.WhatsappAc
 		return acc, "", fmt.Errorf("decrypt access token: %w", err)
 	}
 	return acc, string(tok), nil
-}
-
-// EnsureFromEnv connects the account named by META_WABA_ID/META_ACCESS_TOKEN
-// once, so a fresh install can be configured entirely through .env. It is a
-// no-op when the account already exists.
-func (s *Service) EnsureFromEnv(ctx context.Context, wabaID, token, appID, appSecret string) error {
-	if wabaID == "" || token == "" {
-		return nil
-	}
-	if acc, err := s.q.GetWhatsAppAccountByWABA(ctx, wabaID); err == nil {
-		// Already connected: apply a token changed in .env (it used to be
-		// ignored, so the stored token silently kept expiring).
-		cur, err := s.sealer.Open(acc.AccessTokenEnc, tokenAD(acc.ID))
-		if err != nil || string(cur) == token {
-			return nil
-		}
-		in := UpdateInput{AccessToken: &token}
-		if appSecret != "" {
-			in.AppSecret = &appSecret
-		}
-		if appID != "" {
-			in.AppID = &appID
-		}
-		_, err = s.Update(ctx, acc.ID, in)
-		return err
-	}
-	_, err := s.Connect(ctx, AccountInput{Name: "WhatsApp " + wabaID, WABAID: wabaID, AppID: appID, AccessToken: token, AppSecret: appSecret}, nil)
-	var ae *apperr.Error
-	if errors.As(err, &ae) && ae.Code == "ACCOUNT_EXISTS" {
-		return nil
-	}
-	return err
 }
 
 func (s *Service) tx(ctx context.Context, fn func(*db.Queries) error) error {

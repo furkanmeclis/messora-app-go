@@ -1377,6 +1377,28 @@ paths:
               schema: { $ref: "#/components/schemas/WhatsAppAccountResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /channels/accounts/{accountId}/test:
+    post:
+      operationId: testWhatsAppAccount
+      tags: [channels]
+      summary: Test the account's connection end to end
+      description: >-
+        Checks with Meta: the token (debug_token with the account's app), the
+        WhatsApp Business Account's phone numbers, the app's webhook
+        subscription on the account (subscribes the app when it is missing),
+        and whether webhooks have arrived. What Meta reports about the token
+        and numbers is saved.
+      security: [{ session: [channels.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountId" }
+      responses:
+        "200":
+          description: The test result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetaConnectionTestResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   /channels/accounts/{accountId}/sync:
     post:
       operationId: syncWhatsAppAccount
@@ -1425,18 +1447,59 @@ paths:
         "204": { description: Updated }
         default: { $ref: "#/components/responses/Error" }
 
-  /channels/webhook:
+  /channels/meta-connection:
     get:
-      operationId: getWebhookSetup
+      operationId: getMetaConnection
       tags: [channels]
-      summary: Values to enter in the Meta App dashboard
+      summary: This workspace's Meta connection (webhook address, verify token, health)
+      description: >-
+        The values to enter in the company's own Meta app (callback URL and
+        verify token, both unique to this workspace) and the webhook health.
+        Created on first read.
       security: [{ session: [channels.manage] }]
       responses:
         "200":
-          description: Webhook configuration
+          description: The connection
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/WebhookSetupResponse" }
+              schema: { $ref: "#/components/schemas/MetaConnectionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /channels/meta-connection/webhook-key:
+    post:
+      operationId: rotateMetaWebhookKey
+      tags: [channels]
+      summary: Give the workspace a new webhook address
+      description: >-
+        The previous callback URL keeps working for grace_hours (0 ends it at
+        once), long enough to enter the new one in the Meta app.
+      security: [{ session: [channels.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RotateMetaWebhookKeyRequest" }
+      responses:
+        "200":
+          description: The connection with its new address
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetaConnectionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /channels/meta-connection/verify-token:
+    post:
+      operationId: rotateMetaVerifyToken
+      tags: [channels]
+      summary: Replace the workspace's webhook verify token
+      description: Meta asks for the verify token only when the callback URL is verified; the old token stops working at once.
+      security: [{ session: [channels.manage] }]
+      responses:
+        "200":
+          description: The connection with its new verify token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetaConnectionResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /templates:
@@ -5729,7 +5792,8 @@ components:
     ConnectWhatsAppAccountRequest:
       type: object
       additionalProperties: false
-      required: [name, waba_id, access_token]
+      description: The company's own Meta app (App ID and App secret, which signs its webhooks) and a System User token.
+      required: [name, waba_id, app_id, app_secret, access_token]
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         waba_id: { type: string, pattern: "^[0-9]{1,32}$" }
@@ -5794,18 +5858,75 @@ components:
           description: When quality, limit and throughput were last read from Meta.
         is_default: { type: boolean }
 
-    WebhookSetup:
+    MetaConnection:
       type: object
-      required: [callback_url, verify_token, signature_verification]
+      required: [method, callback_url, host_callback_url, verify_token, fields, signature_verification, tech_provider_enabled,
+        webhook_key_rotated_at, previous_key_expires_at, verify_token_rotated_at, health]
       properties:
-        callback_url: { type: string }
-        verify_token: { type: string }
+        method: { type: string, enum: [own_app, tech_provider], description: "own_app: the company's own Meta app." }
+        callback_url:
+          type: string
+          description: The workspace's own webhook address (https://hooks.<domain>/meta/<key>); enter it in the Meta app.
+        host_callback_url:
+          type: string
+          description: The same webhook at the workspace's own address (/webhooks/whatsapp), kept for existing set-ups.
+        verify_token: { type: string, description: Enter it in the Meta app next to the callback URL. }
+        fields: { type: array, items: { type: string }, description: Webhook fields to subscribe in the Meta app. }
         signature_verification:
           type: boolean
-          description: False until an app secret is configured; webhooks are rejected until then.
-        fields:
-          type: array
-          items: { type: string }
+          description: False until an account has an app secret; webhooks are rejected until then.
+        tech_provider_enabled:
+          type: boolean
+          description: Whether "Connect with Meta" (Messora as Tech Provider) is offered; off until it is approved.
+        webhook_key_rotated_at: { type: [string, "null"], format: date-time }
+        previous_key_expires_at:
+          type: [string, "null"]
+          format: date-time
+          description: Until then the previous callback URL still works.
+        verify_token_rotated_at: { type: [string, "null"], format: date-time }
+        health: { $ref: "#/components/schemas/MetaWebhookHealth" }
+
+    MetaWebhookHealth:
+      type: object
+      required: [last_webhook_at, signature_failures, last_signature_failure_at, waba_mismatches, last_waba_mismatch_at, last_mismatch_waba_id]
+      properties:
+        last_webhook_at: { type: [string, "null"], format: date-time, description: When Meta's last correctly signed webhook arrived (minute precision). }
+        signature_failures: { type: integer, format: int64, description: Webhooks rejected for a missing or wrong signature. }
+        last_signature_failure_at: { type: [string, "null"], format: date-time }
+        waba_mismatches:
+          type: integer
+          format: int64
+          description: Signed events for a WhatsApp Business Account this workspace has not connected; they are dropped.
+        last_waba_mismatch_at: { type: [string, "null"], format: date-time }
+        last_mismatch_waba_id: { type: [string, "null"] }
+
+    RotateMetaWebhookKeyRequest:
+      type: object
+      additionalProperties: false
+      required: [grace_hours]
+      properties:
+        grace_hours: { type: integer, minimum: 0, maximum: 168, description: How long the previous callback URL keeps working. }
+
+    MetaConnectionCheck:
+      type: object
+      required: [key, status, code, params, message]
+      properties:
+        key: { type: string, enum: [app_secret, token, phone_numbers, subscription, webhook] }
+        status: { type: string, enum: [ok, warning, error] }
+        code: { type: string, description: Names the outcome (for translations). }
+        params: { type: object, additionalProperties: { type: string } }
+        message: { type: string }
+
+    MetaConnectionTest:
+      type: object
+      required: [ok, checks, phone_numbers, subscribed, subscribed_now, account]
+      properties:
+        ok: { type: boolean, description: No check failed. }
+        checks: { type: array, items: { $ref: "#/components/schemas/MetaConnectionCheck" } }
+        phone_numbers: { type: integer }
+        subscribed: { type: boolean }
+        subscribed_now: { type: boolean, description: Messora subscribed the app to the account's webhooks during this test. }
+        account: { $ref: "#/components/schemas/WhatsAppAccount" }
 
     Template:
       example:
@@ -6567,10 +6688,14 @@ components:
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/PhoneNumber" } }
         meta: { $ref: "#/components/schemas/Meta" }
-    WebhookSetupResponse:
+    MetaConnectionResponse:
       type: object
       required: [data, meta]
-      properties: { data: { $ref: "#/components/schemas/WebhookSetup" }, meta: { $ref: "#/components/schemas/Meta" } }
+      properties: { data: { $ref: "#/components/schemas/MetaConnection" }, meta: { $ref: "#/components/schemas/Meta" } }
+    MetaConnectionTestResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/MetaConnectionTest" }, meta: { $ref: "#/components/schemas/Meta" } }
     TemplateResponse:
       type: object
       required: [data, meta]

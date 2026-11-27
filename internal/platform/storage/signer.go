@@ -56,6 +56,9 @@ func WithRequestHost(ctx context.Context, host string) context.Context {
 	return context.WithValue(ctx, hostCtxKey{}, host)
 }
 
+// RequestHost returns the host stored by WithRequestHost, "" without one.
+func RequestHost(ctx context.Context) string { return requestHost(ctx) }
+
 func requestHost(ctx context.Context) string {
 	h, _ := ctx.Value(hostCtxKey{}).(string)
 	return h

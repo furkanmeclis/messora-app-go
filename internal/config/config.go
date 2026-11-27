@@ -82,6 +82,9 @@ type Config struct {
 	SMTP SMTPConfig
 
 	Meta MetaConfig
+	// ObsoleteEnv lists the ignored variables of ObsoleteMetaEnv that are
+	// set in the environment.
+	ObsoleteEnv []string
 
 	// AIFakeProvider enables the scriptable "fake" AI provider
 	// (AI_FAKE_PROVIDER); refused in production.
@@ -107,19 +110,24 @@ var WorkspaceEnv = map[string]string{
 	"mfa_required_roles": "APP_MFA_REQUIRED_ROLES",
 }
 
-// MetaConfig configures the WhatsApp Cloud API integration. Account
-// credentials live in the database; the values here bootstrap the first
-// account and verify webhooks.
+// MetaConfig configures the platform side of the WhatsApp Cloud API
+// integration. Every company connects its own Meta app in Settings: app
+// IDs, app secrets, tokens and verify tokens live in the database, per
+// tenant; nothing here is a company's credential (docs/PHASE-17.md §5.8).
 type MetaConfig struct {
-	AppID        string
-	AppSecret    Secret
-	VerifyToken  Secret
 	GraphVersion string
 	GraphBaseURL string // override for the mock server; empty = Meta
 	DryRun       bool   // refuse requests to Meta (forced in APP_ENV=test)
-	AccessToken  Secret
-	WABAID       string
+	// WebhookBaseURL is the public base of the tenants' keyed webhook
+	// addresses (<base>/meta/<key>): HOOKS_PUBLIC_URL, by default
+	// https://hooks.<TENANT_BASE_DOMAIN>, or <PUBLIC_APP_URL>/webhooks
+	// without a base domain.
+	WebhookBaseURL string
 }
+
+// ObsoleteMetaEnv are the platform-wide Meta credentials of the
+// self-hosted edition. They are ignored; API start-up warns when one is set.
+var ObsoleteMetaEnv = []string{"META_APP_ID", "META_APP_SECRET", "META_VERIFY_TOKEN", "META_ACCESS_TOKEN", "META_WABA_ID"}
 
 // Storage drivers.
 const (
@@ -319,14 +327,10 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 			TLS:      l.str("SMTP_TLS", "starttls"),
 		},
 		Meta: MetaConfig{
-			AppID:        l.str("META_APP_ID", ""),
-			AppSecret:    Secret(l.str("META_APP_SECRET", "")),
-			VerifyToken:  Secret(l.str("META_VERIFY_TOKEN", "")),
-			GraphVersion: l.str("META_GRAPH_API_VERSION", "v26.0"),
-			GraphBaseURL: l.str("META_GRAPH_BASE_URL", ""),
-			DryRun:       l.bool("META_DRY_RUN", false),
-			AccessToken:  Secret(l.str("META_ACCESS_TOKEN", "")),
-			WABAID:       l.str("META_WABA_ID", ""),
+			GraphVersion:   l.str("META_GRAPH_API_VERSION", "v26.0"),
+			GraphBaseURL:   l.str("META_GRAPH_BASE_URL", ""),
+			DryRun:         l.bool("META_DRY_RUN", false),
+			WebhookBaseURL: strings.TrimRight(l.str("HOOKS_PUBLIC_URL", ""), "/"),
 		},
 		AIFakeProvider: l.bool("AI_FAKE_PROVIDER", false),
 		Storage: StorageConfig{
@@ -349,6 +353,16 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 	for name, env := range WorkspaceEnv {
 		if v := strings.TrimSpace(l.str(env, "")); v != "" {
 			cfg.Workspace[name] = v
+		}
+	}
+	if cfg.Meta.WebhookBaseURL == "" {
+		cfg.Meta.WebhookBaseURL = defaultWebhookBase(cfg.PublicAppURL, cfg.TenantBaseDomain)
+	}
+	for _, k := range ObsoleteMetaEnv {
+		// Only the environment: secrets.env files written by older
+		// `messora init` runs still carry META_VERIFY_TOKEN.
+		if strings.TrimSpace(getenv(k)) != "" {
+			cfg.ObsoleteEnv = append(cfg.ObsoleteEnv, k)
 		}
 	}
 	if cfg.Env == EnvTest {
@@ -508,13 +522,26 @@ func (c *Config) Validate(role Role) error {
 	if v := c.Meta.GraphVersion; len(v) < 2 || v[0] != 'v' {
 		errs = append(errs, fmt.Errorf("META_GRAPH_API_VERSION must look like v26.0 (got %q)", v))
 	}
-	if c.Meta.AccessToken.IsSet() != (c.Meta.WABAID != "") {
-		errs = append(errs, errors.New("META_ACCESS_TOKEN and META_WABA_ID must be set together"))
+	if u, err := url.Parse(c.Meta.WebhookBaseURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		errs = append(errs, fmt.Errorf("HOOKS_PUBLIC_URL must be an http(s) URL (got %q)", c.Meta.WebhookBaseURL))
 	}
 	if c.ShutdownTimeout <= 0 {
 		errs = append(errs, errors.New("SHUTDOWN_TIMEOUT must be positive"))
 	}
 	return errors.Join(errs...)
+}
+
+// defaultWebhookBase is https://hooks.<base domain> (with the scheme of
+// the public URL), or <public URL>/webhooks without a base domain.
+func defaultWebhookBase(publicURL, baseDomain string) string {
+	if baseDomain == "" {
+		return publicURL + "/webhooks"
+	}
+	scheme := "https"
+	if u, err := url.Parse(publicURL); err == nil && u.Scheme == "http" {
+		scheme = "http"
+	}
+	return scheme + "://hooks." + baseDomain
 }
 
 // ParseQueues parses "name=priority,name=priority".

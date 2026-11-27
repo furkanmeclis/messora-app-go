@@ -699,6 +699,24 @@ type MessageTemplate struct {
 	TenantID        pgtype.UUID
 }
 
+type MetaConnection struct {
+	TenantID               pgtype.UUID
+	Method                 string
+	WebhookKeyEnc          []byte
+	VerifyTokenEnc         []byte
+	WebhookKeyRotatedAt    pgtype.Timestamptz
+	PreviousKeyExpiresAt   pgtype.Timestamptz
+	VerifyTokenRotatedAt   pgtype.Timestamptz
+	LastWebhookAt          pgtype.Timestamptz
+	SignatureFailures      int64
+	LastSignatureFailureAt pgtype.Timestamptz
+	WabaMismatches         int64
+	LastWabaMismatchAt     pgtype.Timestamptz
+	LastMismatchWabaID     *string
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+}
+
 type MetaCostDaily struct {
 	AccountID       pgtype.UUID
 	Day             pgtype.Date
@@ -746,6 +764,13 @@ type MetaUserPreference struct {
 	OccurredAt    pgtype.Timestamptz
 	ReceivedAt    pgtype.Timestamptz
 	TenantID      pgtype.UUID
+}
+
+type MetaWebhookKey struct {
+	KeySha256 []byte
+	TenantID  pgtype.UUID
+	ExpiresAt pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
 }
 
 type Offer struct {
