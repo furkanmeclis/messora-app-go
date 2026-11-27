@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
+(docs/PHASE-17.md). Features of the self-hosted product are removed.
+
+### Removed
+
+- **Licensing:** licence verification, restricted mode, the
+  `license:check_in` job, `GET/PUT /license`, Settings → License and the
+  licence banner, the `licence` field of the appearance and the operations
+  center alerts, the `messora-license` CLI, the Cloudflare licence gate
+  (`deployments/license-gate`), the customer install file, the licensed R2
+  release job and `LICENSE_GATE_URL`. Campaigns paused by the former check
+  keep `license_restricted` as their pause reason.
+- **Theme engine:** presets, colour editor, typefaces, density and
+  wallpapers, the `theme` settings field, the wizard's theme step and
+  Settings → Appearance. Every workspace uses Messora's single look (static
+  CSS); the company name and logo stay (the logo moved to
+  Settings → General) and people still choose light or dark.
+- **PWA:** manifest, offline page, install prompt, Settings → PWA and the
+  `pwa` settings field. For one release `sw.js` is a worker that removes
+  itself and every page unregisters an old service worker.
+- **Desktop mode:** the windowed mode with its embedded page rendering.
+  Nothing frames the panel any more: `frame-ancestors 'none'` and
+  `X-Frame-Options: DENY`.
+- Migration 00023 deletes the stored licence, theme and PWA settings.
+- Self-hosting documentation (docs/LICENSING.md; docs/INSTALL.md now
+  describes running the hosted service).
+
 ## [0.12.0] - 2026-11-26
 
 Phase 16C: advanced campaign management, AI automation and conversation

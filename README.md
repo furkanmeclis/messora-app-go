@@ -1,8 +1,8 @@
 # Messora
 
-**Self-hosted WhatsApp Business Cloud API platform** — customer records,
-segmentation, campaigns, a shared inbox, automations and a developer API, run
-on your own server for a single business.
+**WhatsApp Business Cloud API platform** — customer records, segmentation,
+campaigns, a shared inbox, automations and a developer API, offered as a
+hosted service.
 
 > **Status: release candidate.** All product features are implemented and
 > covered by integration, load and browser tests. Before messaging customers,

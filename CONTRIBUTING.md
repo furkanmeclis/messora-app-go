@@ -1,6 +1,6 @@
 # Contributing to Messora
 
-Thank you for helping! Messora is a self-hosted WhatsApp Business Cloud API
+Thank you for helping! Messora is a hosted WhatsApp Business Cloud API
 platform built as a Go modular monolith with a Next.js panel.
 
 ## Ground rules

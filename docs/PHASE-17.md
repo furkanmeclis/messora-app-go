@@ -159,5 +159,6 @@ Durum: **kapsam taslağı** (2026-11-27). Uygulamaya başlarken, 16C'de yaptığ
 | İş | Durum |
 |---|---|
 | Teknik analiz ve iş paketleri | ✅ tamamlandı (2026-11-27) — onay bekliyor |
+| WP0 — temizlik (lisans, tema, PWA, masaüstü modu) | ✅ tamamlandı (2026-11-27); migrasyon 00023, eski service worker bir sürüm boyunca kendini kaldırır |
 | Marka kimliği (kanvas) | taslak 1 — geri bildirim bekliyor |
 | Abonelik tasarımı (kanvas) | taslak — öncelik sonra |
