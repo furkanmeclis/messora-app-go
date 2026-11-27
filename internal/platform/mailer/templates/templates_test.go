@@ -196,7 +196,7 @@ func TestMissingFields(t *testing.T) {
 		data Data
 		want []string
 	}{
-		{VerifyEmail, VerifyEmailData{}, []string{"missing Code", "missing VerifyURL", "missing ExpiresIn"}},
+		{VerifyEmail, VerifyEmailData{}, []string{"missing VerifyURL", "missing ExpiresIn"}},
 		{PasswordReset, PasswordResetData{ResetURL: "http://insecure.example.com/r", ExpiresIn: time.Hour}, []string{"ResetURL must be an absolute https URL"}},
 		{PasswordChanged, PasswordChangedData{}, []string{"missing ChangedAt", "missing SecureURL"}},
 		{Invitation, InvitationData{AcceptURL: "/relative", ExpiresIn: time.Hour}, []string{"missing InviterName", "missing WorkspaceName", "missing Role", "AcceptURL must be an absolute https URL"}},

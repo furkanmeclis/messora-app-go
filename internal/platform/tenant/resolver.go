@@ -180,14 +180,27 @@ func RequestHost(r *http.Request) string {
 }
 
 // Middleware resolves the request's tenant and stores it in the context.
-// It must run after httpx.IdentifyBFF. Unknown hosts get 404, suspended
-// tenants 403 TENANT_SUSPENDED; nothing past it runs without a tenant.
-func Middleware(res *Resolver, log *slog.Logger) func(http.Handler) http.Handler {
+// It must run after httpx.IdentifyBFF. The platform's own hosts (see
+// Hosts) carry no tenant: the admin host runs as platform work, the public
+// platform host as tenant-less system work; the API guard decides which
+// operations each kind of host serves. Unknown hosts get 404, suspended
+// tenants 403 TENANT_SUSPENDED.
+func Middleware(res *Resolver, hosts Hosts, log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			host := RequestHost(r)
 			// Nothing downstream may read (or forward) the claimed host.
 			r.Header.Del(HostHeader)
+			switch hosts.Kind(host) {
+			case HostAdmin:
+				ctx := WithHostKind(Platform(r.Context()), HostAdmin)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			case HostPlatform:
+				ctx := WithHostKind(System(r.Context()), HostPlatform)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
 			info, err := res.Resolve(r.Context(), host)
 			switch {
 			case errors.Is(err, ErrUnknownHost):
@@ -201,7 +214,7 @@ func Middleware(res *Resolver, log *slog.Logger) func(http.Handler) http.Handler
 				httpx.Error(w, r, http.StatusServiceUnavailable, httpx.CodeUnavailable, "Service temporarily unavailable")
 				return
 			}
-			ctx := WithID(r.Context(), info.ID)
+			ctx := WithHostKind(WithID(r.Context(), info.ID), HostTenant)
 			ctx = logger.WithAttrs(ctx, slog.String("tenant_id", info.ID.String()))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

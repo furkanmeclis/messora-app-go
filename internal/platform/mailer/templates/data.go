@@ -59,6 +59,7 @@ type BankTransfer struct {
 // VerifyEmailData is the payload for sign-up e-mail verification.
 type VerifyEmailData struct {
 	Common
+	// Code is an optional one-time code shown next to the button.
 	Code      string
 	VerifyURL string
 	ExpiresIn time.Duration
@@ -197,7 +198,6 @@ func (SubscriptionSuspendedData) kind() Kind { return SubscriptionSuspended }
 func (CreditLowData) kind() Kind             { return CreditLow }
 
 func (d VerifyEmailData) validate(v *validator) {
-	v.str("Code", d.Code)
 	v.url("VerifyURL", d.VerifyURL, true)
 	v.dur("ExpiresIn", d.ExpiresIn)
 }
@@ -290,7 +290,11 @@ func (d CreditLowData) validate(v *validator) {
 }
 
 // validator collects every problem so the caller sees them all at once.
-type validator struct{ problems []string }
+type validator struct {
+	problems []string
+	// allowHTTP accepts http links (development stacks without TLS).
+	allowHTTP bool
+}
 
 func (v *validator) fail(s string)       { v.problems = append(v.problems, s) }
 func (v *validator) missing(name string) { v.fail("missing " + name) }
@@ -344,7 +348,7 @@ func (v *validator) url(name, s string, required bool) {
 		return
 	}
 	u, err := url.Parse(s)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
+	if err != nil || (u.Scheme != "https" && (!v.allowHTTP || u.Scheme != "http")) || u.Host == "" || u.User != nil {
 		v.fail(name + " must be an absolute https URL")
 	}
 }
