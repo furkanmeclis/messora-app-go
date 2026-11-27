@@ -72,7 +72,8 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
   verification, accounts (search, memberships, disable, forced password
   reset), time-boxed **support access** (read-only by default, recorded in
   the company's audit log, visible to the company at `GET /support-access`,
-  banner in its panel), platform settings and the platform audit log.
+  banner in its panel), every company's failed jobs, platform settings and
+  the platform audit log.
 - **Platform bootstrap:** `messora migrate` prints a one-time admin link while
   no platform admin exists; `messora admin create --email …` creates or
   promotes one.
