@@ -121,7 +121,7 @@ export async function installPresetAction(
     return res;
 }
 
-/** Older runs, for "Load more". */
+/** Older runs: the next chunk of the run log. */
 export async function moreRunsAction(
     id: string,
     cursor: string,

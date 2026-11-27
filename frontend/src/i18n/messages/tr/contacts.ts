@@ -7,7 +7,6 @@ const contacts: Messages['contacts'] = {
     import: 'İçe aktar',
     export: 'Dışa aktar',
     actions: 'İşlemler',
-    loadMore: 'Daha fazla yükle',
     unnamed: 'Adsız',
     nav: {
         label: 'Kişiler bölümleri',

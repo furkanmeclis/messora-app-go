@@ -6,7 +6,6 @@ import { getT } from '@/i18n/server';
 import type {
     Campaign,
     CampaignEventItem,
-    CampaignRecipient,
     PhoneNumber,
     Schemas,
 } from '@/lib/types';
@@ -29,19 +28,16 @@ export default async function CampaignPage({
     const me = await requirePermission('campaigns.read');
     let campaign: Campaign;
     let events: CampaignEventItem[];
-    let recipients: { data: CampaignRecipient[]; nextCursor?: string };
     let pauses: Schemas['CampaignPause'][];
     try {
-        const [c, e, r, p] = await Promise.all([
+        const [c, e, p] = await Promise.all([
             api<Campaign>(`/campaigns/${id}`),
             api<CampaignEventItem[]>(`/campaigns/${id}/events`),
-            api<CampaignRecipient[]>(`/campaigns/${id}/recipients?limit=50`),
             api<Schemas['CampaignPause'][]>(`/campaigns/${id}/pauses`),
         ]);
         pauses = p.data;
         campaign = c.data;
         events = e.data;
-        recipients = { data: r.data, nextCursor: r.nextCursor };
     } catch (err) {
         if (err instanceof ApiError && err.status === 404) notFound();
         throw err;
@@ -59,8 +55,6 @@ export default async function CampaignPage({
             campaign={campaign}
             pauses={pauses}
             events={events}
-            recipients={recipients.data}
-            recipientsCursor={recipients.nextCursor}
             sender={sender?.display_phone_number}
             timezone={me.user.timezone || 'UTC'}
             perms={{

@@ -25,7 +25,7 @@ function checkFilter(f?: RecipientFilter) {
         const v = f[k];
         if (v) check(v);
     }
-    for (const id of f.ids ?? []) check(id);
+    for (const id of [...(f.ids ?? []), ...(f.exclude_ids ?? [])]) check(id);
 }
 
 /** Pre-launch analysis for the wizard's review step. */

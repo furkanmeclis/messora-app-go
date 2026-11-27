@@ -79,6 +79,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useCursorRows } from '@/hooks/use-cursor-rows';
 import { useT } from '@/i18n/client';
 import { NUMBER_LOCALE } from '@/lib/format';
 import type { ActionResult, Schemas } from '@/lib/types';
@@ -672,6 +673,8 @@ const STATUS_VARIANT: Record<
     delivering: 'default',
 };
 
+const NO_DELIVERIES: Delivery[] = [];
+
 function DeliveryLog({
     endpoint,
     open,
@@ -684,30 +687,42 @@ function DeliveryLog({
     const t = useT();
     const formatDateTime = useFormatDateTime();
     const [status, setStatus] = useState<DeliveryStatus | 'all'>('all');
-    const [items, setItems] = useState<Delivery[]>([]);
-    const [next, setNext] = useState<string | undefined>();
     const [loading, startLoading] = useTransition();
     const [redelivering, startRedeliver] = useTransition();
     const [busyId, setBusyId] = useState<string | null>(null);
     const [details, setDetails] = useState<Delivery | null>(null);
 
-    const load = useCallback(
-        (cursor?: string) =>
-            startLoading(async () => {
-                const r = await loadWebhookDeliveries(
-                    endpoint.id,
-                    cursor,
-                    status === 'all' ? undefined : status,
-                );
-                if (!notify(r)) return;
-                setItems((prev) =>
-                    cursor
-                        ? [...prev, ...r.data.deliveries]
-                        : r.data.deliveries,
-                );
-                setNext(r.data.next);
-            }),
+    const fetchPage = useCallback(
+        async (cursor?: string) => {
+            const r = await loadWebhookDeliveries(
+                endpoint.id,
+                cursor,
+                status === 'all' ? undefined : status,
+            );
+            return notify(r)
+                ? { items: r.data.deliveries, next: r.data.next }
+                : null;
+        },
         [endpoint.id, status],
+    );
+    const {
+        rows: items,
+        paging,
+        update,
+        reset,
+    } = useCursorRows<Delivery>({
+        initial: NO_DELIVERIES,
+        rowId: (d) => d.id,
+        fetchPage,
+    });
+    // The first chunk; later ones follow the table's pager.
+    const load = useCallback(
+        () =>
+            startLoading(async () => {
+                const page = await fetchPage();
+                if (page) reset(page.items, page.next);
+            }),
+        [fetchPage, reset],
     );
 
     useEffect(() => {
@@ -719,10 +734,7 @@ function DeliveryLog({
             setBusyId(d.id);
             const r = await redeliverWebhookAction(d.id);
             setBusyId(null);
-            if (notify(r))
-                setItems((prev) =>
-                    prev.map((x) => (x.id === r.data.id ? r.data : x)),
-                );
+            if (notify(r)) update((x) => (x.id === r.data.id ? r.data : x));
         });
     const hasDetails = (d: Delivery) =>
         Boolean(d.last_error || d.last_response_body);
@@ -739,6 +751,7 @@ function DeliveryLog({
                 <div className="space-y-3 px-4 pb-4">
                     <ClientDataTable
                         rows={items}
+                        paging={paging}
                         rowId={(d) => d.id}
                         storageKey="webhook-deliveries"
                         initialSort="-when"
@@ -934,16 +947,6 @@ function DeliveryLog({
                             ],
                         ]}
                     />
-                    {next && (
-                        <Button
-                            variant="outline"
-                            className="w-full"
-                            disabled={loading}
-                            onClick={() => load(next)}
-                        >
-                            {t('webhooks.log.loadMore')}
-                        </Button>
-                    )}
                 </div>
                 <Dialog
                     open={details !== null}

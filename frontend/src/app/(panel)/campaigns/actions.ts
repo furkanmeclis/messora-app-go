@@ -4,13 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { api } from '@/lib/server/api';
 import { runAction } from '@/lib/server/actions';
 import { getT } from '@/i18n/server';
-import type {
-    ActionResult,
-    Campaign,
-    CampaignRecipient,
-    Schemas,
-    Segment,
-} from '@/lib/types';
+import type { ActionResult, Campaign, Schemas, Segment } from '@/lib/types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const STATUSES = new Set([
@@ -23,23 +17,6 @@ const STATUSES = new Set([
     'completed',
     'cancelled',
     'failed',
-]);
-const RECIPIENT_STATES = new Set([
-    'pending',
-    'queued',
-    'skipped',
-    'cancelled',
-    'retry',
-]);
-const CLASSES = new Set([
-    'temporary',
-    'rejected_by_meta',
-    'ecosystem_limit',
-    'undeliverable',
-    'permanent',
-    'never_sent',
-    'user_stopped_marketing',
-    'blocked_by_consent',
 ]);
 const PRIORITIES = new Set(['high', 'normal', 'low']);
 
@@ -157,26 +134,6 @@ export async function deleteCampaignAction(id: string): Promise<ActionResult> {
     );
     revalidatePath('/campaigns');
     return res;
-}
-
-export async function loadRecipientsAction(
-    id: string,
-    state: string,
-    cursor: string | undefined,
-    unreachedClass = '',
-): Promise<ActionResult<{ items: CampaignRecipient[]; next?: string }>> {
-    check(id);
-    if (cursor) check(cursor);
-    const q = new URLSearchParams({ limit: '50' });
-    if (RECIPIENT_STATES.has(state)) q.set('state', state);
-    if (CLASSES.has(unreachedClass)) q.set('class', unreachedClass);
-    if (cursor) q.set('cursor', cursor);
-    return runAction(async () => {
-        const r = await api<CampaignRecipient[]>(
-            `/campaigns/${id}/recipients?${q}`,
-        );
-        return { items: r.data, next: r.nextCursor };
-    });
 }
 
 export type Preflight = Schemas['CampaignPreflight'];

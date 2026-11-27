@@ -199,15 +199,13 @@ test('recipients filter and export', async ({ page }) => {
     const noErrors = watchErrors(page);
     await signIn(page);
     await page.goto(`/campaigns/${campaignId}`);
-    const center = page.getByRole('main').getByTestId('analysis-center');
-    await center.getByTestId('analysis-tab-recipients').click();
-    const panel = center.getByTestId('recipients-panel');
-    await expect(panel.getByTestId('recipients-total')).toContainText('4');
+    const panel = page.getByRole('main').getByTestId('recipients-panel');
+    await expect(panel.getByTestId('table-rows')).toContainText('of 4');
     await panel.getByTestId('recipients-status').click();
     await page.getByRole('menuitemcheckbox', { name: 'Delivered' }).click();
     await page.keyboard.press('Escape');
-    await expect(panel.getByTestId('recipients-total')).toContainText('2');
-    await expect(panel.getByTestId('analysis-recipient-row')).toHaveCount(2);
+    await expect(panel.getByTestId('table-rows')).toContainText('of 2');
+    await expect(panel.getByTestId('recipient-row')).toHaveCount(2);
 
     await panel.getByTestId('recipients-export').click();
     const [download] = await Promise.all([

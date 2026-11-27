@@ -16,6 +16,5 @@ const audit: Messages['audit'] = {
     empty: 'Kayıt yok.',
     system: 'Sistem',
     unknown: 'Bilinmiyor',
-    loadMore: 'Daha fazla yükle',
 };
 export default audit;

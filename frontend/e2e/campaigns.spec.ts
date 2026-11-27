@@ -283,7 +283,13 @@ test('a paused campaign resumes and its dashboard follows it live', async ({
     );
     await expect(page.getByTestId('count-recipients')).toContainText('3');
     await expect(page.getByTestId('count-waiting')).toContainText('3');
-    await expect(page.getByTestId('recipient-row')).toHaveCount(3);
+    // One recipients table, paged by its own pager (no "load more").
+    const recipients = page.getByTestId('recipients-panel');
+    await expect(recipients.getByTestId('recipient-row')).toHaveCount(3);
+    await expect(recipients.getByTestId('table-rows')).toContainText('of 3');
+    await expect(page.getByRole('button', { name: 'Load more' })).toHaveCount(
+        0,
+    );
     await expect(page.getByTestId('campaign-event')).toHaveCount(2);
     await expect(page.getByText('seeded by the test')).toBeVisible();
 
@@ -312,17 +318,24 @@ test('a paused campaign resumes and its dashboard follows it live', async ({
         page.getByTestId('campaign-event').filter({ hasText: 'Completed' }),
     ).toBeVisible();
 
-    // Recipients carry their outcome and error code.
-    await page.getByRole('button', { name: 'Refresh' }).click();
+    // Recipients carry one status and one reason: the class once, then
+    // the error code (the table follows realtime; Refresh re-reads now).
+    await recipients.getByRole('button', { name: 'Refresh' }).click();
+    const failed = recipients
+        .getByTestId('recipient-row')
+        .filter({ hasText: 'ACCOUNT_DISABLED' });
+    await expect(failed).toHaveCount(2);
     await expect(
-        page
-            .getByTestId('recipient-row')
-            .filter({ hasText: 'ACCOUNT_DISABLED' }),
-    ).toHaveCount(2);
-    await page.getByRole('combobox', { name: 'Recipient state' }).click();
-    await page.getByRole('option', { name: 'Skipped' }).click();
-    await expect(page.getByTestId('recipient-row')).toHaveCount(1);
-    await expect(page.getByTestId('recipient-row')).toContainText(
+        failed.first().locator('[data-status="failed"]'),
+    ).toBeVisible();
+    await expect(failed.first().getByTestId('recipient-reason')).toHaveCount(1);
+    await recipients.getByTestId('recipients-status').click();
+    await page
+        .getByRole('menuitemcheckbox', { name: 'Blocked', exact: true })
+        .click();
+    await page.keyboard.press('Escape');
+    await expect(recipients.getByTestId('recipient-row')).toHaveCount(1);
+    await expect(recipients.getByTestId('recipient-row')).toContainText(
         'missing first name',
     );
     noErrors();

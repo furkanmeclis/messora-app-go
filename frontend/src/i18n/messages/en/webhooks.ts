@@ -78,7 +78,6 @@ const webhooks = {
         pending: 'Pending',
         refresh: 'Refresh',
         empty: 'No deliveries yet. Send a test event to try the endpoint.',
-        loadMore: 'Load more',
     },
     saved: 'Webhook saved.',
     enabled: 'Webhook enabled.',

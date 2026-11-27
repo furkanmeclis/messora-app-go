@@ -5,7 +5,6 @@ const contacts = {
     import: 'Import',
     export: 'Export',
     actions: 'Actions',
-    loadMore: 'Load more',
     unnamed: 'Unnamed',
     nav: {
         label: 'Contacts sections',

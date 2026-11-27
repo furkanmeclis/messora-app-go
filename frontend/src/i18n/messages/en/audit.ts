@@ -14,6 +14,5 @@ const audit = {
     empty: 'No entries.',
     system: 'System',
     unknown: 'Unknown',
-    loadMore: 'Load more',
 };
 export default audit;

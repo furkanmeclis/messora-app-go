@@ -10,7 +10,6 @@ import {
     Pause,
     Pencil,
     Play,
-    RefreshCw,
     Square,
     Trash2,
 } from 'lucide-react';
@@ -38,13 +37,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import {
     Tooltip,
@@ -55,16 +47,10 @@ import { useFormatDateTime } from '@/components/display-preferences';
 import { useT } from '@/i18n/client';
 import type { Translate } from '@/i18n/translate';
 import { formatInZone } from '@/lib/timezone';
-import type {
-    ActionResult,
-    Campaign,
-    CampaignEventItem,
-    CampaignRecipient,
-} from '@/lib/types';
+import type { ActionResult, Campaign, CampaignEventItem } from '@/lib/types';
 import {
     controlCampaignAction,
     deleteCampaignAction,
-    loadRecipientsAction,
     startCampaignAction,
 } from '../actions';
 import {
@@ -72,10 +58,7 @@ import {
     CampaignProgress,
     CampaignStatusBadge,
     summarize,
-    skipReasonLabel,
-    failureClassLabel,
     isPaused,
-    unreachedLabel,
 } from '../campaign-ui';
 import type { CampaignPause } from '../actions';
 import {
@@ -85,16 +68,14 @@ import {
     ResumeDialog,
 } from './engine';
 import { NUMBER_LOCALE } from '@/lib/format';
-import { ClientDataTable } from '@/components/client-data-table';
 import { CampaignAnalysis } from './analysis';
+import { RecipientsPanel } from './recipients-panel';
 
 type Perms = { edit: boolean; start: boolean; pause: boolean; del: boolean };
 
 export function CampaignDashboard({
     campaign,
     events,
-    recipients,
-    recipientsCursor,
     sender,
     timezone,
     perms,
@@ -103,8 +84,6 @@ export function CampaignDashboard({
     campaign: Campaign;
     pauses: CampaignPause[];
     events: CampaignEventItem[];
-    recipients: CampaignRecipient[];
-    recipientsCursor?: string;
     sender?: string;
     timezone: string;
     perms: Perms;
@@ -313,35 +292,34 @@ export function CampaignDashboard({
                 />
             )}
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
-                <Card className="min-w-0">
-                    <CardHeader>
-                        <CardTitle>
+            {!notStarted && (
+                <section
+                    className="min-w-0 space-y-3"
+                    aria-labelledby="campaign-recipients"
+                >
+                    <div>
+                        <h2
+                            id="campaign-recipients"
+                            className="text-lg font-semibold tracking-tight"
+                        >
                             {t('campaigns.dashboard.recipients')}
-                        </CardTitle>
-                        <CardDescription>
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
                             {t('campaigns.dashboard.recipientsHint')}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <RecipientTable
-                            campaignId={c.id}
-                            initial={recipients}
-                            initialCursor={recipientsCursor}
-                        />
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>
-                            {t('campaigns.dashboard.eventLog')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <EventLog events={events} />
-                    </CardContent>
-                </Card>
-            </div>
+                        </p>
+                    </div>
+                    <RecipientsPanel campaign={c} canEdit={perms.edit} />
+                </section>
+            )}
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t('campaigns.dashboard.eventLog')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <EventLog events={events} />
+                </CardContent>
+            </Card>
             {!notStarted && <PauseHistory pauses={pauses} />}
         </div>
     );
@@ -651,349 +629,5 @@ function EventLog({ events }: { events: CampaignEventItem[] }) {
                 );
             })}
         </ol>
-    );
-}
-
-// ── Recipients ─────────────────────────────────────────────────────────────
-
-const ALL = 'all';
-const STATES = [
-    'all',
-    'pending',
-    'queued',
-    'retry',
-    'skipped',
-    'cancelled',
-] as const;
-const CLASS_FILTERS = [
-    'all',
-    'temporary',
-    'rejected_by_meta',
-    'ecosystem_limit',
-    'undeliverable',
-    'permanent',
-    'never_sent',
-    'user_stopped_marketing',
-    'blocked_by_consent',
-] as const;
-const OUTCOMES = [
-    'pending',
-    'retry_scheduled',
-    'in_flight',
-    'deferred',
-    'sent',
-    'delivered',
-    'read',
-    'unknown',
-    'failed',
-    'skipped',
-    'cancelled',
-] as const;
-
-function outcomeLabel(t: Translate, o: string): string {
-    const k = OUTCOMES.find((x) => x === o);
-    return k ? t(`campaigns.engine.outcomes.${k}`) : o;
-}
-
-const MESSAGE_STATUSES = [
-    'pending',
-    'sending',
-    'sent',
-    'delivered',
-    'read',
-    'failed',
-    'unknown',
-    'held',
-    'cancelled',
-    'deferred',
-    'skipped',
-] as const;
-
-function MessageStatus({ r }: { r: CampaignRecipient }) {
-    const t = useT();
-    if (r.state === 'skipped') {
-        return (
-            <Badge variant="outline" data-testid="recipient-skip-reason">
-                {r.skip_reason
-                    ? t('campaigns.dashboard.skippedReason', {
-                          reason: skipReasonLabel(t, r.skip_reason),
-                      })
-                    : t('campaigns.dashboard.skipped')}
-            </Badge>
-        );
-    }
-    if (r.state === 'cancelled')
-        return (
-            <Badge variant="outline">
-                {t('campaigns.dashboard.cancelled')}
-            </Badge>
-        );
-    if (r.state === 'pending')
-        return (
-            <Badge variant="outline">{t('campaigns.dashboard.waiting')}</Badge>
-        );
-    const st: string = r.message_status ?? 'pending';
-    if (st === 'skipped') {
-        // Consent stopped it right before sending; error_code holds why.
-        return (
-            <Badge variant="outline" data-testid="recipient-skip-reason">
-                {r.error_code
-                    ? t('campaigns.dashboard.skippedReason', {
-                          reason: skipReasonLabel(t, r.error_code),
-                      })
-                    : t('campaigns.dashboard.skipped')}
-            </Badge>
-        );
-    }
-    const known = MESSAGE_STATUSES.find((x) => x === st);
-    const stLabel = known
-        ? t(`campaigns.dashboard.messageStatuses.${known}`)
-        : st;
-    const unknownHelp = t('campaigns.dashboard.unknownHelp');
-    const variant =
-        st === 'failed'
-            ? 'destructive'
-            : st === 'read' || st === 'delivered'
-              ? 'secondary'
-              : 'outline';
-    const badge = <Badge variant={variant}>{stLabel}</Badge>;
-    if (st !== 'unknown') return badge;
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <button
-                    type="button"
-                    className="rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    aria-label={`${stLabel}: ${unknownHelp}`}
-                >
-                    {badge}
-                </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">{unknownHelp}</TooltipContent>
-        </Tooltip>
-    );
-}
-
-function RecipientTable({
-    campaignId,
-    initial,
-    initialCursor,
-}: {
-    campaignId: string;
-    initial: CampaignRecipient[];
-    initialCursor?: string;
-}) {
-    const t = useT();
-    const [state, setState] = useState<string>(ALL);
-    const [cls, setCls] = useState<string>(ALL);
-    const [items, setItems] = useState(initial);
-    const [cursor, setCursor] = useState(initialCursor);
-    const [error, setError] = useState<string | null>(null);
-    const [pending, startTransition] = useTransition();
-
-    const load = (nextState: string, after?: string, nextCls = cls) =>
-        startTransition(async () => {
-            const r = await loadRecipientsAction(
-                campaignId,
-                nextState === ALL ? '' : nextState,
-                after,
-                nextCls === ALL ? '' : nextCls,
-            );
-            if (!r.ok) {
-                setError(r.message);
-                return;
-            }
-            setError(null);
-            setItems((l) => (after ? [...l, ...r.data.items] : r.data.items));
-            setCursor(r.data.next);
-        });
-
-    return (
-        <div className="space-y-3 px-4 pb-4">
-            {error && (
-                <p role="alert" className="text-sm text-destructive">
-                    {error}
-                </p>
-            )}
-            <ClientDataTable
-                rows={items}
-                rowId={(r) => r.id}
-                storageKey="campaign-recipients"
-                rowTestId="recipient-row"
-                searchText={(r) =>
-                    `${r.phone} ${r.error_code ?? ''} ${r.error_title ?? ''}`
-                }
-                searchPlaceholder={t('table.search')}
-                toolbar={
-                    <>
-                        <Select
-                            value={state}
-                            onValueChange={(v) => {
-                                setState(v);
-                                load(v);
-                            }}
-                        >
-                            <SelectTrigger
-                                className="w-44"
-                                aria-label={t(
-                                    'campaigns.dashboard.recipientState',
-                                )}
-                            >
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {STATES.map((s) => (
-                                    <SelectItem key={s} value={s}>
-                                        {s === 'retry'
-                                            ? t(
-                                                  'campaigns.engine.outcomes.retry_scheduled',
-                                              )
-                                            : t(
-                                                  `campaigns.dashboard.states.${s}`,
-                                              )}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Select
-                            value={cls}
-                            onValueChange={(v) => {
-                                setCls(v);
-                                load(state, undefined, v);
-                            }}
-                        >
-                            <SelectTrigger
-                                className="w-56"
-                                aria-label={t('campaigns.engine.unreached')}
-                                data-testid="recipient-class"
-                            >
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {CLASS_FILTERS.map((x) => (
-                                    <SelectItem key={x} value={x}>
-                                        {x === ALL
-                                            ? t('campaigns.engine.allClasses')
-                                            : unreachedLabel(t, x)}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={pending}
-                            onClick={() => load(state)}
-                        >
-                            {pending ? <Spinner /> : <RefreshCw />}{' '}
-                            {t('campaigns.dashboard.refresh')}
-                        </Button>
-                    </>
-                }
-                empty={
-                    <p className="p-6 text-sm text-muted-foreground">
-                        {state === ALL && cls === ALL
-                            ? t('campaigns.dashboard.noRecipients')
-                            : t('campaigns.dashboard.noRecipientsInState')}
-                    </p>
-                }
-                noMatch={
-                    <p className="p-8 text-center text-sm text-muted-foreground">
-                        {t('table.noMatch')}
-                    </p>
-                }
-                columns={[
-                    {
-                        id: 'phone',
-                        header: t('campaigns.dashboard.phone'),
-                        hideable: false,
-                        sortValue: (r) => r.phone,
-                        cell: (r) => (
-                            <span className="font-mono text-sm">{r.phone}</span>
-                        ),
-                    },
-                    {
-                        id: 'status',
-                        header: t('campaigns.dashboard.status'),
-                        sortValue: (r) =>
-                            r.state === 'queued'
-                                ? (r.message_status ?? 'pending')
-                                : r.state,
-                        cell: (r) => <MessageStatus r={r} />,
-                    },
-                    {
-                        id: 'outcome',
-                        header: t('campaigns.engine.outcome'),
-                        sortValue: (r) => r.outcome ?? null,
-                        cell: (r) =>
-                            r.outcome ? (
-                                <span
-                                    className="text-sm"
-                                    data-testid="recipient-outcome"
-                                >
-                                    {outcomeLabel(t, r.outcome)}
-                                    {r.resends ? ` (+${r.resends})` : ''}
-                                </span>
-                            ) : (
-                                '—'
-                            ),
-                    },
-                    {
-                        id: 'unreached',
-                        header: t('campaigns.engine.unreached'),
-                        sortValue: (r) => r.unreached_class ?? null,
-                        cell: (r) =>
-                            r.unreached_class ? (
-                                <Badge
-                                    variant="outline"
-                                    data-testid="recipient-class-badge"
-                                >
-                                    {unreachedLabel(t, r.unreached_class)}
-                                </Badge>
-                            ) : (
-                                <span className="text-muted-foreground">—</span>
-                            ),
-                    },
-                    {
-                        id: 'error',
-                        header: t('campaigns.dashboard.error'),
-                        sortValue: (r) => r.error_code ?? null,
-                        cell: (r) => (
-                            <div className="max-w-xs text-xs break-words">
-                                {r.failure_class && (
-                                    <span className="mr-1 font-medium">
-                                        {failureClassLabel(t, r.failure_class)}
-                                    </span>
-                                )}
-                                {r.error_code ? (
-                                    <>
-                                        <code>{r.error_code}</code>
-                                        {r.error_title
-                                            ? ` ${r.error_title}`
-                                            : ''}
-                                    </>
-                                ) : (
-                                    <span className="text-muted-foreground">
-                                        —
-                                    </span>
-                                )}
-                            </div>
-                        ),
-                    },
-                ]}
-            />
-            {cursor && (
-                <div className="text-center">
-                    <Button
-                        variant="outline"
-                        disabled={pending}
-                        onClick={() => load(state, cursor)}
-                    >
-                        {pending && <Spinner />}{' '}
-                        {t('campaigns.dashboard.loadMore')}
-                    </Button>
-                </div>
-            )}
-        </div>
     );
 }

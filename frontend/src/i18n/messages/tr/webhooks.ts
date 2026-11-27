@@ -80,7 +80,6 @@ const webhooks: Messages['webhooks'] = {
         pending: 'Bekliyor',
         refresh: 'Yenile',
         empty: 'Henüz gönderim yok. Uç noktayı denemek için bir test olayı gönderin.',
-        loadMore: 'Daha fazla yükle',
     },
     saved: 'Webhook kaydedildi.',
     enabled: 'Webhook etkinleştirildi.',

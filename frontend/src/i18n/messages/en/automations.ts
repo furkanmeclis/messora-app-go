@@ -663,7 +663,6 @@ const automations = {
         detailsOf: 'Details of the run started {time}',
         viewOnCanvas: 'View on canvas',
         viewOnCanvasOf: 'View the run started {time} on the canvas',
-        loadMore: 'Load more',
         loadError: 'The run could not be loaded.',
         loading: 'Loading run…',
         detailTitle: 'Run details',

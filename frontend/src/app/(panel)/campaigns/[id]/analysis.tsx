@@ -70,7 +70,6 @@ import {
     type CampaignExport,
     type ForecastVsActual,
 } from '../analytics-actions';
-import { RecipientsPanel } from './recipients-panel';
 
 const n = (v: number | null | undefined) =>
     v == null ? '—' : v.toLocaleString(NUMBER_LOCALE);
@@ -158,7 +157,6 @@ export function CampaignAnalysis({
                         {(
                             [
                                 'overview',
-                                'recipients',
                                 'cost',
                                 'quality',
                                 'breakdowns',
@@ -207,12 +205,6 @@ export function CampaignAnalysis({
                             </TabsContent>
                         </>
                     )}
-                    <TabsContent value="recipients">
-                        <RecipientsPanel
-                            campaign={campaign}
-                            canEdit={perms.edit}
-                        />
-                    </TabsContent>
                     <TabsContent value="reports">
                         <Reports campaignId={campaign.id} />
                     </TabsContent>

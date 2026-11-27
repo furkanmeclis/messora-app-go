@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ClientDataTable } from '@/components/client-data-table';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, History, Workflow } from 'lucide-react';
 import { notify } from '@/components/notify';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -24,11 +24,11 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Spinner } from '@/components/ui/spinner';
 import {
     useFormatPrecise,
     useFormatDateTime,
 } from '@/components/display-preferences';
+import { useCursorRows } from '@/hooks/use-cursor-rows';
 import { useT } from '@/i18n/client';
 import type { AutomationRun, AutomationRunStep } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -120,15 +120,17 @@ export function RunList({
     const t = useT();
     const formatDateTime = useFormatDateTime();
     const router = useRouter();
-    const [more, setMore] = useState<AutomationRun[]>([]);
-    const [cursor, setCursor] = useState<string | undefined>(undefined);
-    const [loaded, setLoaded] = useState(false);
-    const [pending, startTransition] = useTransition();
     const [open, setOpen] = useState<string | null>(null);
     // A refresh replaces the first page; extra pages stay below it.
-    const ids = new Set(initial.map((r) => r.id));
-    const runs = [...initial, ...more.filter((r) => !ids.has(r.id))];
-    const next = loaded ? cursor : initialCursor;
+    const { rows: runs, paging } = useCursorRows({
+        initial,
+        initialCursor,
+        rowId: (r) => r.id,
+        fetchPage: async (cursor) => {
+            const r = await moreRunsAction(automationId, cursor);
+            return notify(r) ? r.data : null;
+        },
+    });
 
     if (runs.length === 0) {
         return (
@@ -153,6 +155,7 @@ export function RunList({
         <div className="space-y-3">
             <ClientDataTable
                 rows={runs}
+                paging={paging}
                 rowId={(r) => r.id}
                 storageKey="automation-runs"
                 rowTestId="run-row"
@@ -289,30 +292,6 @@ export function RunList({
                 ]}
                 onRowClick={(r) => setOpen(r.id)}
             />
-            {next && (
-                <div className="text-center">
-                    <Button
-                        variant="outline"
-                        disabled={pending}
-                        onClick={() =>
-                            startTransition(async () => {
-                                const r = await moreRunsAction(
-                                    automationId,
-                                    next,
-                                );
-                                if (notify(r)) {
-                                    setMore((m) => [...m, ...r.data.items]);
-                                    setCursor(r.data.next);
-                                    setLoaded(true);
-                                }
-                            })
-                        }
-                    >
-                        {pending && <Spinner />}{' '}
-                        {t('automations.runs.loadMore')}
-                    </Button>
-                </div>
-            )}
             <Sheet
                 open={open !== null}
                 onOpenChange={(o) => !o && setOpen(null)}

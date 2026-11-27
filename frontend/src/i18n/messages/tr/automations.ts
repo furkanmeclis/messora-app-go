@@ -677,7 +677,6 @@ const automations: Messages['automations'] = {
         detailsOf: '{time} tarihinde başlayan çalışmanın ayrıntıları',
         viewOnCanvas: 'Tuvalde göster',
         viewOnCanvasOf: '{time} tarihinde başlayan çalışmayı tuvalde göster',
-        loadMore: 'Daha fazla yükle',
         loadError: 'Çalışma yüklenemedi.',
         loading: 'Çalışma yükleniyor…',
         detailTitle: 'Çalışma ayrıntıları',

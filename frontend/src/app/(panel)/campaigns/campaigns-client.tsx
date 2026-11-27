@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ClientDataTable } from '@/components/client-data-table';
@@ -16,8 +15,8 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from '@/components/ui/empty';
-import { Spinner } from '@/components/ui/spinner';
 import { useFormatDateTime } from '@/components/display-preferences';
+import { useCursorRows } from '@/hooks/use-cursor-rows';
 import { useT } from '@/i18n/client';
 import { TabNav } from '@/components/tab-nav';
 import { CAMPAIGN_STATUS_ICON, STATUS_TONE } from '@/lib/status-icons';
@@ -84,9 +83,19 @@ export function CampaignList({
     const t = useT();
     const formatDateTime = useFormatDateTime();
     const router = useRouter();
-    const [items, setItems] = useState(initial);
-    const [cursor, setCursor] = useState(initialCursor);
-    const [pending, startTransition] = useTransition();
+    const {
+        rows: items,
+        paging,
+        update,
+    } = useCursorRows({
+        initial,
+        initialCursor,
+        rowId: (c) => c.id,
+        fetchPage: async (cursor) => {
+            const r = await loadCampaignsAction(status, cursor);
+            return notify(r) ? r.data : null;
+        },
+    });
 
     // Live progress without polling: events carry status and counts.
     useRealtimeEvents((channel, e) => {
@@ -95,23 +104,8 @@ export function CampaignList({
             (e.type !== 'campaign.updated' && e.type !== 'campaign.progress')
         )
             return;
-        setItems((list) => list.map((c) => applyEvent(c, e)));
+        update((c) => applyEvent(c, e));
     });
-
-    const more = () =>
-        startTransition(async () => {
-            if (!cursor) return;
-            const r = await loadCampaignsAction(status, cursor);
-            if (notify(r)) {
-                setItems((l) => [
-                    ...l,
-                    ...r.data.items.filter(
-                        (x) => !l.some((y) => y.id === x.id),
-                    ),
-                ]);
-                setCursor(r.data.next);
-            }
-        });
 
     if (items.length === 0) {
         return (
@@ -153,156 +147,144 @@ export function CampaignList({
             : (c.finished_at ?? c.started_at ?? c.created_at);
 
     return (
-        <div className="space-y-3">
-            <ClientDataTable
-                rows={items}
-                rowId={(c) => c.id}
-                storageKey="campaigns"
-                rowTestId="campaign-row"
-                searchText={(c) =>
-                    `${c.name} ${c.template_name} ${statusLabel(t, c.status)}`
-                }
-                searchPlaceholder={t('table.search')}
-                noMatch={
-                    <p className="p-8 text-center text-sm text-muted-foreground">
-                        {t('table.noMatch')}
-                    </p>
-                }
-                columns={[
-                    {
-                        id: 'name',
-                        header: t('campaigns.list.name'),
-                        hideable: false,
-                        sortValue: (c) => c.name,
-                        cell: (c) => (
-                            <Link
-                                href={`/campaigns/${c.id}`}
-                                className="font-medium hover:underline"
-                            >
-                                {c.name}
-                            </Link>
-                        ),
+        <ClientDataTable
+            rows={items}
+            paging={paging}
+            rowId={(c) => c.id}
+            storageKey="campaigns"
+            rowTestId="campaign-row"
+            searchText={(c) =>
+                `${c.name} ${c.template_name} ${statusLabel(t, c.status)}`
+            }
+            searchPlaceholder={t('table.search')}
+            noMatch={
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                    {t('table.noMatch')}
+                </p>
+            }
+            columns={[
+                {
+                    id: 'name',
+                    header: t('campaigns.list.name'),
+                    hideable: false,
+                    sortValue: (c) => c.name,
+                    cell: (c) => (
+                        <Link
+                            href={`/campaigns/${c.id}`}
+                            className="font-medium hover:underline"
+                        >
+                            {c.name}
+                        </Link>
+                    ),
+                },
+                {
+                    id: 'status',
+                    header: t('campaigns.list.status'),
+                    sortValue: (c) => statusLabel(t, c.status),
+                    cell: (c) => <CampaignStatusBadge status={c.status} />,
+                },
+                {
+                    id: 'progress',
+                    header: t('campaigns.list.progress'),
+                    className: 'w-64',
+                    sortValue: (c) => {
+                        const s = summarize(c.counts, c.total_recipients);
+                        return s.recipients ? s.done / s.recipients : null;
                     },
-                    {
-                        id: 'status',
-                        header: t('campaigns.list.status'),
-                        sortValue: (c) => statusLabel(t, c.status),
-                        cell: (c) => <CampaignStatusBadge status={c.status} />,
-                    },
-                    {
-                        id: 'progress',
-                        header: t('campaigns.list.progress'),
-                        className: 'w-64',
-                        sortValue: (c) => {
-                            const s = summarize(c.counts, c.total_recipients);
-                            return s.recipients ? s.done / s.recipients : null;
-                        },
-                        cell: (c) =>
-                            c.status === 'draft' || c.status === 'scheduled' ? (
-                                <span className="text-xs text-muted-foreground">
-                                    {t('campaigns.list.notStarted')}
-                                </span>
-                            ) : (
-                                <CampaignProgress
-                                    compact
-                                    counts={c.counts}
-                                    total={c.total_recipients}
-                                    label={t('campaigns.list.progressOf', {
-                                        name: c.name,
-                                    })}
-                                />
-                            ),
-                    },
-                    {
-                        id: 'priority',
-                        header: t('campaigns.list.priority'),
-                        sortValue: (c) =>
-                            ({ high: 0, normal: 1, low: 2 })[c.priority],
-                        cell: (c) => (
-                            <span
-                                className="text-sm"
-                                data-testid="campaign-priority"
-                            >
-                                {priorityLabel(t, c.priority)}
+                    cell: (c) =>
+                        c.status === 'draft' || c.status === 'scheduled' ? (
+                            <span className="text-xs text-muted-foreground">
+                                {t('campaigns.list.notStarted')}
                             </span>
+                        ) : (
+                            <CampaignProgress
+                                compact
+                                counts={c.counts}
+                                total={c.total_recipients}
+                                label={t('campaigns.list.progressOf', {
+                                    name: c.name,
+                                })}
+                            />
                         ),
-                    },
-                    {
-                        id: 'eta',
-                        header: t('campaigns.list.eta'),
-                        sortValue: (c) => c.eta_seconds ?? null,
-                        cell: (c) => (
-                            <span className="text-sm whitespace-nowrap text-muted-foreground tabular-nums">
-                                {c.eta_seconds != null
-                                    ? t('campaigns.engine.etaValue', {
-                                          value: formatDuration(c.eta_seconds),
+                },
+                {
+                    id: 'priority',
+                    header: t('campaigns.list.priority'),
+                    sortValue: (c) =>
+                        ({ high: 0, normal: 1, low: 2 })[c.priority],
+                    cell: (c) => (
+                        <span
+                            className="text-sm"
+                            data-testid="campaign-priority"
+                        >
+                            {priorityLabel(t, c.priority)}
+                        </span>
+                    ),
+                },
+                {
+                    id: 'eta',
+                    header: t('campaigns.list.eta'),
+                    sortValue: (c) => c.eta_seconds ?? null,
+                    cell: (c) => (
+                        <span className="text-sm whitespace-nowrap text-muted-foreground tabular-nums">
+                            {c.eta_seconds != null
+                                ? t('campaigns.engine.etaValue', {
+                                      value: formatDuration(c.eta_seconds),
+                                  })
+                                : '—'}
+                        </span>
+                    ),
+                },
+                {
+                    id: 'template',
+                    header: t('campaigns.list.template'),
+                    sortValue: (c) => c.template_name,
+                    cell: (c) => (
+                        <span className="font-mono text-xs">
+                            {c.template_name}
+                            <span className="text-muted-foreground">
+                                {' '}
+                                ({c.template_language})
+                            </span>
+                        </span>
+                    ),
+                },
+                {
+                    id: 'when',
+                    header: t('campaigns.list.when'),
+                    sortValue: when,
+                    cell: (c) => (
+                        <span className="text-sm whitespace-nowrap text-muted-foreground">
+                            {c.status === 'scheduled'
+                                ? t('campaigns.list.starts', {
+                                      date: formatDateTime(c.scheduled_at),
+                                  })
+                                : c.finished_at
+                                  ? t('campaigns.list.finished', {
+                                        date: formatDateTime(c.finished_at),
+                                    })
+                                  : c.started_at
+                                    ? t('campaigns.list.started', {
+                                          date: formatDateTime(c.started_at),
                                       })
-                                    : '—'}
-                            </span>
-                        ),
-                    },
+                                    : t('campaigns.list.created', {
+                                          date: formatDateTime(c.created_at),
+                                      })}
+                        </span>
+                    ),
+                },
+            ]}
+            rowMenu={(c) => [
+                [
                     {
-                        id: 'template',
-                        header: t('campaigns.list.template'),
-                        sortValue: (c) => c.template_name,
-                        cell: (c) => (
-                            <span className="font-mono text-xs">
-                                {c.template_name}
-                                <span className="text-muted-foreground">
-                                    {' '}
-                                    ({c.template_language})
-                                </span>
-                            </span>
-                        ),
+                        id: 'open',
+                        label: c.name,
+                        icon: Megaphone,
+                        run: () => router.push(`/campaigns/${c.id}`),
                     },
-                    {
-                        id: 'when',
-                        header: t('campaigns.list.when'),
-                        sortValue: when,
-                        cell: (c) => (
-                            <span className="text-sm whitespace-nowrap text-muted-foreground">
-                                {c.status === 'scheduled'
-                                    ? t('campaigns.list.starts', {
-                                          date: formatDateTime(c.scheduled_at),
-                                      })
-                                    : c.finished_at
-                                      ? t('campaigns.list.finished', {
-                                            date: formatDateTime(c.finished_at),
-                                        })
-                                      : c.started_at
-                                        ? t('campaigns.list.started', {
-                                              date: formatDateTime(
-                                                  c.started_at,
-                                              ),
-                                          })
-                                        : t('campaigns.list.created', {
-                                              date: formatDateTime(
-                                                  c.created_at,
-                                              ),
-                                          })}
-                            </span>
-                        ),
-                    },
-                ]}
-                rowMenu={(c) => [
-                    [
-                        {
-                            id: 'open',
-                            label: c.name,
-                            icon: Megaphone,
-                            run: () => router.push(`/campaigns/${c.id}`),
-                        },
-                    ],
-                ]}
-                onRowClick={(c) => router.push(`/campaigns/${c.id}`)}
-            />
-            {cursor && (
-                <div className="text-center">
-                    <Button variant="outline" onClick={more} disabled={pending}>
-                        {pending && <Spinner />} {t('campaigns.list.loadMore')}
-                    </Button>
-                </div>
-            )}
-        </div>
+                ],
+            ]}
+            onRowClick={(c) => router.push(`/campaigns/${c.id}`)}
+        />
     );
 }
