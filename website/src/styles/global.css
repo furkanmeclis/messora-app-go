@@ -347,3 +347,5 @@ a.card:hover { border-color: #C5CCF2; transform: translateY(-2px); box-shadow: v
 .dark .form-card .muted, .dark .form-card .check { color: var(--muted); }
 .dark .form-card a:not(.btn) { color: var(--indigo); }
 .dark .form-card h2 { color: var(--ink); }
+.ftr-co a { text-decoration: underline; }
+.sec, .sec-sm { content-visibility: auto; contain-intrinsic-size: auto 800px; }

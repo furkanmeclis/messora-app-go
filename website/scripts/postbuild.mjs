@@ -42,7 +42,7 @@ const today = new Date().toISOString().slice(0, 10);
 await writeFile(join(DIST, 'sitemap-pages.xml'), urlset(entries.filter((e) => !e.blog)));
 await writeFile(join(DIST, 'sitemap-blog.xml'), urlset(entries.filter((e) => e.blog)));
 await writeFile(join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <sitemap><loc>${SITE}/sitemap-pages.xml</loc><lastmod>${today}</lastmod></sitemap>\n  <sitemap><loc>${SITE}/sitemap-blog.xml</loc><lastmod>${today}</lastmod></sitemap>\n</sitemapindex>\n`);
-await writeFile(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /lp/\nDisallow: /api/\n\nSitemap: ${SITE}/sitemap.xml\n`);
+await writeFile(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${SITE}/sitemap.xml\n`);
 console.log(`sitemap: ${entries.length} indexable pages`);
 
 // ── Icons ──────────────────────────────────────────────────
