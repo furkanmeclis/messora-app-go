@@ -95,8 +95,25 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 	case len(in.AccessToken) < 20:
 		return db.WhatsappAccount{}, apperr.Validation("access_token", "Access token looks too short.")
 	}
-	if _, err := s.q.GetWhatsAppAccountByWABA(ctx, in.WABAID); err == nil {
-		return db.WhatsappAccount{}, apperr.Conflict("ACCOUNT_EXISTS", "This WhatsApp Business Account is already connected.")
+	// A WABA has one account and one connection method. A Tech Provider
+	// account that was disconnected from Messora's app switches back to
+	// the company's own app here, with its history.
+	var convert *db.WhatsappAccount
+	if existing, err := s.q.GetWhatsAppAccountByWABA(ctx, in.WABAID); err == nil {
+		if existing.ConnectionMethod != MethodTechProvider {
+			return db.WhatsappAccount{}, apperr.Conflict("ACCOUNT_EXISTS", "This WhatsApp Business Account is already connected.")
+		}
+		routed, err := s.routed(ctx, in.WABAID)
+		if err != nil {
+			return db.WhatsappAccount{}, err
+		}
+		if routed || existing.Status != "disabled" {
+			return db.WhatsappAccount{}, apperr.Conflict("WABA_CONNECTED_TECH_PROVIDER",
+				"This WhatsApp Business Account is connected through Messora's Meta app. Disconnect it there first.")
+		}
+		convert = &existing
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return db.WhatsappAccount{}, err
 	}
 	rep, err := s.inspectToken(ctx, in.WABAID, in.AppID, in.AppSecret, in.AccessToken)
 	if err != nil {
@@ -108,6 +125,9 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 		return db.WhatsappAccount{}, metaFailure(err)
 	}
 	id := uuid.Must(uuid.NewV7())
+	if convert != nil {
+		id = convert.ID
+	}
 	tok, err := s.sealer.Seal([]byte(in.AccessToken), tokenAD(id))
 	if err != nil {
 		return db.WhatsappAccount{}, err
@@ -118,9 +138,17 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 	}
 	var acc db.WhatsappAccount
 	err = s.tx(ctx, func(q *db.Queries) error {
-		acc, err = q.InsertWhatsAppAccount(ctx, db.InsertWhatsAppAccountParams{ID: id, Name: in.Name, WabaID: in.WABAID,
-			AppID: nonEmpty(in.AppID), AccessTokenEnc: tok, AppSecretEnc: sec, CreatedBy: actor})
+		if convert != nil {
+			acc, err = q.ConvertAccountToOwnApp(ctx, db.ConvertAccountToOwnAppParams{ID: id, Name: in.Name, AppID: nonEmpty(in.AppID),
+				AccessTokenEnc: tok, AppSecretEnc: sec})
+		} else {
+			acc, err = q.InsertWhatsAppAccount(ctx, db.InsertWhatsAppAccountParams{ID: id, Name: in.Name, WabaID: in.WABAID,
+				AppID: nonEmpty(in.AppID), AccessTokenEnc: tok, AppSecretEnc: sec, CreatedBy: actor})
+		}
 		if err != nil {
+			return err
+		}
+		if err := s.afterTechProviderRemoved(ctx, q); err != nil {
 			return err
 		}
 		if err := upsertNumbers(ctx, q, id, numbers); err != nil {
@@ -130,7 +158,8 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 			return err
 		}
 		return audit.Record(ctx, q, audit.Entry{Action: "channel.connect", EntityType: "whatsapp_account", EntityID: &id,
-			Changes: map[string]any{"name": in.Name, "waba_id": in.WABAID, "phone_numbers": len(numbers)}})
+			Changes: map[string]any{"name": in.Name, "waba_id": in.WABAID, "phone_numbers": len(numbers), "method": MethodOwnApp,
+				"switched_from_tech_provider": convert != nil}})
 	})
 	if isUnique(err) {
 		return db.WhatsappAccount{}, apperr.Conflict("ACCOUNT_EXISTS", "This WhatsApp Business Account or one of its numbers is already connected.")
@@ -223,6 +252,20 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (db.
 	if err != nil {
 		return acc, err
 	}
+	if acc.ConnectionMethod == MethodTechProvider {
+		if in.AccessToken != nil || in.AppSecret != nil || in.AppID != nil {
+			return acc, apperr.Conflict("MANAGED_BY_MESSORA", "This account is connected through Messora's Meta app; its credentials are managed by Messora.")
+		}
+		if in.Status != nil && *in.Status == "active" {
+			routed, err := s.routed(ctx, acc.WabaID)
+			if err != nil {
+				return acc, err
+			}
+			if !routed {
+				return acc, apperr.Conflict("TECH_PROVIDER_DISCONNECTED", "This account was disconnected from Messora's Meta app; connect it again with Meta.")
+			}
+		}
+	}
 	p := db.UpdateWhatsAppAccountParams{ID: id, Status: in.Status}
 	changes := map[string]any{}
 	if in.Name != nil {
@@ -232,7 +275,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (db.
 		}
 		p.Name, changes["name"] = &n, n
 	}
-	appID, appSecret := s.appCredentials(acc)
+	appID, appSecret := s.appCredentials(ctx, acc)
 	if in.AppID != nil {
 		a := strings.TrimSpace(*in.AppID)
 		if !digits.MatchString(a) {
@@ -299,7 +342,8 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (db.
 // Disconnect removes an account. Accounts with message history cannot be
 // removed (disable them instead) so conversations stay intact.
 func (s *Service) Disconnect(ctx context.Context, id uuid.UUID) error {
-	return s.tx(ctx, func(q *db.Queries) error {
+	var tp *db.WhatsappAccount
+	err := s.rawTx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 		n, err := q.CountMessagesForAccount(ctx, id)
 		if err != nil {
 			return err
@@ -312,6 +356,20 @@ func (s *Service) Disconnect(ctx context.Context, id uuid.UUID) error {
 		} else if c > 0 {
 			return apperr.Conflict("ACCOUNT_HAS_CAMPAIGNS", "Campaigns use this account's numbers; delete them or disable the account instead.")
 		}
+		acc, err := q.GetWhatsAppAccount(ctx, id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.NotFound("WhatsApp account not found.")
+		}
+		if err != nil {
+			return err
+		}
+		if acc.ConnectionMethod == MethodTechProvider {
+			// Its events stop being accepted with the account.
+			if _, err := tx.Exec(ctx, `SELECT meta_route_release($1)`, acc.WabaID); err != nil {
+				return err
+			}
+			tp = &acc
+		}
 		rows, err := q.DeleteWhatsAppAccount(ctx, id)
 		if err != nil {
 			return err
@@ -319,8 +377,27 @@ func (s *Service) Disconnect(ctx context.Context, id uuid.UUID) error {
 		if rows == 0 {
 			return apperr.NotFound("WhatsApp account not found.")
 		}
-		return audit.Record(ctx, q, audit.Entry{Action: "channel.disconnect", EntityType: "whatsapp_account", EntityID: &id})
+		if tp != nil {
+			if err := s.afterTechProviderRemoved(ctx, q); err != nil {
+				return err
+			}
+		}
+		return audit.Record(ctx, q, audit.Entry{Action: "channel.disconnect", EntityType: "whatsapp_account", EntityID: &id,
+			Changes: map[string]any{"method": acc.ConnectionMethod}})
 	})
+	if err == nil && tp != nil {
+		if cfg, cerr := s.TechProvider(ctx); cerr == nil && cfg.AppID != "" {
+			_ = s.unsubscribeTP(ctx, cfg, *tp)
+		}
+	}
+	return err
+}
+
+// routed reports whether waba has a Tech Provider route (any tenant).
+func (s *Service) routed(ctx context.Context, waba string) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM meta_routes WHERE waba_id = $1)`, waba).Scan(&ok)
+	return ok, err
 }
 
 // Sync refreshes phone numbers and templates from Meta.

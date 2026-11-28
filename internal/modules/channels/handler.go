@@ -46,7 +46,7 @@ func NewHandler(svc *Service, opts HandlerOptions, log *slog.Logger) *Handler {
 }
 
 func accountToAPI(a db.WhatsappAccount) api.WhatsAppAccount {
-	return api.WhatsAppAccount{Id: a.ID, Name: a.Name, WabaId: a.WabaID, AppId: a.AppID,
+	return api.WhatsAppAccount{Id: a.ID, Name: a.Name, WabaId: a.WabaID, AppId: a.AppID, ConnectionMethod: api.WhatsAppAccountConnectionMethod(a.ConnectionMethod),
 		Status: api.WhatsAppAccountStatus(a.Status), LastError: a.LastError, AppSecretConfigured: len(a.AppSecretEnc) > 0,
 		LastSyncedAt: a.LastSyncedAt, CreatedAt: a.CreatedAt, Token: tokenToAPI(a), Currency: a.Currency}
 }

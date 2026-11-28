@@ -94,6 +94,17 @@ func New(o Options) (*Client, error) {
 // Version returns the configured Graph API version.
 func (c *Client) Version() string { return c.version }
 
+// WithVersion returns a client that calls Graph API version v (the Tech
+// Provider's own version setting); an empty or malformed v keeps c's.
+func (c *Client) WithVersion(v string) *Client {
+	if len(v) < 2 || v[0] != 'v' || v == c.version {
+		return c
+	}
+	cp := *c
+	cp.version = v
+	return &cp
+}
+
 type dryRunGuard struct{ next http.RoundTripper }
 
 func (g dryRunGuard) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -122,7 +133,9 @@ func (c *Client) do(ctx context.Context, method, endpoint, token string, body io
 	if err != nil {
 		return false, err
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	req.Header.Set("Accept", "application/json")
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
@@ -283,6 +296,12 @@ func (c *Client) RegisterPhoneNumber(ctx context.Context, phoneNumberID, token, 
 // SubscribeApp subscribes the app to the WABA's webhooks.
 func (c *Client) SubscribeApp(ctx context.Context, wabaID, token string) error {
 	_, err := c.do(ctx, http.MethodPost, c.endpoint(url.PathEscape(wabaID)+"/subscribed_apps", nil), token, nil, "", nil)
+	return err
+}
+
+// UnsubscribeApp removes the token's app from the WABA's webhooks.
+func (c *Client) UnsubscribeApp(ctx context.Context, wabaID, token string) error {
+	_, err := c.do(ctx, http.MethodDelete, c.endpoint(url.PathEscape(wabaID)+"/subscribed_apps", nil), token, nil, "", nil)
 	return err
 }
 

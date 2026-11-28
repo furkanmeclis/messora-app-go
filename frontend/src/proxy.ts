@@ -6,6 +6,7 @@ import {
     PLATFORM_SEGMENT,
     workspaceImageSource,
 } from '@/lib/platform-host';
+import { isSignupPage, SDK_CSP } from '@/lib/embedded-signup';
 
 /** Routes of a workspace reachable without a session. */
 const PUBLIC = [
@@ -89,13 +90,17 @@ export function proxy(req: NextRequest) {
     const socket = plainHost ? `${https ? 'wss' : 'ws'}://${host}` : '';
     // Other workspaces' logos (the workspace picker).
     const logos = plainHost ? workspaceImageSource(host, https, base) : '';
+    // Meta's JavaScript SDK (Embedded Signup) runs only on its settings
+    // page: its script, frames and calls are allowed there and nowhere else.
+    const meta = isSignupPage(pathname);
     const csp = [
         `default-src 'self'`,
-        `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
+        `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${meta ? ' ' + SDK_CSP.script : ''}${dev ? " 'unsafe-eval'" : ''}`,
         `style-src 'self' 'unsafe-inline'`,
-        `img-src 'self' data: blob:${logos ? ' ' + logos : ''}`,
+        `img-src 'self' data: blob:${logos ? ' ' + logos : ''}${meta ? ' ' + SDK_CSP.img : ''}`,
         `font-src 'self'`,
-        `connect-src 'self'${socket ? ' ' + socket : ''}${dev ? ' ws: wss:' : ''}`,
+        `connect-src 'self'${socket ? ' ' + socket : ''}${meta ? ' ' + SDK_CSP.connect : ''}${dev ? ' ws: wss:' : ''}`,
+        `frame-src 'self'${meta ? ' ' + SDK_CSP.frame : ''}`,
         `object-src 'none'`,
         `base-uri 'self'`,
         `form-action 'self'`,

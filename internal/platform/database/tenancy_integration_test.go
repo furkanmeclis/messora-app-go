@@ -30,7 +30,7 @@ import (
 var platformTables = []string{
 	"goose_db_version", "tenants", "tenant_domains", "platform_settings",
 	"permissions", "roles", "role_permissions",
-	"meta_rates", "meta_rate_markets", "ai_model_prices", "meta_webhook_keys",
+	"meta_rates", "meta_rate_markets", "ai_model_prices", "meta_webhook_keys", "meta_routes",
 	// Global accounts (WP2): a person, their password and second factor
 	// belong to no company; memberships and sessions do.
 	"users", "user_recovery_codes",
@@ -41,7 +41,7 @@ var platformTables = []string{
 // routingTables are platform tables whose tenant_id names the tenant a
 // row is about: routing (read before any tenant is known), the sign-up to
 // verify, the audit subject.
-var routingTables = []string{"tenant_domains", "meta_webhook_keys", "email_verification_tokens", "platform_audit_logs"}
+var routingTables = []string{"tenant_domains", "meta_webhook_keys", "email_verification_tokens", "platform_audit_logs", "meta_routes"}
 
 // nullableTenant may hold rows without a tenant (platform events).
 var nullableTenant = []string{"outbox_events"}
@@ -441,7 +441,8 @@ INSERT INTO user_recovery_codes (user_id, code_hash) SELECT id, '\x01' FROM o;`
 	if err := owner.QueryRow(ctx, "SELECT count(*) FROM user_recovery_codes").Scan(&codes); err != nil || codes != 1 {
 		t.Fatalf("recovery codes %d %v", codes, err)
 	}
-	// Down to before 00031 restores the per-tenant accounts while nobody is in two tenants.
+	// Down restores the per-tenant accounts while nobody is in two tenants
+	// (down to 30: later migrations are undone first).
 	if _, err := p.DownTo(ctx, 30); err != nil {
 		t.Fatal(err)
 	}

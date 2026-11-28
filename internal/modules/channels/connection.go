@@ -289,18 +289,6 @@ func (s *Service) WebhookKeyTenant(ctx context.Context, key string) (KeyRoute, b
 	return r, true, nil
 }
 
-// TechProviderEnabled reads the platform switch of the Tech Provider
-// method (platform_settings.tech_provider.enabled, off until WP6 and
-// Meta's approval).
-func (s *Service) TechProviderEnabled(ctx context.Context) bool {
-	var on bool
-	err := s.pool.QueryRow(ctx, `SELECT coalesce((value->>'enabled')::boolean, false) FROM platform_settings WHERE key = 'tech_provider'`).Scan(&on)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		s.log.WarnContext(ctx, "read the tech provider switch", "error", err)
-	}
-	return on
-}
-
 func (s *Service) rawTx(ctx context.Context, fn func(pgx.Tx, *db.Queries) error) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

@@ -67,7 +67,7 @@ func (s *Service) TestConnection(ctx context.Context, id uuid.UUID) (ConnectionT
 		}
 		return c
 	}
-	appID, appSecret := s.appCredentials(acc)
+	appID, appSecret := s.appCredentials(ctx, acc)
 	switch {
 	case appSecret == "":
 		add(check("app_secret", CheckError, "app_secret_missing", "No App secret is stored for this account, so Meta's webhooks for it cannot be verified and are rejected. Add it with Replace."))

@@ -17,6 +17,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/metacost"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/logger"
@@ -140,7 +141,19 @@ func (s *Service) ingest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	err = s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+	if err := s.store(ctx, body); err != nil {
+		s.log.ErrorContext(ctx, "store webhook", "error", err)
+		http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// store records a verified webhook body of the context's tenant (nil: no
+// entry was the tenant's) and queues its processing. A body Meta sends
+// again is stored once (tenant, SHA-256).
+func (s *Service) store(ctx context.Context, body []byte) error {
+	return s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 		if err := q.TouchMetaWebhook(ctx); err != nil {
 			return err
 		}
@@ -158,12 +171,145 @@ func (s *Service) ingest(w http.ResponseWriter, r *http.Request) {
 		_, err = outbox.Write(ctx, tx, outbox.TaskTopic(TypeWebhook), map[string]string{"event_id": id.String()}, 0)
 		return err
 	})
+}
+
+// TechProviderWebhookHandler serves https://hooks.<base domain>/meta/tp,
+// the one address of every company connected through Messora's Meta app
+// (docs/SECURITY.md "Tech Provider webhook'u"). The GET handshake checks
+// the platform verify token, every POST is signed with Messora's app
+// secret. Each entry names its WhatsApp Business Account (entry[].id); the
+// platform routing table (meta_routes) names its tenant. A batch is split
+// per tenant and each part stored under its tenant; entries of unknown
+// WABAs are dropped and counted. While the method is off the address does
+// not exist (404).
+func (s *Service) TechProviderWebhookHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := tenant.System(r.Context())
+		cfg, err := s.ch.TechProvider(ctx)
+		if err != nil {
+			s.log.ErrorContext(ctx, "tech provider webhook: read the settings", "error", err)
+			http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if !cfg.Enabled || !cfg.Ready() {
+			http.NotFound(w, r)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			q := r.URL.Query()
+			c, ok := whatsapp.VerifyChallenge(q.Get("hub.mode"), q.Get("hub.verify_token"), q.Get("hub.challenge"), cfg.VerifyToken)
+			if !ok {
+				http.Error(w, "verification failed", http.StatusForbidden)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			_, _ = io.WriteString(w, c) //nolint:gosec // G705: echoed only after the verify token matched, as plain text
+		case http.MethodPost:
+			s.ingestTechProvider(w, r.WithContext(ctx), cfg.AppSecret)
+		default:
+			w.Header().Set("Allow", "GET, POST")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+}
+
+func (s *Service) ingestTechProvider(w http.ResponseWriter, r *http.Request, appSecret string) {
+	ctx := r.Context()
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBody))
 	if err != nil {
-		s.log.ErrorContext(ctx, "store webhook", "error", err)
+		http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+	if !whatsapp.VerifySignature(body, r.Header.Get("X-Hub-Signature-256"), appSecret) {
+		s.log.WarnContext(ctx, "tech provider webhook rejected: invalid signature")
+		http.Error(w, "invalid signature", http.StatusUnauthorized)
+		return
+	}
+	var env envelope
+	if err := json.Unmarshal(body, &env); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if env.Object != "whatsapp_business_account" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	ids := make([]string, len(env.Entry))
+	for i, raw := range env.Entry {
+		var e struct {
+			ID string `json:"id"`
+		}
+		_ = json.Unmarshal(raw, &e)
+		ids[i] = e.ID
+	}
+	routes, err := s.ch.TechProviderRoutes(ctx, ids)
+	if err != nil {
+		s.log.ErrorContext(ctx, "tech provider webhook: resolve the WABAs", "error", err)
 		http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	// Split per tenant, keeping Meta's order within each part.
+	parts := map[uuid.UUID][]int{}
+	var order []uuid.UUID
+	for i, id := range ids {
+		route, ok := routes[id]
+		switch {
+		case !ok:
+			channels.RecordUnrouted(id)
+			s.log.WarnContext(ctx, "tech provider webhook entry for an unknown WhatsApp Business Account dropped", "waba_id", truncate(id, 64))
+			continue
+		case route.Status != tenant.StatusActive:
+			s.log.WarnContext(ctx, "tech provider webhook entry of a suspended workspace dropped", "waba_id", id, "tenant_id", route.TenantID)
+			continue
+		}
+		if _, seen := parts[route.TenantID]; !seen {
+			order = append(order, route.TenantID)
+		}
+		parts[route.TenantID] = append(parts[route.TenantID], i)
+	}
+	for _, t := range order {
+		tctx := logger.WithAttrs(tenant.WithID(r.Context(), t), slog.String("tenant_id", t.String()))
+		part, err := s.techProviderPart(tctx, env, ids, parts[t], body)
+		if err == nil {
+			err = s.store(tctx, part)
+		}
+		if err != nil {
+			// Meta retries the whole batch; the parts already stored are
+			// recognised by their hash.
+			s.log.ErrorContext(tctx, "store tech provider webhook", "error", err)
+			http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// techProviderPart is the body to store for one tenant: the entries at idx
+// whose WABA is a Tech Provider account of the tenant (the route says so;
+// the account is checked as a second line), the original body when that is
+// every entry, nil when none.
+func (s *Service) techProviderPart(ctx context.Context, env envelope, ids []string, idx []int, body []byte) ([]byte, error) {
+	own, err := s.ch.TechProviderWABAs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	kept := make([]json.RawMessage, 0, len(idx))
+	for _, i := range idx {
+		if slices.Contains(own, ids[i]) {
+			kept = append(kept, env.Entry[i])
+			continue
+		}
+		s.log.WarnContext(ctx, "tech provider webhook entry for a WABA without a Tech Provider account dropped", "waba_id", ids[i])
+	}
+	switch {
+	case len(kept) == 0:
+		return nil, nil
+	case len(kept) == len(env.Entry):
+		return body, nil
+	}
+	return json.Marshal(envelope{Object: env.Object, Entry: kept})
 }
 
 // ownEntries keeps the entries of body whose WhatsApp Business Account

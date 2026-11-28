@@ -254,6 +254,63 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
 - The flaky "right-click opens the panel menu" E2E (React error #441: a
   prefetch render failing on a 429 from `/me`).
 
+### Added (WP6 — Messora as Meta Tech Provider, off by default)
+
+- **Embedded Signup** ("Connect with Meta" in Settings → WhatsApp / Meta,
+  shown only while the platform switch is on): Meta's popup
+  (`FB.login` with the configuration ID, `response_type: code`) and its
+  `WA_EMBEDDED_SIGNUP` message (FINISH / CANCEL / ERROR); permissions
+  explained, own or generated 6-digit PIN (a generated one is shown once),
+  progress, success and failure states, retry and abandon. TR/EN. Meta's
+  SDK is allowed by the CSP only on that page.
+- **Server-side onboarding** as a persisted, resumable state machine per
+  WABA (`meta_onboardings`, migration 00032): the code is traded for the
+  business token (no `redirect_uri`), which must grant the WABA the browser
+  names and whose number must belong to it; the WABA is routed to the
+  workspace and its account stored; Messora's app subscribes to the WABA
+  (`POST /<waba>/subscribed_apps`); the number is registered
+  (`POST /<phone>/register`, skipped when already connected); numbers and
+  token health are read and the account becomes active with
+  `connection_method = tech_provider`. A failed step keeps its place and
+  error code; retries start there (a new code or a new PIN when needed).
+  Every step is audited.
+- **One platform webhook** `https://hooks.<base>/meta/tp` (also
+  `/webhooks/meta/tp`): platform verify token, signatures with Messora's
+  app secret only, every `entry[].id` routed through `meta_routes`
+  (WABA → workspace, written only by the SECURITY DEFINER functions
+  `meta_route_claim` / `meta_route_release` for the caller's workspace).
+  Mixed batches are split per workspace; unknown WABAs are dropped and
+  counted. 404 while the method is off.
+- **One WABA, one workspace, one method:** a WABA routed to or connected in
+  another workspace is refused (`waba_in_use`); a WABA connected with the
+  company's own app must be disabled first (`waba_connected_own_app`); a
+  Tech Provider WABA is refused by the own-app connect form
+  (`WABA_CONNECTED_TECH_PROVIDER`) and its events are not accepted at the
+  workspace's own-app address.
+- **Disconnect** (`POST /channels/accounts/{id}/tech-provider/disconnect`):
+  Messora's app leaves the WABA, the route is removed, the account is
+  disabled with its history. A disconnected account can switch to the
+  company's own app (same account, same history) and back.
+- **Platform configuration** (`platform_settings.tech_provider`): switch,
+  App ID, sealed App secret, Embedded Signup configuration ID, sealed
+  system user token, Graph API version, sealed platform verify token;
+  test against Meta (`debug_token` with the app token, the app's webhook
+  subscription). Admin panel page Catalogue → Meta Tech Provider (audited in the platform
+  audit log), API `GET/PATCH /platform/meta/tech-provider`,
+  `POST /platform/meta/tech-provider/test` (admin host, platform session;
+  never in the public API document) and the
+  `messora tech-provider show|set|test` command. Ops guide:
+  docs/TECH_PROVIDER.md.
+- Company API: `GET /channels/tech-provider`,
+  `POST /channels/tech-provider/onboardings`,
+  `POST /channels/tech-provider/onboardings/{id}/retry`,
+  `DELETE /channels/tech-provider/onboardings/{id}`; `connection_method` on
+  WhatsApp accounts.
+- **Fake Meta** for tests and the E2E stack: code exchange, `debug_token`
+  with app tokens, `subscribed_apps` (also DELETE), `register`, app
+  subscriptions, scripted one-off failures; `messora fake-meta` (refused in
+  production) runs it in `docker-compose.e2e.yml`.
+
 ### Added (WP7 — deployment)
 
 - **Edge modes** (`EDGE_MODE`, docs/INSTALL.md §2): `proxy` (default; plain

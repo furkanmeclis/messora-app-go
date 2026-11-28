@@ -231,6 +231,10 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		{method: "POST", path: "/api/v1/channels/accounts/" + accountA + "/test"},
 		{method: "POST", path: "/api/v1/channels/accounts/" + accountA + "/check"},
 		{method: "PATCH", path: "/api/v1/channels/accounts/" + accountA, body: map[string]any{"app_secret": "pwned-secret"}},
+		// Tech Provider (WP6; its own two-tenant matrix is
+		// TestTechProviderOnboardingAndRouting).
+		{method: "POST", path: "/api/v1/channels/accounts/" + accountA + "/tech-provider/disconnect"},
+		{method: "POST", path: "/api/v1/channels/tech-provider/onboardings", body: map[string]any{"code": "x", "waba_id": testWABA, "phone_number_id": testPNID}},
 	} {
 		c.token = ownerB
 		if r := hb.do(c); r.status < 400 || r.status == 500 {

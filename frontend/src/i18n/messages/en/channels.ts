@@ -18,6 +18,7 @@ const channels = {
             error: 'Error',
             disabled: 'Disabled',
         },
+        viaMessora: "Through Messora's Meta app",
         noAppSecret: 'No app secret',
         wabaId: 'WABA ID',
         appId: 'App ID',
@@ -166,6 +167,8 @@ const channels = {
             soon: 'Coming soon',
             techProviderHint:
                 'Connect with Meta in a few clicks, without creating an app. Available once Meta approves Messora as a Tech Provider.',
+            techProviderHintOn:
+                "Connect with Meta in a few clicks through Messora's Meta app, without creating an app.",
         },
         steps: {
             title: 'Connect your own Meta app',
@@ -280,6 +283,91 @@ const channels = {
                 webhook_signature:
                     'Webhooks arrive, but the latest one ({at}) had a wrong signature. Check the App secret.',
                 webhook_ok: 'The last webhook arrived {at}.',
+            },
+        },
+        tp: {
+            title: 'Connect with Meta',
+            description:
+                "Connect your WhatsApp Business Account and number through Messora's Meta app. Meta's own window opens: you sign in with Facebook, choose or create your business, WhatsApp Business Account and number, and verify the number. No Meta app, App ID or token is needed.",
+            permissionsTitle: 'What you grant Messora',
+            scopes: {
+                whatsapp_business_management:
+                    'manage the WhatsApp Business Account you choose: numbers, templates, settings and webhooks',
+                whatsapp_business_messaging:
+                    'send and receive messages on its numbers',
+                business_management:
+                    'read the business portfolio you choose in the window, limited to the assets you share',
+            },
+            revoke: "You can remove Messora's access at any time: here with Disconnect, or in Meta Business Settings → Integrations.",
+            pinTitle: 'Two-step verification PIN',
+            pinHint:
+                'Meta registers the number with a 6-digit PIN. If the number already has one, enter it.',
+            pinAuto: 'Let Messora choose one (shown once afterwards)',
+            pinOwn: 'Use my own PIN',
+            pinLabel: '6-digit PIN',
+            pinInvalid: 'The PIN is 6 digits.',
+            pinShown:
+                'Messora set the PIN {pin} for this number. Keep it safe; it is shown only now.',
+            pinCopy: 'Copy PIN',
+            pinCopied: 'PIN copied',
+            connect: 'Connect with Meta',
+            sdkLoading: "Loading Meta's window…",
+            sdkFailed:
+                "Meta's window could not be loaded. Make sure the browser does not block facebook.com and try again.",
+            popupOpen: "Finish the steps in Meta's window…",
+            cancelledByUser:
+                "Meta's window was closed before the end (at {step}). Nothing was connected.",
+            metaError: 'Meta reported an error: {message}',
+            coexistence:
+                'Numbers that stay on the WhatsApp Business app (coexistence) are not supported yet; choose a number for the Cloud API.',
+            running: 'Connecting…',
+            steps: {
+                exchange: 'Check what Meta granted',
+                claim: 'Reserve the account for this workspace',
+                subscribe: "Receive the account's webhooks",
+                register: 'Register the number',
+                finish: 'Activate the account',
+            },
+            success: '{name} is connected.',
+            failed: 'Connecting stopped at "{step}".',
+            retry: 'Try again',
+            retryWithMeta: 'Connect with Meta again',
+            cancel: 'Abandon',
+            cancelled: 'The unfinished connection was abandoned.',
+            unfinished: 'Unfinished connections',
+            accountsTitle: "Accounts connected through Messora's Meta app",
+            disconnect: 'Disconnect',
+            disconnectTitle: 'Disconnect {name} from Messora?',
+            disconnectBody:
+                "Messora's app stops receiving this account's events and nothing is sent from it any more. Conversations and history stay. You can connect it again with Meta, or with your own app.",
+            disconnected: "Disconnected from Messora's Meta app.",
+            errors: {
+                code_required:
+                    "The code from Meta's window was used or has expired (it lives five minutes). Connect with Meta again.",
+                code_invalid:
+                    'Meta did not accept the code from its window. Connect with Meta again.',
+                token_check_failed:
+                    'Meta could not confirm what was granted. Try again in a moment.',
+                token_invalid:
+                    'Meta says the access it granted is no longer valid. Connect with Meta again.',
+                token_other_app: 'The access belongs to another Meta app.',
+                waba_not_granted:
+                    "Meta's window did not share this WhatsApp Business Account with Messora. Connect again and select it.",
+                phone_not_in_waba:
+                    'The number does not belong to the chosen WhatsApp Business Account.',
+                waba_in_use:
+                    'This WhatsApp Business Account is connected to another Messora workspace.',
+                waba_connected_own_app:
+                    'This WhatsApp Business Account is connected with your own Meta app. Disable that account under Channels (its history is kept), then try again.',
+                subscribe_failed:
+                    "Messora's app could not subscribe to the account's webhooks. Try again.",
+                register_failed:
+                    'Meta did not register the number. If it already has a two-step verification PIN, enter that PIN and try again.',
+                finish_failed:
+                    'The account could not be read from Meta. Try again.',
+                number_in_use:
+                    'This number belongs to another connected account.',
+                internal: 'Messora could not finish this step. Try again.',
             },
         },
     },

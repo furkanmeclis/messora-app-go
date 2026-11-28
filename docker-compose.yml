@@ -402,6 +402,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # A first dump before the schema exists would be nearly empty.
+      messora-migrate:
+        condition: service_completed_successfully
     networks: [internal, edge] # edge: outbound to S3
     read_only: true
     tmpfs: [/tmp]

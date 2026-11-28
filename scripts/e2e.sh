@@ -29,6 +29,7 @@ export MESSORA_VERSION="${MESSORA_VERSION:-$PROJECT}"
 # The AI specs use the scriptable fake provider, which only runs outside
 # production (see docs/AI.md).
 export APP_ENV="${E2E_APP_ENV:-development}" AI_FAKE_PROVIDER=true
+# docker-compose.e2e.yml adds the fake Meta Graph API (Embedded Signup specs).
 compose() { docker compose -p "$PROJECT" -f docker-compose.yml -f docker-compose.e2e.yml "$@"; }
 
 cleanup() {

@@ -24,6 +24,8 @@ Commands:
   migrate             Apply database migrations and exit
   init                Generate missing secrets into MESSORA_SECRETS_DIR and exit
   admin create        Make an account a platform admin (--email, --name, --password-stdin)
+  tech-provider       Show, change or test Messora's Meta Tech Provider set-up
+  fake-meta           Serve a fake Meta Graph API (E2E stack only; not in production)
   healthcheck <url>   Exit 0 if GET <url> returns 200 (for container healthchecks)
   version             Print the version
 `
@@ -54,6 +56,13 @@ func main() {
 			os.Exit(2)
 		}
 		err = app.RunAdminCreate(ctx, os.Args[3:])
+	case "tech-provider":
+		err = app.RunTechProvider(ctx, os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	case "fake-meta":
+		err = app.RunFakeMeta(ctx)
 	case "healthcheck":
 		if len(os.Args) != 3 {
 			fmt.Fprintln(os.Stderr, "usage: messora healthcheck <url>")

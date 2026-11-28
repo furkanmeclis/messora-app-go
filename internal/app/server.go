@@ -357,6 +357,11 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	// secrets, not by the API guard (docs/SECURITY.md "Meta webhook'ları").
 	// The keyed address names its tenant by the key, whatever the host;
 	// the host paths serve the tenant of the address.
+	// The Tech Provider's one platform address (Messora's app; 404 while
+	// the method is off) is matched before the keyed ones.
+	tp := svc.messaging.TechProviderWebhookHandler()
+	r.Handle(channels.TechProviderWebhookPath, tp)
+	r.Handle("/webhooks"+channels.TechProviderWebhookPath, tp)
 	keyed := svc.messaging.KeyedWebhookHandler(func(r *http.Request) string { return chi.URLParam(r, "webhookKey") })
 	r.Handle(channels.WebhookKeyPath+"{webhookKey}", keyed)
 	r.Handle("/webhooks"+channels.WebhookKeyPath+"{webhookKey}", keyed)

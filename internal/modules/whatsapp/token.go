@@ -96,6 +96,59 @@ func (c *Client) ExchangeToken(ctx context.Context, appID, appSecret, token stri
 	return resp.AccessToken, exp, nil
 }
 
+// ExchangeCode trades the code of an Embedded Signup for the customer's
+// business token (server to server, no redirect_uri: Meta's Tech Provider
+// onboarding guide). The code is single use and lives five minutes.
+func (c *Client) ExchangeCode(ctx context.Context, appID, appSecret, code string) (string, error) {
+	q := url.Values{"client_id": {appID}, "client_secret": {appSecret}, "code": {code}}
+	var resp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if _, err := c.do(ctx, http.MethodGet, c.endpoint("oauth/access_token", q), "", nil, "", &resp); err != nil {
+		return "", err
+	}
+	if resp.AccessToken == "" {
+		return "", fmt.Errorf("whatsapp: the code exchange returned no token")
+	}
+	return resp.AccessToken, nil
+}
+
+// AppSubscription is one object of an app's webhook subscriptions
+// (GET /{app-id}/subscriptions with the app token).
+type AppSubscription struct {
+	Object      string
+	CallbackURL string
+	Active      bool
+	Fields      []string
+}
+
+// AppSubscriptions lists the app's webhook subscriptions; appToken is
+// "app_id|app_secret".
+func (c *Client) AppSubscriptions(ctx context.Context, appID, appToken string) ([]AppSubscription, error) {
+	var resp struct {
+		Data []struct {
+			Object      string `json:"object"`
+			CallbackURL string `json:"callback_url"`
+			Active      bool   `json:"active"`
+			Fields      []struct {
+				Name string `json:"name"`
+			} `json:"fields"`
+		} `json:"data"`
+	}
+	if _, err := c.do(ctx, http.MethodGet, c.endpoint(url.PathEscape(appID)+"/subscriptions", nil), appToken, nil, "", &resp); err != nil {
+		return nil, err
+	}
+	out := make([]AppSubscription, 0, len(resp.Data))
+	for _, d := range resp.Data {
+		s := AppSubscription{Object: d.Object, CallbackURL: d.CallbackURL, Active: d.Active}
+		for _, f := range d.Fields {
+			s.Fields = append(s.Fields, f.Name)
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
 // UploadTemplateSample uploads an example file for a template's media
 // header with Meta's Resumable Upload API (it needs the app id) and returns
 // the handle to put in the header's example.header_handle.
