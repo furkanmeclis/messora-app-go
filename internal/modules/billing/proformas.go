@@ -215,7 +215,7 @@ func (s *Service) Purchase(ctx context.Context, actor *principal.Principal, req 
 			d.aiCredits, d.packKey, d.net = &pack.Credits, &pack.Key, pack.Price
 			d.lines = []line{{DescriptionTR: fmt.Sprintf("AI kredisi paketi · %d kredi (%d ay geçerli)", pack.Credits, pricing.API.AiCreditValidityMonths),
 				DescriptionEN: fmt.Sprintf("AI credit pack · %d credits (valid %d months)", pack.Credits, pricing.API.AiCreditValidityMonths),
-				Quantity: 1, UnitKurus: pack.Price, NetKurus: pack.Price}}
+				Quantity:      1, UnitKurus: pack.Price, NetKurus: pack.Price}}
 		case api.CreateBillingProformaRequestKindMessageBalance:
 			if req.Amount == nil {
 				return apperr.Validation("amount", "Enter the top-up amount.")

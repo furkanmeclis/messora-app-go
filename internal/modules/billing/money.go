@@ -92,7 +92,7 @@ func MicrosToKurus(m int64) int64 { return roundHalfUp(big.NewRat(m, MicrosPerKu
 // VAT is the VAT of net kuruş at rate basis points (2000 = 20 %), rounded
 // half up to a kuruş.
 func VAT(net int64, rateBP int64) int64 {
-	return roundHalfUp(new(big.Rat).SetFrac(big.NewInt(net*int64(rateBP)), big.NewInt(10_000)))
+	return roundHalfUp(new(big.Rat).SetFrac(big.NewInt(net*rateBP), big.NewInt(10_000)))
 }
 
 // Totals is a proforma's net, VAT and total.

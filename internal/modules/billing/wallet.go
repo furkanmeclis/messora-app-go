@@ -35,7 +35,7 @@ type NotifyPayload struct {
 	Kind string `json:"kind"`
 }
 
-// Notice kinds of TypeNotify.
+// NoticeMessageLow is the TypeNotify kind of the low message balance e-mail.
 const NoticeMessageLow = "message_low"
 
 // TypeTick is the per-tenant billing job.

@@ -385,7 +385,7 @@ func (s *Service) RecordInvoice(ctx context.Context, id uuid.UUID, number string
 			IssuedBy: actorID(principal.From(ctx))}); err != nil {
 			return err
 		}
-		ch := map[string]any{"official_number": number, "issued_on": issuedOn.Time.Format(time.DateOnly)}
+		ch := map[string]any{"official_number": number, "issued_on": issuedOn.Format(time.DateOnly)}
 		if err := audit.RecordInTenant(ctx, q, audit.Entry{Action: "billing.invoice_issued", EntityType: "invoice", EntityID: &id, Changes: ch}); err != nil {
 			return err
 		}

@@ -124,7 +124,9 @@ func (s *Service) SetClock(now func() time.Time) {
 }
 
 // SetNotify replaces the e-mail sender.
-func (s *Service) SetNotify(fn func(ctx context.Context, n identity.BillingNotice) int) { s.o.Notify = fn }
+func (s *Service) SetNotify(fn func(ctx context.Context, n identity.BillingNotice) int) {
+	s.o.Notify = fn
+}
 
 func (s *Service) accounts(ctx context.Context) ([]payments.Account, error) {
 	seller, _, err := s.settings(ctx)

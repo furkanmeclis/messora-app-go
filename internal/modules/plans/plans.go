@@ -74,7 +74,9 @@ type MeBilling struct {
 }
 
 // SetMeBilling installs billing's /me summary.
-func (s *Service) SetMeBilling(fn func(ctx context.Context, id uuid.UUID) MeBilling) { s.meBilling = fn }
+func (s *Service) SetMeBilling(fn func(ctx context.Context, id uuid.UUID) MeBilling) {
+	s.meBilling = fn
+}
 
 // New returns the service.
 func New(pool *pgxpool.Pool, o Options) *Service {
