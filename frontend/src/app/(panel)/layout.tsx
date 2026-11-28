@@ -16,6 +16,8 @@ import { Topbar, type RunningCampaign } from './topbar';
 import { SetupBanner } from './setup-banner';
 import { SupportBanner } from './support-banner';
 import { CreditsBanner } from './credits-banner';
+import { BillingBanner } from './billing-banner';
+import { prefsFor } from '@/lib/format';
 import { myMemberships } from '@/lib/server/memberships';
 
 export default async function PanelLayout({
@@ -106,6 +108,17 @@ export default async function PanelLayout({
                                 <div className="w-full flex-1 p-4 md:p-6 xl:px-8">
                                     {me.support && (
                                         <SupportBanner support={me.support} />
+                                    )}
+                                    {!me.mfa_required && (
+                                        <BillingBanner
+                                            plan={me.tenant?.plan}
+                                            prefs={prefsFor(
+                                                me.user.timezone,
+                                                me.user.locale,
+                                                appearance.date_format,
+                                                appearance.time_format,
+                                            )}
+                                        />
                                     )}
                                     {me.tenant?.plan?.ai_credits_exhausted &&
                                         !me.mfa_required && <CreditsBanner />}

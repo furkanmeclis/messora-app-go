@@ -91,6 +91,7 @@ const platform: Messages['platform'] = {
             trial: 'Deneme',
             active: 'Etkin',
             past_due: 'Ödeme gecikti',
+            read_only: 'Salt okunur',
             canceled: 'İptal',
         },
         trialEnds: 'Deneme {date} tarihinde biter',

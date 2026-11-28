@@ -76,6 +76,23 @@ const errors = {
     FEATURE_NOT_IN_PLAN: 'Your plan does not include this feature.',
     PLAN_REQUEST_OPEN: 'A plan change request is already open.',
     AI_CREDITS_EXHAUSTED: 'This month’s AI credits are used up.',
+    SUBSCRIPTION_READ_ONLY:
+        'The workspace is read-only until its subscription is paid: reading and exports work, sending and creating do not.',
+    MESSAGE_BALANCE_EXHAUSTED:
+        'The message balance is used up; top it up in Billing to send templates again.',
+    BILLING_PROFILE_REQUIRED: 'Enter the invoice details first.',
+    BILLING_NOT_CONFIGURED: 'Payments are not set up yet.',
+    PLAN_NOT_SELF_SERVE:
+        'This plan is priced per offer; ask Messora for an offer.',
+    RENEWAL_DUE: 'Pay the open renewal first; then change the plan.',
+    PROFORMA_OPEN:
+        'A proforma with a payment on it is open; pay it in full first.',
+    PROFORMA_NOT_OPEN:
+        'Only an open proforma with nothing paid can be cancelled.',
+    INVOICE_PDF_PENDING: 'The official invoice PDF is not attached yet.',
+    TRANSFER_NOT_UNMATCHED: 'This transfer is matched or ignored already.',
+    PERIOD_ENDING:
+        'The period ends today; choose the plan for the next period.',
     QUOTA_EXCEEDED: 'The monthly API quota of this workspace is used up.',
     AI_UNAVAILABLE: 'The AI is not available here: {detail}',
     DRAFT_DECIDED: 'Someone already decided on this draft.',

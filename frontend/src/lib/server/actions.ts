@@ -8,6 +8,7 @@ import { getLocale } from '@/i18n/server';
 import { dictionaries } from '@/i18n/messages';
 import { createTranslator, type MessageKey } from '@/i18n/translate';
 import { PLAN_PAGE, planError } from '@/lib/plan';
+import { BILLING_PAGE, isBillingError } from '@/lib/billing';
 
 /**
  * The message for an API error in the user's language. English keeps the
@@ -76,15 +77,15 @@ export async function runAction<T>(
             if (err.retryAfter && err.status === 429) {
                 msg += ` (retry in ${Math.ceil(err.retryAfter / 60)} min)`;
             }
+            const tr = createTranslator(
+                dictionaries[await getLocale()],
+                await getLocale(),
+            );
             const upgrade = plan
-                ? {
-                      href: PLAN_PAGE,
-                      label: createTranslator(
-                          dictionaries[await getLocale()],
-                          await getLocale(),
-                      )('plans.upgrade.link'),
-                  }
-                : undefined;
+                ? { href: PLAN_PAGE, label: tr('plans.upgrade.link') }
+                : isBillingError(err.code)
+                  ? { href: BILLING_PAGE, label: tr('billing.banner.link') }
+                  : undefined;
             return {
                 ok: false,
                 code: err.code,

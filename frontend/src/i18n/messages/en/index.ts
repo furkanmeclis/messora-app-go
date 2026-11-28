@@ -31,6 +31,7 @@ import ai from './ai';
 import analytics from './analytics';
 import platform from './platform';
 import plans from './plans';
+import billing from './billing';
 
 /**
  * The English dictionary defines the shape every language must match.
@@ -64,6 +65,7 @@ export const en = {
     analytics,
     platform,
     plans,
+    billing,
     auth,
     overview,
     inbox,

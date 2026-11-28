@@ -4406,6 +4406,499 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/billing': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The workspace's subscription, balances and open proformas
+         * @description The subscription (plan, cycle, status, period, next renewal), the billing details, Messora's bank accounts, the AI credit and message balances, the open proformas and the prices a workspace can buy (AI credit packs, message balance top-ups; TL, VAT shown apart).
+         */
+        get: operations['getBilling'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/profile': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the invoice details (required before the first proforma)
+         * @description Company title with tax office and 10-digit tax number (VKN), or an individual's name with the 11-digit TCKN; address and the billing e-mail address (billing mail goes there and to the owners).
+         */
+        put: operations['updateBillingProfile'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/plan-change': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Choose a plan and billing cycle
+         * @description Without a paid period (trial, read-only, or no period yet) this creates a proforma for a full period that starts when it is paid. During a paid period a higher plan in the same cycle creates a prorated upgrade proforma (the plan changes when it is paid); a lower plan or another cycle is scheduled for the next renewal (effect "scheduled"). 409 BILLING_PROFILE_REQUIRED without invoice details.
+         */
+        post: operations['changeBillingPlan'];
+        /** Drop a scheduled plan or cycle change */
+        delete: operations['cancelBillingPlanChange'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/proformas': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's proformas, newest first */
+        get: operations['listBillingProformas'];
+        put?: never;
+        /**
+         * Buy an AI credit pack or top up the message balance
+         * @description A proforma for a pack of the catalogue (`pack_key`) or a message balance top-up (`amount`, TL, VAT excluded, at least the platform's minimum). Paid by bank transfer with the proforma's reference.
+         */
+        post: operations['createBillingProforma'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/proformas/{proformaId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        /** A proforma */
+        get: operations['getBillingProforma'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/proformas/{proformaId}/cancel': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel an unpaid proforma
+         * @description Only proformas with nothing paid yet (409 PROFORMA_NOT_OPEN otherwise); a renewal cannot be cancelled.
+         */
+        post: operations['cancelBillingProforma'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/proformas/{proformaId}/pdf': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        /** The proforma as PDF */
+        get: operations['downloadBillingProformaPdf'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/invoices': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's invoices, newest first */
+        get: operations['listBillingInvoices'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/invoices/{invoiceId}/pdf': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: components['parameters']['InvoiceId'];
+            };
+            cookie?: never;
+        };
+        /**
+         * The official invoice PDF
+         * @description 409 INVOICE_PDF_PENDING until Messora has attached the official e-Fatura/e-Arşiv PDF.
+         */
+        get: operations['downloadBillingInvoicePdf'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/billing/message-balance': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The message balance and its latest movements
+         * @description Only workspaces sending through Messora's Tech Provider connection use the message balance (used = false otherwise: Meta bills a workspace's own app directly).
+         */
+        get: operations['getMessageBalance'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/overview': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recurring revenue, collections and what waits for a match */
+        get: operations['getPlatformBillingOverview'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/subscriptions': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every company's subscription */
+        get: operations['listPlatformSubscriptions'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/settings': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Seller identity, bank accounts and prices */
+        get: operations['getPlatformBillingSettings'];
+        /**
+         * Change the seller identity, bank accounts or prices
+         * @description Each part given replaces the stored one; recorded in the platform audit log.
+         */
+        put: operations['updatePlatformBillingSettings'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/proformas': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Proformas of every company */
+        get: operations['listPlatformProformas'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/proformas/{proformaId}/void': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void an unpaid proforma */
+        post: operations['voidPlatformProforma'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/proformas/{proformaId}/pdf': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        /** A company's proforma as PDF */
+        get: operations['downloadPlatformProformaPdf'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/transfers': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The payments inbox (recorded bank transfers)
+         * @description Unmatched transfers carry the automatic suggestion (by reference and amount) or the candidates when the amount alone is ambiguous.
+         */
+        get: operations['listPlatformTransfers'];
+        put?: never;
+        /** Record an incoming transfer */
+        post: operations['createPlatformTransfer'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/transfers/import': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import incoming transfers from a bank statement CSV
+         * @description UTF-8 CSV with a header row: date (YYYY-MM-DD or DD.MM.YYYY), amount (1234.56 or 1.234,56; only incoming, positive amounts are imported), description, and optionally sender and sender_iban; comma or semicolon separated (docs/BILLING.md). A line imported before is skipped.
+         */
+        post: operations['importPlatformTransfers'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/transfers/{transferId}/match': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transferId: components['parameters']['TransferId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a transfer for a proforma (or a company's account credit)
+         * @description The amount is applied to the proforma; what it does not need is kept as the company's account credit (and applied to its other open proformas). A fully paid proforma is fulfilled at once (period extended, credits or balance added), its invoice record created and the company told by e-mail.
+         */
+        post: operations['matchPlatformTransfer'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/transfers/{transferId}/ignore': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transferId: components['parameters']['TransferId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a transfer as not a customer payment */
+        post: operations['ignorePlatformTransfer'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/invoices': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Invoice records of every company */
+        get: operations['listPlatformInvoices'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/billing/invoices/{invoiceId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: components['parameters']['InvoiceId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Record the official invoice number */
+        patch: operations['recordPlatformInvoice'];
+        trace?: never;
+    };
+    '/platform/billing/invoices/{invoiceId}/pdf': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: components['parameters']['InvoiceId'];
+            };
+            cookie?: never;
+        };
+        /** The official invoice PDF */
+        get: operations['downloadPlatformInvoicePdf'];
+        /**
+         * Attach the official invoice PDF
+         * @description The raw PDF (at most 5 MB).
+         */
+        put: operations['uploadPlatformInvoicePdf'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/billing': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        /** A company's subscription, documents, payments and balances */
+        get: operations['getPlatformTenantBilling'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/billing/actions': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extend, comp, change the cycle or status, set a price or adjust a balance
+         * @description Every action needs a reason and is recorded in both audit logs.
+         */
+        post: operations['applyPlatformBillingAction'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -10326,8 +10819,12 @@ export interface components {
         };
         /** @enum {string} */
         TenantStatus: 'active' | 'suspended' | 'deleted';
-        /** @enum {string} */
-        SubscriptionStatus: 'trial' | 'active' | 'past_due' | 'canceled';
+        /**
+         * @description trial (14 days), active (a paid period, or none before billing), past_due (the renewal is unpaid: 7 days of grace), read_only (the trial or the grace ended: reading and exports only), canceled (no renewal; read-only once the period ends).
+         * @enum {string}
+         */
+        SubscriptionStatus:
+            'trial' | 'active' | 'past_due' | 'read_only' | 'canceled';
         PlatformAuthCapabilities: {
             /** @description No platform admin exists yet; use the link `messora migrate` printed or `messora admin create`. */
             bootstrap_required: boolean;
@@ -10875,13 +11372,22 @@ export interface components {
             data: components['schemas']['PlanOverview'];
             meta: components['schemas']['Meta'];
         };
-        /** @description What the panel needs to show or hide gated features (the API checks them too). */
+        /** @description What the panel needs to show or hide gated features and billing banners (the API checks them too). */
         MePlan: {
             key: string;
             name_tr: string;
             name_en: string;
             features: components['schemas']['PlanFeature'][];
             ai_credits_exhausted: boolean;
+            subscription_status: components['schemas']['SubscriptionStatus'];
+            /** @description The subscription is read-only: sending, AI, automations and creating answer 402. */
+            read_only: boolean;
+            /** Format: date-time */
+            trial_ends_at: string | null;
+            /** Format: date-time */
+            grace_ends_at: string | null;
+            /** @description A Tech Provider workspace's message balance is used up. */
+            message_balance_exhausted: boolean;
         };
         EmailSettings: {
             /**
@@ -11134,6 +11640,528 @@ export interface components {
              */
             apply: boolean;
         };
+        /** @description TL as a decimal string with two decimals (kuruş), e.g. "3588.00". */
+        Amount: string;
+        /** @enum {string} */
+        BillingCycle: 'monthly' | 'yearly';
+        /** @enum {string} */
+        ProformaStatus: 'open' | 'partially_paid' | 'paid' | 'void';
+        BillingSubscription: {
+            status: components['schemas']['SubscriptionStatus'];
+            /** @description Sending, AI, automations and creating are blocked (402 SUBSCRIPTION_READ_ONLY). */
+            read_only: boolean;
+            /** @description The workspace's code in payment references. */
+            code: string;
+            plan_key: string | null;
+            plan_name_tr: string;
+            plan_name_en: string;
+            billing_cycle: components['schemas']['BillingCycle'];
+            /** Format: date-time */
+            period_start: string | null;
+            /** Format: date-time */
+            period_end: string | null;
+            /**
+             * Format: date-time
+             * @description When the renewal proforma is (or was) issued.
+             */
+            next_renewal_at: string | null;
+            /** Format: date-time */
+            trial_ends_at: string | null;
+            /** Format: date-time */
+            grace_ends_at: string | null;
+            /** Format: date-time */
+            read_only_since: string | null;
+            status_reason: string;
+            /** @description A lower plan the next renewal switches to. */
+            pending_plan_key: string | null;
+            pending_cycle: components['schemas']['BillingCycle'] | null;
+            account_credit: components['schemas']['Amount'];
+            custom_price: components['schemas']['Amount'] | null;
+            /** @description The price of one period of the plan and cycle (VAT excluded); null when the plan has no list price. */
+            price: components['schemas']['Amount'] | null;
+        };
+        BillingSubscriptionResponse: {
+            data: components['schemas']['BillingSubscription'];
+            meta: components['schemas']['Meta'];
+        };
+        BillingProfileInput: {
+            /** @enum {string} */
+            kind: 'company' | 'individual';
+            /** @description Company title (ticari unvan) or full name. */
+            title: string;
+            /** @description Required for companies. */
+            tax_office?: string;
+            /** @description VKN (10 digits) for companies, TCKN (11 digits) for individuals. */
+            tax_number: string;
+            address: string;
+            city?: string;
+            country?: string;
+            /** Format: email */
+            email: string;
+            phone?: string;
+        };
+        BillingProfile: {
+            /** @enum {string} */
+            kind: 'company' | 'individual';
+            title: string;
+            tax_office: string;
+            tax_number: string;
+            address: string;
+            city: string;
+            country: string;
+            email: string;
+            phone: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        BillingProfileResponse: {
+            data: components['schemas']['BillingProfile'];
+            meta: components['schemas']['Meta'];
+        };
+        BankAccount: {
+            bank_name: string;
+            account_holder: string;
+            /** @description Spaces are allowed and dropped; the checksum is verified. */
+            iban: string;
+            /**
+             * @default TRY
+             * @enum {string}
+             */
+            currency: 'TRY';
+        };
+        /** @description Who sells and invoices (a platform setting until the legal entity is settled). */
+        BillingSeller: {
+            company_name: string;
+            tax_office: string;
+            tax_number: string;
+            address: string;
+            email: string;
+            phone: string;
+            website: string;
+            mersis_no?: string;
+            /** @description Shown on proformas, e.g. how the e-Fatura/e-Arşiv invoice is sent. */
+            invoice_note: string;
+            bank_accounts: components['schemas']['BankAccount'][];
+        };
+        AICreditPack: {
+            key: string;
+            /** Format: int64 */
+            credits: number;
+            price: components['schemas']['Amount'];
+        };
+        BillingPricing: {
+            vat_rate_percent: string;
+            /** @description USD → TL rate for message charges (set daily). */
+            fx_usd_try: string;
+            /** Format: date-time */
+            fx_updated_at: string | null;
+            /** @description Marketing messages cost Meta's price × this. */
+            marketing_markup: string;
+            /** @description Other categories cost Meta's price + this (USD per message). */
+            other_markup_usd: string;
+            ai_credit_packs: components['schemas']['AICreditPack'][];
+            message_topups: components['schemas']['Amount'][];
+            min_message_topup: components['schemas']['Amount'];
+            low_balance_threshold: components['schemas']['Amount'];
+            renewal_lead_days: number;
+            due_days: number;
+            grace_days: number;
+            ai_credit_validity_months: number;
+        };
+        PlatformBillingSettings: {
+            seller: components['schemas']['BillingSeller'];
+            pricing: components['schemas']['BillingPricing'];
+        };
+        PlatformBillingSettingsResponse: {
+            data: components['schemas']['PlatformBillingSettings'];
+            meta: components['schemas']['Meta'];
+        };
+        UpdatePlatformBillingSettingsRequest: {
+            seller?: components['schemas']['BillingSeller'];
+            pricing?: components['schemas']['BillingPricing'];
+        };
+        ProformaLine: {
+            description_tr: string;
+            description_en: string;
+            /** Format: int64 */
+            quantity: number;
+            unit_price: components['schemas']['Amount'];
+            net: components['schemas']['Amount'];
+        };
+        Proforma: {
+            /** Format: uuid */
+            id: string;
+            /** @description Document number, e.g. PF-2026-000112. */
+            number: string;
+            /** @description The payment reference to write in the transfer description. */
+            reference: string;
+            /** @description The reference grouped for reading, e.g. MSR-4F8K-002C-7. */
+            reference_display: string;
+            /** @enum {string} */
+            kind: 'subscription' | 'upgrade' | 'ai_credits' | 'message_balance';
+            status: components['schemas']['ProformaStatus'];
+            renewal: boolean;
+            lines: components['schemas']['ProformaLine'][];
+            net: components['schemas']['Amount'];
+            vat_rate_percent: string;
+            vat: components['schemas']['Amount'];
+            total: components['schemas']['Amount'];
+            paid: components['schemas']['Amount'];
+            due: components['schemas']['Amount'];
+            currency: string;
+            plan_key: string | null;
+            billing_cycle: components['schemas']['BillingCycle'] | null;
+            /** Format: date-time */
+            period_start: string | null;
+            /** Format: date-time */
+            period_end: string | null;
+            /** Format: int64 */
+            ai_credits: number | null;
+            message_amount: components['schemas']['Amount'] | null;
+            buyer: {
+                [key: string]: unknown;
+            };
+            seller: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            due_at: string;
+            /** Format: date-time */
+            paid_at: string | null;
+            /** Format: date-time */
+            voided_at: string | null;
+            void_reason: string;
+            /** Format: date-time */
+            created_at: string;
+            tenant?: components['schemas']['TenantRef'];
+        };
+        ProformaResponse: {
+            data: components['schemas']['Proforma'];
+            meta: components['schemas']['Meta'];
+        };
+        ProformaListResponse: {
+            data: components['schemas']['Proforma'][];
+            meta: components['schemas']['Meta'];
+        };
+        Invoice: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            proforma_id: string;
+            proforma_number: string;
+            proforma_kind: string;
+            /** @description "manual": the official invoice is issued outside Messora and recorded here. */
+            issuer: string;
+            /** @enum {string} */
+            status: 'pending' | 'issued';
+            official_number: string | null;
+            /** Format: date */
+            issued_on: string | null;
+            has_pdf: boolean;
+            net: components['schemas']['Amount'];
+            vat: components['schemas']['Amount'];
+            total: components['schemas']['Amount'];
+            /** Format: date-time */
+            created_at: string;
+            tenant?: components['schemas']['TenantRef'];
+        };
+        InvoiceResponse: {
+            data: components['schemas']['Invoice'];
+            meta: components['schemas']['Meta'];
+        };
+        InvoiceListResponse: {
+            data: components['schemas']['Invoice'][];
+            meta: components['schemas']['Meta'];
+        };
+        RecordInvoiceRequest: {
+            official_number: string;
+            /** Format: date */
+            issued_on: string;
+        };
+        MessageBalance: {
+            /** @description The workspace sends through Messora's Tech Provider connection (Messora pays Meta). */
+            used: boolean;
+            balance: components['schemas']['Amount'];
+            /** @description TL with six decimals. */
+            balance_exact: string;
+            low: boolean;
+            exhausted: boolean;
+            low_threshold: components['schemas']['Amount'];
+            fx_usd_try: string;
+            marketing_markup: string;
+            other_markup_usd: string;
+        };
+        MessageBalanceEntry: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: 'top_up' | 'charge' | 'adjustment';
+            /** @description TL with six decimals (negative for charges). */
+            amount: string;
+            balance_after: string;
+            category: string | null;
+            /** @description Meta's price of a charged message (USD). */
+            meta_usd: string | null;
+            fx_rate: string | null;
+            note: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        MessageBalanceDetail: {
+            balance: components['schemas']['MessageBalance'];
+            entries: components['schemas']['MessageBalanceEntry'][];
+        };
+        MessageBalanceDetailResponse: {
+            data: components['schemas']['MessageBalanceDetail'];
+            meta: components['schemas']['Meta'];
+        };
+        /** @description What a workspace can buy, with VAT shown apart. */
+        BillingOffer: {
+            vat_rate_percent: string;
+            ai_credit_packs: components['schemas']['AICreditPack'][];
+            message_topups: components['schemas']['Amount'][];
+            min_message_topup: components['schemas']['Amount'];
+            plans: components['schemas']['BillingOfferPlan'][];
+        };
+        BillingOfferPlan: {
+            key: string;
+            name_tr: string;
+            name_en: string;
+            monthly: components['schemas']['Amount'] | null;
+            yearly: components['schemas']['Amount'] | null;
+            custom_pricing: boolean;
+            current: boolean;
+        };
+        BillingOverview: {
+            subscription: components['schemas']['BillingSubscription'];
+            profile: components['schemas']['BillingProfile'] | null;
+            seller: components['schemas']['BillingSeller'];
+            offer: components['schemas']['BillingOffer'];
+            ai_credits: components['schemas']['AICreditBalance'];
+            message_balance: components['schemas']['MessageBalance'];
+            open_proformas: components['schemas']['Proforma'][];
+        };
+        BillingOverviewResponse: {
+            data: components['schemas']['BillingOverview'];
+            meta: components['schemas']['Meta'];
+        };
+        BillingPlanChangeRequest: {
+            plan_key: string;
+            billing_cycle: components['schemas']['BillingCycle'];
+        };
+        BillingPlanChangeResult: {
+            /** @enum {string} */
+            effect: 'proforma' | 'scheduled';
+            proforma: components['schemas']['Proforma'] | null;
+            subscription: components['schemas']['BillingSubscription'];
+        };
+        BillingPlanChangeResultResponse: {
+            data: components['schemas']['BillingPlanChangeResult'];
+            meta: components['schemas']['Meta'];
+        };
+        CreateBillingProformaRequest: {
+            /** @enum {string} */
+            kind: 'ai_credits' | 'message_balance';
+            /** @description An AI credit pack of the catalogue. */
+            pack_key?: string;
+            amount?: components['schemas']['Amount'];
+        };
+        BillingReasonRequest: {
+            reason: string;
+        };
+        BankTransfer: {
+            /** Format: uuid */
+            id: string;
+            amount: components['schemas']['Amount'];
+            /** Format: date */
+            received_on: string;
+            sender_name: string;
+            sender_iban: string | null;
+            description: string;
+            /** @description The payment reference found in the description. */
+            reference: string | null;
+            /** @enum {string} */
+            source: 'manual' | 'csv';
+            /** @enum {string} */
+            status: 'unmatched' | 'matched' | 'ignored';
+            /**
+             * @description How the suggested proforma was found: reference_amount (reference and the amount due agree), reference (the amount differs: partial or over payment), amount (no reference; exactly one open proforma owes this amount).
+             * @enum {string|null}
+             */
+            suggestion: 'reference_amount' | 'reference' | 'amount' | null;
+            suggested_proforma: components['schemas']['Proforma'] | null;
+            /** @description Open proformas owing the amount when it alone is ambiguous. */
+            candidates: components['schemas']['Proforma'][];
+            match_method: string | null;
+            tenant: components['schemas']['TenantRef'] | null;
+            /** Format: uuid */
+            proforma_id: string | null;
+            note: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            matched_at: string | null;
+        };
+        BankTransferResponse: {
+            data: components['schemas']['BankTransfer'];
+            meta: components['schemas']['Meta'];
+        };
+        BankTransferListResponse: {
+            data: components['schemas']['BankTransfer'][];
+            meta: components['schemas']['Meta'];
+        };
+        CreateBankTransferRequest: {
+            amount: components['schemas']['Amount'];
+            /** Format: date */
+            received_on: string;
+            sender_name?: string;
+            sender_iban?: string;
+            description?: string;
+            /** @description The payment reference, when it is not in the description. */
+            reference?: string;
+            note?: string;
+        };
+        BankTransferImport: {
+            created: number;
+            duplicates: number;
+            errors: components['schemas']['BankTransferImportError'][];
+            transfers: components['schemas']['BankTransfer'][];
+        };
+        BankTransferImportError: {
+            line: number;
+            message: string;
+        };
+        BankTransferImportResponse: {
+            data: components['schemas']['BankTransferImport'];
+            meta: components['schemas']['Meta'];
+        };
+        MatchBankTransferRequest: {
+            /**
+             * Format: uuid
+             * @description The proforma the transfer pays.
+             */
+            proforma_id?: string;
+            /**
+             * Format: uuid
+             * @description Without a proforma: the company whose account credit receives the amount.
+             */
+            tenant_id?: string;
+            note?: string;
+        };
+        BillingPayment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            proforma_id: string;
+            /** @enum {string} */
+            source: 'transfer' | 'account_credit';
+            amount: components['schemas']['Amount'];
+            /** Format: date */
+            received_on: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        BillingAccountEntry: {
+            /** Format: uuid */
+            id: string;
+            amount: components['schemas']['Amount'];
+            balance_after: components['schemas']['Amount'];
+            /** @enum {string} */
+            reason: 'overpayment' | 'unallocated' | 'applied' | 'adjustment';
+            note: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        PlatformSubscription: {
+            tenant: components['schemas']['TenantRef'];
+            status: components['schemas']['SubscriptionStatus'];
+            plan_key: string | null;
+            plan_name_tr: string;
+            plan_name_en: string;
+            billing_cycle: components['schemas']['BillingCycle'] | null;
+            /** Format: date-time */
+            period_end: string | null;
+            /** Format: date-time */
+            grace_ends_at: string | null;
+            /** Format: date-time */
+            read_only_since: string | null;
+            /** Format: date-time */
+            trial_ends_at: string | null;
+            status_reason: string;
+            open_amount: components['schemas']['Amount'];
+            account_credit: components['schemas']['Amount'];
+            monthly_value: components['schemas']['Amount'];
+        };
+        PlatformSubscriptionListResponse: {
+            data: components['schemas']['PlatformSubscription'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformBillingOverview: {
+            mrr: components['schemas']['Amount'];
+            arr: components['schemas']['Amount'];
+            counts: {
+                /** Format: int64 */
+                trial: number;
+                /** Format: int64 */
+                active: number;
+                /** Format: int64 */
+                past_due: number;
+                /** Format: int64 */
+                read_only: number;
+                /** Format: int64 */
+                canceled: number;
+            };
+            collected_this_month: components['schemas']['Amount'];
+            collected_last_month: components['schemas']['Amount'];
+            open_amount: components['schemas']['Amount'];
+            /** Format: int64 */
+            unmatched_transfers: number;
+            /** Format: int64 */
+            pending_invoices: number;
+        };
+        PlatformBillingOverviewResponse: {
+            data: components['schemas']['PlatformBillingOverview'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformTenantBilling: {
+            tenant: components['schemas']['TenantRef'];
+            subscription: components['schemas']['BillingSubscription'];
+            profile: components['schemas']['BillingProfile'] | null;
+            proformas: components['schemas']['Proforma'][];
+            invoices: components['schemas']['Invoice'][];
+            payments: components['schemas']['BillingPayment'][];
+            account_entries: components['schemas']['BillingAccountEntry'][];
+            message_balance: components['schemas']['MessageBalance'];
+        };
+        PlatformTenantBillingResponse: {
+            data: components['schemas']['PlatformTenantBilling'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformBillingActionRequest: {
+            /** @enum {string} */
+            action:
+                | 'extend_days'
+                | 'comp_months'
+                | 'set_cycle'
+                | 'set_status'
+                | 'set_custom_price'
+                | 'adjust_message_balance'
+                | 'adjust_account_credit';
+            /** @description extend_days */
+            days?: number;
+            /** @description comp_months */
+            months?: number;
+            cycle?: components['schemas']['BillingCycle'];
+            /**
+             * @description set_status
+             * @enum {string}
+             */
+            status?: 'active' | 'read_only' | 'canceled';
+            /** @description set_custom_price (VAT excluded, per cycle); null returns to the list price. */
+            price?: components['schemas']['Amount'] | null;
+            amount?: components['schemas']['Amount'];
+            reason: string;
+        };
     };
     responses: {
         /** @description Error */
@@ -11284,6 +12312,9 @@ export interface components {
         };
     };
     parameters: {
+        ProformaId: string;
+        InvoiceId: string;
+        TransferId: string;
         TenantId: string;
         DomainId: string;
         GrantId: string;
@@ -18636,6 +19667,722 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['PlatformPlanRequestResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getBilling: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Billing overview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BillingOverviewResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateBillingProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['BillingProfileInput'];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BillingProfileResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    changeBillingPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['BillingPlanChangeRequest'];
+            };
+        };
+        responses: {
+            /** @description What happened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BillingPlanChangeResultResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    cancelBillingPlanChange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subscription */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BillingSubscriptionResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listBillingProformas: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Proformas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ProformaListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createBillingProforma: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateBillingProformaRequest'];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ProformaResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getBillingProforma: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The proforma */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ProformaResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    cancelBillingProforma: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ProformaResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    downloadBillingProformaPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/pdf': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listBillingInvoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invoices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['InvoiceListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    downloadBillingInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: components['parameters']['InvoiceId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/pdf': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getMessageBalance: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Balance and entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MessageBalanceDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformBillingOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Numbers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformBillingOverviewResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformSubscriptions: {
+        parameters: {
+            query?: {
+                status?: components['schemas']['SubscriptionStatus'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Subscriptions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformSubscriptionListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformBillingSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformBillingSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updatePlatformBillingSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdatePlatformBillingSettingsRequest'];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformBillingSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformProformas: {
+        parameters: {
+            query?: {
+                status?: components['schemas']['ProformaStatus'];
+                tenant_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Proformas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ProformaListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    voidPlatformProforma: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['BillingReasonRequest'];
+            };
+        };
+        responses: {
+            /** @description Voided */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['ProformaResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    downloadPlatformProformaPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proformaId: components['parameters']['ProformaId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/pdf': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformTransfers: {
+        parameters: {
+            query?: {
+                status?: 'unmatched' | 'matched' | 'ignored';
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Transfers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BankTransferListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createPlatformTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateBankTransferRequest'];
+            };
+        };
+        responses: {
+            /** @description Recorded, with the automatic suggestion */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BankTransferResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    importPlatformTransfers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'text/csv': string;
+            };
+        };
+        responses: {
+            /** @description What was imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BankTransferImportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    matchPlatformTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transferId: components['parameters']['TransferId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['MatchBankTransferRequest'];
+            };
+        };
+        responses: {
+            /** @description Matched */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BankTransferResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    ignorePlatformTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transferId: components['parameters']['TransferId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['BillingReasonRequest'];
+            };
+        };
+        responses: {
+            /** @description Ignored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['BankTransferResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformInvoices: {
+        parameters: {
+            query?: {
+                status?: 'pending' | 'issued';
+                tenant_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invoices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['InvoiceListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    recordPlatformInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: components['parameters']['InvoiceId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['RecordInvoiceRequest'];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['InvoiceResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    downloadPlatformInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: components['parameters']['InvoiceId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/pdf': string;
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    uploadPlatformInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: components['parameters']['InvoiceId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/pdf': string;
+            };
+        };
+        responses: {
+            /** @description Attached */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['InvoiceResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformTenantBilling: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Billing detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantBillingResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    applyPlatformBillingAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['PlatformBillingActionRequest'];
+            };
+        };
+        responses: {
+            /** @description The company's billing after the action */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantBillingResponse'];
                 };
             };
             default: components['responses']['Error'];

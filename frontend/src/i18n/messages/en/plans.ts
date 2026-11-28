@@ -13,6 +13,7 @@ const plans = {
         trial: 'Trial',
         active: 'Active',
         past_due: 'Payment due',
+        read_only: 'Read-only',
         canceled: 'Canceled',
     },
     usageTitle: 'Usage',

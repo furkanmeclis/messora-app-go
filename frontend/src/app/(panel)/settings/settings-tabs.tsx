@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+    CreditCard,
     Gem,
     Mail,
     MessageCircle,
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils';
 const ICONS = {
     general: SlidersHorizontal,
     plan: Gem,
+    billing: CreditCard,
     email: Mail,
     consent: MessageSquareOff,
     protection: ShieldAlert,

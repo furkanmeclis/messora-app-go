@@ -5,6 +5,12 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import {
     Building2,
+    CreditCard,
+    FileText,
+    Landmark,
+    ReceiptText,
+    Repeat,
+    TrendingUp,
     Gem,
     Inbox,
     KeyRound,
@@ -55,6 +61,30 @@ const OPERATIONS: Item[] = [
     { href: '/settings', label: 'platform.nav.settings', icon: Settings },
     { href: '/email', label: 'plans.admin.nav.email', icon: Mail },
 ];
+const BILLING: Item[] = [
+    { href: '/billing', label: 'billing.admin.nav.overview', icon: TrendingUp },
+    { href: '/payments', label: 'billing.admin.nav.payments', icon: Landmark },
+    {
+        href: '/subscriptions',
+        label: 'billing.admin.nav.subscriptions',
+        icon: Repeat,
+    },
+    {
+        href: '/proformas',
+        label: 'billing.admin.nav.proformas',
+        icon: FileText,
+    },
+    {
+        href: '/invoices',
+        label: 'billing.admin.nav.invoices',
+        icon: ReceiptText,
+    },
+    {
+        href: '/billing-settings',
+        label: 'billing.admin.nav.settings',
+        icon: CreditCard,
+    },
+];
 const CATALOGUE: Item[] = [
     { href: '/plans', label: 'plans.admin.nav.plans', icon: Gem },
     { href: '/ai-keys', label: 'plans.admin.nav.aiKeys', icon: KeyRound },
@@ -76,7 +106,9 @@ export function PlatformSidebar({
     const pathname = usePathname();
     const { theme, setTheme } = useTheme();
     const active = (href: string) =>
-        href === '/' ? pathname === '/' : pathname.startsWith(href);
+        href === '/'
+            ? pathname === '/'
+            : pathname === href || pathname.startsWith(href + '/');
     const group = (label: MessageKey, items: Item[]) => (
         <SidebarGroup>
             <SidebarGroupLabel>{t(label)}</SidebarGroupLabel>
@@ -117,6 +149,7 @@ export function PlatformSidebar({
             </SidebarHeader>
             <SidebarContent>
                 {group('platform.nav.operations', OPERATIONS)}
+                {group('billing.admin.nav.group', BILLING)}
                 {group('platform.nav.catalogue', CATALOGUE)}
             </SidebarContent>
             <SidebarFooter>
