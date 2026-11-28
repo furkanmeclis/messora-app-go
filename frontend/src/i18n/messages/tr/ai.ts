@@ -198,6 +198,8 @@ const ai: Messages['ai'] = {
         addPrice: 'Fiyat ekle',
     },
     prices: {
+        managedByPlatform:
+            'Fiyat tablosunu tüm çalışma alanları için Messora yönetir; AI maliyetleri buradan hesaplanır.',
         title: 'Fiyat tablosu',
         description:
             'Hiçbir sağlayıcı fiyatı API ile yayımlamıyor. Hazır gelen ve içe aktarılan satırlar bir yönetici kaynağıyla karşılaştırıp onaylayana kadar onaysızdır.',

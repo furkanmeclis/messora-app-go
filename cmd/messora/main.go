@@ -23,7 +23,7 @@ Commands:
   scheduler           Enqueue periodic tasks (leader-elected)
   migrate             Apply database migrations and exit
   init                Generate missing secrets into MESSORA_SECRETS_DIR and exit
-  setup token         Print a new one-time link for creating the first owner
+  admin create        Make an account a platform admin (--email, --name, --password-stdin)
   healthcheck <url>   Exit 0 if GET <url> returns 200 (for container healthchecks)
   version             Print the version
 `
@@ -48,12 +48,12 @@ func main() {
 		err = app.RunMigrate(ctx)
 	case "init":
 		err = app.RunInit(ctx)
-	case "setup":
-		if len(os.Args) != 3 || os.Args[2] != "token" {
-			fmt.Fprintln(os.Stderr, "usage: messora setup token")
+	case "admin":
+		if len(os.Args) < 3 || os.Args[2] != "create" {
+			fmt.Fprintln(os.Stderr, "usage: messora admin create --email <address> [--name <name>] [--password-stdin]")
 			os.Exit(2)
 		}
-		err = app.RunSetupToken(ctx)
+		err = app.RunAdminCreate(ctx, os.Args[3:])
 	case "healthcheck":
 		if len(os.Args) != 3 {
 			fmt.Fprintln(os.Stderr, "usage: messora healthcheck <url>")

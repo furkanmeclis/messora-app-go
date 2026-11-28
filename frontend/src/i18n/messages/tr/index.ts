@@ -29,6 +29,7 @@ import consent from './consent';
 import offers from './offers';
 import ai from './ai';
 import analytics from './analytics';
+import platform from './platform';
 
 export const tr: Messages = {
     common,
@@ -56,6 +57,7 @@ export const tr: Messages = {
     offers,
     ai,
     analytics,
+    platform,
     auth,
     overview,
     inbox,

@@ -15,7 +15,6 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
-	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tracing"
 )
 
@@ -68,11 +67,8 @@ func RunAPI(ctx context.Context) error {
 		return reportFatal(log, err)
 	}
 
-	// Start-up work of tenant #1: its setup link. TODO(WP2): the platform
-	// admin opens tenants. WhatsApp accounts are connected by each company
-	// in Settings; META_* credentials in the environment are not used.
-	first := tenant.WithID(ctx, tenant.DefaultID)
-	announceSetup(first, svc, log)
+	// WhatsApp accounts are connected by each company in Settings; META_*
+	// credentials in the environment are not used.
 	if len(cfg.ObsoleteEnv) > 0 {
 		log.Warn("ignored: Meta credentials are per company now (Settings → WhatsApp / Meta connection); remove these variables",
 			"variables", cfg.ObsoleteEnv)
@@ -100,21 +96,4 @@ func RunAPI(ctx context.Context) error {
 	flushTracing()
 	log.Info("stopped")
 	return nil
-}
-
-// announceSetup logs the one-time setup link while no user exists. Only the
-// replica that creates the token logs it.
-func announceSetup(ctx context.Context, svc *services, log interface {
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-}) {
-	token, err := svc.identity.EnsureSetupToken(ctx, false)
-	if err != nil {
-		log.Error("could not prepare the setup token", "err", err)
-		return
-	}
-	if token != "" {
-		log.Warn("Messora is not set up yet. Open this link to create the owner account (valid 24 hours, single use)",
-			"setup_url", svc.identity.SetupURL(token))
-	}
 }

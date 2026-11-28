@@ -49,11 +49,8 @@ func (h *harness) rawUpload(method, path, token, contentType string, body []byte
 
 func TestTwoFactorIsOptionalByDefault(t *testing.T) {
 	h := newHarness(t)
-	setupTok, _ := h.svc.identity.EnsureSetupToken(h.ctx(), false)
-	r := h.do(call{method: "POST", path: "/api/v1/setup", body: map[string]any{"token": setupTok, "name": "O", "email": "o@example.com", "password": ownerPassword}})
-	h.expect(r, 201, "")
-	token := r.data()["session_token"].(string)
-	r = h.do(call{method: "GET", path: "/api/v1/me", token: token})
+	token := h.ownerSession("o@example.com", "O")
+	r := h.do(call{method: "GET", path: "/api/v1/me", token: token})
 	if r.data()["mfa_required"] != false {
 		t.Fatalf("a fresh owner must not be forced to enrol: %s", r.raw)
 	}

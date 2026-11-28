@@ -115,8 +115,8 @@ SELECT * FROM media_files WHERE message_id = ANY(@message_ids::uuid[]) ORDER BY 
 -- Conversations can only be assigned to active users who can read them.
 SELECT u.id, u.name FROM users u
 WHERE u.id = @id AND u.status = 'active' AND EXISTS (
-    SELECT 1 FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
-    WHERE ur.user_id = u.id AND rp.permission_key IN ('conversations.read', 'conversations.read_all'));
+    SELECT 1 FROM tenant_memberships m JOIN role_permissions rp ON rp.role_id = m.role_id
+    WHERE m.user_id = u.id AND m.status = 'active' AND rp.permission_key IN ('conversations.read', 'conversations.read_all'));
 
 -- name: ListConversationsChangedSince :many
 -- Realtime re-sync after missed events: conversations changed at or after

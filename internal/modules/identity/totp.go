@@ -16,6 +16,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
@@ -51,7 +52,7 @@ func (s *Service) validateTOTP(ctx context.Context, userID uuid.UUID, secret, co
 			continue
 		}
 		step := t.Unix() / 30
-		set, err := s.rdb.SetNX(ctx, fmt.Sprintf("messora:totp:used:%s:%d", userID, step), 1, 3*time.Minute).Result()
+		set, err := s.rdb.SetNX(ctx, tenant.GlobalRedisKey(fmt.Sprintf("totp:used:%s:%d", userID, step)), 1, 3*time.Minute).Result()
 		if err != nil {
 			return false, err
 		}
@@ -149,6 +150,13 @@ func (s *Service) DisableTOTP(ctx context.Context, p *principal.Principal) error
 	}
 	if st.MFARequired(p.RoleKey) {
 		return apperr.Forbidden("MFA_REQUIRED_BY_POLICY", "Your role requires two-factor authentication")
+	}
+	// The second factor belongs to the person: a platform admin keeps it.
+	if u, err := s.q.GetUserByID(ctx, p.ID); err != nil || u.IsPlatformAdmin {
+		if err == nil {
+			err = apperr.Forbidden("MFA_REQUIRED_BY_POLICY", "Platform admins must keep two-factor authentication")
+		}
+		return err
 	}
 	return s.tx(ctx, func(q *db.Queries) error {
 		if err := q.SetTotpSecret(ctx, db.SetTotpSecretParams{ID: p.ID}); err != nil {

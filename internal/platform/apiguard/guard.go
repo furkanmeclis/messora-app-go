@@ -36,10 +36,34 @@ import (
 
 // Security scheme names used in the spec.
 const (
-	SchemePanel   = "panel"
-	SchemeSession = "session"
-	SchemeAPIKey  = "apiKey"
+	SchemePanel    = "panel"
+	SchemeSession  = "session"
+	SchemeAPIKey   = "apiKey"
+	SchemePlatform = "platform"
 )
+
+// HostExtension names the kind of host an operation is served on:
+// "tenant" (the default: a company's address), "platform" (the admin
+// host only) or "any" (sign-up and the other pages that work before a
+// workspace exists). Elsewhere the operation answers 404.
+const HostExtension = "x-messora-host"
+
+// Host scopes of HostExtension.
+const (
+	HostTenant   = "tenant"
+	HostPlatform = "platform"
+	HostAny      = "any"
+)
+
+func hostScope(op *openapi3.Operation) string {
+	if v, ok := op.Extensions[HostExtension].(string); ok {
+		return v
+	}
+	return HostTenant
+}
+
+// PlatformTokenPrefix distinguishes platform admin sessions.
+const PlatformTokenPrefix = "msp_"
 
 // Default request budgets per minute (GCRA, burst = rate). They are
 // published in the API documentation, so change them together with it.
@@ -64,6 +88,7 @@ const APIKeyPrefix = "msk_"
 type Authenticator interface {
 	AuthenticateSession(ctx context.Context, token string) (*principal.Principal, error)
 	AuthenticateAPIKey(ctx context.Context, key string) (*principal.Principal, error)
+	AuthenticatePlatformSession(ctx context.Context, token string) (*principal.Principal, error)
 }
 
 // Options configures the guard.
@@ -143,8 +168,28 @@ func New(spec *openapi3.T, o Options) (*Guard, error) {
 					return nil, fmt.Errorf("apiguard: %s %s allows anonymous access; use the panel scheme", method, path)
 				}
 				for scheme := range req {
-					if scheme != SchemePanel && scheme != SchemeSession && scheme != SchemeAPIKey {
+					if scheme != SchemePanel && scheme != SchemeSession && scheme != SchemeAPIKey && scheme != SchemePlatform {
 						return nil, fmt.Errorf("apiguard: %s %s uses unknown scheme %q", method, path, scheme)
+					}
+				}
+			}
+			// Platform operations live on the admin host and only there;
+			// nothing else may accept a platform session.
+			scope := hostScope(op)
+			if scope != HostTenant && scope != HostPlatform && scope != HostAny {
+				return nil, fmt.Errorf("apiguard: %s %s has unknown %s %q", method, path, HostExtension, scope)
+			}
+			platformPath := strings.HasPrefix(path, "/platform/")
+			if platformPath != (scope == HostPlatform) {
+				return nil, fmt.Errorf("apiguard: %s %s: /platform/ operations, and only they, are %s: platform", method, path, HostExtension)
+			}
+			for _, req := range *op.Security {
+				for scheme := range req {
+					if (scheme == SchemePlatform) != platformPath && scheme != SchemePanel {
+						return nil, fmt.Errorf("apiguard: %s %s: the platform scheme belongs to /platform/ operations", method, path)
+					}
+					if platformPath && (scheme == SchemeSession || scheme == SchemeAPIKey) {
+						return nil, fmt.Errorf("apiguard: %s %s: platform operations accept no workspace credentials", method, path)
 					}
 				}
 			}
@@ -174,6 +219,12 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 			span.SetName(r.Method + " /api/v1" + route.Path)
 			span.SetAttributes(attribute.String("http.route", "/api/v1"+route.Path), attribute.String("messora.operation", op.OperationID))
 		}
+		// Each kind of host serves its own operations: a workspace's
+		// address never serves the platform panel and vice versa.
+		if err := checkHost(r, hostScope(op)); err != nil {
+			httpx.WriteError(w, r, err, g.o.Logger)
+			return
+		}
 
 		p, err := g.authorize(r, *op.Security)
 		if err != nil {
@@ -186,6 +237,11 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 			// The embedded spec may change the case of operation IDs.
 			if p.MFAPending && !slices.ContainsFunc(g.o.MFAEnrolmentOps, func(id string) bool { return strings.EqualFold(id, op.OperationID) }) {
 				httpx.WriteError(w, r, apperr.Forbidden("MFA_SETUP_REQUIRED", "Set up two-factor authentication to continue"), g.o.Logger)
+				return
+			}
+			// A read-only support session changes nothing (sign-out aside).
+			if p.ReadOnly() && r.Method != http.MethodGet && r.Method != http.MethodHead && !slices.ContainsFunc(readOnlyOps, func(id string) bool { return strings.EqualFold(id, op.OperationID) }) {
+				httpx.WriteError(w, r, apperr.Forbidden("SUPPORT_READ_ONLY", "This support session is read-only"), g.o.Logger)
 				return
 			}
 		}
@@ -219,6 +275,29 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// readOnlyOps change nothing despite their method: a read-only support
+// session may call them (signing out, realtime connection tokens).
+var readOnlyOps = []string{"logout", "createRealtimeConnectionToken", "createRealtimeSubscriptionToken"}
+
+// checkHost refuses an operation on the wrong kind of host with 404, as if
+// it did not exist there.
+func checkHost(r *http.Request, scope string) error {
+	kind := tenant.HostKindOf(r.Context())
+	switch scope {
+	case HostAny:
+		return nil
+	case HostPlatform:
+		if kind != tenant.HostAdmin {
+			return &apperr.Error{Status: http.StatusNotFound, Code: "NOT_FOUND", Message: "Not found"}
+		}
+	default:
+		if _, ok := tenant.FromCtx(r.Context()); !ok || kind == tenant.HostAdmin || kind == tenant.HostPlatform {
+			return &apperr.Error{Status: http.StatusNotFound, Code: "TENANT_NOT_FOUND", Message: "There is no Messora workspace at this address"}
+		}
+	}
+	return nil
+}
+
 // errWrongTenant is the error for credentials of another tenant; it looks
 // exactly like an unknown token.
 func errWrongTenant(isKey bool) error {
@@ -244,28 +323,38 @@ func (g *Guard) authorize(r *http.Request, reqs openapi3.SecurityRequirements) (
 	// Authenticate once, lazily, for whichever scheme the token belongs to.
 	resolve := func(scheme string) (*principal.Principal, error) {
 		isKey := strings.HasPrefix(token, APIKeyPrefix)
+		isPlatform := strings.HasPrefix(token, PlatformTokenPrefix)
 		switch {
 		case token == "":
 			return nil, nil
-		case scheme == SchemeAPIKey && !isKey, scheme == SchemeSession && isKey:
+		case scheme == SchemeAPIKey && !isKey, scheme == SchemeSession && (isKey || isPlatform),
+			scheme == SchemePlatform && !isPlatform:
 			return nil, nil
-		case scheme == SchemeSession && !fromPanel:
+		case (scheme == SchemeSession || scheme == SchemePlatform) && !fromPanel:
 			// Session tokens are only honoured on the internal network.
 			return nil, nil
 		}
 		if authenticated != nil || authErr != nil {
 			return authenticated, authErr
 		}
-		if isKey {
+		switch {
+		case isPlatform:
+			authenticated, authErr = g.o.Auth.AuthenticatePlatformSession(ctx, token)
+			// Platform sessions work on the admin host only.
+			if authenticated != nil && (!authenticated.Platform || tenant.HostKindOf(ctx) != tenant.HostAdmin) {
+				authenticated, authErr = nil, errWrongTenant(false)
+			}
+			return authenticated, authErr
+		case isKey:
 			authenticated, authErr = g.o.Auth.AuthenticateAPIKey(ctx, token)
-		} else {
+		default:
 			authenticated, authErr = g.o.Auth.AuthenticateSession(ctx, token)
 		}
 		// A session or key works only at its own tenant's address. The
 		// lookup already ran as the host's tenant (row-level security), so
 		// a mismatch here means a bug; it is refused all the same.
 		if authenticated != nil {
-			if host, ok := tenant.FromCtx(ctx); !ok || authenticated.TenantID != host {
+			if host, ok := tenant.FromCtx(ctx); !ok || authenticated.TenantID != host || authenticated.Platform {
 				authenticated = nil
 				authErr = errWrongTenant(isKey)
 			}
@@ -282,13 +371,13 @@ func (g *Guard) authorize(r *http.Request, reqs openapi3.SecurityRequirements) (
 				if !fromPanel {
 					ok, panelOnly = false, true
 				}
-			case SchemeSession, SchemeAPIKey:
+			case SchemeSession, SchemeAPIKey, SchemePlatform:
 				p, err := resolve(scheme)
 				if err != nil || p == nil {
 					ok = false
 					continue
 				}
-				if (scheme == SchemeSession) != (p.Kind == principal.KindUser) {
+				if (scheme == SchemeAPIKey) == (p.Kind == principal.KindUser) || (scheme == SchemePlatform) != p.Platform {
 					ok = false
 					continue
 				}
@@ -362,6 +451,9 @@ func (g *Guard) rateLimit(w http.ResponseWriter, r *http.Request, p *principal.P
 		key = tenant.GlobalRedisKey("rl:api:anon:" + ip.String())
 	case p.Kind == principal.KindAPIKey:
 		key, lim = tenant.RedisKey(r.Context(), "rl:api:"+p.Key()), g.o.APIKeyLimit
+	case p.Platform:
+		// The admin panel's sessions belong to no tenant.
+		key, lim = tenant.GlobalRedisKey("rl:api:platform:"+p.Key()), g.o.SessionLimit
 	default:
 		key, lim = tenant.RedisKey(r.Context(), "rl:api:"+p.Key()), g.o.SessionLimit
 	}

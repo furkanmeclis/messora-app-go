@@ -107,9 +107,10 @@ func DefaultBrand() Brand {
 
 // Renderer renders e-mails for one brand. It is safe for concurrent use.
 type Renderer struct {
-	brand Brand
-	text  map[string]*texttemplate.Template
-	html  map[string]*htmltemplate.Template
+	brand     Brand
+	allowHTTP bool
+	text      map[string]*texttemplate.Template
+	html      map[string]*htmltemplate.Template
 }
 
 // New parses every template for brand.
@@ -155,6 +156,15 @@ func New(brand Brand) (*Renderer, error) {
 		}
 	}
 	return r, nil
+}
+
+// AllowHTTP returns a renderer that also accepts plain http links. Only for
+// development and test stacks that run without TLS (PUBLIC_APP_URL on
+// http://); production e-mail links are always https.
+func (r *Renderer) AllowHTTP() *Renderer {
+	c := *r
+	c.allowHTTP = true
+	return &c
 }
 
 var (
@@ -219,7 +229,7 @@ func (r *Renderer) Email(kind Kind, locale string, data Data) (Email, error) {
 		return Email{}, fmt.Errorf("%w: %s: got data for %s", ErrInvalidData, kind, data.kind())
 	}
 	c := data.common()
-	var v validator
+	v := validator{allowHTTP: r.allowHTTP}
 	c.validateCommon(&v, unsubscribable[kind])
 	data.validate(&v)
 	if err := v.err(string(kind)); err != nil {

@@ -30,19 +30,48 @@ if err == nil {
 `Render(kind, locale, data)` returns `subject, text, html`; `Email(...)` also
 returns the preheader and the unsubscribe URL.
 
+### Who sends what (identity)
+
+`internal/modules/identity` sends every identity e-mail through the
+templates, in the recipient's language (`users.locale`; an invitation to a
+new address uses the workspace's default language), branded with the
+workspace's name and logo (`TenantName`, `TenantLogoURL` =
+`<workspace>/bff/logo?v=…`) and with absolute links to the workspace's
+primary address (`https://<slug>.<base>` or its custom domain):
+
+| Kind | Sent by | Link |
+| --- | --- | --- |
+| `verify_email` | sign-up, "resend" | `<workspace>/verify-email?token=msv_…` (24 h) |
+| `welcome` | after the address is verified | dashboard, channels, contacts, new campaign |
+| `password_reset` | "forgot password" on a workspace, a platform admin's forced reset | `<workspace>/reset-password?token=msr_…` (30 min) |
+| `password_changed` | password change or reset | `<workspace>/forgot-password` ("wasn't you?") |
+| `invitation` | a member's invitation, a platform admin's owner invitation ("Messora" as the inviter) | `<workspace>/invite?token=msi_…` (7 days) |
+| `login_alert` | a sign-in from an IP the person never used in that workspace (not the first sign-in) | `<workspace>/forgot-password` |
+| `email_change_confirm` | an address change, sent to the new address | `<workspace>/confirm-email?token=mse_…` (24 h) |
+
+`two_factor_code` is not used: the second factor is TOTP. E-mail is best
+effort: a failed send is logged and the action still succeeds (the
+invitation link is also returned once in the API response).
+
+On stacks whose `PUBLIC_APP_URL` is plain `http://` (development, E2E) the
+renderer is switched to `Renderer.AllowHTTP()` so links may be http; in
+production every link must be https.
+
 ### Delivery: Resend
 
 The platform sends through **Resend** over SMTP: host `smtp.resend.com`, port
 `465`, `SMTP_TLS=tls`, user `resend`, password = the Resend API key, and a
 `SMTP_FROM` on a domain verified in Resend (SPF/DKIM). Enterprise tenants may
 send through their own SMTP server (entitlement `custom_smtp`); that per-tenant
-sender is wired in Phase 17 WP8. The templates do not depend on the transport.
+sender is wired in Phase 17 WP8 (`settings.Mail.customSMTP`, a `TODO(WP8)`
+hook; until then `SMTP_HOST` wins for every company when it is set). The
+templates do not depend on the transport.
 
 ## Templates
 
 | Kind | When | Unsubscribe |
 | --- | --- | --- |
-| `verify_email` | Sign-up: code + button, expiry | no |
+| `verify_email` | Sign-up: button (and an optional code), expiry | no |
 | `password_reset` | "Forgot password": button, expiry, "didn't request this?" | no |
 | `password_changed` | Security notice after a password change | no |
 | `invitation` | Invited to a workspace by X with role Y; accept button, expiry | no |

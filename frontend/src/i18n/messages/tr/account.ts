@@ -11,7 +11,7 @@ const account: Messages['account'] = {
         language: 'Dil',
         saved: 'Profil kaydedildi.',
         email: 'E-posta adresi',
-        emailHint: 'Giriş adresiniz. Değiştirmek için bir yöneticiye başvurun.',
+        emailHint: 'Tüm çalışma alanlarındaki giriş adresiniz.',
         regional: 'Dil ve bölge',
         regionalHint: 'Paneldeki tarih ve saatler bunlara göre gösterilir.',
         localTime: 'Yerel saatiniz: {time}',
@@ -29,6 +29,15 @@ const account: Messages['account'] = {
         personalThemeHint: 'Yalnızca sizin için, bu cihazda.',
         keyboardHint:
             'Klavye kısayollarını görmek için herhangi bir yerde ? tuşuna basın.',
+    },
+    emailChange: {
+        open: 'E-posta adresini değiştir',
+        title: 'E-posta adresinizi değiştirin',
+        description:
+            'Tüm çalışma alanlarında {current} ile giriş yapıyorsunuz. Yeni adrese bir doğrulama bağlantısı göndeririz; bağlantıyı açtığınızda değişiklik uygulanır.',
+        newEmail: 'Yeni e-posta adresi',
+        submit: 'Doğrulama bağlantısı gönder',
+        sent: '{email} adresini kontrol edin: değişikliği oradaki bağlantıyla onaylayın.',
     },
     security: {
         title: 'Güvenlik',

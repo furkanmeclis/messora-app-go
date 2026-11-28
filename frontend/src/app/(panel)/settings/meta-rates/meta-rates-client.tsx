@@ -24,6 +24,7 @@ export function MetaRates({
     readOnly,
 }: {
     rates: Rate[];
+    /** Workspaces only read the card; the platform admin panel imports it. */
     readOnly: boolean;
 }) {
     const t = useT();
@@ -77,6 +78,14 @@ export function MetaRates({
                 description={t('settings.metaRates.description')}
             >
                 <div className="space-y-4">
+                    {readOnly && (
+                        <p
+                            role="note"
+                            className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground"
+                        >
+                            {t('settings.metaRates.managedByPlatform')}
+                        </p>
+                    )}
                     {!readOnly && (
                         <FileDrop
                             key={key}

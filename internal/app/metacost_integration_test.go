@@ -3,11 +3,7 @@
 package app
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
-	"mime/multipart"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -17,7 +13,6 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
-	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/testutil"
 )
 
@@ -31,27 +26,13 @@ Turkey,,marketing,0.5000,TRY,2020-01-01,,,test fixture
 Other,,marketing,0.0900,USD,2020-01-01,,,test fixture
 `
 
-// uploadRates posts a rate card as multipart/form-data, as the panel does.
-func (h *harness) uploadRates(token, csv string) resp {
+// uploadRates imports a rate card in the platform admin panel (the card is
+// shared by every workspace; token, a workspace session, cannot).
+func (h *harness) uploadRates(_ string, csv string) resp {
 	h.t.Helper()
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	fw, _ := mw.CreateFormFile("file", "rates.csv")
-	_, _ = io.WriteString(fw, csv)
-	_ = mw.Close()
-	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/api/v1/settings/meta-rates/import", &buf)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set(httpx.BFFHeader, bffSecret)
-	req.Header.Set("Authorization", "Bearer "+token)
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	defer res.Body.Close()
-	raw, _ := io.ReadAll(res.Body)
-	out := resp{status: res.StatusCode, header: res.Header, raw: raw}
+	status, raw := h.multipartAt(adminHost, h.platformSession(), "/api/v1/platform/meta-rates/import", "rates.csv", []byte(csv))
+	out := resp{status: status, raw: raw}
 	_ = json.Unmarshal(raw, &out.body)
-	h.validate(req, out)
 	return out
 }
 

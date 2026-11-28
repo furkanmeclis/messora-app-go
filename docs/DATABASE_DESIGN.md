@@ -35,9 +35,22 @@
 - **Platform tohumları:** AI fiyat tablosunu `messora migrate` sahip rolüyle tohumlar; işaret `platform_settings.ai_prices_seeded`'dadır (00029).
 - **CI kontrolü:** `TestEveryTableIsTenantScoped` yeni bir tablonun kiracıya bağlanmadan eklenmesini engeller.
 
+### 1.2 Global hesaplar ve platform tabloları (Phase 17 WP2, migrasyon 00031)
+
+- **Hesap global, rol üyelikte:** `users` artık kiracıya bağlı değildir (RLS yok); `email` (`citext`) bütün platformda tekildir. `email_verified_at` (kayıtta boş; davet ve sıfırlama bağlantısı doğrular), `is_platform_admin`, `password_reset_required` eklendi. `user_recovery_codes` de kişiye aittir. `messora_app` hesapları okur ve günceller (giriş, profil, parola, TOTP), davet kabulünde oluşturur, **silemez**.
+- **`tenant_memberships (tenant_id, user_id, role_id, status, invited_by, created_at, updated_at)`**, birincil anahtar `(tenant_id, user_id)`, RLS'li. Firmadaki rol ve durum (`active | disabled`) buradadır; `user_roles` kaldırıldı. Taşıma: her kullanıcı kendi kiracısına en yetkili rolüyle ve eski durumuyla üye oldu, hesabı aktif kaldı.
+- **Oturumlar:** `user_sessions` kiracıya bağlı kalır; `user_id → users(id)` (bileşik anahtar yok: destek oturumunun üyeliği yoktur). `support_grant_id → support_access_grants` ve `read_only` destek oturumunu işaretler. Üye oturumu her istekte etkin üyelik ister.
+- **`tenants`:** `subscription_status` (`trial | active | past_due | canceled`, varsayılan `active`), `trial_ends_at`, `suspended_reason` (≤ 500). Yaşam döngüsü (`status`) ayrıdır. `tenant_reserved_slugs()` artık kayıt formunun listesidir (12 ad); yeni slug kuralı uygulamada 3–30 karakter, eski satırlar yeniden denetlenmez.
+- **`tenant_domains`:** `verification_token` (`messora-verify=<hex>`, `_messora.<alan>` TXT kaydı), `last_checked_at`, `last_check_error`.
+- **Platform tabloları (RLS yok, `messora_app` erişemez):** `platform_sessions` (platform panelinin oturumları; `token_hash` tekil, 12 saat), `email_verification_tokens` (`user_id`, giriş yapılacak firma `tenant_id`, `token_hash`, `expires_at`, `used_at`), `platform_audit_logs` (`actor_id`, `actor_email`, `action`, `entity_type`, `entity_id`, ilgili firma `tenant_id`, istek bilgileri, `changes`). Bu üçünde ve `tenant_domains`'te `tenant_id` "hangi firma hakkında" demektir, satırı kiracıya bağlamaz.
+- **`support_access_grants (tenant_id, admin_id, reason, read_only, created_at, expires_at, ended_at)`:** kiracıya bağlı ve RLS'li (firma kendi kayıtlarını görür); `messora_app` yalnızca okur, platform rolü yazar.
+- **`messora_platform` rolü:** `NOLOGIN NOBYPASSRLS`, `messora_app`'e `WITH INHERIT FALSE, SET TRUE`. Yetkileri: kayıt tabloları, katalog ve platform tablolarında DML; `users` SELECT/INSERT/UPDATE; `tenant_memberships`, `user_sessions`, `support_access_grants`'ta `platform_access` politikası (bütün kiracılar); `settings`, `user_invitations`, `audit_logs`, `password_reset_tokens`'ta yalnızca transaction'ın kiracısı (`set_config('app.tenant_id', …, true)`). `meta_rates`, `meta_rate_markets`, `ai_model_prices` artık yalnızca platform rolüyle yazılır.
+- **Down:** 00031 Down hesapları ilk üyeliklerinin kiracısına geri taşır; birden çok firmada üyeliği olan kişi varsa bilerek başarısız olur.
+
 ## 2. Kimlik, yetki, sistem
 
 ```sql
+-- Phase 17 WP2: users is global; roles live in tenant_memberships (§1.2).
 users (
   id uuid PK, email citext UNIQUE NOT NULL, name text NOT NULL,
   password_hash text NOT NULL,                 -- argon2id PHC string

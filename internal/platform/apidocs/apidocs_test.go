@@ -124,12 +124,18 @@ func TestPublicKeepsOnlyAPIKeyOperations(t *testing.T) {
 	if !slices.Equal(got, wantPublic) {
 		t.Fatalf("public operations differ:\n got %v\nwant %v", got, wantPublic)
 	}
+	for _, o := range apidocs.Operations(full) {
+		if apidocs.IsPlatformPath(o.Path) && apidocs.IsPublic(o.Op) {
+			t.Errorf("platform operation %s %s accepts API keys", o.Method, o.Path)
+		}
+	}
 	if len(wantPublic) < 40 || len(internal) < 40 {
 		t.Fatalf("suspicious split: %d public, %d internal", len(wantPublic), len(internal))
 	}
 	// Known panel-only operations never leak.
 	b, _ := json.Marshal(pub)
-	for _, leak := range []string{`"/auth/login"`, `"/setup"`, `"/users"`, `"/roles"`, `"/api-keys"`, `"panel":`, `"session":`, "X-Messora-BFF", "LoginRequest"} {
+	for _, leak := range []string{`"/auth/login"`, `"/auth/signup"`, `"/users"`, `"/roles"`, `"/api-keys"`, `"panel":`, `"session":`, `"platform":`,
+		`"/platform/`, "msp_", "X-Messora-BFF", "LoginRequest", "PlatformTenant", "SupportGrant", "x-messora-host"} {
 		if strings.Contains(string(b), leak) {
 			t.Errorf("public document contains %s", leak)
 		}

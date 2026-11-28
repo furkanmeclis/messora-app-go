@@ -7,7 +7,6 @@ import { getT } from '@/i18n/server';
 import type { ActionResult, Schemas } from '@/lib/types';
 
 type Provider = Schemas['AIProvider'];
-type Price = Schemas['AIPrice'];
 
 function refresh() {
     revalidatePath('/settings/ai', 'layout');
@@ -104,49 +103,6 @@ export async function syncModelsAction(
                     method: 'POST',
                 })
             ).data,
-    );
-    refresh();
-    return r;
-}
-
-export async function createPriceAction(
-    body: Schemas['CreateAIPriceRequest'],
-): Promise<ActionResult<Price>> {
-    const t = await getT();
-    const r = await runAction(
-        async () =>
-            (await api<Price>('/ai/prices', { method: 'POST', body })).data,
-        t('ai.prices.created'),
-    );
-    refresh();
-    return r;
-}
-
-export async function updatePriceAction(
-    id: string,
-    body: Schemas['UpdateAIPriceRequest'],
-): Promise<ActionResult<Price>> {
-    const t = await getT();
-    const r = await runAction(
-        async () =>
-            (
-                await api<Price>(`/ai/prices/${id}`, {
-                    method: 'PATCH',
-                    body,
-                })
-            ).data,
-        t('ai.prices.saved'),
-    );
-    refresh();
-    return r;
-}
-
-export async function deletePriceAction(id: string): Promise<ActionResult> {
-    const t = await getT();
-    const r = await runAction(
-        () =>
-            api(`/ai/prices/${id}`, { method: 'DELETE' }).then(() => undefined),
-        t('ai.prices.deleted'),
     );
     refresh();
     return r;

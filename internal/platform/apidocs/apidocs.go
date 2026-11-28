@@ -121,6 +121,10 @@ func requirements(op map[string]any) []map[string]any {
 	return out
 }
 
+// IsPlatformPath reports whether path belongs to the platform admin panel
+// (/platform/…), which the public document never contains.
+func IsPlatformPath(path string) bool { return strings.HasPrefix(path, "/platform/") }
+
 // IsPublic reports whether an API key may call the operation.
 func IsPublic(op map[string]any) bool {
 	for _, r := range requirements(op) {
@@ -186,6 +190,11 @@ func Public(full Doc, o Options) (Doc, error) {
 	usedTags := map[string]bool{}
 	paths, _ := d["paths"].(map[string]any)
 	for path, raw := range paths {
+		// The platform admin panel is never public, whatever it declares.
+		if IsPlatformPath(path) {
+			delete(paths, path)
+			continue
+		}
 		item, _ := raw.(map[string]any)
 		kept := 0
 		for _, m := range Methods {

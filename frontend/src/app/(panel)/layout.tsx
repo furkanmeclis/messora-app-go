@@ -14,6 +14,8 @@ import { api } from '@/lib/server/api';
 import type { Campaign, Conversation } from '@/lib/types';
 import { Topbar, type RunningCampaign } from './topbar';
 import { SetupBanner } from './setup-banner';
+import { SupportBanner } from './support-banner';
+import { myMemberships } from '@/lib/server/memberships';
 
 export default async function PanelLayout({
     children,
@@ -57,6 +59,9 @@ export default async function PanelLayout({
                         .catch(() => [] as RunningCampaign[])
                   : Promise.resolve([] as RunningCampaign[]),
           ]);
+    // The person's other workspaces (the switcher); support sessions have none.
+    const workspaces =
+        me.support || me.mfa_required ? [] : await myMemberships();
     // Channels the role may read; the API checks the same rules again when
     // it issues each subscription token.
     const channels: string[] = [];
@@ -81,6 +86,7 @@ export default async function PanelLayout({
                         organization={appearance.organization_name}
                         logoVersion={appearance.logo?.version}
                         restricted={me.mfa_required}
+                        workspaces={workspaces}
                     />
                     <SidebarInset>
                         <Shortcuts
@@ -97,7 +103,11 @@ export default async function PanelLayout({
                         <ReauthProvider mfaEnabled={me.user.mfa_enabled}>
                             <ConfirmProvider>
                                 <div className="w-full flex-1 p-4 md:p-6 xl:px-8">
+                                    {me.support && (
+                                        <SupportBanner support={me.support} />
+                                    )}
                                     {isOwner &&
+                                        !me.support &&
                                         !appearance.setup_completed &&
                                         !me.mfa_required && (
                                             <SetupBanner

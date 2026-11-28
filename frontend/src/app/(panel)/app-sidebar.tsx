@@ -5,7 +5,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { useTheme } from 'next-themes';
 import {
+    ArrowLeftRight,
     BookOpen,
+    Building2,
     Check,
     ChevronsUpDown,
     Languages,
@@ -44,7 +46,9 @@ import { notify } from '@/components/notify';
 import { useLocale, useT } from '@/i18n/client';
 import { localeNames, locales } from '@/i18n/config';
 import { activeNav, visibleNav, type NavItem } from '@/lib/navigation';
+import type { Membership } from '@/lib/auth/contracts';
 import type { User } from '@/lib/types';
+import { switchWorkspaceAction } from '../(auth)/actions';
 import { setLanguageAction } from './actions';
 
 function initials(name: string) {
@@ -82,12 +86,15 @@ export function AppSidebar({
     organization,
     logoVersion,
     restricted,
+    workspaces = [],
 }: {
     user: User;
     permissions: string[];
     organization: string;
     logoVersion?: string | null;
     restricted: boolean;
+    /** The person's workspaces; with more than one a switcher shows. */
+    workspaces?: Membership[];
 }) {
     const t = useT();
     const locale = useLocale();
@@ -242,6 +249,55 @@ export function AppSidebar({
                                         ))}
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
+                                {workspaces.length > 1 && (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuSub>
+                                            <DropdownMenuSubTrigger data-testid="workspace-switcher">
+                                                <ArrowLeftRight className="size-4" />
+                                                {t('topbar.workspaces')}
+                                            </DropdownMenuSubTrigger>
+                                            <DropdownMenuSubContent className="w-64">
+                                                {workspaces.map((w) => (
+                                                    <DropdownMenuItem
+                                                        key={w.tenant.id}
+                                                        asChild
+                                                        disabled={w.current}
+                                                    >
+                                                        <form
+                                                            action={
+                                                                switchWorkspaceAction
+                                                            }
+                                                        >
+                                                            <input
+                                                                type="hidden"
+                                                                name="tenant_id"
+                                                                value={
+                                                                    w.tenant.id
+                                                                }
+                                                            />
+                                                            <button
+                                                                type="submit"
+                                                                className="flex w-full items-center gap-2 text-left"
+                                                            >
+                                                                <Building2 className="size-4" />
+                                                                <span className="min-w-0 flex-1 truncate">
+                                                                    {
+                                                                        w.tenant
+                                                                            .name
+                                                                    }
+                                                                </span>
+                                                                {w.current && (
+                                                                    <Check className="size-4" />
+                                                                )}
+                                                            </button>
+                                                        </form>
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                    </>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem asChild>
                                     <form action="/logout" method="post">

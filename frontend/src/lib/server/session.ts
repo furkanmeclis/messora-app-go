@@ -13,6 +13,11 @@ function names() {
         secure,
         session: secure ? '__Host-messora_session' : 'messora_session',
         mfa: secure ? '__Host-messora_mfa' : 'messora_mfa',
+        // The platform admin panel (admin host) has cookies of its own.
+        platform: secure ? '__Host-messora_platform' : 'messora_platform',
+        platformMfa: secure
+            ? '__Host-messora_platform_mfa'
+            : 'messora_platform_mfa',
     };
 }
 
@@ -68,6 +73,41 @@ export async function clearSession() {
     const jar = await cookies();
     jar.delete({ name: n.session, path: '/' });
     jar.delete({ name: n.mfa, path: '/' });
+    jar.delete({ name: n.platform, path: '/' });
+    jar.delete({ name: n.platformMfa, path: '/' });
+}
+
+// ── Platform admin panel ────────────────────────────────────────────────
+
+export async function getPlatformToken(): Promise<string | undefined> {
+    return (await cookies()).get(names().platform)?.value;
+}
+
+/** The platform session lives until the browser closes (12 h at most). */
+export async function setPlatformToken(token: string) {
+    const n = names();
+    (await cookies()).set(n.platform, token, base(n.secure));
+}
+
+export async function setPlatformMfaToken(token: string) {
+    const n = names();
+    (await cookies()).set(n.platformMfa, token, {
+        ...base(n.secure),
+        maxAge: 300,
+    });
+}
+
+export async function getPlatformMfaToken(): Promise<string | undefined> {
+    return (await cookies()).get(names().platformMfa)?.value;
+}
+
+export async function clearPlatformMfaToken() {
+    (await cookies()).delete({ name: names().platformMfa, path: '/' });
+}
+
+/** Platform cookie names, for the edge proxy's signed-in check. */
+export function platformCookieNames() {
+    return ['__Host-messora_platform', 'messora_platform'];
 }
 
 /** Pending second-factor challenge between the password and code steps. */

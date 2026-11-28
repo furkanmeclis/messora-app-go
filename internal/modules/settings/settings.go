@@ -199,8 +199,8 @@ func NewStore(q db.Querier, ttl time.Duration) *Store {
 }
 
 // SetOverrides installs values from environment variables (setting name →
-// value). They are applied on every read, never stored, and the panel cannot
-// change them.
+// value). They are applied on every read of tenant #1, never stored, and
+// its panel cannot change them. Other companies are not affected.
 func (s *Store) SetOverrides(env map[string]string) error {
 	var p Patch
 	for name, v := range env {
@@ -247,8 +247,14 @@ func (s *Store) SetOverrides(env map[string]string) error {
 	return nil
 }
 
-// withOverrides applies the environment values to a stored document.
-func (s *Store) withOverrides(v Settings) Settings {
+// withOverrides applies the environment values to a stored document. They
+// belong to tenant #1 (the installation's first workspace) only: another
+// company's settings are its own.
+func (s *Store) withOverrides(ctx context.Context, v Settings) Settings {
+	if tenant.ID(ctx) != tenant.DefaultID {
+		v.Locked = []string{}
+		return v
+	}
 	s.mu.Lock()
 	p, locked := s.overrides, s.locked
 	s.mu.Unlock()
@@ -271,7 +277,7 @@ func (s *Store) Get(ctx context.Context) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
-	v = s.withOverrides(v)
+	v = s.withOverrides(ctx, v)
 	s.cache.Set(ctx, v)
 	return v, nil
 }
@@ -299,9 +305,7 @@ func (s *Store) Update(ctx context.Context, q db.Querier, p Patch, updatedBy *uu
 	if err != nil {
 		return
 	}
-	s.mu.Lock()
-	old.Locked = s.locked
-	s.mu.Unlock()
+	old.Locked = s.withOverrides(ctx, Settings{}).Locked
 	stored, err := old.Apply(p)
 	if err != nil {
 		return
@@ -309,7 +313,7 @@ func (s *Store) Update(ctx context.Context, q db.Querier, p Patch, updatedBy *uu
 	if err = s.save(ctx, q, stored, updatedBy); err != nil {
 		return
 	}
-	return s.withOverrides(old), s.withOverrides(stored), nil
+	return s.withOverrides(ctx, old), s.withOverrides(ctx, stored), nil
 }
 
 func (s *Store) save(ctx context.Context, q db.Querier, v Settings, updatedBy *uuid.UUID) error {

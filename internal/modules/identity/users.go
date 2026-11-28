@@ -13,7 +13,8 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
-	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer/templates"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
@@ -31,7 +32,7 @@ func canAssign(actor *principal.Principal, role string) bool {
 	return actor.RoleKey == "owner" || r > actor.RoleRank
 }
 
-// ListUsers returns every user with its role.
+// ListUsers returns every member of the workspace with their role.
 func (s *Service) ListUsers(ctx context.Context) ([]api.User, error) {
 	rows, err := s.q.ListUsersWithRole(ctx)
 	if err != nil {
@@ -46,9 +47,10 @@ func (s *Service) ListUsers(ctx context.Context) ([]api.User, error) {
 	return out, nil
 }
 
-// UpdateUser changes another user's role and/or status, enforcing:
-// no self-modification, no acting on more privileged users, owner-only owner
-// grants, and never fewer than one active owner.
+// UpdateUser changes another member's role and/or membership status (the
+// account itself stays as it is: it may belong to other workspaces),
+// enforcing: no self-modification, no acting on more privileged users,
+// owner-only owner grants, and never fewer than one active owner.
 func (s *Service) UpdateUser(ctx context.Context, actor *principal.Principal, id uuid.UUID, req api.UpdateUserRequest) (api.User, error) {
 	if req.Role == nil && req.Status == nil {
 		return api.User{}, apperr.Validation("role", "Nothing to change")
@@ -61,14 +63,17 @@ func (s *Service) UpdateUser(ctx context.Context, actor *principal.Principal, id
 		if err := q.LockOwnerChanges(ctx); err != nil {
 			return err
 		}
-		target, err := q.GetUserForUpdate(ctx, id)
+		target, err := q.GetUserByID(ctx, id)
 		if isNoRows(err) {
 			return apperr.NotFound("User not found")
 		}
 		if err != nil {
 			return err
 		}
-		cur, err := q.GetUserRole(ctx, id)
+		cur, err := q.GetMembershipForUpdate(ctx, id)
+		if isNoRows(err) {
+			return apperr.NotFound("User not found")
+		}
 		if err != nil {
 			return err
 		}
@@ -87,10 +92,10 @@ func (s *Service) UpdateUser(ctx context.Context, actor *principal.Principal, id
 			}
 			changes["role"] = []string{cur.RoleKey, newRole}
 		}
-		newStatus := target.Status
-		if req.Status != nil && string(*req.Status) != target.Status {
+		newStatus := cur.Status
+		if req.Status != nil && string(*req.Status) != cur.Status {
 			newStatus = string(*req.Status)
-			if err := q.SetUserStatus(ctx, db.SetUserStatusParams{ID: id, Status: newStatus}); err != nil {
+			if err := q.SetMembershipStatus(ctx, db.SetMembershipStatusParams{UserID: id, Status: newStatus}); err != nil {
 				return err
 			}
 			if newStatus == "disabled" {
@@ -98,7 +103,7 @@ func (s *Service) UpdateUser(ctx context.Context, actor *principal.Principal, id
 					return err
 				}
 			}
-			changes["status"] = []string{target.Status, newStatus}
+			changes["status"] = []string{cur.Status, newStatus}
 		}
 		if cur.RoleKey == "owner" && (newRole != "owner" || newStatus != "active") {
 			n, err := q.CountActiveOwners(ctx)
@@ -114,7 +119,9 @@ func (s *Service) UpdateUser(ctx context.Context, actor *principal.Principal, id
 				return err
 			}
 		}
-		target.Status = newStatus
+		if target.Status == "active" {
+			target.Status = newStatus
+		}
 		roleName := strings.ToUpper(newRole[:1]) + newRole[1:]
 		out = toAPIUser(target, newRole, roleName)
 		return nil
@@ -124,8 +131,10 @@ func (s *Service) UpdateUser(ctx context.Context, actor *principal.Principal, id
 
 // ── Invitations ────────────────────────────────────────────────────────────
 
-// CreateInvitation invites email with role. The acceptance link is returned
-// once and e-mailed when e-mail is configured.
+// CreateInvitation invites email with role. The address may already have
+// an account (a person in another workspace): accepting then adds a
+// membership instead of creating one. The acceptance link is returned once
+// and e-mailed when e-mail is configured.
 func (s *Service) CreateInvitation(ctx context.Context, actor *principal.Principal, req api.CreateInvitationRequest) (api.InvitationCreated, error) {
 	email, err := normalizeEmail("email", string(req.Email))
 	if err != nil {
@@ -135,14 +144,29 @@ func (s *Service) CreateInvitation(ctx context.Context, actor *principal.Princip
 	if !canAssign(actor, role) {
 		return api.InvitationCreated{}, apperr.Forbidden("INSUFFICIENT_ROLE", "You cannot invite users with this role")
 	}
+	return s.invite(ctx, actor, email, role)
+}
+
+// invite creates an invitation into the connection's workspace (also used
+// by the platform admin panel for owners) and e-mails it.
+func (s *Service) invite(ctx context.Context, actor *principal.Principal, email, role string) (api.InvitationCreated, error) {
 	token, err := crypto.NewToken(inviteTokenPrefix)
 	if err != nil {
 		return api.InvitationCreated{}, err
 	}
+	var invitedBy *uuid.UUID
+	inviter := ""
+	if actor != nil {
+		invitedBy, inviter = uuidPtr(actor.ID), actor.Name
+	}
 	var row db.CreateInvitationRow
 	err = s.tx(ctx, func(q *db.Queries) error {
-		if _, err := q.GetUserByEmail(ctx, email); err == nil {
-			return apperr.Conflict("USER_EXISTS", "A user with this e-mail address already exists")
+		if u, err := q.GetUserByEmail(ctx, email); err == nil {
+			if _, err := q.GetUserRole(ctx, u.ID); err == nil {
+				return apperr.Conflict("USER_EXISTS", "This person is already a member of this workspace")
+			} else if !isNoRows(err) {
+				return err
+			}
 		} else if !isNoRows(err) {
 			return err
 		}
@@ -150,7 +174,7 @@ func (s *Service) CreateInvitation(ctx context.Context, actor *principal.Princip
 			return err
 		}
 		row, err = q.CreateInvitation(ctx, db.CreateInvitationParams{
-			Email: email, RoleKey: role, TokenHash: crypto.HashToken(token), InvitedBy: uuidPtr(actor.ID), ExpiresAt: s.now().Add(invitationTTL),
+			Email: email, RoleKey: role, TokenHash: crypto.HashToken(token), InvitedBy: invitedBy, ExpiresAt: s.now().Add(invitationTTL),
 		})
 		if err != nil {
 			if strings.Contains(err.Error(), "user_invitations_open_email_idx") {
@@ -158,33 +182,52 @@ func (s *Service) CreateInvitation(ctx context.Context, actor *principal.Princip
 			}
 			return err
 		}
-		return audit.Record(ctx, q, audit.Entry{Action: "invitation.create", EntityType: "invitation", EntityID: uuidPtr(row.ID), Changes: map[string]any{"email": email, "role": role}})
+		return audit.RecordInTenant(ctx, q, audit.Entry{Action: "invitation.create", EntityType: "invitation", EntityID: uuidPtr(row.ID),
+			Changes: map[string]any{"email": email, "role": role}})
 	})
 	if err != nil {
 		return api.InvitationCreated{}, err
 	}
-	link := s.o.PublicAppURL + "/invite?token=" + token
-	sent := false
-	if s.mail.Enabled(ctx) {
-		st, _ := s.settings.Get(ctx)
-		err := s.mail.Send(ctx, mailer.Message{
-			To:      email,
-			Subject: fmt.Sprintf("%s invited you to %s", actor.Name, st.OrganizationName),
-			Body: fmt.Sprintf("Hello,\n\n%s invited you to join %s on Messora as %s.\n\nAccept the invitation within 7 days:\n\n%s\n",
-				actor.Name, st.OrganizationName, role, link),
-		})
-		if err != nil {
-			s.o.Logger.ErrorContext(ctx, "invitation e-mail failed", "invitation_id", row.ID, "err", err)
-		} else {
-			sent = true
-		}
+	w, err := s.workspaceOf(ctx, tenant.ID(ctx))
+	if err != nil {
+		return api.InvitationCreated{}, err
 	}
-	inviter := actor.Name
+	link := w.link("/invite", "token", token)
+	// The invitee's language is unknown: an existing account has one,
+	// otherwise the workspace's default.
+	locale := "en"
+	if st, err := s.settings.Get(ctx); err == nil {
+		locale = st.DefaultLocale
+	}
+	if u, err := s.q.GetUserByEmail(ctx, email); err == nil {
+		locale = u.Locale
+	}
+	if inviter == "" {
+		inviter = "Messora"
+	}
+	sent := s.sendTo(ctx, w, email, locale, templates.Invitation, templates.InvitationData{
+		Common: w.common(""), InviterName: inviter, WorkspaceName: w.Name, Role: roleLabel(role, locale),
+		AcceptURL: link, ExpiresIn: invitationTTL,
+	})
+	var by *string
+	if actor != nil {
+		by = &inviter
+	}
 	return api.InvitationCreated{
-		Invitation: api.Invitation{Id: row.ID, Email: row.Email, Role: roleRef(role), InvitedBy: &inviter, CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, Status: api.InvitationStatusPending},
+		Invitation: api.Invitation{Id: row.ID, Email: row.Email, Role: roleRef(role), InvitedBy: by, CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, Status: api.InvitationStatusPending},
 		AcceptUrl:  link,
 		EmailSent:  sent,
 	}, nil
+}
+
+// InviteOwner invites an owner into workspace tenantID on behalf of a
+// platform admin (actor is nil: the invitation reads "from Messora").
+func (s *Service) InviteOwner(ctx context.Context, tenantID uuid.UUID, email string) (api.InvitationCreated, error) {
+	email, err := normalizeEmail("email", email)
+	if err != nil {
+		return api.InvitationCreated{}, err
+	}
+	return s.invite(tenant.WithID(ctx, tenantID), nil, email, "owner")
 }
 
 func roleRef(key string) api.RoleRef {
@@ -225,7 +268,8 @@ func (s *Service) RevokeInvitation(ctx context.Context, id uuid.UUID) error {
 
 var errInvitationInvalid = apperr.Forbidden("INVITATION_INVALID", "This invitation is invalid, expired or already used")
 
-// LookupInvitation shows whom a token invites.
+// LookupInvitation shows whom a token invites, to which workspace and by
+// whom, and whether the address already has an account.
 func (s *Service) LookupInvitation(ctx context.Context, token string) (api.InvitationPreview, error) {
 	if !strings.HasPrefix(token, inviteTokenPrefix) {
 		return api.InvitationPreview{}, errInvitationInvalid
@@ -237,26 +281,68 @@ func (s *Service) LookupInvitation(ctx context.Context, token string) (api.Invit
 	if err != nil {
 		return api.InvitationPreview{}, err
 	}
-	return api.InvitationPreview{Email: r.Email, Role: api.RoleRef{Key: api.RoleKey(r.RoleKey), Name: r.RoleName}, ExpiresAt: r.ExpiresAt}, nil
+	out := api.InvitationPreview{Email: r.Email, Role: api.RoleRef{Key: api.RoleKey(r.RoleKey), Name: r.RoleName}, ExpiresAt: r.ExpiresAt}
+	if _, err := s.q.GetUserByEmail(ctx, r.Email); err == nil {
+		out.AccountExists = true
+	} else if !isNoRows(err) {
+		return api.InvitationPreview{}, err
+	}
+	if r.InvitedByName != nil {
+		out.InvitedBy = &struct {
+			Name string `json:"name"`
+		}{Name: *r.InvitedByName}
+	}
+	if w, err := s.workspaceOf(ctx, tenant.ID(ctx)); err == nil {
+		t := &struct {
+			LogoUrl *string `json:"logo_url"`
+			Name    string  `json:"name"`
+		}{Name: w.Name}
+		if w.LogoURL != "" {
+			logo := "/bff/logo"
+			t.LogoUrl = &logo
+		}
+		out.Tenant = t
+	}
+	return out, nil
 }
 
-// AcceptInvitation creates the invited account and signs it in.
+// AcceptInvitation adds the invited person to the workspace and signs them
+// in: a new account with name and password, or, when the address already
+// has an account, after checking that account's password.
 func (s *Service) AcceptInvitation(ctx context.Context, req api.AcceptInvitationRequest) (api.SessionCreated, error) {
 	if !strings.HasPrefix(req.Token, inviteTokenPrefix) {
 		return api.SessionCreated{}, errInvitationInvalid
 	}
-	var out api.SessionCreated
-	err := s.tx(ctx, func(q *db.Queries) error {
-		inv, err := q.GetOpenInvitationByTokenHash(ctx, crypto.HashToken(req.Token))
-		if isNoRows(err) {
-			return errInvitationInvalid
+	inv, err := s.q.GetOpenInvitationByTokenHash(ctx, crypto.HashToken(req.Token))
+	if isNoRows(err) {
+		return api.SessionCreated{}, errInvitationInvalid
+	}
+	if err != nil {
+		return api.SessionCreated{}, err
+	}
+	existing, err := s.q.GetUserByEmail(ctx, inv.Email)
+	switch {
+	case err == nil:
+		// The account's own password proves it is them; the shared
+		// lockout and rate limits apply.
+		if _, err := s.checkPassword(ctx, inv.Email, req.Password); err != nil {
+			return api.SessionCreated{}, err
 		}
-		if err != nil {
-			return err
+	case isNoRows(err):
+		if req.Name == nil || strings.TrimSpace(*req.Name) == "" {
+			return api.SessionCreated{}, apperr.Validation("name", "Enter your name")
 		}
 		if err := validatePassword("password", req.Password, inv.Email); err != nil {
-			return err
+			return api.SessionCreated{}, err
 		}
+	default:
+		return api.SessionCreated{}, err
+	}
+	var (
+		out   api.SessionCreated
+		alert *newSignIn
+	)
+	err = s.tx(ctx, func(q *db.Queries) error {
 		n, err := q.AcceptInvitation(ctx, inv.ID)
 		if err != nil {
 			return err
@@ -264,31 +350,51 @@ func (s *Service) AcceptInvitation(ctx context.Context, req api.AcceptInvitation
 		if n == 0 {
 			return errInvitationInvalid // accepted concurrently
 		}
-		hash, err := crypto.HashPassword(req.Password, s.o.Argon2)
-		if err != nil {
-			return err
+		u := existing
+		if u.ID == uuid.Nil {
+			hash, err := crypto.HashPassword(req.Password, s.o.Argon2)
+			if err != nil {
+				return err
+			}
+			st, err := s.settings.Get(ctx)
+			if err != nil {
+				return err
+			}
+			// Following the e-mailed link proves the address.
+			now := s.now()
+			u, err = q.CreateUser(ctx, db.CreateUserParams{Email: inv.Email, Name: strings.TrimSpace(*req.Name), PasswordHash: hash,
+				Locale: st.DefaultLocale, Timezone: st.DefaultTimezone, EmailVerifiedAt: &now})
+			if err != nil {
+				if strings.Contains(err.Error(), "users_email_key") {
+					return apperr.Conflict("USER_EXISTS", "An account with this e-mail address already exists")
+				}
+				return err
+			}
+		} else if u.EmailVerifiedAt == nil {
+			if _, err := q.MarkEmailVerified(ctx, u.ID); err != nil {
+				return err
+			}
 		}
-		st, err := s.settings.Get(ctx)
-		if err != nil {
-			return err
-		}
-		u, err := q.CreateUser(ctx, db.CreateUserParams{Email: inv.Email, Name: strings.TrimSpace(req.Name), PasswordHash: hash, Locale: st.DefaultLocale, Timezone: st.DefaultTimezone})
-		if err != nil {
-			if strings.Contains(err.Error(), "users_email_key") {
-				return apperr.Conflict("USER_EXISTS", "An account with this e-mail address already exists")
+		if err := q.CreateMembership(ctx, db.CreateMembershipParams{UserID: u.ID, RoleKey: inv.RoleKey, InvitedBy: inv.InvitedBy}); err != nil {
+			if strings.Contains(err.Error(), "tenant_memberships_pkey") {
+				return apperr.Conflict("USER_EXISTS", "You are already a member of this workspace")
 			}
 			return err
 		}
-		if err := q.AssignRole(ctx, db.AssignRoleParams{UserID: u.ID, RoleKey: inv.RoleKey}); err != nil {
-			return err
-		}
 		if err := audit.Record(ctx, q, audit.Entry{Action: "invitation.accept", EntityType: "user", EntityID: uuidPtr(u.ID),
-			Actor: &principal.Principal{Kind: principal.KindUser, ID: u.ID, Name: u.Name}, Changes: map[string]any{"invitation_id": inv.ID, "role": inv.RoleKey}}); err != nil {
+			Actor:   &principal.Principal{Kind: principal.KindUser, ID: u.ID, Name: u.Name},
+			Changes: map[string]any{"invitation_id": inv.ID, "role": inv.RoleKey, "existing_account": existing.ID != uuid.Nil}}); err != nil {
 			return err
 		}
-		out, err = s.createSession(ctx, q, u)
+		if u, err = q.GetUserByID(ctx, u.ID); err != nil {
+			return err
+		}
+		out, alert, err = s.createSession(ctx, q, u)
 		return err
 	})
+	if err == nil {
+		s.alertNewSignIn(ctx, alert)
+	}
 	return out, err
 }
 

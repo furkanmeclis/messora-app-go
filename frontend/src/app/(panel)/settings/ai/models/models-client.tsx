@@ -21,7 +21,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { useLocale, useT } from '@/i18n/client';
 import { intlLocale } from '@/i18n/config';
 import type { Schemas } from '@/lib/types';
-import { deletePriceAction } from '../actions';
+import { deletePriceAction } from '@/app/platform-admin/price-actions';
 import { PriceDialog } from './price-dialog';
 
 type Model = Schemas['AIModel'];
@@ -41,11 +41,15 @@ export function ModelsClient({
     prices,
     fakeAvailable,
     canManage,
+    pricesOnly = false,
 }: {
     models: Model[];
     prices: Price[];
     fakeAvailable: boolean;
+    /** Prices can be changed: only in the platform admin panel. */
     canManage: boolean;
+    /** Show only the price table (the platform admin panel). */
+    pricesOnly?: boolean;
 }) {
     const t = useT();
     const router = useRouter();
@@ -142,161 +146,173 @@ export function ModelsClient({
 
     return (
         <div className="space-y-10">
-            <section className="space-y-3">
-                <div>
-                    <h2 className="font-semibold tracking-tight">
-                        {t('ai.models.title')}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                        {t('ai.models.description')}
-                    </p>
-                </div>
-                <ClientDataTable
-                    rows={models}
-                    rowId={(m) => `${m.provider_id}/${m.model_id}`}
-                    storageKey="ai-models"
-                    initialSort="model"
-                    rowTestId="ai-model-row"
-                    searchText={(m) =>
-                        `${m.model_id} ${m.display_name} ${m.provider_name}`
-                    }
-                    searchPlaceholder={t('table.search')}
-                    empty={
-                        <Empty className="py-12">
-                            <EmptyHeader>
-                                <EmptyMedia variant="icon">
-                                    <Cpu />
-                                </EmptyMedia>
-                                <EmptyTitle>{t('ai.models.empty')}</EmptyTitle>
-                                <EmptyDescription>
-                                    {t('ai.models.emptyHint')}
-                                </EmptyDescription>
-                            </EmptyHeader>
-                        </Empty>
-                    }
-                    noMatch={
-                        <p className="p-8 text-center text-sm text-muted-foreground">
-                            {t('table.noMatch')}
+            {!canManage && (
+                <p
+                    role="note"
+                    className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground"
+                >
+                    {t('ai.prices.managedByPlatform')}
+                </p>
+            )}
+            {!pricesOnly && (
+                <section className="space-y-3">
+                    <div>
+                        <h2 className="font-semibold tracking-tight">
+                            {t('ai.models.title')}
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            {t('ai.models.description')}
                         </p>
-                    }
-                    columns={[
-                        {
-                            id: 'model',
-                            header: t('ai.models.columns.model'),
-                            hideable: false,
-                            sortValue: (m) => m.model_id,
-                            cell: (m) => (
-                                <div className="min-w-0">
-                                    <div className="font-medium">
-                                        {m.display_name}
+                    </div>
+                    <ClientDataTable
+                        rows={models}
+                        rowId={(m) => `${m.provider_id}/${m.model_id}`}
+                        storageKey="ai-models"
+                        initialSort="model"
+                        rowTestId="ai-model-row"
+                        searchText={(m) =>
+                            `${m.model_id} ${m.display_name} ${m.provider_name}`
+                        }
+                        searchPlaceholder={t('table.search')}
+                        empty={
+                            <Empty className="py-12">
+                                <EmptyHeader>
+                                    <EmptyMedia variant="icon">
+                                        <Cpu />
+                                    </EmptyMedia>
+                                    <EmptyTitle>
+                                        {t('ai.models.empty')}
+                                    </EmptyTitle>
+                                    <EmptyDescription>
+                                        {t('ai.models.emptyHint')}
+                                    </EmptyDescription>
+                                </EmptyHeader>
+                            </Empty>
+                        }
+                        noMatch={
+                            <p className="p-8 text-center text-sm text-muted-foreground">
+                                {t('table.noMatch')}
+                            </p>
+                        }
+                        columns={[
+                            {
+                                id: 'model',
+                                header: t('ai.models.columns.model'),
+                                hideable: false,
+                                sortValue: (m) => m.model_id,
+                                cell: (m) => (
+                                    <div className="min-w-0">
+                                        <div className="font-medium">
+                                            {m.display_name}
+                                        </div>
+                                        <div className="font-mono text-xs text-muted-foreground">
+                                            {m.model_id}
+                                            {m.lifecycle &&
+                                                m.lifecycle !== 'active' &&
+                                                ` · ${m.lifecycle}`}
+                                        </div>
                                     </div>
-                                    <div className="font-mono text-xs text-muted-foreground">
-                                        {m.model_id}
-                                        {m.lifecycle &&
-                                            m.lifecycle !== 'active' &&
-                                            ` · ${m.lifecycle}`}
+                                ),
+                            },
+                            {
+                                id: 'provider',
+                                header: t('ai.models.columns.provider'),
+                                sortValue: (m) => m.provider_name,
+                                cell: (m) => (
+                                    <span className="text-sm whitespace-nowrap">
+                                        {m.provider_name}
+                                    </span>
+                                ),
+                            },
+                            {
+                                id: 'context',
+                                header: t('ai.models.columns.context'),
+                                sortValue: (m) => m.context_window ?? -1,
+                                cell: (m) => (
+                                    <span className="text-sm tabular-nums">
+                                        {num(m.context_window)}
+                                    </span>
+                                ),
+                            },
+                            {
+                                id: 'output',
+                                header: t('ai.models.columns.output'),
+                                sortValue: (m) => m.max_output ?? -1,
+                                cell: (m) => (
+                                    <span className="text-sm tabular-nums">
+                                        {num(m.max_output)}
+                                    </span>
+                                ),
+                            },
+                            {
+                                id: 'capabilities',
+                                header: t('ai.models.columns.capabilities'),
+                                cell: (m) => (
+                                    <div className="flex max-w-xs flex-wrap gap-1">
+                                        {CAPS.map((c) => {
+                                            const v = m.capabilities[c];
+                                            return (
+                                                <Badge
+                                                    key={c}
+                                                    variant="outline"
+                                                    className={
+                                                        v === true
+                                                            ? 'border-success/40 text-success'
+                                                            : 'text-muted-foreground'
+                                                    }
+                                                    title={
+                                                        v == null
+                                                            ? t('ai.unknown')
+                                                            : undefined
+                                                    }
+                                                >
+                                                    {t(
+                                                        `ai.models.capabilities.${c}`,
+                                                    )}
+                                                    {v === false
+                                                        ? ' ✕'
+                                                        : v == null
+                                                          ? ` (${t('ai.unknown')})`
+                                                          : ''}
+                                                </Badge>
+                                            );
+                                        })}
                                     </div>
-                                </div>
-                            ),
-                        },
-                        {
-                            id: 'provider',
-                            header: t('ai.models.columns.provider'),
-                            sortValue: (m) => m.provider_name,
-                            cell: (m) => (
-                                <span className="text-sm whitespace-nowrap">
-                                    {m.provider_name}
-                                </span>
-                            ),
-                        },
-                        {
-                            id: 'context',
-                            header: t('ai.models.columns.context'),
-                            sortValue: (m) => m.context_window ?? -1,
-                            cell: (m) => (
-                                <span className="text-sm tabular-nums">
-                                    {num(m.context_window)}
-                                </span>
-                            ),
-                        },
-                        {
-                            id: 'output',
-                            header: t('ai.models.columns.output'),
-                            sortValue: (m) => m.max_output ?? -1,
-                            cell: (m) => (
-                                <span className="text-sm tabular-nums">
-                                    {num(m.max_output)}
-                                </span>
-                            ),
-                        },
-                        {
-                            id: 'capabilities',
-                            header: t('ai.models.columns.capabilities'),
-                            cell: (m) => (
-                                <div className="flex max-w-xs flex-wrap gap-1">
-                                    {CAPS.map((c) => {
-                                        const v = m.capabilities[c];
-                                        return (
-                                            <Badge
-                                                key={c}
-                                                variant="outline"
-                                                className={
-                                                    v === true
-                                                        ? 'border-success/40 text-success'
-                                                        : 'text-muted-foreground'
-                                                }
-                                                title={
-                                                    v == null
-                                                        ? t('ai.unknown')
-                                                        : undefined
-                                                }
-                                            >
-                                                {t(
-                                                    `ai.models.capabilities.${c}`,
-                                                )}
-                                                {v === false
-                                                    ? ' ✕'
-                                                    : v == null
-                                                      ? ` (${t('ai.unknown')})`
-                                                      : ''}
-                                            </Badge>
-                                        );
-                                    })}
-                                </div>
-                            ),
-                        },
-                        {
-                            id: 'price',
-                            header: t('ai.models.columns.price'),
-                            sortValue: (m) =>
-                                m.price ? Number(m.price.input) : -1,
-                            cell: (m) => priceCell(m.price),
-                        },
-                    ]}
-                    rowActions={
-                        canManage
-                            ? (m) => (
-                                  <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() =>
-                                          setEditing(
-                                              m.price
-                                                  ? { price: m.price }
-                                                  : { model: m },
-                                          )
-                                      }
-                                  >
-                                      {m.price ? <Pencil /> : <Plus />}
-                                      {m.price
-                                          ? t('ai.models.editPrice')
-                                          : t('ai.models.addPrice')}
-                                  </Button>
-                              )
-                            : undefined
-                    }
-                />
-            </section>
+                                ),
+                            },
+                            {
+                                id: 'price',
+                                header: t('ai.models.columns.price'),
+                                sortValue: (m) =>
+                                    m.price ? Number(m.price.input) : -1,
+                                cell: (m) => priceCell(m.price),
+                            },
+                        ]}
+                        rowActions={
+                            canManage
+                                ? (m) => (
+                                      <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                              setEditing(
+                                                  m.price
+                                                      ? { price: m.price }
+                                                      : { model: m },
+                                              )
+                                          }
+                                      >
+                                          {m.price ? <Pencil /> : <Plus />}
+                                          {m.price
+                                              ? t('ai.models.editPrice')
+                                              : t('ai.models.addPrice')}
+                                      </Button>
+                                  )
+                                : undefined
+                        }
+                    />
+                </section>
+            )}
 
             <section className="space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-4">

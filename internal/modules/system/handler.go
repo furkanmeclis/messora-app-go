@@ -82,6 +82,9 @@ func (h *Handler) audit(r *http.Request, action string, j FailedJob) error {
 	return audit.Record(r.Context(), h.q, audit.Entry{Action: action, EntityType: "failed_job", Changes: changes})
 }
 
+// ToAPI is the API view of a failed job.
+func ToAPI(j FailedJob) api.FailedJob { return toAPI(j) }
+
 func toAPI(j FailedJob) api.FailedJob {
 	out := api.FailedJob{Id: j.ID, Queue: api.QueueName(j.Queue), Type: j.Type, LastError: j.LastError,
 		Retried: j.Retried, MaxRetry: j.MaxRetry, Refs: j.Refs}

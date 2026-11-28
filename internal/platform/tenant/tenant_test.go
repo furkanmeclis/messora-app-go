@@ -8,6 +8,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -63,20 +67,86 @@ func TestContextHelpers(t *testing.T) {
 }
 
 func TestValidateSlug(t *testing.T) {
-	for _, ok := range []string{"acme", "a1b", "acme-store", "x" + strings.Repeat("y", 38) + "z", "123"} {
+	for _, ok := range []string{"acme", "a1b", "acme-store", "x" + strings.Repeat("y", 28) + "z", "123", "login", "demo"} {
 		if err := ValidateSlug(ok); err != nil {
 			t.Errorf("%q rejected: %v", ok, err)
 		}
 	}
-	for _, bad := range []string{"", "ab", "-acme", "acme-", "Acme", "ac me", "a_b", "açme", "a--b", strings.Repeat("a", 41), "acme.store"} {
+	for _, bad := range []string{"", "ab", "-acme", "acme-", "Acme", "ac me", "a_b", "açme", "a--b", strings.Repeat("a", 31), "acme.store"} {
 		if err := ValidateSlug(bad); !errors.Is(err, ErrSlugFormat) {
 			t.Errorf("%q: %v, want ErrSlugFormat", bad, err)
 		}
 	}
-	for _, r := range []string{"www", "api", "admin", "app", "hooks", "mail", "status", "docs", "static", "assets", "cdn"} {
-		if err := ValidateSlug(r); !errors.Is(err, ErrSlugReserved) && !errors.Is(err, ErrSlugFormat) {
+	for _, r := range []string{"www", "admin", "api", "app", "hooks", "dokploy", "cdn", "mail", "docs", "status", "help", "support"} {
+		if err := ValidateSlug(r); !errors.Is(err, ErrSlugReserved) {
 			t.Errorf("%q not reserved: %v", r, err)
 		}
+	}
+}
+
+// The sign-up form refuses the same addresses as the API.
+func TestReservedSlugsMatchTheFrontend(t *testing.T) {
+	src, err := os.ReadFile("../../../frontend/src/lib/auth/slug.ts")
+	if err != nil {
+		t.Skip("frontend sources not present:", err)
+	}
+	block := regexp.MustCompile(`(?s)RESERVED_SLUGS[^=]*=\s*\[(.*?)\]`).FindSubmatch(src)
+	if block == nil {
+		t.Fatal("RESERVED_SLUGS not found in slug.ts")
+	}
+	var ts []string
+	for _, m := range regexp.MustCompile(`'([a-z0-9-]+)'`).FindAllSubmatch(block[1], -1) {
+		ts = append(ts, string(m[1]))
+	}
+	got, want := slices.Sorted(slices.Values(ts)), slices.Sorted(slices.Values(ReservedSlugs))
+	if !slices.Equal(got, want) {
+		t.Fatalf("frontend reserved slugs %v, Go %v", got, want)
+	}
+	for _, re := range []string{`SLUG_MIN = ` + strconv.Itoa(SlugMin) + `;`, `SLUG_MAX = ` + strconv.Itoa(SlugMax) + `;`} {
+		if !strings.Contains(string(src), re) {
+			t.Errorf("slug.ts lacks %q", re)
+		}
+	}
+}
+
+func TestHosts(t *testing.T) {
+	h := NewHosts("https://app.messora.tech", "Messora.Tech")
+	for host, want := range map[string]HostKind{
+		"admin.messora.tech": HostAdmin, "messora.tech": HostPlatform, "www.messora.tech": HostPlatform,
+		"app.messora.tech:443": HostPlatform, "acme.messora.tech": HostTenant, "panel.acme.com": HostTenant,
+	} {
+		if got := h.Kind(host); got != want {
+			t.Errorf("Kind(%q) = %v, want %v", host, got, want)
+		}
+	}
+	if h.URL("acme.messora.tech") != "https://acme.messora.tech" || h.AdminURL() != "https://admin.messora.tech" {
+		t.Fatalf("urls: %s %s", h.URL("acme.messora.tech"), h.AdminURL())
+	}
+	dev := NewHosts("http://localhost:8090", "messora.localhost")
+	if dev.URL("acme.messora.localhost") != "http://acme.messora.localhost:8090" || dev.Secure() {
+		t.Fatalf("dev url %s", dev.URL("acme.messora.localhost"))
+	}
+	if !h.IsPlatformLabel("app.messora.tech") || !h.IsPlatformLabel("support.messora.tech") || h.IsPlatformLabel("acme.messora.tech") {
+		t.Fatal("platform labels")
+	}
+	none := NewHosts("http://localhost", "")
+	if none.Kind("admin.localhost") != HostTenant || none.AdminURL() != "" {
+		t.Fatal("no base domain: no platform hosts")
+	}
+}
+
+func TestPlatformContext(t *testing.T) {
+	a := WithID(context.Background(), uuid.New())
+	p := Platform(a)
+	if _, ok := FromCtx(p); ok || !IsPlatform(p) || Role(p) != PlatformRole {
+		t.Fatal("platform work drops the tenant and switches role")
+	}
+	if v, err := Setting(p); err != nil || v != "" {
+		t.Fatalf("platform setting %q %v", v, err)
+	}
+	back := WithID(p, uuid.New())
+	if IsPlatform(back) || Role(back) != "" {
+		t.Fatal("a tenant's work is never platform work")
 	}
 }
 
@@ -181,9 +251,13 @@ func TestMiddleware(t *testing.T) {
 	const secret = "bff-secret-0123456789abcdef0123456789" // gitleaks:allow (test fixture)
 	var seen uuid.UUID
 	var leaked string
-	h := httpx.IdentifyBFF(secret)(Middleware(r, slog.New(slog.NewTextHandler(io.Discard, nil)))(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	var kind HostKind
+	var platform bool
+	hosts := NewHosts("https://app.messora.tech", "messora.tech")
+	h := httpx.IdentifyBFF(secret)(Middleware(r, hosts, slog.New(slog.NewTextHandler(io.Discard, nil)))(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		seen = ID(req.Context())
 		leaked = req.Header.Get(HostHeader)
+		kind, platform = HostKindOf(req.Context()), IsPlatform(req.Context())
 		w.WriteHeader(http.StatusNoContent)
 	})))
 	do := func(host, claimed string, bff bool) (int, string) {
@@ -222,6 +296,17 @@ func TestMiddleware(t *testing.T) {
 	// The BFF without a host header gets nothing either.
 	if code, _ := do("messora-api:8080", "", true); code != http.StatusNotFound {
 		t.Fatalf("BFF without a host: %d", code)
+	}
+	// The platform's own hosts carry no tenant: the admin host is platform
+	// work, the public one tenant-less system work.
+	if code, _ := do("messora-api:8080", "admin.messora.tech", true); code != http.StatusNoContent || seen != uuid.Nil || kind != HostAdmin || !platform {
+		t.Fatalf("admin host: %d %s %v %v", code, seen, kind, platform)
+	}
+	if code, _ := do("app.messora.tech", "", false); code != http.StatusNoContent || seen != uuid.Nil || kind != HostPlatform || platform {
+		t.Fatalf("platform host: %d %s %v %v", code, seen, kind, platform)
+	}
+	if code, _ := do("acme.messora.tech", "", false); code != http.StatusNoContent || kind != HostTenant || platform {
+		t.Fatalf("tenant host kind: %d %v %v", code, kind, platform)
 	}
 }
 

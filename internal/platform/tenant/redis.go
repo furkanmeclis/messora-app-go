@@ -25,11 +25,12 @@ import (
 // across tenants. Platform state (the scheduler's leader lease) is global
 // too.
 //
-// TODO(WP2): identity's keys (messora:rl:login:*, messora:rl:reset:*,
-// messora:rl:reauth:*, messora:rl:password:*, messora:mfa:*,
-// messora:totp:used:*) are person-global by design and still built inline in
-// internal/modules/identity; move them onto GlobalRedisKey when identity is
-// rewritten for global users.
+// Identity (WP2) builds its keys here too: rate limits (rl:login:*,
+// rl:reset:*, rl:reauth:*, rl:password:*, rl:signup:*, rl:resend:*), TOTP
+// replay protection (totp:used:*) and workspace hand-over tokens
+// (handoff:*) are global; a workspace sign-in's second-factor challenge
+// and an e-mail change confirmation live under the workspace's prefix, the
+// admin panel's challenge under mfa:platform:*.
 
 // RedisPrefix returns the key prefix of tenant id's Redis keys.
 func RedisPrefix(id uuid.UUID) string {

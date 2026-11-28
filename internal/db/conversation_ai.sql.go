@@ -771,8 +771,8 @@ func (q *Queries) ListConversationNotes(ctx context.Context, arg ListConversatio
 
 const listConversationReaders = `-- name: ListConversationReaders :many
 SELECT DISTINCT u.id, rp.permission_key = 'conversations.read_all' AS reads_all FROM users u
-JOIN user_roles ur ON ur.user_id = u.id
-JOIN role_permissions rp ON rp.role_id = ur.role_id
+JOIN tenant_memberships m ON m.user_id = u.id AND m.status = 'active'
+JOIN role_permissions rp ON rp.role_id = m.role_id
 WHERE u.status = 'active' AND rp.permission_key IN ('conversations.read', 'conversations.read_all')
 `
 

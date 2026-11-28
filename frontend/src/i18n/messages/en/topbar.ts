@@ -1,4 +1,12 @@
 const topbar = {
+    workspaces: 'Workspaces',
+    support: {
+        title: 'Messora support ({name}) is viewing this workspace',
+        readOnly: 'Read-only',
+        write: 'Can make changes',
+        reason: 'Reason: {reason}',
+        until: 'Until {time}',
+    },
     search: 'Search or jump to…',
     searchHint: 'Pages and quick actions',
     goTo: 'Go to',
