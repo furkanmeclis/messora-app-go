@@ -23,9 +23,15 @@ env:
 
 jobs:
   go-test:
-    name: Go · tests, race detector, coverage gate
+    # Two shards so neither test binary nears its timeout: ./internal/app
+    # (the HTTP/worker integration suite) alone, and every other package.
+    name: Go · tests, race detector (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [app, rest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,24 +40,40 @@ jobs:
         with:
           go-version-file: go.mod
       - name: go.mod / go.sum are tidy
+        if: matrix.shard == 'rest'
         run: make tidy-check
-      - name: Unit + integration tests (real PostgreSQL 18 / Redis 8) with coverage gate
-        run: make cover
+      - name: Unit + integration tests (real PostgreSQL 18 / Redis 8) with coverage
+        run: make cover-shard SHARD=${{ matrix.shard }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-${{ matrix.shard }}
+          path: coverage-${{ matrix.shard }}.out
+          retention-days: 14
+
+  go-coverage:
+    name: Go · coverage gate
+    needs: go-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+      - name: Merge the shards and enforce the coverage minimum
+        run: make cover-gate
       - name: Coverage summary
         if: always()
         run: |
           if [ -f coverage.out ]; then
             { echo '### Coverage'; echo '```'; go tool cover -func=coverage.out | tail -25; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        # A full artifact quota must not fail CI; the gate above already ran.
-        continue-on-error: true
-        with:
-          name: coverage
-          path: coverage.out
-          if-no-files-found: ignore
-          retention-days: 14
 
   go-load:
     name: Go · campaign load criterion (100,000 recipients)

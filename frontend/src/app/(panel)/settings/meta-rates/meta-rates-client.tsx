@@ -75,7 +75,11 @@ export function MetaRates({
         <div className="space-y-6">
             <Section
                 title={t('settings.metaRates.title')}
-                description={t('settings.metaRates.description')}
+                description={t(
+                    readOnly
+                        ? 'settings.metaRates.descriptionReadOnly'
+                        : 'settings.metaRates.description',
+                )}
             >
                 <div className="space-y-4">
                     {readOnly && (

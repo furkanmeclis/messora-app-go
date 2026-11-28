@@ -358,26 +358,6 @@ type route struct {
 	model    string
 }
 
-func (r route) kind() Kind {
-	switch {
-	case r.tenant != nil:
-		return Kind(r.tenant.Kind)
-	case r.platform != nil:
-		return Kind(r.platform.Kind)
-	}
-	return ""
-}
-
-func (r route) keySource() *string {
-	switch {
-	case r.tenant != nil:
-		return ptr(KeySourceTenant)
-	case r.platform != nil:
-		return ptr(KeySourcePlatform)
-	}
-	return nil
-}
-
 // plan returns the context tenant's plan (Default without a provider).
 func (s *Service) plan(ctx context.Context) (entitlements.Plan, error) {
 	if s.plans == nil {

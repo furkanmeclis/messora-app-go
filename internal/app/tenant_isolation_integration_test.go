@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
@@ -83,10 +85,27 @@ func TestTenantIsolationMatrix(t *testing.T) {
 	if err := ai.EnsureSeed(h.ctx(), h.owner); err != nil {
 		t.Fatal(err)
 	}
+	// The real mail service (against a fake SMTP server), so the e-mail
+	// settings answer and a company's reply-to address can be checked.
+	smtpAddr, smtpGot := fakeSMTPServer(t)
+	go func() { // drain: the fake server blocks once its channel is full
+		for range smtpGot {
+			continue
+		}
+	}()
+	smtpHost, smtpPort := splitHostPort(t, smtpAddr)
+	mail, err := settings.NewMail(h.svc.queries, h.sealer(), mailer.Config{Host: smtpHost, Port: smtpPort, From: "Messora <no-reply@messora.test>", TLS: "none"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mail.SetPlans(h.svc.planOf())
+	h.svc.mail = mail
+	h.remount()
 
 	// ── Tenant A: data in every family ──────────────────────────────────
 	ownerA, phoneA := h.connect()
 	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings", token: ownerA, body: map[string]any{"organization_name": "Acme Alpha"}}), 200, "")
+	h.expect(h.do(call{method: "PATCH", path: "/api/v1/settings/email", token: ownerA, body: map[string]any{"reply_to": "help@alpha.test"}}), 200, "")
 	h.inbound(testCustomer, "wamid.tenant-a-1", "merhaba from alpha", time.Now())
 	convA := h.conversationOf(testCustomer)
 	contactA := h.contactOf(ownerA, testCustomer)["id"].(string)
@@ -124,7 +143,7 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		"campaign": campA, "automation": autoA, "webhook endpoint": hookA, "api key": keyAID, "ai provider": provA,
 		"offer": offerA, "invitation": inviteA, "template": templateA, "account": accountA, "phone number": phoneA,
 		"user": userA, "organisation name": "Acme Alpha", "message body": "merhaba from alpha", "invitee": "agent@alpha.test",
-		"webhook key": hookKeyA, "verify token": verifyA, "waba": testWABA,
+		"webhook key": hookKeyA, "verify token": verifyA, "waba": testWABA, "reply-to": "help@alpha.test",
 	}
 
 	// ── Tenant B on its own host, with overlapping names ────────────────

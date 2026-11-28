@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/apiguard"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
@@ -170,7 +171,11 @@ func TestPlanEnforcement(t *testing.T) {
 		hb.expect(hb.do(call{method: "GET", path: "/api/v1/contacts", token: keyB, noBFF: true}), 200, "")
 	}
 
-	// Monthly quota of all keys: 3 calls.
+	// Monthly quota of all keys: 3 calls. Every key call is counted, even on
+	// a plan without a quota, so start the month's counter afresh.
+	if err := h.rdb.Del(h.ctx(), apiguard.QuotaKey(h.tenantID, time.Now())).Err(); err != nil {
+		t.Fatal(err)
+	}
 	quota := entitlements.Default()
 	quota.APICallsPerMonth = 3
 	h.planFor(map[uuid.UUID]entitlements.Plan{h.tenantID: quota})

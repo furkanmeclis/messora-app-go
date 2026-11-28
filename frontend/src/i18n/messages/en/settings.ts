@@ -14,6 +14,8 @@ const settings = {
         title: 'Meta rate card',
         description:
             'Meta publishes its per-message prices only as a rate card, not through an API. Import it here so every billable message is priced in your account’s currency; Meta’s own daily totals are fetched separately for comparison.',
+        descriptionReadOnly:
+            'Meta publishes its per-message prices only as a rate card, not through an API. Every billable message is priced from it in your account’s currency; Meta’s own daily totals are fetched separately for comparison.',
         hint: 'CSV file, at most 2 MB. Rows replace earlier ones with the same currency, market, category, tier and date.',
         format: 'File format',
         formatHelp:

@@ -127,7 +127,9 @@ test('the contacts list filters contacts the AI created', async () => {
 
 test('the AI usage page renders the KPIs, the daily cost and the breakdowns', async () => {
     await page.goto('/settings/ai/usage');
-    await expect(page.getByRole('link', { name: 'Usage' })).toBeVisible();
+    await expect(
+        page.getByRole('link', { name: 'Usage', exact: true }),
+    ).toBeVisible();
     const usage = page.getByRole('main').getByTestId('ai-usage');
     await expect(
         usage.getByRole('heading', { name: 'AI usage' }),

@@ -58,7 +58,7 @@ const (
 	// CodeAICreditsExhausted: the company's AI credits are used up (AI
 	// steps with Messora's keys stop without retries until the monthly
 	// reset or a top-up; Phase 17 WP8).
-	CodeAICreditsExhausted = "ai_credits_exhausted"
+	CodeAICreditsExhausted = "ai_credits_exhausted" //nolint:gosec // G101 false positive: an error code
 	// CodeAINotInPlan: the company's plan has no AI.
 	CodeAINotInPlan      = "ai_not_in_plan"
 	CodeRetriesExhausted = "retries_exhausted"
