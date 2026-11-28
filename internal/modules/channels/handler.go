@@ -31,6 +31,9 @@ const HostWebhookPath = "/webhooks/whatsapp"
 type HandlerOptions struct {
 	PublicURL      string // PUBLIC_APP_URL, for the scheme of host addresses
 	WebhookBaseURL string // config.MetaConfig.WebhookBaseURL
+	// PlatformDB writes the platform settings (UpdatePlatformTechProvider);
+	// nil uses the application pool. TODO(WP2-admin): platform work context.
+	PlatformDB Execer
 }
 
 // Handler serves the channel and template operations.
@@ -46,7 +49,7 @@ func NewHandler(svc *Service, opts HandlerOptions, log *slog.Logger) *Handler {
 }
 
 func accountToAPI(a db.WhatsappAccount) api.WhatsAppAccount {
-	return api.WhatsAppAccount{Id: a.ID, Name: a.Name, WabaId: a.WabaID, AppId: a.AppID,
+	return api.WhatsAppAccount{Id: a.ID, Name: a.Name, WabaId: a.WabaID, AppId: a.AppID, ConnectionMethod: api.WhatsAppAccountConnectionMethod(a.ConnectionMethod),
 		Status: api.WhatsAppAccountStatus(a.Status), LastError: a.LastError, AppSecretConfigured: len(a.AppSecretEnc) > 0,
 		LastSyncedAt: a.LastSyncedAt, CreatedAt: a.CreatedAt, Token: tokenToAPI(a), Currency: a.Currency}
 }

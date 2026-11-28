@@ -39,6 +39,11 @@ const (
 	SchemePanel   = "panel"
 	SchemeSession = "session"
 	SchemeAPIKey  = "apiKey"
+	// SchemePlatform is the platform admin's session (admin host, WP2).
+	// TODO(WP2-admin): WP2's guard authenticates it (msp_ tokens on the
+	// admin host); until it is merged no request satisfies it, so the
+	// /platform/ operations answer 401.
+	SchemePlatform = "platform"
 )
 
 // Default request budgets per minute (GCRA, burst = rate). They are
@@ -143,7 +148,7 @@ func New(spec *openapi3.T, o Options) (*Guard, error) {
 					return nil, fmt.Errorf("apiguard: %s %s allows anonymous access; use the panel scheme", method, path)
 				}
 				for scheme := range req {
-					if scheme != SchemePanel && scheme != SchemeSession && scheme != SchemeAPIKey {
+					if scheme != SchemePanel && scheme != SchemeSession && scheme != SchemeAPIKey && scheme != SchemePlatform {
 						return nil, fmt.Errorf("apiguard: %s %s uses unknown scheme %q", method, path, scheme)
 					}
 				}
@@ -282,6 +287,8 @@ func (g *Guard) authorize(r *http.Request, reqs openapi3.SecurityRequirements) (
 				if !fromPanel {
 					ok, panelOnly = false, true
 				}
+			case SchemePlatform:
+				ok = false // see SchemePlatform
 			case SchemeSession, SchemeAPIKey:
 				p, err := resolve(scheme)
 				if err != nil || p == nil {

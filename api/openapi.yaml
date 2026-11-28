@@ -36,6 +36,8 @@ tags:
     x-displayName: API keys
     description: Check the key used for the request and its scopes.
   - name: system
+  - name: platform
+    description: The platform admin panel (admin host only); not part of the public API.
   - name: channels
     x-displayName: Channels
     description: Connected WhatsApp Business accounts and their phone numbers (the senders).
@@ -1500,6 +1502,115 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MetaConnectionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /channels/tech-provider:
+    get:
+      operationId: getTechProvider
+      tags: [channels]
+      summary: Connecting through Messora's Meta app (Embedded Signup)
+      description: >-
+        What the panel needs to open Meta's Embedded Signup popup (Messora's
+        App ID, the configuration ID, the Graph API version) and this
+        workspace's unfinished and recent onboardings. 404
+        TECH_PROVIDER_DISABLED while the platform has not turned the method on.
+      security: [{ session: [channels.manage] }]
+      responses:
+        "200":
+          description: The Tech Provider set-up and the onboardings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TechProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /channels/tech-provider/onboardings:
+    post:
+      operationId: startTechProviderOnboarding
+      tags: [channels]
+      summary: Connect the WABA and number chosen in Meta's popup
+      description: >-
+        Runs the onboarding after Meta's popup finished: the code is traded
+        for a business token that must grant the WABA, the WABA is routed to
+        this workspace, Messora's app subscribes to its webhooks, the number
+        is registered with the PIN (generated when none is given) and the
+        account becomes active. A failing step is stored (status failed, an
+        error code) and can be retried; the response is the onboarding either
+        way. Continuing an unfinished onboarding of the same WABA retries it.
+      security: [{ session: [channels.manage] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartTechProviderOnboardingRequest" }
+      responses:
+        "200":
+          description: The onboarding (completed or failed at a step)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TechProviderOnboardingResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /channels/tech-provider/onboardings/{onboardingId}:
+    delete:
+      operationId: cancelTechProviderOnboarding
+      tags: [channels]
+      summary: Abandon an unfinished onboarding
+      description: >-
+        Messora's app leaves the WABA, the route is removed and an account
+        created by the onboarding without history is deleted.
+      security: [{ session: [channels.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/OnboardingId" }
+      responses:
+        "200":
+          description: The cancelled onboarding
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TechProviderOnboardingResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /channels/tech-provider/onboardings/{onboardingId}/retry:
+    post:
+      operationId: retryTechProviderOnboarding
+      tags: [channels]
+      summary: Retry a failed onboarding from its failed step
+      description: >-
+        A new code (Meta's popup again) is needed when the exchange failed; a
+        new PIN when the registration refused the previous one.
+      security: [{ session: [channels.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/OnboardingId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RetryTechProviderOnboardingRequest" }
+      responses:
+        "200":
+          description: The onboarding (completed or failed at a step)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TechProviderOnboardingResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /channels/accounts/{accountId}/tech-provider/disconnect:
+    post:
+      operationId: disconnectTechProviderAccount
+      tags: [channels]
+      summary: Disconnect an account from Messora's Meta app
+      description: >-
+        Messora's app leaves the WABA's webhooks, the route is removed and the
+        account is disabled; its history is kept. It can be connected again
+        with Meta, or with the company's own app.
+      security: [{ session: [channels.manage] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountId" }
+      responses:
+        "200":
+          description: The disabled account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TechProviderDisconnectResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /templates:
@@ -4564,6 +4675,67 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
+  # Platform admin panel (admin.<base>, WP2): never in the public document.
+  /platform/meta/tech-provider:
+    get:
+      operationId: getPlatformTechProvider
+      tags: [platform]
+      summary: Messora's Tech Provider set-up
+      description: >-
+        The switch, Messora's Meta app, the Embedded Signup configuration, the
+        Graph API version, which secrets are stored (never their values) and
+        the platform webhook address with its verify token.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: The set-up
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTechProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePlatformTechProvider
+      tags: [platform]
+      summary: Change Messora's Tech Provider set-up
+      description: >-
+        Secrets are write-only and stored sealed. Turning the method on needs
+        the App ID, the App secret and the configuration ID.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePlatformTechProviderRequest" }
+      responses:
+        "200":
+          description: The changed set-up
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTechProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/meta/tech-provider/test:
+    post:
+      operationId: testPlatformTechProvider
+      tags: [platform]
+      summary: Test the set-up with Meta
+      description: >-
+        debug_token of the system user token with the app token (proves the
+        App secret), the configuration ID, and the app's webhook subscription
+        (GET /{app-id}/subscriptions), which must point at the platform
+        webhook address.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: The checks
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTechProviderTestResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     panel:
@@ -4579,6 +4751,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: msk_live_…
+    platform:
+      type: http
+      scheme: bearer
+      description: Platform admin session (admin host only, WP2); accepted only together with the panel secret.
 
   parameters:
     UserId:
@@ -4603,6 +4779,11 @@ components:
       schema: { type: string, format: uuid }
     AccountId:
       name: accountId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OnboardingId:
+      name: onboardingId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -5760,11 +5941,15 @@ components:
 
     WhatsAppAccount:
       type: object
-      required: [id, name, waba_id, status, app_secret_configured, created_at, token]
+      required: [id, name, waba_id, connection_method, status, app_secret_configured, created_at, token]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         waba_id: { type: string }
+        connection_method:
+          type: string
+          enum: [own_app, tech_provider]
+          description: "own_app: the company's own Meta app; tech_provider: connected through Messora's Meta app (Embedded Signup)."
         app_id: { type: [string, "null"] }
         status: { type: string, enum: [active, error, disabled] }
         last_error: { type: [string, "null"] }
@@ -5927,6 +6112,126 @@ components:
         subscribed: { type: boolean }
         subscribed_now: { type: boolean, description: Messora subscribed the app to the account's webhooks during this test. }
         account: { $ref: "#/components/schemas/WhatsAppAccount" }
+
+    TechProvider:
+      type: object
+      required: [app_id, configuration_id, graph_api_version, scopes, onboardings]
+      properties:
+        app_id: { type: string, description: Messora's Meta app (FB.init appId). }
+        configuration_id: { type: string, description: The Embedded Signup configuration (FB.login config_id). }
+        graph_api_version: { type: string, description: The Graph API version for the JavaScript SDK (FB.init version). }
+        scopes: { type: array, items: { type: string }, description: The permissions the company grants Messora's app. }
+        onboardings: { type: array, items: { $ref: "#/components/schemas/TechProviderOnboarding" } }
+
+    TechProviderOnboarding:
+      type: object
+      required: [id, waba_id, phone_number_id, business_id, name, status, step, account_id, attempts, error_code, error_message,
+        pin_generated, pin, created_at, updated_at, completed_at]
+      properties:
+        id: { type: string, format: uuid }
+        waba_id: { type: string }
+        phone_number_id: { type: string }
+        business_id: { type: [string, "null"] }
+        name: { type: string }
+        status: { type: string, enum: [running, failed, completed, cancelled] }
+        step:
+          type: string
+          enum: [exchange, claim, subscribe, register, finish, done]
+          description: The step that runs next (or failed).
+        account_id: { type: [string, "null"], format: uuid }
+        attempts: { type: integer }
+        error_code:
+          type: [string, "null"]
+          description: >-
+            code_required, code_invalid, token_check_failed, token_invalid, token_other_app, waba_not_granted,
+            phone_not_in_waba, waba_in_use, waba_connected_own_app, subscribe_failed, register_failed,
+            finish_failed, number_in_use or internal.
+        error_message: { type: [string, "null"] }
+        pin_generated: { type: boolean, description: Messora chose the number's two-step verification PIN. }
+        pin:
+          type: [string, "null"]
+          description: The generated PIN, only in the response of the request that completed the onboarding.
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+
+    StartTechProviderOnboardingRequest:
+      type: object
+      additionalProperties: false
+      required: [code, waba_id, phone_number_id]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 2048, description: "The code FB.login returned (valid five minutes, single use)." }
+        waba_id: { type: string, pattern: "^[0-9]{1,32}$", description: From the WA_EMBEDDED_SIGNUP FINISH message. }
+        phone_number_id: { type: string, pattern: "^[0-9]{1,32}$" }
+        business_id: { type: string, pattern: "^[0-9]{1,32}$" }
+        name: { type: string, maxLength: 120, description: The account's name in Messora (default the number's verified name). }
+        pin: { type: string, pattern: "^[0-9]{6}$", description: The number's two-step verification PIN; generated when omitted. }
+
+    RetryTechProviderOnboardingRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        code: { type: string, maxLength: 2048, description: A new code from Meta's popup (needed when the exchange failed). }
+        pin: { type: string, pattern: "^[0-9]{6}$" }
+
+    TechProviderDisconnect:
+      type: object
+      required: [account, warning]
+      properties:
+        account: { $ref: "#/components/schemas/WhatsAppAccount" }
+        warning: { type: [string, "null"], description: Meta did not confirm that Messora's app left the WABA. }
+
+    PlatformTechProvider:
+      type: object
+      required: [enabled, ready, app_id, configuration_id, graph_api_version, default_graph_api_version, app_secret_configured,
+        system_user_token_configured, verify_token, callback_url, scopes, unrouted_entries, last_unrouted_waba_id, updated_at]
+      properties:
+        enabled: { type: boolean, description: The switch; companies see "Connect with Meta" only when on. }
+        ready: { type: boolean, description: "App ID, App secret, configuration ID and verify token are set." }
+        app_id: { type: [string, "null"] }
+        configuration_id: { type: [string, "null"] }
+        graph_api_version: { type: [string, "null"], description: Null uses the platform default. }
+        default_graph_api_version: { type: string }
+        app_secret_configured: { type: boolean }
+        system_user_token_configured: { type: boolean }
+        verify_token: { type: [string, "null"], description: Enter it in the app's WhatsApp webhook configuration. }
+        callback_url: { type: string, description: The platform webhook address (https://hooks.<domain>/meta/tp). }
+        scopes: { type: array, items: { type: string }, description: The permissions App Review must grant. }
+        unrouted_entries:
+          type: integer
+          format: int64
+          description: Entries for an unknown WABA dropped since this API process started.
+        last_unrouted_waba_id: { type: [string, "null"] }
+        updated_at: { type: [string, "null"], format: date-time }
+
+    UpdatePlatformTechProviderRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled: { type: boolean }
+        app_id: { type: string, maxLength: 32, description: Empty removes it. }
+        configuration_id: { type: string, maxLength: 32 }
+        graph_api_version: { type: string, maxLength: 10, description: Like v26.0; empty uses the platform default. }
+        app_secret: { type: string, minLength: 16, maxLength: 256, writeOnly: true }
+        system_user_token: { type: string, maxLength: 1024, writeOnly: true, description: Empty removes it. }
+        rotate_verify_token: { type: boolean }
+
+    PlatformTechProviderCheck:
+      type: object
+      required: [key, status, code, params, message]
+      properties:
+        key: { type: string, enum: [app, configuration, system_user_token, webhook] }
+        status: { type: string, enum: [ok, warning, error] }
+        code: { type: string }
+        params: { type: object, additionalProperties: { type: string } }
+        message: { type: string }
+
+    PlatformTechProviderTest:
+      type: object
+      required: [ok, checks]
+      properties:
+        ok: { type: boolean }
+        checks: { type: array, items: { $ref: "#/components/schemas/PlatformTechProviderCheck" } }
 
     Template:
       example:
@@ -6696,6 +7001,26 @@ components:
       type: object
       required: [data, meta]
       properties: { data: { $ref: "#/components/schemas/MetaConnectionTest" }, meta: { $ref: "#/components/schemas/Meta" } }
+    TechProviderResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/TechProvider" }, meta: { $ref: "#/components/schemas/Meta" } }
+    TechProviderOnboardingResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/TechProviderOnboarding" }, meta: { $ref: "#/components/schemas/Meta" } }
+    TechProviderDisconnectResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/TechProviderDisconnect" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformTechProviderResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformTechProvider" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformTechProviderTestResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformTechProviderTest" }, meta: { $ref: "#/components/schemas/Meta" } }
     TemplateResponse:
       type: object
       required: [data, meta]
