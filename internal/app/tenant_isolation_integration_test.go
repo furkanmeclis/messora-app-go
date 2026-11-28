@@ -281,7 +281,7 @@ func TestTenantIsolationMatrix(t *testing.T) {
 	}
 
 	// WP4: each address's API document names only its own workspace.
-	if docB := h.docAt(hb.host); strings.Contains(strings.Join(serverURLs(docB), " "), h.host+"/") {
+	if docB := h.docAt(hb.host); strings.Contains(strings.Join(serverURLs(docB), " "), "//"+h.host+"/") {
 		t.Errorf("B's API document names A's address: %v", serverURLs(docB))
 	}
 	// A's webhook delivery budget and API quota counters live under A's
