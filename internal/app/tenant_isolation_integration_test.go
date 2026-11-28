@@ -218,6 +218,10 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		{method: "DELETE", path: "/api/v1/campaigns/" + campA},
 		{method: "DELETE", path: "/api/v1/automations/" + autoA},
 		{method: "DELETE", path: "/api/v1/webhook-endpoints/" + hookA},
+		// WP4: B cannot rotate, test, re-enable or redeliver A's endpoint.
+		{method: "POST", path: "/api/v1/webhook-endpoints/" + hookA + "/rotate-secret", body: map[string]any{"grace_hours": 0}},
+		{method: "POST", path: "/api/v1/webhook-endpoints/" + hookA + "/test"},
+		{method: "PATCH", path: "/api/v1/webhook-endpoints/" + hookA, body: map[string]any{"active": true}},
 		{method: "DELETE", path: "/api/v1/api-keys/" + keyAID},
 		{method: "DELETE", path: "/api/v1/offers/" + offerA},
 		{method: "DELETE", path: "/api/v1/invitations/" + inviteA},
@@ -274,6 +278,16 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		if code, _ := h.rawAt(hb.host, "GET", p, ownerB, true); code != 404 {
 			t.Errorf("platform API %s at B's address: %d", p, code)
 		}
+	}
+
+	// WP4: each address's API document names only its own workspace.
+	if docB := h.docAt(hb.host); strings.Contains(strings.Join(serverURLs(docB), " "), h.host+"/") {
+		t.Errorf("B's API document names A's address: %v", serverURLs(docB))
+	}
+	// A's webhook delivery budget and API quota counters live under A's
+	// tenant prefix in Redis, never under B's.
+	if keys, err := h.rdb.Keys(context.Background(), tenant.RedisPrefix(hb.tenantID)+"*webhook*").Result(); err != nil || len(keys) != 0 {
+		t.Errorf("B has webhook budget keys: %v %v", keys, err)
 	}
 
 	// Credentials work only at their own tenant's address.

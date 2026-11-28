@@ -30,6 +30,9 @@ type hookReceiver struct {
 	secret string
 	codes  []int
 	got    []hookRequest
+	// hold, when set, runs before each request is answered (a slow
+	// receiver).
+	hold func()
 }
 
 type hookRequest struct {
@@ -42,6 +45,12 @@ func newHookReceiver(t *testing.T) *hookReceiver {
 	rc := &hookReceiver{t: t}
 	rc.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
+		rc.mu.Lock()
+		hold := rc.hold
+		rc.mu.Unlock()
+		if hold != nil {
+			hold()
+		}
 		rc.mu.Lock()
 		defer rc.mu.Unlock()
 		hr := hookRequest{header: r.Header.Clone(),
