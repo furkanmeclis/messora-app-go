@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { roleLabel } from './roles';
-import type { Translate } from './translate';
+import { roleLabel } from './roles.ts';
+import type { Translate } from './translate.ts';
 
 const t = ((key: string) => `T:${key}`) as Translate;
 
