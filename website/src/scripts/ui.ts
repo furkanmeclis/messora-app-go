@@ -225,66 +225,71 @@ if (!reduce) {
 }
 
 /* ── Sticky feature story ────────────────────────────────── */
-document.querySelectorAll<HTMLElement>('[data-story]').forEach((story) => {
-  const steps = [...story.querySelectorAll<HTMLElement>('[data-step]')];
-  const vis = [...story.querySelectorAll<HTMLElement>('[data-vis]')];
-  const dots = [...story.querySelectorAll<HTMLElement>('[data-dot]')];
-  const set = (i: number) => {
-    steps.forEach((s, j) => s.classList.toggle('on', j === i));
-    vis.forEach((v, j) => v.classList.toggle('on', j === i));
-    dots.forEach((v, j) => v.classList.toggle('on', j === i));
-    story.style.setProperty('--prog', String(steps.length > 1 ? i / (steps.length - 1) : 1));
-  };
-  set(0);
-  const sio = new IntersectionObserver((es) => es.forEach((en) => {
-    if (en.isIntersecting) set(steps.indexOf(en.target as HTMLElement));
-  }), { rootMargin: '-45% 0px -45% 0px' });
-  steps.forEach((s) => sio.observe(s));
+const idle = (f: () => void) => ('requestIdleCallback' in window ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));
+idle(() => {
+  document.querySelectorAll<HTMLElement>('[data-story]').forEach((story) => {
+    const steps = [...story.querySelectorAll<HTMLElement>('[data-step]')];
+    const vis = [...story.querySelectorAll<HTMLElement>('[data-vis]')];
+    const dots = [...story.querySelectorAll<HTMLElement>('[data-dot]')];
+    const set = (i: number) => {
+      steps.forEach((s, j) => s.classList.toggle('on', j === i));
+      vis.forEach((v, j) => v.classList.toggle('on', j === i));
+      dots.forEach((v, j) => v.classList.toggle('on', j === i));
+      story.style.setProperty('--prog', String(steps.length > 1 ? i / (steps.length - 1) : 1));
+    };
+    set(0);
+    const sio = new IntersectionObserver((es) => es.forEach((en) => {
+      if (en.isIntersecting) set(steps.indexOf(en.target as HTMLElement));
+    }), { rootMargin: '-45% 0px -45% 0px' });
+    steps.forEach((s) => sio.observe(s));
+  });
 });
 
 /* ── Hero product animation: sequence, parallax, tilt ────── */
-const hv = document.querySelector<HTMLElement>('[data-hv]');
-if (hv && !reduce) {
-  hv.dataset.play = '';
-  const items = [...hv.querySelectorAll<HTMLElement>('[data-at]')];
-  const last = Math.max(...items.map((i) => Number(i.dataset.at)));
-  let step = -1;
-  let timer = 0;
-  const tick = () => {
-    step = step >= last + 3 ? -1 : step + 1;
-    items.forEach((el) => {
-      const at = Number(el.dataset.at);
-      const until = el.dataset.until ? Number(el.dataset.until) : Infinity;
-      el.classList.toggle('on', step >= at && step < until);
-    });
-    timer = window.setTimeout(tick, step === -1 ? 900 : step >= last ? 2200 : 1300);
-  };
-  new IntersectionObserver(([en]) => {
-    if (en.isIntersecting) { if (!timer) tick(); }
-    else { clearTimeout(timer); timer = 0; }
-  }).observe(hv);
-  const layers = [...hv.querySelectorAll<HTMLElement>('[data-depth]')];
-  const para = () => {
-    const r = hv.getBoundingClientRect();
-    if (r.bottom < 0 || r.top > innerHeight) return;
-    const p = (innerHeight - r.top) / (innerHeight + r.height) - 0.5;
-    layers.forEach((l) => l.style.setProperty("--py", `${(p * Number(l.dataset.depth) * (innerWidth < 820 ? -12 : -40)).toFixed(1)}px`));
-  };
-  onScroll.push(para);
-  para();
-  if (finePointer) {
-    const stage = hv.querySelector<HTMLElement>('[data-tilt]');
-    hv.addEventListener('pointermove', (e) => {
-      if (!stage) return;
+idle(() => {
+  const hv = document.querySelector<HTMLElement>('[data-hv]');
+  if (hv && !reduce) {
+    hv.dataset.play = '';
+    const items = [...hv.querySelectorAll<HTMLElement>('[data-at]')];
+    const last = Math.max(...items.map((i) => Number(i.dataset.at)));
+    let step = -1;
+    let timer = 0;
+    const tick = () => {
+      step = step >= last + 3 ? -1 : step + 1;
+      items.forEach((el) => {
+        const at = Number(el.dataset.at);
+        const until = el.dataset.until ? Number(el.dataset.until) : Infinity;
+        el.classList.toggle('on', step >= at && step < until);
+      });
+      timer = window.setTimeout(tick, step === -1 ? 900 : step >= last ? 2200 : 1300);
+    };
+    new IntersectionObserver(([en]) => {
+      if (en.isIntersecting) { if (!timer) tick(); }
+      else { clearTimeout(timer); timer = 0; }
+    }).observe(hv);
+    const layers = [...hv.querySelectorAll<HTMLElement>('[data-depth]')];
+    const para = () => {
       const r = hv.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width - 0.5;
-      const y = (e.clientY - r.top) / r.height - 0.5;
-      stage.style.setProperty('--rx', `${(-y * 3).toFixed(2)}deg`);
-      stage.style.setProperty('--ry', `${(x * 4).toFixed(2)}deg`);
-    });
-    hv.addEventListener('pointerleave', () => { stage?.style.setProperty('--rx', '0deg'); stage?.style.setProperty('--ry', '0deg'); });
+      if (r.bottom < 0 || r.top > innerHeight) return;
+      const p = (innerHeight - r.top) / (innerHeight + r.height) - 0.5;
+      layers.forEach((l) => l.style.setProperty("--py", `${(p * Number(l.dataset.depth) * (innerWidth < 820 ? -12 : -40)).toFixed(1)}px`));
+    };
+    onScroll.push(para);
+    para();
+    if (finePointer) {
+      const stage = hv.querySelector<HTMLElement>('[data-tilt]');
+      hv.addEventListener('pointermove', (e) => {
+        if (!stage) return;
+        const r = hv.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        stage.style.setProperty('--rx', `${(-y * 3).toFixed(2)}deg`);
+        stage.style.setProperty('--ry', `${(x * 4).toFixed(2)}deg`);
+      });
+      hv.addEventListener('pointerleave', () => { stage?.style.setProperty('--rx', '0deg'); stage?.style.setProperty('--ry', '0deg'); });
+    }
   }
-}
+});
 
 /* ── Long-form: reading progress + active TOC entry ──────── */
 const prose = document.querySelector<HTMLElement>('[data-progress]');

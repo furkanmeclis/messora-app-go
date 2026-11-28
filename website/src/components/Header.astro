@@ -15,7 +15,23 @@ const ss = solutions(lang);
 const ai = fs.find((f) => f.key === 'ai');
 const cur = (p: string) => (path === p || path.startsWith(p + '/') ? 'page' : undefined);
 const langHref = altPath ?? (tr ? '/en' : '/');
-const desc = (s: string) => s.split('. ')[0].replace(/\.$/, '');
+const short: Record<string, [string, string]> = {
+  inbox: ['Konuşmaları atayın, not bırakın, devredin', 'Assign, leave notes and hand over chats'],
+  campaigns: ['İzinli kitleye, maliyeti önceden görerek', 'To opted-in audiences, cost shown first'],
+  ai: ['Yanıtlar, bilgi toplar, gerekince devreder', 'Answers, captures details, hands over'],
+  automations: ['Tetikleyici ve adımlarla görsel akışlar', 'Visual flows with triggers and steps'],
+  templates: ['Meta kurallarına uygun şablon, onay takibi', 'Rule-checked templates, approval tracking'],
+  analytics: ['Kampanya sonuçları, tahmin ve rapor', 'Campaign results, forecasts and reports'],
+  api: ['REST API ve imzalı webhook’lar', 'REST API and signed webhooks'],
+  ecommerce: ['Sipariş, kargo ve sepet bildirimleri', 'Order, shipping and cart messages'],
+  retail: ['Mağaza soruları ve kuponlu kampanyalar', 'Store questions and coupon campaigns'],
+  health: ['Randevu hatırlatma ve mesai dışı yanıt', 'Reminders and after-hours replies'],
+  education: ['Kayıt soruları, aday takibi, hatırlatma', 'Enrolment questions, follow-ups, reminders'],
+  travel: ['Rezervasyon onayı ve varış öncesi bilgi', 'Booking confirmations and pre-arrival info'],
+  realestate: ['İlan soruları, aday bilgisi, randevu', 'Listing questions, leads, viewings'],
+  services: ['Randevu, iş bitti bildirimi, fiyat soruları', 'Bookings, job-done updates, quotes'],
+};
+const desc = (k: string, s: string) => short[k]?.[tr ? 0 : 1] ?? s.split('. ')[0].replace(/\.$/, '');
 const links = [['pricing', u.nav.pricing], ['security', u.nav.security], ['resources', u.nav.resources]] as const;
 ---
 <header class="hdr" data-hdr>
@@ -31,7 +47,7 @@ const links = [['pricing', u.nav.pricing], ['security', u.nav.security], ['resou
                 <div>
                   <ul class="mega-list">
                     {fs.map((f) => (
-                      <li><a class="mega-item" href={fPath(lang, f.key)}><span class:list={['mi', { ai: f.key === 'ai' }]}><Icon name={f.icon} /></span><span><strong>{f.nav}</strong><span class="d">{desc(f.summary)}</span></span></a></li>
+                      <li><a class="mega-item" href={fPath(lang, f.key)}><span class:list={['mi', { ai: f.key === 'ai' }]}><Icon name={f.icon} /></span><span><strong>{f.nav}</strong><span class="d">{desc(f.key, f.summary)}</span></span></a></li>
                     ))}
                   </ul>
                   <p class="mega-foot"><span>{T('Hepsi tek panelde, aynı veriye bakar.', 'All in one panel, on the same data.')}</span><a class="link-arrow" href={r(lang, 'features')}>{u.nav.allFeatures}<Icon name="arrow-right" /></a></p>
@@ -45,7 +61,7 @@ const links = [['pricing', u.nav.pricing], ['security', u.nav.security], ['resou
                     </span>
                     <span class="chip ai">AI</span>
                     <strong>{ai.nav}</strong>
-                    <span class="t">{desc(ai.summary)}</span>
+                    <span class="t">{T('Sık soruları yanıtlar, bilgileri kişi kartına yazar, emin olmadığında ekibe devreder.', 'Answers common questions, saves details to the contact card and hands over when unsure.')}</span>
                     <span class="link-arrow">{u.learnMore}<Icon name="arrow-right" /></span>
                   </a>
                 )}
@@ -59,7 +75,7 @@ const links = [['pricing', u.nav.pricing], ['security', u.nav.security], ['resou
                 <div>
                   <ul class="mega-list">
                     {ss.map((s) => (
-                      <li><a class="mega-item" href={sPath(lang, s.key)}><span class="mi"><Icon name={s.icon} /></span><span><strong>{s.nav}</strong><span class="d">{desc(s.summary)}</span></span></a></li>
+                      <li><a class="mega-item" href={sPath(lang, s.key)}><span class="mi"><Icon name={s.icon} /></span><span><strong>{s.nav}</strong><span class="d">{desc(s.key, s.summary)}</span></span></a></li>
                     ))}
                   </ul>
                   <p class="mega-foot"><span>{T('Her sektör için akış ve şablon örnekleri.', 'Flows and template examples for each industry.')}</span><a class="link-arrow" href={r(lang, 'solutions')}>{u.nav.allSolutions}<Icon name="arrow-right" /></a></p>
