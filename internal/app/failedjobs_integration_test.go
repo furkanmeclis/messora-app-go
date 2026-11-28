@@ -136,11 +136,8 @@ func TestFailedJobs(t *testing.T) {
 
 // Every tenant sees only its own failed jobs: the list, the counts, retry
 // and delete; the platform scope (admin panel) sees all of them.
-func TestFailedJobsAreTenantScoped(t *testing.T) {
-	a := newHarness(t)
-	ownerA, _ := a.setupOwner()
-	b := a.tenant("beta")
-	ownerB := b.setupOwnerAs("owner@beta.test")
+// (run by TestTenantBackgroundWork, sharing its harness)
+func checkFailedJobsScope(t *testing.T, a, b *harness, ownerA, ownerB string) {
 
 	a.failJob("whatsapp:send", `{"message_id":"0193a5a0-0000-7000-8000-00000000000a"}`, "job-a")
 	b.failJob("whatsapp:send", `{"message_id":"0193a5a0-0000-7000-8000-00000000000b"}`, "job-b")
