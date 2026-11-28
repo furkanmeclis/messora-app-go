@@ -10,6 +10,7 @@ import { getT } from '@/i18n/server';
 import type { MessageKey } from '@/i18n/translate';
 import type { RolesAndPermissions } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { roleLabel } from '@/i18n/roles';
 
 const ICON: Record<string, LucideIcon> = {
     owner: Crown,
@@ -46,9 +47,7 @@ export async function RoleCards({ data }: { data: RolesAndPermissions }) {
                             </span>
                             <div className="min-w-0">
                                 <p className="font-semibold">
-                                    {t(
-                                        `settings.security.roles.${r.key}` as MessageKey,
-                                    )}
+                                    {roleLabel(t, r)}
                                 </p>
                                 <p className="text-xs text-muted-foreground tabular-nums">
                                     {t('users.permissionCount', {
