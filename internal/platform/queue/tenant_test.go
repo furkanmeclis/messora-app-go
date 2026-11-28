@@ -122,8 +122,10 @@ func TestTenantLimiterLimitsPerTenant(t *testing.T) {
 	for range 8 {
 		l.Acquire(a, 5, true)
 	}
-	if !l.Acquire(b, 5, false) || !l.Acquire(b, 5, false) {
-		t.Fatal("a tenant under its share was refused on a full worker")
+	for i := range 2 {
+		if !l.Acquire(b, 5, false) {
+			t.Fatalf("a tenant under its share was refused on a full worker (slot %d)", i+1)
+		}
 	}
 	if l.Acquire(a, 5, false) || !l.Acquire(a, 5, true) {
 		t.Fatal("over the share on a busy worker: deferred unless it is the last attempt")
