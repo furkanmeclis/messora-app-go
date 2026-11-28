@@ -107,8 +107,10 @@ SELECT id, name FROM campaigns WHERE id = ANY(@ids::uuid[]);
 -- ── Budget ──────────────────────────────────────────────────────────────────
 
 -- name: AICostSince :one
--- USD cost of AI requests since @since (the month's budget).
-SELECT coalesce(sum(cost), 0)::text FROM ai_usage WHERE created_at >= @since AND coalesce(currency, 'USD') = 'USD';
+-- USD cost of AI requests since @since (the month's budget). Calls with the
+-- platform's keys are paid with AI credits and not counted (Phase 17 WP8).
+SELECT coalesce(sum(cost), 0)::text FROM ai_usage
+WHERE created_at >= @since AND coalesce(currency, 'USD') = 'USD' AND key_source IS DISTINCT FROM 'platform';
 
 -- name: ListAIManagers :many
 -- Active users who manage AI (budget notices).

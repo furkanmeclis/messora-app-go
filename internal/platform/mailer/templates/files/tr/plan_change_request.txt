@@ -1,0 +1,10 @@
+{{define "subject"}}Plan değişikliği talebi: {{.D.Workspace}}{{end}}
+{{define "preheader"}}{{.D.Workspace}}, {{.D.RequestedPlan}} planını istiyor ({{if eq .D.BillingCycle "yearly"}}yıllık{{else}}aylık{{end}}).{{end}}
+{{define "reason"}}Bu e-postayı Messora'nın platform yöneticisi olduğunuz için aldınız.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+{{.D.Workspace}} çalışma alanı {{datetime .D.RequestedAt}} tarihinde plan değişikliği istedi.
+{{template "rows" (rows "Çalışma alanı" .D.Workspace "Adres" .D.WorkspaceURL "Mevcut plan" .D.CurrentPlan "İstenen plan" .D.RequestedPlan "Ödeme" (index (dict "yearly" "Yıllık" "monthly" "Aylık") .D.BillingCycle) "Talep eden" .D.RequestedBy "Mesaj" .D.Message)}}
+Planı platform yönetici panelinden atayın ve talebi kapatın:
+{{.D.InboxURL}}
+{{end}}

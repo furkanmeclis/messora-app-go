@@ -62,6 +62,12 @@ func Sample(kind Kind, locale string) Data {
 	case SubscriptionSuspended:
 		return SubscriptionSuspendedData{Common: tenant, SuspendedAt: at, InvoiceNo: "MSR-2026-0142",
 			Amount: amount, BillingURL: app + "/billing"}
+	case PlanChangeRequest:
+		return PlanChangeRequestData{Common: Common{Name: "Deniz"}, Workspace: "Acme Gıda", WorkspaceURL: app,
+			CurrentPlan: pick("Başlangıç", "Starter"), RequestedPlan: pick("Büyüme", "Growth"), BillingCycle: "yearly",
+			RequestedBy: "Ayşe Yılmaz <ayse@acmegida.com.tr>",
+			Message:     pick("Ekibimiz büyüyor; iki kullanıcı daha ve API erişimi istiyoruz.", "Our team is growing; we need two more users and API access."),
+			RequestedAt: at, InboxURL: "https://admin.messora.tech/plan-requests"}
 	case WebhookDisabled:
 		return WebhookDisabledData{Common: tenant, EndpointURL: "https://crm.acmegida.com.tr/hooks/messora",
 			Description: pick("CRM senkronizasyonu", "CRM sync"), Failures: 20, FailingSince: at.Add(-26 * time.Hour),

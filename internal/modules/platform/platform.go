@@ -27,6 +27,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
@@ -41,12 +42,20 @@ type Sender struct {
 	From, Host string
 }
 
+// SenderFunc describes the platform sender in effect (the admin panel's,
+// else the environment's; Phase 17 WP8).
+type SenderFunc func(ctx context.Context) Sender
+
 // Options configures the service.
 type Options struct {
 	Hosts tenant.Hosts
 	// Invalidate drops cached host resolutions (tenant.Resolver).
 	Invalidate func(hosts ...string)
 	Sender     Sender
+	// CurrentSender, when set, wins over Sender.
+	CurrentSender SenderFunc
+	// Plans gives a company's plan (custom_domain); nil = every feature.
+	Plans entitlements.Provider
 	// LookupTXT resolves TXT records (net.DefaultResolver.LookupTXT when nil).
 	LookupTXT func(ctx context.Context, name string) ([]string, error)
 	Logger    *slog.Logger
@@ -134,7 +143,7 @@ func strPtr(v string) *string {
 }
 
 func tenantView(t db.Tenant) api.PlatformTenant {
-	return api.PlatformTenant{Id: t.ID, Slug: t.Slug, Name: t.Name, Status: api.TenantStatus(t.Status),
+	return api.PlatformTenant{Id: t.ID, Slug: t.Slug, Name: t.Name, PlanKey: t.PlanKey, Status: api.TenantStatus(t.Status),
 		SubscriptionStatus: api.SubscriptionStatus(t.SubscriptionStatus), TrialEndsAt: t.TrialEndsAt,
 		SuspendedAt: t.SuspendedAt, SuspendedReason: t.SuspendedReason, CreatedAt: t.CreatedAt}
 }
@@ -175,7 +184,7 @@ func (s *Service) ListTenants(ctx context.Context, p api.ListPlatformTenantsPara
 	out := make([]api.PlatformTenant, len(rows))
 	for i, r := range rows {
 		t := tenantView(db.Tenant{ID: r.ID, Slug: r.Slug, Name: r.Name, Status: r.Status, SuspendedAt: r.SuspendedAt,
-			CreatedAt: r.CreatedAt, SubscriptionStatus: r.SubscriptionStatus, TrialEndsAt: r.TrialEndsAt, SuspendedReason: r.SuspendedReason})
+			CreatedAt: r.CreatedAt, SubscriptionStatus: r.SubscriptionStatus, TrialEndsAt: r.TrialEndsAt, SuspendedReason: r.SuspendedReason, PlanKey: r.PlanKey})
 		t.MemberCount, t.PrimaryHost, t.Url = r.MemberCount, strPtr(r.PrimaryHost), s.tenantURL(r.PrimaryHost)
 		out[i] = t
 	}
@@ -218,7 +227,7 @@ func (s *Service) Tenant(ctx context.Context, id uuid.UUID) (api.PlatformTenantD
 		return api.PlatformTenantDetail{}, err
 	}
 	v := tenantView(t)
-	out := api.PlatformTenantDetail{Id: v.Id, Slug: v.Slug, Name: v.Name, Status: v.Status, SubscriptionStatus: v.SubscriptionStatus,
+	out := api.PlatformTenantDetail{Id: v.Id, Slug: v.Slug, Name: v.Name, PlanKey: v.PlanKey, Status: v.Status, SubscriptionStatus: v.SubscriptionStatus,
 		TrialEndsAt: v.TrialEndsAt, SuspendedAt: v.SuspendedAt, SuspendedReason: v.SuspendedReason, CreatedAt: v.CreatedAt,
 		MemberCount: members, Domains: make([]api.PlatformDomain, 0, len(domains))}
 	out.Owners = make([]struct {
@@ -420,6 +429,19 @@ func (s *Service) AddDomain(ctx context.Context, tenantID uuid.UUID, raw string)
 	}
 	if base := s.o.Hosts.Base; base != "" && (host == base || strings.HasSuffix(host, "."+base)) {
 		return api.PlatformDomain{}, apperr.Validation("hostname", "Addresses under the platform domain are the companies' own sub-domains")
+	}
+	// A custom domain is a plan feature (custom_domain): assign a plan
+	// with it first. Existing domains stay after a lower plan.
+	if s.o.Plans != nil {
+		plan, err := s.o.Plans.Limits(tenant.WithID(ctx, tenantID), tenantID)
+		if err != nil && !errors.Is(err, entitlements.ErrUnknownTenant) {
+			return api.PlatformDomain{}, err
+		}
+		if err == nil {
+			if err := plan.Require(entitlements.CustomDomain); err != nil {
+				return api.PlatformDomain{}, err
+			}
+		}
 	}
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -815,7 +837,11 @@ func (s *Service) Settings(ctx context.Context) (api.PlatformSettings, error) {
 		return api.PlatformSettings{}, err
 	}
 	out := api.PlatformSettings{SignupEnabled: on, BaseDomain: s.o.Hosts.Base, AdminUrl: strPtr(s.o.Hosts.AdminURL()), PlatformUrl: strPtr(s.o.Hosts.PlatformURL())}
-	out.Email.Configured, out.Email.From, out.Email.Host = s.o.Sender.Configured, s.o.Sender.From, s.o.Sender.Host
+	snd := s.o.Sender
+	if s.o.CurrentSender != nil {
+		snd = s.o.CurrentSender(ctx)
+	}
+	out.Email.Configured, out.Email.From, out.Email.Host = snd.Configured, snd.From, snd.Host
 	if raw, err := s.q.GetPlatformSetting(pctx(ctx), settingReplyTo); err == nil {
 		var v string
 		if json.Unmarshal(raw, &v) == nil && v != "" {

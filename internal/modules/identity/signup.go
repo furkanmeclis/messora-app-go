@@ -15,6 +15,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer/templates"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
@@ -133,10 +134,15 @@ func (s *Service) createTenant(ctx context.Context, q *db.Queries, nt NewTenant,
 	if taken {
 		return db.Tenant{}, errSlugTaken
 	}
-	params := db.CreateTenantParams{Slug: nt.Slug, Name: nt.Name, SubscriptionStatus: "active"}
+	// A new company's plan (Phase 17 WP8): during its trial the trial plan
+	// (growth); without a trial the starter plan until the platform admin
+	// assigns another. What happens when the trial ends is WP9.
+	plan := entitlements.PlanStarter
+	params := db.CreateTenantParams{Slug: nt.Slug, Name: nt.Name, SubscriptionStatus: "active", PlanKey: &plan}
 	if nt.Trial > 0 {
 		end := s.now().Add(nt.Trial)
-		params.SubscriptionStatus, params.TrialEndsAt = "trial", &end
+		trial := entitlements.TrialPlan
+		params.SubscriptionStatus, params.TrialEndsAt, params.PlanKey = "trial", &end, &trial
 	}
 	t, err := q.CreateTenant(ctx, params)
 	if err != nil {

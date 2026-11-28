@@ -23,6 +23,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/safehttp"
@@ -49,11 +50,17 @@ var ErrRetriesExhausted = errors.New("automation: step failed after its last ret
 
 // Failure codes of a run (automation_runs.error_code).
 const (
-	CodeAIDisabled       = "ai_disabled"
-	CodeAINotConfigured  = "ai_not_configured"
-	CodeAINotAllowed     = "ai_not_allowed"
-	CodeAINoProfile      = "ai_no_profile"
-	CodeAIError          = "ai_error"
+	CodeAIDisabled      = "ai_disabled"
+	CodeAINotConfigured = "ai_not_configured"
+	CodeAINotAllowed    = "ai_not_allowed"
+	CodeAINoProfile     = "ai_no_profile"
+	CodeAIError         = "ai_error"
+	// CodeAICreditsExhausted: the company's AI credits are used up (AI
+	// steps with Messora's keys stop without retries until the monthly
+	// reset or a top-up; Phase 17 WP8).
+	CodeAICreditsExhausted = "ai_credits_exhausted"
+	// CodeAINotInPlan: the company's plan has no AI.
+	CodeAINotInPlan      = "ai_not_in_plan"
 	CodeRetriesExhausted = "retries_exhausted"
 	CodeStepFailed       = "step_failed"
 )
@@ -86,6 +93,19 @@ type Service struct {
 	inbox  Inbox
 	fields FieldWriter
 	now    func() time.Time
+	// plans caps the active flows (Phase 17 WP8).
+	plans entitlements.Provider
+}
+
+// SetPlans installs the plan provider.
+func (s *Service) SetPlans(p entitlements.Provider) { s.plans = p }
+
+// checkActive refuses one more active flow past the plan's limit
+// (except: the flow being switched on, already counted when active).
+func (s *Service) checkActive(ctx context.Context, q *db.Queries, except *uuid.UUID) error {
+	return entitlements.Check(ctx, q, s.plans, entitlements.AutomationFlows, func() (int64, error) {
+		return q.CountActiveAutomationsForPlan(ctx, except)
+	})
 }
 
 // New returns the engine. httpClient may be nil, which disables HTTP steps.

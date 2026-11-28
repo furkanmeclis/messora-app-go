@@ -75,6 +75,12 @@ func aiFailure(err error) *StepError {
 		return aiConfigError(CodeAIDisabled)
 	case ai.KindNotConfigured:
 		return &StepError{Code: CodeAINotConfigured, Message: "AI is not set up: " + err.Error()}
+	case ai.KindCreditsExhausted:
+		// Not retried: waiting minutes does not bring credits back.
+		return &StepError{Code: CodeAICreditsExhausted,
+			Message: "This month's AI credits are used up: the AI step stopped. AI steps run again after the monthly reset or a top-up (Settings → Plan)."}
+	case ai.KindNotInPlan:
+		return &StepError{Code: CodeAINotInPlan, Message: "The workspace's plan does not include AI steps (Settings → Plan)."}
 	}
 	return &StepError{Code: CodeAIError, Message: "AI request failed: " + err.Error(), Retryable: ai.IsRetryable(err) || ai.KindOf(err) == ""}
 }

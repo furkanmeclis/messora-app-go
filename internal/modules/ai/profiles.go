@@ -11,11 +11,12 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 )
 
 func profileFromRow(r db.AiProfile, phone string) Profile {
 	p := Profile{ID: r.ID, Name: r.Name, PhoneNumberID: r.PhoneNumberID, PhoneDisplay: phone, SystemPrompt: r.SystemPrompt,
-		ProviderID: r.ProviderID, Model: r.Model, AutoReply: r.AutoReply, DisclosureMode: r.DisclosureMode, Status: r.Status,
+		ProviderID: coalesceID(r.ProviderID, r.PlatformProviderID), Model: r.Model, AutoReply: r.AutoReply, DisclosureMode: r.DisclosureMode, Status: r.Status,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 	_ = json.Unmarshal(r.Handoff, &p.Handoff)
 	p.Handoff.OnRequest = true
@@ -86,14 +87,14 @@ func (s *Service) checkRefs(ctx context.Context, q *db.Queries, p Profile) error
 		}
 	}
 	if p.ProviderID != nil {
-		pr, err := q.GetAIProvider(ctx, *p.ProviderID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return &FieldError{"provider_id", "Unknown provider."}
-		}
+		kind, err := s.providerKind(ctx, q, *p.ProviderID)
 		if err != nil {
 			return err
 		}
-		if Kind(pr.Kind) == KindFake && !s.opts.AllowFake {
+		if kind == "" {
+			return &FieldError{"provider_id", "Unknown provider."}
+		}
+		if kind == KindFake && !s.opts.AllowFake {
 			return &FieldError{"provider_id", "The fake provider is not available here."}
 		}
 	} else if p.Model != nil {
@@ -139,12 +140,27 @@ func (s *Service) CreateProfile(ctx context.Context, p Profile, actor *uuid.UUID
 	}
 	var out Profile
 	err := s.tx(ctx, func(q *db.Queries) error {
+		// AI agents are a plan feature with a count (Phase 17 WP8).
+		plan, err := s.plan(ctx)
+		if err != nil {
+			return err
+		}
+		if err := plan.Require(entitlements.AIAgents); err != nil {
+			return err
+		}
+		if err := entitlements.Check(ctx, q, s.plans, entitlements.AIAgentCount, func() (int64, error) { return q.CountAIProfilesForPlan(ctx) }); err != nil {
+			return err
+		}
 		if err := s.checkRefs(ctx, q, p); err != nil {
 			return err
 		}
 		h, d, a := profileJSON(p)
+		own, platform, err := s.splitProvider(ctx, q, p.ProviderID)
+		if err != nil {
+			return err
+		}
 		r, err := q.InsertAIProfile(ctx, db.InsertAIProfileParams{Name: p.Name, PhoneNumberID: p.PhoneNumberID, SystemPrompt: p.SystemPrompt,
-			ProviderID: p.ProviderID, Model: p.Model, AutoReply: p.AutoReply, Handoff: h, DataCollection: d, AllowedActions: a,
+			ProviderID: own, PlatformProviderID: platform, Model: p.Model, AutoReply: p.AutoReply, Handoff: h, DataCollection: d, AllowedActions: a,
 			DisclosureMode: p.DisclosureMode, Status: p.Status, CreatedBy: actor})
 		if isUnique(err) {
 			return &FieldError{"phone_number_id", "This number already has an AI profile."}
@@ -174,8 +190,12 @@ func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, p Profile) (P
 			return err
 		}
 		h, d, a := profileJSON(p)
+		own, platform, err := s.splitProvider(ctx, q, p.ProviderID)
+		if err != nil {
+			return err
+		}
 		r, err := q.UpdateAIProfile(ctx, db.UpdateAIProfileParams{ID: id, Name: p.Name, PhoneNumberID: p.PhoneNumberID,
-			SystemPrompt: p.SystemPrompt, ProviderID: p.ProviderID, Model: p.Model, AutoReply: p.AutoReply, Handoff: h,
+			SystemPrompt: p.SystemPrompt, ProviderID: own, PlatformProviderID: platform, Model: p.Model, AutoReply: p.AutoReply, Handoff: h,
 			DataCollection: d, AllowedActions: a, DisclosureMode: p.DisclosureMode, Status: p.Status})
 		if isUnique(err) {
 			return &FieldError{"phone_number_id", "This number already has an AI profile."}
@@ -267,4 +287,25 @@ func (s *Service) TestProfile(ctx context.Context, id uuid.UUID, msgs []Message,
 		}
 	}
 	return out, nil
+}
+
+func coalesceID(a, b *uuid.UUID) *uuid.UUID {
+	if a != nil {
+		return a
+	}
+	return b
+}
+
+// splitProvider tells a company connection (own) from one of Messora's keys
+// (platform); checkRefs has verified that id is one of the two.
+func (s *Service) splitProvider(ctx context.Context, q *db.Queries, id *uuid.UUID) (own, platform *uuid.UUID, err error) {
+	if id == nil {
+		return nil, nil, nil
+	}
+	if _, err := q.GetAIProvider(ctx, *id); err == nil {
+		return id, nil, nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, err
+	}
+	return nil, id, nil
 }

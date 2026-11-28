@@ -13,6 +13,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer/templates"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -172,6 +173,13 @@ func (s *Service) invite(ctx context.Context, actor *principal.Principal, email,
 		}
 		if err := q.ExpireStaleInvitation(ctx, email); err != nil {
 			return err
+		}
+		// Seats: active members and open invitations count against the
+		// plan's users. The platform's owner invitation is not capped.
+		if actor != nil {
+			if err := entitlements.Check(ctx, q, s.plans, entitlements.Users, func() (int64, error) { return q.CountSeatsForPlan(ctx) }); err != nil {
+				return err
+			}
 		}
 		row, err = q.CreateInvitation(ctx, db.CreateInvitationParams{
 			Email: email, RoleKey: role, TokenHash: crypto.HashToken(token), InvitedBy: invitedBy, ExpiresAt: s.now().Add(invitationTTL),
@@ -349,6 +357,11 @@ func (s *Service) AcceptInvitation(ctx context.Context, req api.AcceptInvitation
 		}
 		if n == 0 {
 			return errInvitationInvalid // accepted concurrently
+		}
+		// The invitation held a seat; after a plan change there may be no
+		// seat left for it (the active members count).
+		if err := entitlements.Check(ctx, q, s.plans, entitlements.Users, func() (int64, error) { return q.CountActiveMembersForPlan(ctx) }); err != nil {
+			return err
 		}
 		u := existing
 		if u.ID == uuid.Nil {

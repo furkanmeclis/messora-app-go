@@ -12,6 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AiCreditLot struct {
+	ID          uuid.UUID
+	TenantID    uuid.UUID
+	Source      string
+	PeriodStart pgtype.Date
+	Granted     int64
+	Used        int64
+	StartsAt    time.Time
+	ExpiresAt   *time.Time
+	Note        string
+	Reference   *string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type AiModel struct {
 	ProviderID    uuid.UUID
 	ModelID       string
@@ -47,22 +63,23 @@ type AiModelPrice struct {
 }
 
 type AiProfile struct {
-	ID             uuid.UUID
-	Name           string
-	PhoneNumberID  *uuid.UUID
-	SystemPrompt   string
-	ProviderID     *uuid.UUID
-	Model          *string
-	AutoReply      bool
-	Handoff        []byte
-	DataCollection []byte
-	AllowedActions []byte
-	DisclosureMode string
-	Status         string
-	CreatedBy      *uuid.UUID
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	TenantID       uuid.UUID
+	ID                 uuid.UUID
+	Name               string
+	PhoneNumberID      *uuid.UUID
+	SystemPrompt       string
+	ProviderID         *uuid.UUID
+	Model              *string
+	AutoReply          bool
+	Handoff            []byte
+	DataCollection     []byte
+	AllowedActions     []byte
+	DisclosureMode     string
+	Status             string
+	CreatedBy          *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	TenantID           uuid.UUID
+	PlatformProviderID *uuid.UUID
 }
 
 type AiProvider struct {
@@ -108,6 +125,9 @@ type AiUsage struct {
 	ErrorKind          *string
 	CreatedAt          time.Time
 	TenantID           uuid.UUID
+	KeySource          *string
+	PlatformProviderID *uuid.UUID
+	Credits            *int64
 }
 
 type ApiKey struct {
@@ -888,6 +908,67 @@ type PhoneNumber struct {
 	TenantID               uuid.UUID
 }
 
+type Plan struct {
+	Key           string
+	NameTr        string
+	NameEn        string
+	DescriptionTr string
+	DescriptionEn string
+	SortOrder     int64
+	Limits        []byte
+	Features      []byte
+	Currency      string
+	PriceMonthly  pgtype.Numeric
+	PriceYearly   pgtype.Numeric
+	CustomPricing bool
+	Active        bool
+	Public        bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type PlanChangeRequest struct {
+	ID             uuid.UUID
+	TenantID       uuid.UUID
+	CurrentPlan    *string
+	RequestedPlan  string
+	BillingCycle   string
+	Message        string
+	RequestedBy    *uuid.UUID
+	Status         string
+	ResolutionNote string
+	ResolvedBy     *uuid.UUID
+	ResolvedAt     *time.Time
+	CreatedAt      time.Time
+}
+
+type PlatformAiModel struct {
+	ProviderID    uuid.UUID
+	ModelID       string
+	DisplayName   string
+	ContextWindow *int64
+	MaxOutput     *int64
+	Capabilities  []byte
+	Lifecycle     *string
+	SyncedAt      time.Time
+}
+
+type PlatformAiProvider struct {
+	ID             uuid.UUID
+	Kind           string
+	Name           string
+	ApiKeyEnc      []byte
+	KeyLast4       string
+	BaseUrl        *string
+	Status         string
+	StatusDetail   string
+	CheckedAt      *time.Time
+	ModelsSyncedAt *time.Time
+	Enabled        bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type PlatformAuditLog struct {
 	ID         uuid.UUID
 	OccurredAt time.Time
@@ -993,6 +1074,9 @@ type Tenant struct {
 	SubscriptionStatus string
 	TrialEndsAt        *time.Time
 	SuspendedReason    *string
+	PlanKey            *string
+	PlanOverrides      []byte
+	PlanChangedAt      *time.Time
 }
 
 type TenantDomain struct {

@@ -207,9 +207,9 @@ func (q *Queries) CreateSupportSession(ctx context.Context, arg CreateSupportSes
 const createTenant = `-- name: CreateTenant :one
 
 
-INSERT INTO tenants (slug, name, subscription_status, trial_ends_at)
-VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason
+INSERT INTO tenants (slug, name, subscription_status, trial_ends_at, plan_key, plan_changed_at)
+VALUES ($1, $2, $3, $4, $5, now())
+RETURNING id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason, plan_key, plan_overrides, plan_changed_at
 `
 
 type CreateTenantParams struct {
@@ -217,6 +217,7 @@ type CreateTenantParams struct {
 	Name               string
 	SubscriptionStatus string
 	TrialEndsAt        *time.Time
+	PlanKey            *string
 }
 
 // Platform queries (Phase 17 WP2). Unless noted, they run as
@@ -229,6 +230,7 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		arg.Name,
 		arg.SubscriptionStatus,
 		arg.TrialEndsAt,
+		arg.PlanKey,
 	)
 	var i Tenant
 	err := row.Scan(
@@ -243,6 +245,9 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		&i.SubscriptionStatus,
 		&i.TrialEndsAt,
 		&i.SuspendedReason,
+		&i.PlanKey,
+		&i.PlanOverrides,
+		&i.PlanChangedAt,
 	)
 	return i, err
 }
@@ -546,7 +551,7 @@ func (q *Queries) GetSupportGrantForSession(ctx context.Context, id uuid.UUID) (
 }
 
 const getTenant = `-- name: GetTenant :one
-SELECT id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason FROM tenants WHERE id = $1
+SELECT id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason, plan_key, plan_overrides, plan_changed_at FROM tenants WHERE id = $1
 `
 
 func (q *Queries) GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error) {
@@ -564,6 +569,9 @@ func (q *Queries) GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error) {
 		&i.SubscriptionStatus,
 		&i.TrialEndsAt,
 		&i.SuspendedReason,
+		&i.PlanKey,
+		&i.PlanOverrides,
+		&i.PlanChangedAt,
 	)
 	return i, err
 }
@@ -591,7 +599,7 @@ func (q *Queries) GetTenantDomain(ctx context.Context, id uuid.UUID) (TenantDoma
 }
 
 const getTenantForUpdate = `-- name: GetTenantForUpdate :one
-SELECT id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason FROM tenants WHERE id = $1 FOR UPDATE
+SELECT id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason, plan_key, plan_overrides, plan_changed_at FROM tenants WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetTenantForUpdate(ctx context.Context, id uuid.UUID) (Tenant, error) {
@@ -609,6 +617,9 @@ func (q *Queries) GetTenantForUpdate(ctx context.Context, id uuid.UUID) (Tenant,
 		&i.SubscriptionStatus,
 		&i.TrialEndsAt,
 		&i.SuspendedReason,
+		&i.PlanKey,
+		&i.PlanOverrides,
+		&i.PlanChangedAt,
 	)
 	return i, err
 }
@@ -877,7 +888,7 @@ func (q *Queries) ListTenantDomains(ctx context.Context, tenantID uuid.UUID) ([]
 }
 
 const listTenants = `-- name: ListTenants :many
-SELECT t.id, t.slug, t.name, t.status, t.suspended_at, t.deleted_at, t.created_at, t.updated_at, t.subscription_status, t.trial_ends_at, t.suspended_reason,
+SELECT t.id, t.slug, t.name, t.status, t.suspended_at, t.deleted_at, t.created_at, t.updated_at, t.subscription_status, t.trial_ends_at, t.suspended_reason, t.plan_key, t.plan_overrides, t.plan_changed_at,
        (SELECT count(*) FROM tenant_memberships m WHERE m.tenant_id = t.id AND m.status = 'active') AS member_count,
        coalesce((SELECT d.hostname FROM tenant_domains d WHERE d.tenant_id = t.id AND d.is_primary), '')::text AS primary_host
 FROM tenants t
@@ -910,6 +921,9 @@ type ListTenantsRow struct {
 	SubscriptionStatus string
 	TrialEndsAt        *time.Time
 	SuspendedReason    *string
+	PlanKey            *string
+	PlanOverrides      []byte
+	PlanChangedAt      *time.Time
 	MemberCount        int64
 	PrimaryHost        string
 }
@@ -940,6 +954,9 @@ func (q *Queries) ListTenants(ctx context.Context, arg ListTenantsParams) ([]Lis
 			&i.SubscriptionStatus,
 			&i.TrialEndsAt,
 			&i.SuspendedReason,
+			&i.PlanKey,
+			&i.PlanOverrides,
+			&i.PlanChangedAt,
 			&i.MemberCount,
 			&i.PrimaryHost,
 		); err != nil {
@@ -1274,7 +1291,7 @@ func (q *Queries) SlugInUse(ctx context.Context, arg SlugInUseParams) (bool, err
 const suspendTenant = `-- name: SuspendTenant :one
 UPDATE tenants SET status = 'suspended', suspended_at = now(), suspended_reason = $1, updated_at = now()
 WHERE id = $2 AND status = 'active'
-RETURNING id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason
+RETURNING id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason, plan_key, plan_overrides, plan_changed_at
 `
 
 type SuspendTenantParams struct {
@@ -1297,6 +1314,9 @@ func (q *Queries) SuspendTenant(ctx context.Context, arg SuspendTenantParams) (T
 		&i.SubscriptionStatus,
 		&i.TrialEndsAt,
 		&i.SuspendedReason,
+		&i.PlanKey,
+		&i.PlanOverrides,
+		&i.PlanChangedAt,
 	)
 	return i, err
 }
@@ -1346,7 +1366,7 @@ func (q *Queries) TouchPlatformSession(ctx context.Context, id uuid.UUID) error 
 const unsuspendTenant = `-- name: UnsuspendTenant :one
 UPDATE tenants SET status = 'active', suspended_at = NULL, suspended_reason = NULL, updated_at = now()
 WHERE id = $1 AND status = 'suspended'
-RETURNING id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason
+RETURNING id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason, plan_key, plan_overrides, plan_changed_at
 `
 
 func (q *Queries) UnsuspendTenant(ctx context.Context, id uuid.UUID) (Tenant, error) {
@@ -1364,6 +1384,9 @@ func (q *Queries) UnsuspendTenant(ctx context.Context, id uuid.UUID) (Tenant, er
 		&i.SubscriptionStatus,
 		&i.TrialEndsAt,
 		&i.SuspendedReason,
+		&i.PlanKey,
+		&i.PlanOverrides,
+		&i.PlanChangedAt,
 	)
 	return i, err
 }
@@ -1375,7 +1398,7 @@ UPDATE tenants SET
     subscription_status = coalesce($4, subscription_status),
     updated_at = now()
 WHERE id = $5
-RETURNING id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason
+RETURNING id, slug, name, status, suspended_at, deleted_at, created_at, updated_at, subscription_status, trial_ends_at, suspended_reason, plan_key, plan_overrides, plan_changed_at
 `
 
 type UpdateTenantParams struct {
@@ -1407,6 +1430,9 @@ func (q *Queries) UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Ten
 		&i.SubscriptionStatus,
 		&i.TrialEndsAt,
 		&i.SuspendedReason,
+		&i.PlanKey,
+		&i.PlanOverrides,
+		&i.PlanChangedAt,
 	)
 	return i, err
 }

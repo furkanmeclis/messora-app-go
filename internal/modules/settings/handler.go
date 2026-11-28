@@ -11,12 +11,14 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -30,7 +32,12 @@ type Handler struct {
 	mail   *Mail
 	stores *storage.Stores
 	log    *slog.Logger
+	// plans caps the storage an upload may take (Phase 17 WP8).
+	plans entitlements.Provider
 }
+
+// SetPlans installs the plan provider.
+func (h *Handler) SetPlans(p entitlements.Provider) { h.plans = p }
 
 // NewHandler returns the settings handler. mail may be nil when e-mail is
 // injected by tests; the SMTP operations then report it as unavailable.
@@ -147,6 +154,8 @@ func settingsError(err error) error {
 		return apperr.Conflict("SETTING_MANAGED_BY_ENV", strings.TrimPrefix(err.Error(), "settings: ")+".")
 	case errors.Is(err, ErrSMTPManagedByEnv):
 		return apperr.Conflict("SMTP_MANAGED_BY_ENV", "E-mail is configured by environment variables (SMTP_HOST).")
+	case errors.Is(err, errCustomSMTP):
+		return entitlements.ErrFeature(entitlements.CustomSMTP)
 	case errors.Is(err, ErrInvalid):
 		return apperr.Validation("", strings.TrimPrefix(err.Error(), "settings: invalid: "))
 	}
@@ -243,6 +252,19 @@ func (h *Handler) UploadLogo(w http.ResponseWriter, r *http.Request) {
 	if ct == "" {
 		httpx.WriteError(w, r, apperr.Validation("", "The logo must be a PNG, JPEG, WebP or SVG image."), h.log)
 		return
+	}
+	if plan, err := entitlements.For(r.Context(), h.plans); err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	} else if plan.Limited(entitlements.Storage) {
+		used, err := db.New(h.pool).StorageBytesUsed(r.Context())
+		if err == nil {
+			err = plan.AllowAdd(entitlements.Storage, used, int64(len(body)))
+		}
+		if err != nil {
+			httpx.WriteError(w, r, err, h.log)
+			return
+		}
 	}
 	sum := sha256.Sum256(body)
 	logo := &Logo{ContentType: ct, Version: hex.EncodeToString(sum[:8])}
@@ -371,9 +393,17 @@ func (h *Handler) GetSmtpSettings(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, r, http.StatusOK, smtpToAPI(v))
 }
 
+// errCustomSMTP refuses a company's own SMTP server without custom_smtp
+// (the guard checks the operation's x-messora-feature first).
+var errCustomSMTP = errors.New("settings: custom SMTP is not in the plan")
+
 // UpdateSmtpSettings implements api.ServerInterface.
 func (h *Handler) UpdateSmtpSettings(w http.ResponseWriter, r *http.Request) {
 	if h.mailUnavailable(w, r) {
+		return
+	}
+	if !h.mail.CustomAllowed(r.Context()) {
+		httpx.WriteError(w, r, settingsError(errCustomSMTP), h.log)
 		return
 	}
 	var req api.SmtpSettingsInput
@@ -406,6 +436,10 @@ func (h *Handler) UpdateSmtpSettings(w http.ResponseWriter, r *http.Request) {
 // TestSmtpSettings implements api.ServerInterface.
 func (h *Handler) TestSmtpSettings(w http.ResponseWriter, r *http.Request) {
 	if h.mailUnavailable(w, r) {
+		return
+	}
+	if !h.mail.CustomAllowed(r.Context()) {
+		httpx.WriteError(w, r, settingsError(errCustomSMTP), h.log)
 		return
 	}
 	var req api.SmtpTestRequest
@@ -445,4 +479,78 @@ func inTx(ctx context.Context, pool *pgxpool.Pool, fn func(*db.Queries) error) e
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// E-mail identity -------------------------------------------------------------
+
+func (h *Handler) emailSettings(ctx context.Context) (api.EmailSettings, error) {
+	s, err := h.store.Get(ctx)
+	if err != nil {
+		return api.EmailSettings{}, err
+	}
+	v, err := h.mail.View(ctx)
+	if err != nil {
+		return api.EmailSettings{}, err
+	}
+	allowed := h.mail.CustomAllowed(ctx)
+	out := api.EmailSettings{Mode: api.EmailSettingsModePlatform, CustomSmtpAllowed: allowed, CustomConfigured: v.Enabled,
+		DisplayName: s.OrganizationName}
+	if allowed && v.Enabled {
+		out.Mode = api.EmailSettingsModeCustom
+	}
+	out.Sender.From = h.mail.PlatformFrom(ctx)
+	out.Sender.Configured = h.mail.Platform(ctx).Enabled(ctx)
+	if rt := TenantReplyTo(ctx, db.New(h.pool)); rt != "" {
+		out.ReplyTo = &rt
+	}
+	if f := h.mail.LastFailure(ctx); f != nil && allowed {
+		out.LastFailure = &struct {
+			At    time.Time `json:"at"`
+			Error string    `json:"error"`
+		}{At: f.At, Error: f.Error}
+	}
+	return out, nil
+}
+
+// GetEmailSettings implements api.ServerInterface.
+func (h *Handler) GetEmailSettings(w http.ResponseWriter, r *http.Request) {
+	if h.mailUnavailable(w, r) {
+		return
+	}
+	out, err := h.emailSettings(r.Context())
+	if err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// UpdateEmailSettings implements api.ServerInterface.
+func (h *Handler) UpdateEmailSettings(w http.ResponseWriter, r *http.Request) {
+	if h.mailUnavailable(w, r) {
+		return
+	}
+	var req api.UpdateEmailSettingsRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	replyTo := ""
+	if req.ReplyTo != nil {
+		replyTo = string(*req.ReplyTo)
+	}
+	actor := principal.From(r.Context())
+	err := inTx(r.Context(), h.pool, func(q *db.Queries) error {
+		if err := h.mail.SetReplyTo(r.Context(), q, replyTo, &actor.ID); err != nil {
+			return err
+		}
+		return audit.Record(r.Context(), q, audit.Entry{Action: "settings.email_update", EntityType: "settings",
+			Changes: map[string]any{"reply_to": replyTo}})
+	})
+	h.mail.Invalidate()
+	if err != nil {
+		httpx.WriteError(w, r, settingsError(err), h.log)
+		return
+	}
+	h.GetEmailSettings(w, r)
 }

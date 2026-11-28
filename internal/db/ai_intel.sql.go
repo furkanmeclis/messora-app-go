@@ -14,11 +14,13 @@ import (
 
 const aICostSince = `-- name: AICostSince :one
 
-SELECT coalesce(sum(cost), 0)::text FROM ai_usage WHERE created_at >= $1 AND coalesce(currency, 'USD') = 'USD'
+SELECT coalesce(sum(cost), 0)::text FROM ai_usage
+WHERE created_at >= $1 AND coalesce(currency, 'USD') = 'USD' AND key_source IS DISTINCT FROM 'platform'
 `
 
 // ── Budget ──────────────────────────────────────────────────────────────────
-// USD cost of AI requests since @since (the month's budget).
+// USD cost of AI requests since @since (the month's budget). Calls with the
+// platform's keys are paid with AI credits and not counted (Phase 17 WP8).
 func (q *Queries) AICostSince(ctx context.Context, since time.Time) (string, error) {
 	row := q.db.QueryRow(ctx, aICostSince, since)
 	var column_1 string

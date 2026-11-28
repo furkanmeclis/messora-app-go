@@ -220,6 +220,11 @@ func (h *Handler) CreateAutomation(w http.ResponseWriter, r *http.Request) {
 	}
 	var a db.Automation
 	err = h.svc.tx(r.Context(), func(_ pgx.Tx, q *db.Queries) error {
+		if req.Active != nil && *req.Active {
+			if err := h.svc.checkActive(r.Context(), q, nil); err != nil {
+				return err
+			}
+		}
 		a, err = q.InsertAutomation(r.Context(), db.InsertAutomationParams{Name: strings.TrimSpace(req.Name), Description: desc,
 			Active: req.Active != nil && *req.Active, TriggerType: string(req.TriggerType), Trigger: def.trigger, Steps: def.steps,
 			Program: def.program, Layout: lj, CreatedBy: &p.ID, Setup: def.setup})
@@ -332,6 +337,13 @@ func (h *Handler) UpdateAutomation(w http.ResponseWriter, r *http.Request, id ap
 	}
 	var a db.Automation
 	err := h.svc.tx(r.Context(), func(_ pgx.Tx, q *db.Queries) error {
+		// Switching a flow on counts against the plan's active flows; a
+		// flow that is on stays on after a lower plan (Phase 17 WP8).
+		if active && !cur.Active {
+			if err := h.svc.checkActive(r.Context(), q, &id); err != nil {
+				return err
+			}
+		}
 		var err error
 		a, err = q.UpdateAutomation(r.Context(), p)
 		if err != nil {

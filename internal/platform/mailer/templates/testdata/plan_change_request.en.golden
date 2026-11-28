@@ -1,0 +1,25 @@
+Subject: Plan change request: Acme Gıda
+Preheader: Acme Gıda asks for the Growth plan (yearly).
+
+Messora
+========================================
+
+Hi Deniz,
+
+The Acme Gıda workspace asked for another plan on 27 November 2026 at 14:05 (UTC+03:00).
+
+  Workspace: Acme Gıda
+  Address: https://acme.messora.tech
+  Current plan: Starter
+  Requested plan: Growth
+  Billing: Yearly
+  Requested by: Ayşe Yılmaz <ayse@acmegida.com.tr>
+  Message: Our team is growing; we need two more users and API access.
+
+Assign the plan in the platform admin panel and close the request:
+https://admin.messora.tech/plan-requests
+
+----------------------------------------
+You're receiving this because you are a platform admin of Messora.
+Questions? Write to our support team: https://messora.tech/destek
+This e-mail was sent automatically. © Messora · https://messora.tech

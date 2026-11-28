@@ -157,7 +157,7 @@ func (q *Queries) GetAIPrice(ctx context.Context, id uuid.UUID) (GetAIPriceRow, 
 }
 
 const getAIProfile = `-- name: GetAIProfile :one
-SELECT id, name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection, allowed_actions, disclosure_mode, status, created_by, created_at, updated_at, tenant_id FROM ai_profiles WHERE id = $1
+SELECT id, name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection, allowed_actions, disclosure_mode, status, created_by, created_at, updated_at, tenant_id, platform_provider_id FROM ai_profiles WHERE id = $1
 `
 
 func (q *Queries) GetAIProfile(ctx context.Context, id uuid.UUID) (AiProfile, error) {
@@ -180,12 +180,13 @@ func (q *Queries) GetAIProfile(ctx context.Context, id uuid.UUID) (AiProfile, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantID,
+		&i.PlatformProviderID,
 	)
 	return i, err
 }
 
 const getAIProfileForNumber = `-- name: GetAIProfileForNumber :one
-SELECT id, name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection, allowed_actions, disclosure_mode, status, created_by, created_at, updated_at, tenant_id FROM ai_profiles WHERE phone_number_id = $1
+SELECT id, name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection, allowed_actions, disclosure_mode, status, created_by, created_at, updated_at, tenant_id, platform_provider_id FROM ai_profiles WHERE phone_number_id = $1
 `
 
 func (q *Queries) GetAIProfileForNumber(ctx context.Context, phoneNumberID *uuid.UUID) (AiProfile, error) {
@@ -208,6 +209,7 @@ func (q *Queries) GetAIProfileForNumber(ctx context.Context, phoneNumberID *uuid
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantID,
+		&i.PlatformProviderID,
 	)
 	return i, err
 }
@@ -377,26 +379,27 @@ func (q *Queries) InsertAIPriceIfAbsent(ctx context.Context, arg InsertAIPriceIf
 }
 
 const insertAIProfile = `-- name: InsertAIProfile :one
-INSERT INTO ai_profiles (name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection,
+INSERT INTO ai_profiles (name, phone_number_id, system_prompt, provider_id, platform_provider_id, model, auto_reply, handoff, data_collection,
                          allowed_actions, disclosure_mode, status, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7,
-        $8, $9, $10, $11, $12)
-RETURNING id, name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection, allowed_actions, disclosure_mode, status, created_by, created_at, updated_at, tenant_id
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13)
+RETURNING id, name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection, allowed_actions, disclosure_mode, status, created_by, created_at, updated_at, tenant_id, platform_provider_id
 `
 
 type InsertAIProfileParams struct {
-	Name           string
-	PhoneNumberID  *uuid.UUID
-	SystemPrompt   string
-	ProviderID     *uuid.UUID
-	Model          *string
-	AutoReply      bool
-	Handoff        []byte
-	DataCollection []byte
-	AllowedActions []byte
-	DisclosureMode string
-	Status         string
-	CreatedBy      *uuid.UUID
+	Name               string
+	PhoneNumberID      *uuid.UUID
+	SystemPrompt       string
+	ProviderID         *uuid.UUID
+	PlatformProviderID *uuid.UUID
+	Model              *string
+	AutoReply          bool
+	Handoff            []byte
+	DataCollection     []byte
+	AllowedActions     []byte
+	DisclosureMode     string
+	Status             string
+	CreatedBy          *uuid.UUID
 }
 
 func (q *Queries) InsertAIProfile(ctx context.Context, arg InsertAIProfileParams) (AiProfile, error) {
@@ -405,6 +408,7 @@ func (q *Queries) InsertAIProfile(ctx context.Context, arg InsertAIProfileParams
 		arg.PhoneNumberID,
 		arg.SystemPrompt,
 		arg.ProviderID,
+		arg.PlatformProviderID,
 		arg.Model,
 		arg.AutoReply,
 		arg.Handoff,
@@ -432,6 +436,7 @@ func (q *Queries) InsertAIProfile(ctx context.Context, arg InsertAIProfileParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantID,
+		&i.PlatformProviderID,
 	)
 	return i, err
 }
@@ -488,10 +493,11 @@ func (q *Queries) InsertAIProvider(ctx context.Context, arg InsertAIProviderPara
 const insertAIUsage = `-- name: InsertAIUsage :one
 INSERT INTO ai_usage (provider_id, provider_kind, model, purpose, profile_id, conversation_id, contact_id, campaign_id, automation_run_id,
                       input_tokens, cached_tokens, cache_write_tokens, cache_write_1h_tokens, output_tokens, reasoning_tokens,
-                      cost, currency, price_id, latency_ms, status, error_kind)
+                      cost, currency, price_id, latency_ms, status, error_kind, key_source, platform_provider_id, credits)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $11, $12, $13,
-        $14, $15, ($16::text)::numeric(12, 6), $17, $18, $19, $20, $21)
+        $14, $15, ($16::text)::numeric(12, 6), $17, $18, $19, $20, $21,
+        $22, $23, $24)
 RETURNING id
 `
 
@@ -517,6 +523,9 @@ type InsertAIUsageParams struct {
 	LatencyMs          int64
 	Status             string
 	ErrorKind          *string
+	KeySource          *string
+	PlatformProviderID *uuid.UUID
+	Credits            *int64
 }
 
 func (q *Queries) InsertAIUsage(ctx context.Context, arg InsertAIUsageParams) (uuid.UUID, error) {
@@ -542,6 +551,9 @@ func (q *Queries) InsertAIUsage(ctx context.Context, arg InsertAIUsageParams) (u
 		arg.LatencyMs,
 		arg.Status,
 		arg.ErrorKind,
+		arg.KeySource,
+		arg.PlatformProviderID,
+		arg.Credits,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -751,29 +763,30 @@ func (q *Queries) ListAIPricesForKind(ctx context.Context, providerKind string) 
 }
 
 const listAIProfiles = `-- name: ListAIProfiles :many
-SELECT pr.id, pr.name, pr.phone_number_id, pr.system_prompt, pr.provider_id, pr.model, pr.auto_reply, pr.handoff, pr.data_collection, pr.allowed_actions, pr.disclosure_mode, pr.status, pr.created_by, pr.created_at, pr.updated_at, pr.tenant_id, pn.display_phone_number AS phone_display
+SELECT pr.id, pr.name, pr.phone_number_id, pr.system_prompt, pr.provider_id, pr.model, pr.auto_reply, pr.handoff, pr.data_collection, pr.allowed_actions, pr.disclosure_mode, pr.status, pr.created_by, pr.created_at, pr.updated_at, pr.tenant_id, pr.platform_provider_id, pn.display_phone_number AS phone_display
 FROM ai_profiles pr LEFT JOIN phone_numbers pn ON pn.id = pr.phone_number_id
 ORDER BY pr.created_at
 `
 
 type ListAIProfilesRow struct {
-	ID             uuid.UUID
-	Name           string
-	PhoneNumberID  *uuid.UUID
-	SystemPrompt   string
-	ProviderID     *uuid.UUID
-	Model          *string
-	AutoReply      bool
-	Handoff        []byte
-	DataCollection []byte
-	AllowedActions []byte
-	DisclosureMode string
-	Status         string
-	CreatedBy      *uuid.UUID
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	TenantID       uuid.UUID
-	PhoneDisplay   *string
+	ID                 uuid.UUID
+	Name               string
+	PhoneNumberID      *uuid.UUID
+	SystemPrompt       string
+	ProviderID         *uuid.UUID
+	Model              *string
+	AutoReply          bool
+	Handoff            []byte
+	DataCollection     []byte
+	AllowedActions     []byte
+	DisclosureMode     string
+	Status             string
+	CreatedBy          *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	TenantID           uuid.UUID
+	PlatformProviderID *uuid.UUID
+	PhoneDisplay       *string
 }
 
 func (q *Queries) ListAIProfiles(ctx context.Context) ([]ListAIProfilesRow, error) {
@@ -802,6 +815,7 @@ func (q *Queries) ListAIProfiles(ctx context.Context) ([]ListAIProfilesRow, erro
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TenantID,
+			&i.PlatformProviderID,
 			&i.PhoneDisplay,
 		); err != nil {
 			return nil, err
@@ -855,7 +869,7 @@ func (q *Queries) ListAIProviders(ctx context.Context) ([]AiProvider, error) {
 }
 
 const listAIUsage = `-- name: ListAIUsage :many
-SELECT id, provider_id, provider_kind, model, purpose, profile_id, conversation_id, contact_id, campaign_id, automation_run_id, input_tokens, cached_tokens, cache_write_tokens, cache_write_1h_tokens, output_tokens, reasoning_tokens, cost, currency, price_id, latency_ms, status, error_kind, created_at, tenant_id FROM ai_usage ORDER BY created_at DESC, id DESC LIMIT $1
+SELECT id, provider_id, provider_kind, model, purpose, profile_id, conversation_id, contact_id, campaign_id, automation_run_id, input_tokens, cached_tokens, cache_write_tokens, cache_write_1h_tokens, output_tokens, reasoning_tokens, cost, currency, price_id, latency_ms, status, error_kind, created_at, tenant_id, key_source, platform_provider_id, credits FROM ai_usage ORDER BY created_at DESC, id DESC LIMIT $1
 `
 
 func (q *Queries) ListAIUsage(ctx context.Context, lim int32) ([]AiUsage, error) {
@@ -892,6 +906,9 @@ func (q *Queries) ListAIUsage(ctx context.Context, lim int32) ([]AiUsage, error)
 			&i.ErrorKind,
 			&i.CreatedAt,
 			&i.TenantID,
+			&i.KeySource,
+			&i.PlatformProviderID,
+			&i.Credits,
 		); err != nil {
 			return nil, err
 		}
@@ -1054,25 +1071,26 @@ func (q *Queries) UpdateAIPrice(ctx context.Context, arg UpdateAIPriceParams) (U
 const updateAIProfile = `-- name: UpdateAIProfile :one
 UPDATE ai_profiles SET
     name = $1, phone_number_id = $2, system_prompt = $3, provider_id = $4,
-    model = $5, auto_reply = $6, handoff = $7, data_collection = $8,
-    allowed_actions = $9, disclosure_mode = $10, status = $11, updated_at = now()
-WHERE id = $12
-RETURNING id, name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection, allowed_actions, disclosure_mode, status, created_by, created_at, updated_at, tenant_id
+    platform_provider_id = $5, model = $6, auto_reply = $7, handoff = $8, data_collection = $9,
+    allowed_actions = $10, disclosure_mode = $11, status = $12, updated_at = now()
+WHERE id = $13
+RETURNING id, name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection, allowed_actions, disclosure_mode, status, created_by, created_at, updated_at, tenant_id, platform_provider_id
 `
 
 type UpdateAIProfileParams struct {
-	Name           string
-	PhoneNumberID  *uuid.UUID
-	SystemPrompt   string
-	ProviderID     *uuid.UUID
-	Model          *string
-	AutoReply      bool
-	Handoff        []byte
-	DataCollection []byte
-	AllowedActions []byte
-	DisclosureMode string
-	Status         string
-	ID             uuid.UUID
+	Name               string
+	PhoneNumberID      *uuid.UUID
+	SystemPrompt       string
+	ProviderID         *uuid.UUID
+	PlatformProviderID *uuid.UUID
+	Model              *string
+	AutoReply          bool
+	Handoff            []byte
+	DataCollection     []byte
+	AllowedActions     []byte
+	DisclosureMode     string
+	Status             string
+	ID                 uuid.UUID
 }
 
 func (q *Queries) UpdateAIProfile(ctx context.Context, arg UpdateAIProfileParams) (AiProfile, error) {
@@ -1081,6 +1099,7 @@ func (q *Queries) UpdateAIProfile(ctx context.Context, arg UpdateAIProfileParams
 		arg.PhoneNumberID,
 		arg.SystemPrompt,
 		arg.ProviderID,
+		arg.PlatformProviderID,
 		arg.Model,
 		arg.AutoReply,
 		arg.Handoff,
@@ -1108,6 +1127,7 @@ func (q *Queries) UpdateAIProfile(ctx context.Context, arg UpdateAIProfileParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantID,
+		&i.PlatformProviderID,
 	)
 	return i, err
 }

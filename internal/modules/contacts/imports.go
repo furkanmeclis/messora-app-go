@@ -19,6 +19,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -160,6 +161,10 @@ func (s *Service) Upload(ctx context.Context, filename string, body io.Reader, a
 
 	headers, preview, rows, err := s.scanFile(csvPath)
 	if err != nil {
+		return db.ContactImport{}, err
+	}
+	// The stored file counts against the plan's storage.
+	if err := s.checkStorage(ctx, size); err != nil {
 		return db.ContactImport{}, err
 	}
 	if err := s.imp.putFile(ctx, key, csvPath); err != nil {
@@ -548,6 +553,12 @@ func (s *Service) applyBatch(ctx context.Context, imp db.ContactImport, rows []i
 	}
 	update := imp.DuplicatePolicy == "update"
 	return s.txx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		// A plan that caps contacts refuses the new contacts past its
+		// limit (existing ones are still updated).
+		var err error
+		if rows, err = s.withinContactLimit(ctx, q, rows, c, errs); err != nil || len(rows) == 0 {
+			return err
+		}
 		b := &pgx.Batch{}
 		for _, r := range rows {
 			attrs, _ := json.Marshal(nonNil(r.attrs))
@@ -647,4 +658,62 @@ func nonNilSlice(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+// withinContactLimit drops (as failed rows) the rows that would create a
+// contact past the plan's limit.
+func (s *Service) withinContactLimit(ctx context.Context, q *db.Queries, rows []importRow, c *counters, errs *[]rowError) ([]importRow, error) {
+	plan, err := entitlements.For(ctx, s.plans)
+	if err != nil || !plan.Limited(entitlements.Contacts) {
+		return rows, err
+	}
+	if err := q.LockTenantPlanCounter(ctx, string(entitlements.Contacts)); err != nil {
+		return nil, err
+	}
+	n, err := q.CountContactsForPlan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	phones := make([]string, len(rows))
+	for i, r := range rows {
+		phones[i] = r.phone
+	}
+	existing, err := q.ExistingContactPhones(ctx, phones)
+	if err != nil {
+		return nil, err
+	}
+	known := make(map[string]bool, len(existing))
+	for _, p := range existing {
+		known[p] = true
+	}
+	left := plan.Contacts - n
+	out := rows[:0]
+	for _, r := range rows {
+		if !known[r.phone] {
+			if left <= 0 {
+				*errs = append(*errs, rowError{line: r.line, reason: "the plan's contact limit is reached", rec: r.rec})
+				c.failed++
+				c.processed++
+				continue
+			}
+			left--
+			known[r.phone] = true
+		}
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+// checkStorage refuses a file of size bytes that would take the tenant
+// past its plan's storage (409 PLAN_LIMIT_REACHED, resource storage_bytes).
+func (s *Service) checkStorage(ctx context.Context, size int64) error {
+	plan, err := entitlements.For(ctx, s.plans)
+	if err != nil || !plan.Limited(entitlements.Storage) {
+		return err
+	}
+	used, err := s.q.StorageBytesUsed(ctx)
+	if err != nil {
+		return err
+	}
+	return plan.AllowAdd(entitlements.Storage, used, size)
 }

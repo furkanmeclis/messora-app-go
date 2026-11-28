@@ -28,6 +28,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer/templates"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
@@ -101,6 +102,18 @@ type Service struct {
 	limiter  *ratelimit.Limiter
 	o        Options
 	now      func() time.Time
+	// plans caps the seats (users) of a workspace; mePlan is the plan
+	// summary /me shows (both set by the application, Phase 17 WP8).
+	plans  entitlements.Provider
+	mePlan func(ctx context.Context, tenantID uuid.UUID) *api.MePlan
+}
+
+// SetPlans installs the plan provider (seats are counted against it).
+func (s *Service) SetPlans(p entitlements.Provider) { s.plans = p }
+
+// SetMePlan installs the plan summary of /me.
+func (s *Service) SetMePlan(fn func(ctx context.Context, tenantID uuid.UUID) *api.MePlan) {
+	s.mePlan = fn
 }
 
 // New builds the service.

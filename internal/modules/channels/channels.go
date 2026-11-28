@@ -23,6 +23,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -34,6 +35,17 @@ type Service struct {
 	wa     *whatsapp.Client
 	log    *slog.Logger
 	notify Notifier
+	// plans caps the connected phone numbers (Phase 17 WP8).
+	plans entitlements.Provider
+}
+
+// SetPlans installs the plan provider.
+func (s *Service) SetPlans(p entitlements.Provider) { s.plans = p }
+
+// checkNumbers refuses n more phone numbers past the plan's limit (numbers
+// of disabled accounts do not count).
+func (s *Service) checkNumbers(ctx context.Context, q *db.Queries, n int) error {
+	return entitlements.CheckAdd(ctx, q, s.plans, entitlements.PhoneNumbers, int64(n), func() (int64, error) { return q.CountPhoneNumbersForPlan(ctx) })
 }
 
 // New returns the service. Every Meta credential is the tenant's own and
@@ -138,6 +150,9 @@ func (s *Service) Connect(ctx context.Context, in AccountInput, actor *uuid.UUID
 	}
 	var acc db.WhatsappAccount
 	err = s.tx(ctx, func(q *db.Queries) error {
+		if err := s.checkNumbers(ctx, q, len(numbers)); err != nil {
+			return err
+		}
 		if convert != nil {
 			acc, err = q.ConvertAccountToOwnApp(ctx, db.ConvertAccountToOwnAppParams{ID: id, Name: in.Name, AppID: nonEmpty(in.AppID),
 				AccessTokenEnc: tok, AppSecretEnc: sec})

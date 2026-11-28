@@ -60,7 +60,14 @@ const (
 	Users            Resource = "users"
 	PhoneNumbers     Resource = "phone_numbers"
 	AIAgentCount     Resource = "ai_agents"
+	// AutomationFlows counts active automation flows.
+	AutomationFlows Resource = "automation_flows"
+	// Storage is the bytes of stored files.
+	Storage Resource = "storage_bytes"
 )
+
+// AllResources lists every counted resource in a stable order.
+var AllResources = []Resource{Users, PhoneNumbers, AIAgentCount, AutomationFlows, Contacts, WebhookEndpoints, Storage}
 
 // Unlimited is the value of a count or quota that has no limit.
 const Unlimited = 0
@@ -92,6 +99,12 @@ type Plan struct {
 	Users        int   `json:"users"`
 	PhoneNumbers int   `json:"phone_numbers"`
 	AIAgents     int   `json:"ai_agents"`
+	// AutomationFlows caps the automation flows that are active at once.
+	AutomationFlows int `json:"automation_flows"`
+	// AICreditsPerMonth is the AI credits included per calendar month
+	// (UTC), used by AI calls with the platform's keys (internal/modules/
+	// credits). Unlimited (0) meters the calls without ever pausing them.
+	AICreditsPerMonth int64 `json:"ai_credits_per_month"`
 	// StorageBytes caps media and file storage.
 	StorageBytes int64 `json:"storage_bytes"`
 	// CampaignMessagesPerSecond caps the tenant's campaign send rate
@@ -119,6 +132,10 @@ func (p Plan) Count(r Resource) int64 {
 		return int64(p.PhoneNumbers)
 	case AIAgentCount:
 		return int64(p.AIAgents)
+	case AutomationFlows:
+		return int64(p.AutomationFlows)
+	case Storage:
+		return p.StorageBytes
 	}
 	return Unlimited
 }
@@ -139,6 +156,8 @@ func Default() Plan {
 		Users:                      Unlimited,
 		PhoneNumbers:               Unlimited,
 		AIAgents:                   Unlimited,
+		AutomationFlows:            Unlimited,
+		AICreditsPerMonth:          Unlimited,
 		StorageBytes:               Unlimited,
 		CampaignMessagesPerSecond:  Unlimited,
 		Features: map[Feature]bool{
@@ -283,6 +302,14 @@ func ErrLimit(r Resource, limit int64) *apperr.Error {
 		Details: []apperr.Detail{{Field: "limit", Code: string(r), Message: strconv.FormatInt(limit, 10)}}}
 }
 
+// ErrLimitAt is ErrLimit with the current count as a second detail
+// (field "current", code = resource).
+func ErrLimitAt(r Resource, limit, current int64) *apperr.Error {
+	e := ErrLimit(r, limit)
+	e.Details = append(e.Details, apperr.Detail{Field: "current", Code: string(r), Message: strconv.FormatInt(current, 10)})
+	return e
+}
+
 func humanResource(r Resource) string {
 	switch r {
 	case WebhookEndpoints:
@@ -291,6 +318,10 @@ func humanResource(r Resource) string {
 		return "phone numbers"
 	case AIAgentCount:
 		return "AI agents"
+	case AutomationFlows:
+		return "active automation flows"
+	case Storage:
+		return "bytes of storage"
 	}
 	return string(r)
 }
@@ -307,7 +338,30 @@ func (p Plan) Require(f Feature) error {
 // (creating one more would exceed it).
 func (p Plan) Allow(r Resource, current int64) error {
 	if l := p.Count(r); l != Unlimited && current >= l {
-		return ErrLimit(r, l)
+		return ErrLimitAt(r, l, current)
 	}
 	return nil
+}
+
+// AllowAdd returns ErrLimit when adding n to current would exceed the
+// plan's limit of r (storage: bytes of an upload).
+func (p Plan) AllowAdd(r Resource, current, n int64) error {
+	if l := p.Count(r); l != Unlimited && current+n > l {
+		return ErrLimitAt(r, l, current)
+	}
+	return nil
+}
+
+// Limited reports whether the plan caps r (counting is then needed).
+func (p Plan) Limited(r Resource) bool { return p.Count(r) != Unlimited }
+
+// FeatureList is the plan's included features in AllFeatures order.
+func (p Plan) FeatureList() []Feature {
+	out := make([]Feature, 0, len(AllFeatures))
+	for _, f := range AllFeatures {
+		if p.Has(f) {
+			out = append(out, f)
+		}
+	}
+	return out
 }

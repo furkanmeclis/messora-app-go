@@ -553,6 +553,7 @@ paths:
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createAIProvider
+      x-messora-feature: byo_ai_keys
       tags: [ai]
       summary: Connect an AI provider
       description: >-
@@ -578,6 +579,7 @@ paths:
     parameters: [{ $ref: "#/components/parameters/ProviderId" }]
     patch:
       operationId: updateAIProvider
+      x-messora-feature: byo_ai_keys
       tags: [ai]
       summary: Rename, rotate the key, change the endpoint or disable a provider
       description: A new key or endpoint is checked immediately. An empty `base_url` removes the override.
@@ -608,6 +610,7 @@ paths:
     parameters: [{ $ref: "#/components/parameters/ProviderId" }]
     post:
       operationId: checkAIProvider
+      x-messora-feature: byo_ai_keys
       tags: [ai]
       summary: Check the stored key again
       security: [{ session: [ai.manage] }]
@@ -623,6 +626,7 @@ paths:
     parameters: [{ $ref: "#/components/parameters/ProviderId" }]
     post:
       operationId: syncAIModels
+      x-messora-feature: byo_ai_keys
       tags: [ai]
       summary: Refresh the provider's model list now
       description: The list is also refreshed daily. Models the provider no longer lists are removed.
@@ -880,9 +884,13 @@ paths:
         default: { $ref: "#/components/responses/Error" }
     put:
       operationId: updateSmtpSettings
+      x-messora-feature: custom_smtp
       tags: [settings]
       summary: Change the outgoing e-mail configuration
-      description: Refused with SMTP_MANAGED_BY_ENV while SMTP_HOST is set. An empty host turns e-mail off.
+      description: >-
+        The company's own SMTP server (plans with custom_smtp; otherwise 403
+        FEATURE_NOT_IN_PLAN). An empty host removes it: e-mail goes from
+        Messora's sender.
       security: [{ session: [settings.update] }]
       requestBody:
         required: true
@@ -931,6 +939,7 @@ paths:
   /settings/smtp/test:
     post:
       operationId: testSmtpSettings
+      x-messora-feature: custom_smtp
       tags: [settings]
       summary: Send a test e-mail with the saved configuration, or with an unsaved one
       security: [{ session: [settings.update] }]
@@ -4742,6 +4751,117 @@ paths:
               schema: { $ref: "#/components/schemas/SupportGrantListResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /plan:
+    get:
+      operationId: getPlan
+      tags: [settings]
+      summary: The workspace's plan, its limits and what is used
+      description: >-
+        The plan (with the company's own limits for enterprise plans), every
+        limit next to its usage (users, numbers, AI agents, active automation
+        flows, storage, API calls and AI credits this month), the features
+        and an open plan change request. A limit of 0 means no limit.
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: The plan and its usage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanOverviewResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /plans:
+    get:
+      operationId: listPlans
+      tags: [settings]
+      summary: The plans a workspace can compare and request
+      description: Public, active plans of the catalogue with their limits, features and list prices (VAT excluded).
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Plans in display order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogPlanListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /plan/change-requests:
+    post:
+      operationId: createPlanChangeRequest
+      tags: [settings]
+      summary: Ask Messora to change the workspace's plan
+      description: >-
+        Until self-service billing, a plan change is a request the platform
+        admins work (they are told by e-mail). One open request per
+        workspace: 409 PLAN_REQUEST_OPEN.
+      security: [{ session: [settings.update] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePlanChangeRequest" }
+      responses:
+        "201":
+          description: Request recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanChangeRequestResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /settings/email:
+    get:
+      operationId: getEmailSettings
+      tags: [settings]
+      summary: How the workspace's e-mails are sent
+      description: >-
+        E-mails go from Messora's sender (Resend) with the company's name as
+        the display name and its reply-to address, or, on plans with
+        `custom_smtp`, through the company's own SMTP server when one is set
+        up (falling back to Messora's sender when it fails).
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: E-mail settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmailSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateEmailSettings
+      tags: [settings]
+      summary: Change the reply-to address of the workspace's e-mails
+      security: [{ session: [settings.update] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateEmailSettingsRequest" }
+      responses:
+        "200":
+          description: E-mail settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmailSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /ai/platform-providers:
+    get:
+      operationId: listAIPlatformProviders
+      tags: [ai]
+      summary: Messora's AI keys a workspace can use
+      description: >-
+        The providers Messora holds keys for. Calls with them are paid with
+        the workspace's AI credits; their models are in /ai/models with
+        `key_source: platform`. Keys are never shown.
+      security: [{ session: [ai.read] }]
+      responses:
+        "200":
+          description: Platform providers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPlatformProviderListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
   # ── Platform admin panel (admin.<base>; never in the public API) ─────────
   /platform/auth/capabilities:
     get:
@@ -5547,6 +5667,328 @@ paths:
               schema: { $ref: "#/components/schemas/PlatformTechProviderTestResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /platform/plans:
+    get:
+      operationId: listPlatformPlans
+      tags: [platform]
+      summary: The plan catalogue
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Plans with the number of companies on each
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformPlanListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createPlatformPlan
+      tags: [platform]
+      summary: Add a plan
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformPlanInput" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformPlanResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/plans/{planKey}:
+    parameters: [{ $ref: "#/components/parameters/PlanKey" }]
+    patch:
+      operationId: updatePlatformPlan
+      tags: [platform]
+      summary: Change a plan's limits, features, prices or visibility
+      description: Applies to every company on the plan within 30 seconds; recorded in the platform audit log.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformPlanPatch" }
+      responses:
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformPlanResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/plan:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    get:
+      operationId: getPlatformTenantPlan
+      tags: [platform]
+      summary: A company's plan, usage and AI credits
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Plan, usage and credit lots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantPlanResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: setPlatformTenantPlan
+      tags: [platform]
+      summary: Assign a plan (and the company's own limits)
+      description: >-
+        `overrides` holds limits and features that replace the plan's for
+        this company (mainly the enterprise plan's custom limits); `{}`
+        clears them. Nothing is deleted when a plan is lowered: resources
+        over a limit keep working, only creating more is refused.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetTenantPlanRequest" }
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantPlanResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/ai-credits:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    post:
+      operationId: grantPlatformTenantAICredits
+      tags: [platform]
+      summary: Grant AI credits to a company
+      description: A credit lot on top of the plan's monthly credits; recorded in both audit logs.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GrantAICreditsRequest" }
+      responses:
+        "201":
+          description: Granted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AICreditLotResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/ai-providers:
+    get:
+      operationId: listPlatformAIProviders
+      tags: [platform]
+      summary: Messora's own AI keys
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Providers (keys are never returned)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAIProviderListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createPlatformAIProvider
+      tags: [platform]
+      summary: Add Messora's key for a provider
+      description: One key per provider kind (409 PROVIDER_EXISTS). The key is stored sealed and checked right away.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAIProviderRequest" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAIProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/ai-providers/{providerId}:
+    parameters: [{ $ref: "#/components/parameters/ProviderId" }]
+    patch:
+      operationId: updatePlatformAIProvider
+      tags: [platform]
+      summary: Rename, rotate the key, change the endpoint or disable
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAIProviderRequest" }
+      responses:
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAIProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deletePlatformAIProvider
+      tags: [platform]
+      summary: Remove Messora's key for a provider
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: Removed }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/ai-providers/{providerId}/test:
+    parameters: [{ $ref: "#/components/parameters/ProviderId" }]
+    post:
+      operationId: testPlatformAIProvider
+      tags: [platform]
+      summary: Check the key and refresh the model list
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Checked; see status and status_detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAIProviderResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/ai-settings:
+    get:
+      operationId: getPlatformAISettings
+      tags: [platform]
+      summary: AI credit conversion and the default model of Messora's keys
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAISettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePlatformAISettings
+      tags: [platform]
+      summary: Change the credit conversion or the default model
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePlatformAISettingsRequest" }
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAISettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/email:
+    get:
+      operationId: getPlatformEmail
+      tags: [platform]
+      summary: The platform's e-mail sender (Resend over SMTP)
+      description: The sender set here wins over SMTP_* in the environment; without one the environment's is used.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Sender
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformEmailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updatePlatformEmail
+      tags: [platform]
+      summary: Change the platform's e-mail sender
+      description: The password is write-only and stored sealed. An empty host removes the panel's sender (the environment's applies).
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SmtpSettingsInput" }
+      responses:
+        "200":
+          description: Sender
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformEmailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/email/test:
+    post:
+      operationId: testPlatformEmail
+      tags: [platform]
+      summary: Send a test e-mail with the sender in effect, or with an unsaved one
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SmtpTestRequest" }
+      responses:
+        "204": { description: Sent }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/plan-requests:
+    get:
+      operationId: listPlatformPlanRequests
+      tags: [platform]
+      summary: Plan change requests of every company
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [open, done, declined] }
+      responses:
+        "200":
+          description: Requests, newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformPlanRequestListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/plan-requests/{requestId}/resolve:
+    parameters: [{ $ref: "#/components/parameters/RequestId" }]
+    post:
+      operationId: resolvePlatformPlanRequest
+      tags: [platform]
+      summary: Close a plan change request
+      description: With `status = done` and `apply = true` the requested plan is assigned to the company in the same step.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResolvePlanRequest" }
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformPlanRequestResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     panel:
@@ -5581,6 +6023,16 @@ components:
       schema: { type: string, format: uuid }
     GrantId:
       name: grantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PlanKey:
+      name: planKey
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z][a-z0-9_-]{1,30}$' }
+    RequestId:
+      name: requestId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -5943,6 +6395,7 @@ components:
               description: >-
                 The workspace's own public API base URL (url + /api/v1). API keys
                 of this workspace work only there; there is no shared API host.
+            plan: { $ref: "#/components/schemas/MePlan" }
         support:
           oneOf:
             - { $ref: "#/components/schemas/SupportInfo" }
@@ -6736,7 +7189,8 @@ components:
           type: [string, "null"]
           description: >-
             Why a failed run failed (as AutomationRun.error_code): ai_disabled, ai_not_configured, ai_not_allowed,
-            ai_no_profile, ai_error, retries_exhausted or step_failed; null for runs in progress.
+            ai_no_profile, ai_error, ai_credits_exhausted, ai_not_in_plan, retries_exhausted or step_failed; null for
+            runs in progress.
         attempt: { type: integer, description: "Retries of the failing step (0 = first attempt)." }
         steps_done: { type: integer }
         started_by: { type: string }
@@ -7449,8 +7903,12 @@ components:
 
     AIModel:
       type: object
-      required: [provider_id, provider_name, provider_kind, model_id, display_name, context_window, max_output, capabilities, lifecycle, synced_at, price]
+      required: [provider_id, provider_name, provider_kind, model_id, display_name, context_window, max_output, capabilities, lifecycle, synced_at, price, key_source]
       properties:
+        key_source:
+          type: string
+          enum: [tenant, platform]
+          description: "tenant: the company's own key (no credits); platform: Messora's key (paid with AI credits)."
         provider_id: { type: string, format: uuid }
         provider_name: { type: string }
         provider_kind: { $ref: "#/components/schemas/AIProviderKind" }
@@ -8770,7 +9228,8 @@ components:
     HandoffReason:
       type: string
       enum: [customer_request, no_answer, low_confidence, critical_intent, unauthorized_action, window_closed, ai_error, manual,
-             ai_budget, profile_complete, automation]
+             ai_budget, ai_credits, profile_complete, automation]
+      description: "ai_budget: the company's monthly AI budget (own keys) is used up; ai_credits: its AI credits (Messora's keys) are used up."
     ConversationHandoff:
       type: object
       required: [id, from_type, from_user, to_type, to_user, reason, reason_detail, summary, summary_source, detected_need,
@@ -11069,11 +11528,12 @@ components:
 
     PlatformTenant:
       type: object
-      required: [id, slug, name, status, subscription_status, trial_ends_at, suspended_at, suspended_reason, member_count, primary_host, url, created_at]
+      required: [id, slug, name, status, subscription_status, trial_ends_at, suspended_at, suspended_reason, member_count, primary_host, url, created_at, plan_key]
       properties:
         id: { type: string, format: uuid }
         slug: { type: string }
         name: { type: string }
+        plan_key: { type: [string, "null"], description: "The company's plan (null: the platform's default plan)." }
         status: { $ref: "#/components/schemas/TenantStatus" }
         subscription_status: { $ref: "#/components/schemas/SubscriptionStatus" }
         trial_ends_at: { type: [string, "null"], format: date-time }
@@ -11392,3 +11852,480 @@ components:
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/PlatformFailedJob" } }
         meta: { $ref: "#/components/schemas/Meta" }
+
+    # ── Plans and entitlements (Phase 17 WP8) ──────────────────────────────
+    PlanFeature:
+      type: string
+      enum: [custom_smtp, byo_ai_keys, custom_domain, public_api, webhooks, ai_agents]
+      description: >-
+        custom_smtp: the company's own SMTP server; byo_ai_keys: the
+        company's own AI keys; custom_domain: its own domain; public_api: API
+        keys; webhooks: outgoing webhooks; ai_agents: AI replies and AI steps.
+    PlanResource:
+      type: string
+      enum: [users, phone_numbers, ai_agents, automation_flows, contacts, webhook_endpoints, storage_bytes]
+    PlanLimits:
+      type: object
+      description: Every count and quota of a plan; 0 means no limit.
+      required: [session_requests_per_minute, api_key_requests_per_minute, api_calls_per_month, webhook_endpoints,
+                 webhook_deliveries_per_minute, contacts, users, phone_numbers, ai_agents, automation_flows,
+                 ai_credits_per_month, storage_bytes, campaign_messages_per_second]
+      properties:
+        session_requests_per_minute: { type: integer, format: int64 }
+        api_key_requests_per_minute: { type: integer, format: int64 }
+        api_calls_per_month: { type: integer, format: int64 }
+        webhook_endpoints: { type: integer, format: int64 }
+        webhook_deliveries_per_minute: { type: integer, format: int64 }
+        contacts: { type: integer, format: int64 }
+        users: { type: integer, format: int64 }
+        phone_numbers: { type: integer, format: int64 }
+        ai_agents: { type: integer, format: int64 }
+        automation_flows: { type: integer, format: int64 }
+        ai_credits_per_month: { type: integer, format: int64 }
+        storage_bytes: { type: integer, format: int64 }
+        campaign_messages_per_second: { type: integer, format: int64 }
+    PlanLimitsInput:
+      type: object
+      additionalProperties: false
+      description: Limits to set; left-out keys keep their value. 0 means no limit.
+      properties:
+        session_requests_per_minute: { type: integer, format: int64, minimum: 0, maximum: 100000 }
+        api_key_requests_per_minute: { type: integer, format: int64, minimum: 0, maximum: 100000 }
+        api_calls_per_month: { type: integer, format: int64, minimum: 0 }
+        webhook_endpoints: { type: integer, format: int64, minimum: 0, maximum: 10000 }
+        webhook_deliveries_per_minute: { type: integer, format: int64, minimum: 0, maximum: 1000000 }
+        contacts: { type: integer, format: int64, minimum: 0 }
+        users: { type: integer, format: int64, minimum: 0, maximum: 100000 }
+        phone_numbers: { type: integer, format: int64, minimum: 0, maximum: 10000 }
+        ai_agents: { type: integer, format: int64, minimum: 0, maximum: 10000 }
+        automation_flows: { type: integer, format: int64, minimum: 0, maximum: 100000 }
+        ai_credits_per_month: { type: integer, format: int64, minimum: 0, maximum: 1000000000 }
+        storage_bytes: { type: integer, format: int64, minimum: 0 }
+        campaign_messages_per_second: { type: integer, format: int64, minimum: 0, maximum: 100000 }
+    PlanFeatures:
+      type: object
+      required: [custom_smtp, byo_ai_keys, custom_domain, public_api, webhooks, ai_agents]
+      properties:
+        custom_smtp: { type: boolean }
+        byo_ai_keys: { type: boolean }
+        custom_domain: { type: boolean }
+        public_api: { type: boolean }
+        webhooks: { type: boolean }
+        ai_agents: { type: boolean }
+    PlanFeaturesInput:
+      type: object
+      additionalProperties: false
+      properties:
+        custom_smtp: { type: boolean }
+        byo_ai_keys: { type: boolean }
+        custom_domain: { type: boolean }
+        public_api: { type: boolean }
+        webhooks: { type: boolean }
+        ai_agents: { type: boolean }
+    Price:
+      type: [string, "null"]
+      pattern: '^[0-9]{1,10}(\.[0-9]{1,2})?$'
+      description: A list price as a decimal string (VAT excluded); null = not shown.
+    CatalogPlan:
+      type: object
+      required: [key, name_tr, name_en, description_tr, description_en, sort_order, limits, features, currency, price_monthly, price_yearly, custom_pricing, current]
+      properties:
+        key: { type: string }
+        name_tr: { type: string }
+        name_en: { type: string }
+        description_tr: { type: string }
+        description_en: { type: string }
+        sort_order: { type: integer, format: int64 }
+        limits: { $ref: "#/components/schemas/PlanLimits" }
+        features: { $ref: "#/components/schemas/PlanFeatures" }
+        currency: { type: string }
+        price_monthly: { $ref: "#/components/schemas/Price" }
+        price_yearly: { $ref: "#/components/schemas/Price" }
+        custom_pricing: { type: boolean, description: "Priced per offer; price_monthly is the starting price." }
+        current: { type: boolean, description: The workspace is on this plan. }
+    CatalogPlanListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CatalogPlan" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    PlanUsage:
+      type: object
+      required: [resource, used, limit, unlimited, over]
+      properties:
+        resource: { $ref: "#/components/schemas/PlanResource" }
+        used: { type: integer, format: int64 }
+        limit: { type: integer, format: int64, description: 0 = no limit. }
+        unlimited: { type: boolean }
+        over: { type: boolean, description: "More is in use than the plan allows (after a plan change): nothing stops, but no more can be created." }
+    AICreditBalance:
+      type: object
+      required: [month_start, resets_at, included, granted, used, remaining, used_this_month, unlimited, exhausted]
+      description: >-
+        AI credits of the calls made with Messora's keys. Amounts are credits
+        (up to three decimals). The plan's credits reset at resets_at
+        (calendar month, UTC); granted lots keep their own expiry.
+      properties:
+        month_start: { type: string, format: date-time }
+        resets_at: { type: string, format: date-time }
+        included: { type: number, format: double, description: The plan's credits for this month. }
+        granted: { type: number, format: double, description: "All usable credits now: the plan's month plus granted or bought lots." }
+        used: { type: number, format: double, description: Credits used from the usable lots. }
+        remaining: { type: number, format: double }
+        used_this_month: { type: number, format: double }
+        unlimited: { type: boolean, description: The plan meters AI credits without a limit. }
+        exhausted: { type: boolean, description: "No credits left: AI with Messora's keys is paused until the reset or a top-up." }
+    PlanChangeRequest:
+      type: object
+      required: [id, current_plan, requested_plan, billing_cycle, message, status, resolution_note, created_at, resolved_at]
+      properties:
+        id: { type: string, format: uuid }
+        current_plan: { type: [string, "null"] }
+        requested_plan: { type: string }
+        billing_cycle: { type: string, enum: [monthly, yearly] }
+        message: { type: string }
+        status: { type: string, enum: [open, done, declined] }
+        resolution_note: { type: string }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: [string, "null"], format: date-time }
+    PlanChangeRequestResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlanChangeRequest" }, meta: { $ref: "#/components/schemas/Meta" } }
+    CreatePlanChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [plan_key]
+      properties:
+        plan_key: { type: string, minLength: 2, maxLength: 31 }
+        billing_cycle: { type: string, enum: [monthly, yearly], default: monthly }
+        message: { type: string, maxLength: 2000 }
+    PlanOverview:
+      type: object
+      required: [key, name_tr, name_en, subscription_status, trial_ends_at, overridden, limits, features, usage, api_calls, ai_credits, open_request]
+      properties:
+        key: { type: string, description: The plan's key ("default" for a workspace without a plan). }
+        name_tr: { type: string }
+        name_en: { type: string }
+        subscription_status: { $ref: "#/components/schemas/SubscriptionStatus" }
+        trial_ends_at: { type: [string, "null"], format: date-time }
+        overridden: { type: boolean, description: The workspace has limits of its own (enterprise). }
+        limits: { $ref: "#/components/schemas/PlanLimits" }
+        features: { $ref: "#/components/schemas/PlanFeatures" }
+        usage: { type: array, items: { $ref: "#/components/schemas/PlanUsage" } }
+        api_calls:
+          type: object
+          required: [used, limit, unlimited, month_start]
+          description: API key calls this calendar month (UTC).
+          properties:
+            used: { type: integer, format: int64 }
+            limit: { type: integer, format: int64 }
+            unlimited: { type: boolean }
+            month_start: { type: string, format: date-time }
+        ai_credits: { $ref: "#/components/schemas/AICreditBalance" }
+        open_request:
+          oneOf:
+            - { $ref: "#/components/schemas/PlanChangeRequest" }
+            - { type: "null" }
+    PlanOverviewResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlanOverview" }, meta: { $ref: "#/components/schemas/Meta" } }
+    MePlan:
+      type: object
+      required: [key, name_tr, name_en, features, ai_credits_exhausted]
+      description: What the panel needs to show or hide gated features (the API checks them too).
+      properties:
+        key: { type: string }
+        name_tr: { type: string }
+        name_en: { type: string }
+        features: { type: array, items: { $ref: "#/components/schemas/PlanFeature" } }
+        ai_credits_exhausted: { type: boolean }
+
+    EmailSettings:
+      type: object
+      required: [mode, custom_smtp_allowed, custom_configured, sender, display_name, reply_to, last_failure]
+      properties:
+        mode:
+          type: string
+          enum: [platform, custom]
+          description: "platform: Messora's sender; custom: the company's own SMTP server."
+        custom_smtp_allowed: { type: boolean, description: The plan includes custom_smtp. }
+        custom_configured: { type: boolean, description: An own SMTP server is stored (used only with custom_smtp). }
+        sender:
+          type: object
+          required: [configured, from]
+          description: Messora's sender.
+          properties:
+            configured: { type: boolean }
+            from: { type: string, description: "The sender address (the display name is the company's)." }
+        display_name: { type: string }
+        reply_to: { type: [string, "null"] }
+        last_failure:
+          description: The last failed send through the company's own server (it was sent through Messora's sender instead).
+          oneOf:
+            - type: object
+              required: [at, error]
+              properties:
+                at: { type: string, format: date-time }
+                error: { type: string }
+            - { type: "null" }
+    EmailSettingsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/EmailSettings" }, meta: { $ref: "#/components/schemas/Meta" } }
+    UpdateEmailSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [reply_to]
+      properties:
+        reply_to:
+          oneOf:
+            - { $ref: "#/components/schemas/Email" }
+            - { type: "null" }
+
+    AIPlatformProvider:
+      type: object
+      required: [id, kind, name, enabled, status]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/AIProviderKind" }
+        name: { type: string }
+        enabled: { type: boolean }
+        status: { type: string, enum: [unknown, ok, invalid, no_balance, error] }
+    AIPlatformProviderListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AIPlatformProvider" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    PlatformPlan:
+      type: object
+      required: [key, name_tr, name_en, description_tr, description_en, sort_order, limits, features, currency, price_monthly, price_yearly,
+                 custom_pricing, active, public, tenant_count, created_at, updated_at]
+      properties:
+        key: { type: string }
+        name_tr: { type: string }
+        name_en: { type: string }
+        description_tr: { type: string }
+        description_en: { type: string }
+        sort_order: { type: integer, format: int64 }
+        limits: { $ref: "#/components/schemas/PlanLimits" }
+        features: { $ref: "#/components/schemas/PlanFeatures" }
+        currency: { type: string }
+        price_monthly: { $ref: "#/components/schemas/Price" }
+        price_yearly: { $ref: "#/components/schemas/Price" }
+        custom_pricing: { type: boolean }
+        active: { type: boolean, description: May be assigned to companies. }
+        public: { type: boolean, description: Listed in the workspaces' plan comparison. }
+        tenant_count: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PlatformPlanResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformPlan" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformPlanListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformPlan" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    PlatformPlanInput:
+      type: object
+      additionalProperties: false
+      required: [key, name_tr, name_en, limits, features]
+      properties:
+        key: { type: string, pattern: '^[a-z][a-z0-9_-]{1,30}$' }
+        name_tr: { type: string, minLength: 1, maxLength: 60 }
+        name_en: { type: string, minLength: 1, maxLength: 60 }
+        description_tr: { type: string, maxLength: 500 }
+        description_en: { type: string, maxLength: 500 }
+        sort_order: { type: integer, format: int64 }
+        limits: { $ref: "#/components/schemas/PlanLimitsInput" }
+        features: { $ref: "#/components/schemas/PlanFeaturesInput" }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        price_monthly: { $ref: "#/components/schemas/Price" }
+        price_yearly: { $ref: "#/components/schemas/Price" }
+        custom_pricing: { type: boolean }
+        active: { type: boolean }
+        public: { type: boolean }
+    PlatformPlanPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name_tr: { type: string, minLength: 1, maxLength: 60 }
+        name_en: { type: string, minLength: 1, maxLength: 60 }
+        description_tr: { type: string, maxLength: 500 }
+        description_en: { type: string, maxLength: 500 }
+        sort_order: { type: integer, format: int64 }
+        limits: { $ref: "#/components/schemas/PlanLimitsInput" }
+        features: { $ref: "#/components/schemas/PlanFeaturesInput" }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        price_monthly: { $ref: "#/components/schemas/Price" }
+        price_yearly: { $ref: "#/components/schemas/Price" }
+        custom_pricing: { type: boolean }
+        active: { type: boolean }
+        public: { type: boolean }
+
+    AICreditLot:
+      type: object
+      required: [id, source, period_start, granted, used, remaining, starts_at, expires_at, note, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        source: { type: string, enum: [plan, grant, purchase] }
+        period_start: { type: [string, "null"], format: date }
+        granted: { type: number, format: double }
+        used: { type: number, format: double }
+        remaining: { type: number, format: double }
+        starts_at: { type: string, format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+        note: { type: string }
+        created_at: { type: string, format: date-time }
+    AICreditLotResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/AICreditLot" }, meta: { $ref: "#/components/schemas/Meta" } }
+    GrantAICreditsRequest:
+      type: object
+      additionalProperties: false
+      required: [credits, note]
+      properties:
+        credits: { type: integer, format: int64, minimum: 1, maximum: 100000000 }
+        expires_at: { type: [string, "null"], format: date-time, description: "null = never expires." }
+        note: { type: string, minLength: 3, maxLength: 500 }
+    PlatformTenantPlan:
+      type: object
+      required: [plan_key, overrides, overview, lots]
+      properties:
+        plan_key: { type: [string, "null"] }
+        overrides: { type: object, additionalProperties: true }
+        overview: { $ref: "#/components/schemas/PlanOverview" }
+        lots: { type: array, items: { $ref: "#/components/schemas/AICreditLot" } }
+    PlatformTenantPlanResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformTenantPlan" }, meta: { $ref: "#/components/schemas/Meta" } }
+    SetTenantPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [plan_key]
+      properties:
+        plan_key: { type: string, minLength: 2, maxLength: 31 }
+        overrides:
+          type: object
+          description: 'Limits (PlanLimitsInput keys) and a "features" object (PlanFeaturesInput) of this company only.'
+          additionalProperties: true
+
+    PlatformAIProvider:
+      allOf:
+        - { $ref: "#/components/schemas/AIProvider" }
+        - type: object
+          required: [model_count]
+          properties:
+            model_count: { type: integer, format: int64 }
+    PlatformAIProviderResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformAIProvider" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformAIProviderListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformAIProvider" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    Decimal:
+      type: string
+      pattern: '^[0-9]{1,9}(\.[0-9]{1,6})?$'
+    PlatformAISettings:
+      type: object
+      required: [usd_per_credit, markup, unpriced_call_credits, default_provider_id, default_model, models]
+      description: >-
+        Credits charged for a call with Messora's keys = cost at the platform
+        price table (USD) × markup ÷ usd_per_credit, rounded up to 0.001
+        credit; a model without a price costs unpriced_call_credits per
+        successful call.
+      properties:
+        usd_per_credit: { $ref: "#/components/schemas/Decimal" }
+        markup: { $ref: "#/components/schemas/Decimal" }
+        unpriced_call_credits: { $ref: "#/components/schemas/Decimal" }
+        default_provider_id: { type: [string, "null"], format: uuid, description: Messora's key used when a workspace chose no provider. }
+        default_model: { type: string }
+        models: { type: array, items: { $ref: "#/components/schemas/AIModel" } }
+    PlatformAISettingsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformAISettings" }, meta: { $ref: "#/components/schemas/Meta" } }
+    UpdatePlatformAISettingsRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        usd_per_credit: { $ref: "#/components/schemas/Decimal" }
+        markup: { $ref: "#/components/schemas/Decimal" }
+        unpriced_call_credits: { $ref: "#/components/schemas/Decimal" }
+        default_provider_id: { type: [string, "null"], format: uuid }
+        default_model: { type: string, maxLength: 200 }
+
+    PlatformEmail:
+      type: object
+      required: [source, host, port, username, from, tls, password_set, reply_to, env]
+      properties:
+        source:
+          type: string
+          enum: [panel, env, none]
+          description: "panel: the sender set here; env: SMTP_* of the environment; none: e-mail is off."
+        host: { type: string }
+        port: { type: integer }
+        username: { type: string }
+        from: { type: string }
+        tls: { $ref: "#/components/schemas/SmtpTls" }
+        password_set: { type: boolean }
+        reply_to: { type: [string, "null"] }
+        env:
+          type: object
+          required: [configured, host, from]
+          properties:
+            configured: { type: boolean }
+            host: { type: string }
+            from: { type: string }
+    PlatformEmailResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformEmail" }, meta: { $ref: "#/components/schemas/Meta" } }
+
+    PlatformPlanRequest:
+      allOf:
+        - { $ref: "#/components/schemas/PlanChangeRequest" }
+        - type: object
+          required: [tenant, requested_by]
+          properties:
+            tenant: { $ref: "#/components/schemas/TenantRef" }
+            requested_by:
+              oneOf:
+                - type: object
+                  required: [email, name]
+                  properties:
+                    email: { type: string }
+                    name: { type: string }
+                - { type: "null" }
+    PlatformPlanRequestResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformPlanRequest" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformPlanRequestListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformPlanRequest" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ResolvePlanRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [done, declined] }
+        note: { type: string, maxLength: 1000 }
+        apply: { type: boolean, default: false, description: "With done: assign the requested plan now." }

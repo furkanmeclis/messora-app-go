@@ -23,6 +23,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -503,17 +504,22 @@ func (g *Guard) entitled(w http.ResponseWriter, r *http.Request, p *principal.Pr
 			return err
 		}
 	}
-	if p.Kind != principal.KindAPIKey || plan.APICallsPerMonth == entitlements.Unlimited || g.o.Limiter == nil {
+	// Every API key call is counted (the plan page shows the month's
+	// calls); only a plan with a quota refuses calls past it.
+	if p.Kind != principal.KindAPIKey || g.o.Limiter == nil {
 		return nil
 	}
 	now := time.Now().UTC()
 	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	next := month.AddDate(0, 1, 0)
-	key := tenant.RedisKey(r.Context(), "quota:api:"+month.Format("200601"))
+	key := QuotaKey(tenant.ID(r.Context()), now)
 	n, err := g.o.Limiter.Count(r.Context(), key, next.Sub(now)+24*time.Hour)
 	if err != nil {
 		g.o.Logger.WarnContext(r.Context(), "quota counter unavailable; allowing request", "err", err)
 		return nil // fail open, like the rate limiter
+	}
+	if plan.APICallsPerMonth == entitlements.Unlimited {
+		return nil
 	}
 	h := w.Header()
 	h.Set(HeaderQuotaLimit, strconv.FormatInt(plan.APICallsPerMonth, 10))
@@ -629,4 +635,10 @@ func validationError(err error) error {
 	}
 	walk(err)
 	return out
+}
+
+// QuotaKey is the Redis counter of a tenant's API key calls in now's
+// calendar month (UTC): messora:t:{<tenant>}:quota:api:<yyyymm>.
+func QuotaKey(tenantID uuid.UUID, now time.Time) string {
+	return tenant.RedisPrefix(tenantID) + "quota:api:" + now.UTC().Format("200601")
 }

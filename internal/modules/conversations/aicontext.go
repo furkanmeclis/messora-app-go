@@ -190,6 +190,7 @@ func FallbackSummary(msgs []db.Message, reason Reason, intent string, lang ai.La
 		ReasonNoAnswer:           {"AI cevap bulamadı; müşteriyi yanıtlayın.", "The AI found no answer; answer the customer."},
 		ReasonManual:             {"Sohbeti devralın.", "Take the conversation over."},
 		ReasonAIBudget:           {"Aylık AI bütçesi doldu; müşteriyi siz yanıtlayın.", "The monthly AI budget is used up; answer the customer yourself."},
+		ReasonAICredits:          {"Bu ayın AI kredisi bitti; müşteriyi siz yanıtlayın.", "This month's AI credits are used up; answer the customer yourself."},
 		ReasonProfileComplete:    {"Yeni müşterinin bilgileri toplandı; ihtiyacıyla ilgilenin.", "The new customer's details are collected; take care of their need."},
 	}[reason]
 	if tr {
