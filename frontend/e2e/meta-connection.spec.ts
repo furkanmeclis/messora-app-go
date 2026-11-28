@@ -64,7 +64,7 @@ test.beforeAll(() => {
              u AS (INSERT INTO users (email, name, password_hash)
                    SELECT '${USER.email}', 'Mira Meta', password_hash FROM users WHERE email = 'ari@example.com'
                    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id)
-        INSERT INTO user_roles (user_id, role_id) SELECT u.id, r.id FROM u, r ON CONFLICT DO NOTHING;`);
+        INSERT INTO tenant_memberships (user_id, role_id) SELECT u.id, r.id FROM u, r ON CONFLICT DO NOTHING;`);
 });
 
 test('the Meta connection page guides the set-up and its address answers Meta', async ({
