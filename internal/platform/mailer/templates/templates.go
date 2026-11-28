@@ -2,8 +2,9 @@
 //
 // Every kind has a subject, a preheader, a plain-text body and an HTML body
 // in Turkish and English. Copy lives in embedded template files
-// (files/<locale>/<kind>.txt and .html); the shared chrome (logo, card,
-// footer) lives in files/layout.* and files/partials.html. HTML uses inline
+// (files/<locale>/<kind>.txt and .html); the shared design system (header,
+// hero, button, cards, notices, footer) lives in files/layout.* and
+// files/partials.html (see docs/EMAIL.md). HTML uses inline
 // styles and table layout only, so it survives clients that strip <style>.
 //
 // Data is typed per kind (VerifyEmailData, InvoiceIssuedData, ...). Render
@@ -93,20 +94,24 @@ type Brand struct {
 	CompanyAddress string // optional postal address in the footer
 	WebsiteURL     string // https
 	SupportURL     string // https; the footer help link
-	// AssetBaseURL, when set (https), serves <AssetBaseURL>/email/logo.png
-	// (264x56, shown at 132x28). Without it the logo is drawn from table
-	// cells and styled text, which needs no image at all.
+	// AssetBaseURL (https) serves the logo images used in every header:
+	// email/logo-light@2x.png and email/logo-dark@2x.png (the horizontal
+	// lockup, 1020x212, shown at 150x31). Empty means DefaultAssetBaseURL.
 	AssetBaseURL string
 }
+
+// DefaultAssetBaseURL serves the e-mail logos (the marketing site).
+const DefaultAssetBaseURL = "https://messora.tech"
 
 // DefaultBrand is the Messora platform brand. CompanyName is a placeholder
 // until the legal entity is configured (WP8 platform settings).
 func DefaultBrand() Brand {
 	return Brand{
-		ProductName: "Messora",
-		CompanyName: "Messora",
-		WebsiteURL:  "https://messora.tech",
-		SupportURL:  "https://messora.tech/destek",
+		ProductName:  "Messora",
+		CompanyName:  "Messora",
+		WebsiteURL:   "https://messora.tech",
+		SupportURL:   "https://messora.tech/destek",
+		AssetBaseURL: DefaultAssetBaseURL,
 	}
 }
 
@@ -129,7 +134,10 @@ func New(brand Brand) (*Renderer, error) {
 	var v validator
 	v.url("Brand.WebsiteURL", brand.WebsiteURL, true)
 	v.url("Brand.SupportURL", brand.SupportURL, true)
-	v.url("Brand.AssetBaseURL", brand.AssetBaseURL, false)
+	if brand.AssetBaseURL == "" {
+		brand.AssetBaseURL = DefaultAssetBaseURL
+	}
+	v.url("Brand.AssetBaseURL", brand.AssetBaseURL, true)
 	if err := v.err("brand"); err != nil {
 		return nil, err
 	}
@@ -149,7 +157,7 @@ func New(brand Brand) (*Renderer, error) {
 			if err != nil {
 				return nil, fmt.Errorf("mail template %s (html): %w", key, err)
 			}
-			for _, name := range []string{"subject", "preheader", "reason", "content"} {
+			for _, name := range []string{"subject", "preheader", "title", "reason", "content"} {
 				if tt.Lookup(name) == nil {
 					return nil, fmt.Errorf("mail template %s.txt: missing {{define %q}}", key, name)
 				}
@@ -203,8 +211,11 @@ type view struct {
 	D         Data
 	Subject   string
 	Preheader string
+	Title     string // the hero title (text template "title")
+	Eyebrow   string // the category label above the title
 	Reason    string
-	LogoURL   string // Messora PNG logo, empty for the HTML/text mark
+	LogoLight string // Messora lockup for light backgrounds
+	LogoDark  string // the same lockup for dark mode
 }
 
 // Email is one rendered e-mail.
@@ -244,9 +255,9 @@ func (r *Renderer) Email(kind Kind, locale string, data Data) (Email, error) {
 	key := locale + "/" + string(kind)
 	tt, ht := r.text[key], r.html[key]
 	vw := view{Brand: r.brand, L: chromes[locale], Locale: locale, Kind: kind, C: c, D: data}
-	if r.brand.AssetBaseURL != "" {
-		vw.LogoURL = r.brand.AssetBaseURL + "/email/logo.png"
-	}
+	vw.Eyebrow = vw.L.Category[categories[kind]]
+	vw.LogoLight = r.brand.AssetBaseURL + "/email/logo-light@2x.png"
+	vw.LogoDark = r.brand.AssetBaseURL + "/email/logo-dark@2x.png"
 	exec := func(name string) (string, error) {
 		var b bytes.Buffer
 		if err := tt.ExecuteTemplate(&b, name, vw); err != nil {
@@ -259,6 +270,9 @@ func (r *Renderer) Email(kind Kind, locale string, data Data) (Email, error) {
 		return Email{}, err
 	}
 	if vw.Preheader, err = exec("preheader"); err != nil {
+		return Email{}, err
+	}
+	if vw.Title, err = exec("title"); err != nil {
 		return Email{}, err
 	}
 	if vw.Reason, err = exec("reason"); err != nil {

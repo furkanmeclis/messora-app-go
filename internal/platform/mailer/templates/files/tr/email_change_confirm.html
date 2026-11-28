@@ -1,8 +1,7 @@
 {{define "content"}}
-{{template "h1" "Yeni e-posta adresinizi onaylayın"}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}">Messora hesabınızın e-posta adresini <strong>{{.D.NewEmail}}</strong> olarak değiştirmek istediniz. Değişikliği tamamlamak için onaylayın.</p>
-{{template "button" (dict "URL" .D.ConfirmURL "Label" "Adresi onayla" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">Bağlantı <strong>{{dur .D.ExpiresIn}}</strong> boyunca geçerlidir. Onaylayana kadar eski adresiniz kullanılmaya devam eder.</p>
-{{template "note" "Bu isteği siz yapmadıysanız butona tıklamayın; adres değişmez. Hesabınızın güvenliğinden şüpheleniyorsanız şifrenizi değiştirin."}}
+<p {{ui "p"}}>Messora hesabınızın e-posta adresini <strong>{{.D.NewEmail}}</strong> olarak değiştirmek istediniz. Değişikliği tamamlamak için adresi onaylayın.</p>
+{{template "button" (dict "URL" .D.ConfirmURL "Label" "Adresi onayla")}}
+{{template "fallback" (dict "URL" .D.ConfirmURL "L" .L)}}
+<p {{ui "small"}}>Bağlantı <strong>{{dur .D.ExpiresIn}}</strong> boyunca geçerlidir. Onaylayana kadar eski adresiniz kullanılmaya devam eder.</p>
+{{template "notice" (notice "info" "Bu isteği siz yapmadınız mı?" "Butona tıklamayın; adresiniz değişmez. Hesabınızın güvenliğinden şüpheleniyorsanız şifrenizi değiştirin.")}}
 {{end}}

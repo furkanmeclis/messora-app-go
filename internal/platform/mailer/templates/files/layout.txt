@@ -1,5 +1,9 @@
-{{define "layout"}}{{if .C.TenantName}}{{.C.TenantName}} · {{.L.With}}{{else}}{{.Brand.ProductName}}{{end}}
+{{define "layout"}}{{.Brand.ProductName}}{{with .C.TenantName}} · {{.}}{{end}}
 ========================================
+
+{{.Title}}
+
+{{template "greeting" .}}
 
 {{template "content" .}}
 

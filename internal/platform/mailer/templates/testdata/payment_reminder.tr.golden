@@ -1,8 +1,10 @@
 Subject: Ödemesi geciken fatura: MSR-2026-0142
 Preheader: Kesinti yaşamamak için 1 Aralık 2026 tarihine kadar ödeme yapabilirsiniz.
 
-Acme Gıda · Messora ile
+Messora · Acme Gıda
 ========================================
+
+Ödemesi geciken bir faturanız var
 
 Merhaba Ayşe,
 
@@ -18,7 +20,7 @@ Havale / EFT bilgileri
   Alıcı: Messora Yazılım A.Ş.
   IBAN: TR33 0006 1005 1978 6457 8413 26
   Açıklama: MSR-2026-0142
-Ödemenizi hızla eşleştirebilmemiz için açıklama alanına yukarıdaki kodu yazın.
+Ödemenizi hızla eşleştirebilmemiz için açıklama alanına bu kodu yazın.
 
 Ödeme yapmak için:
 https://acme.messora.tech/billing/invoices/MSR-2026-0142

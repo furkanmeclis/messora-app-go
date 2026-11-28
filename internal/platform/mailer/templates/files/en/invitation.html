@@ -1,8 +1,7 @@
 {{define "content"}}
-{{template "h1" (printf "You're invited to %s" .D.WorkspaceName)}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}"><strong>{{.D.InviterName}}</strong> invited you to join the <strong>{{.D.WorkspaceName}}</strong> workspace on Messora as <strong>{{.D.Role}}</strong>. Your team manages WhatsApp conversations, campaigns and automations there together.</p>
-{{template "button" (dict "URL" .D.AcceptURL "Label" "Accept invitation" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">The invitation is valid for <strong>{{dur .D.ExpiresIn}}</strong>.</p>
-{{template "note" "Not expecting this? You can ignore this e-mail; no account is created for you unless you accept."}}
+<p {{ui "p"}}><strong>{{.D.InviterName}}</strong> invited you to join the <strong>{{.D.WorkspaceName}}</strong> workspace on Messora as <strong>{{.D.Role}}</strong>. Your team manages WhatsApp conversations, campaigns and automations there together.</p>
+{{template "button" (dict "URL" .D.AcceptURL "Label" "Accept invitation")}}
+{{template "fallback" (dict "URL" .D.AcceptURL "L" .L)}}
+<p {{ui "small"}}>The invitation is valid for <strong>{{dur .D.ExpiresIn}}</strong>.</p>
+{{template "notice" (notice "info" "Not expecting this?" "You can ignore this e-mail; no account is created for you unless you accept.")}}
 {{end}}

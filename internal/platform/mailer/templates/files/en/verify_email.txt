@@ -1,9 +1,8 @@
 {{define "subject"}}Confirm your e-mail address{{end}}
 {{define "preheader"}}{{if .D.Code}}Your verification code is {{.D.Code}}. It's valid for {{dur .D.ExpiresIn}}.{{else}}Confirm your address within {{dur .D.ExpiresIn}} to activate your account.{{end}}{{end}}
+{{define "title"}}Confirm your e-mail address{{end}}
 {{define "reason"}}You're receiving this because a Messora account was created with this address.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Welcome to Messora. To activate your account, just confirm your e-mail address.
+{{define "content"}}Welcome to Messora. To activate your account, just confirm your e-mail address.
 
 {{if .D.Code}}Your verification code:
 

@@ -1,9 +1,8 @@
 {{define "subject"}}{{if .D.Overdue}}Ödemesi geciken fatura: {{.D.InvoiceNo}}{{else}}Yaklaşan ödeme: {{.D.InvoiceNo}}, {{date .D.DueDate}}{{end}}{{end}}
 {{define "preheader"}}{{if .D.Overdue}}Kesinti yaşamamak için {{date .D.GraceEndsAt}} tarihine kadar ödeme yapabilirsiniz.{{else}}{{money .D.Amount}} · son ödeme tarihi {{date .D.DueDate}}{{end}}{{end}}
+{{define "title"}}{{if .D.Overdue}}Ödemesi geciken bir faturanız var{{else}}Yaklaşan ödeme hatırlatması{{end}}{{end}}
 {{define "reason"}}Bu e-postayı, Messora aboneliğinizin fatura bildirimleri bu adrese gönderildiği için aldınız.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-{{if .D.Overdue -}}
+{{define "content"}}{{if .D.Overdue -}}
 {{.D.InvoiceNo}} numaralı faturanızın son ödeme tarihi {{date .D.DueDate}} idi ve ödemesini henüz göremedik. Hesabınız şu an normal çalışıyor; {{date .D.GraceEndsAt}} tarihine kadar ödeme ulaşmazsa çalışma alanınız salt okunur moda geçer.
 {{- else -}}
 Küçük bir hatırlatma: {{.D.InvoiceNo}} numaralı faturanızın son ödeme tarihi {{date .D.DueDate}}.

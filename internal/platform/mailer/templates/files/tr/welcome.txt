@@ -1,9 +1,8 @@
 {{define "subject"}}Messora'ya hoş geldiniz{{end}}
 {{define "preheader"}}Hesabınız hazır. İlk kampanyanıza üç adım uzaktasınız.{{end}}
+{{define "title"}}Messora'ya hoş geldiniz{{end}}
 {{define "reason"}}Bu e-postayı, Messora hesabınızı doğruladığınız için aldınız.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Hesabınız hazır. Başlamak için şu üç adım yeterli:
+{{define "content"}}Hesabınız hazır. Başlamak için şu üç adım yeterli:
 
 1. WhatsApp numaranızı bağlayın
    Meta hesabınızla birkaç dakikada bağlanır; mesajlarınız bu numaradan gider.

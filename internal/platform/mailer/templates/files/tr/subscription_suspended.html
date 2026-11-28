@@ -1,11 +1,7 @@
 {{define "content"}}
-{{template "h1" "Çalışma alanınız salt okunur moda geçti"}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}">Ödenmemiş bir fatura nedeniyle {{with .C.TenantName}}<strong>{{.}}</strong> çalışma alanı{{else}}çalışma alanınız{{end}} {{datetime .D.SuspendedAt}} itibarıyla salt okunur moda geçti.</p>
+<p {{ui "p"}}>Ödenmemiş bir fatura nedeniyle {{with .C.TenantName}}<strong>{{.}}</strong> çalışma alanı{{else}}çalışma alanınız{{end}} {{datetime .D.SuspendedAt}} itibarıyla salt okunur moda geçti.</p>
 {{template "rows" (rows "Fatura no" .D.InvoiceNo "Açık bakiye" (opt (gt .D.Amount.Minor 0) (money .D.Amount)))}}
-<p class="m-text" style="{{css "h2"}}">Ne değişti?</p>
-<p class="m-text" style="{{css "p"}}">Verileriniz güvende; hiçbir şey silinmedi. Paneli görüntüleyebilirsiniz, ancak mesaj gönderimi, kampanyalar ve otomasyonlar duraklatıldı.</p>
-<p class="m-text" style="{{css "h2"}}">Nasıl düzeltilir?</p>
-<p class="m-text" style="{{css "p"}}">Açık bakiyeyi ödediğinizde çalışma alanınız genellikle birkaç dakika içinde yeniden tam erişime açılır. Havale ile ödemelerde eşleşme bir iş günü sürebilir.</p>
-{{template "button" (dict "URL" .D.BillingURL "Label" "Ödemeyi tamamla" "L" .L)}}
+{{template "notice" (notice "danger" "Gönderimler duraklatıldı." "Mesaj gönderimi, kampanyalar ve otomasyonlar durdu. Verileriniz güvende, hiçbir şey silinmedi; paneli görüntülemeye devam edebilirsiniz.")}}
+<p {{ui "p"}}>Açık bakiyeyi ödediğinizde çalışma alanınız genellikle birkaç dakika içinde yeniden tam erişime açılır. Havale ile ödemelerde eşleşme bir iş günü sürebilir.</p>
+{{template "button" (dict "URL" .D.BillingURL "Label" "Ödemeyi tamamla")}}
 {{end}}

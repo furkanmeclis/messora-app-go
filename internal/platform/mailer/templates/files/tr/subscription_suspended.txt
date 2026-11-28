@@ -1,9 +1,8 @@
 {{define "subject"}}Çalışma alanınız salt okunur moda geçti{{end}}
 {{define "preheader"}}Ödemeyi tamamladığınızda her şey kaldığı yerden devam eder.{{end}}
+{{define "title"}}Çalışma alanınız salt okunur moda geçti{{end}}
 {{define "reason"}}Bu e-postayı, Messora aboneliğinizin fatura bildirimleri bu adrese gönderildiği için aldınız.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Ödenmemiş bir fatura nedeniyle {{with .C.TenantName}}{{.}} çalışma alanı{{else}}çalışma alanınız{{end}} {{datetime .D.SuspendedAt}} itibarıyla salt okunur moda geçti.
+{{define "content"}}Ödenmemiş bir fatura nedeniyle {{with .C.TenantName}}{{.}} çalışma alanı{{else}}çalışma alanınız{{end}} {{datetime .D.SuspendedAt}} itibarıyla salt okunur moda geçti.
 {{template "rows" (rows "Fatura no" .D.InvoiceNo "Açık bakiye" (opt (gt .D.Amount.Minor 0) (money .D.Amount)))}}
 Ne değişti?
 - Verileriniz güvende; hiçbir şey silinmedi.

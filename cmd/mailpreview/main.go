@@ -30,7 +30,7 @@ type entry struct {
 
 func run() error {
 	out := flag.String("out", "tmp/mail-preview", "output directory")
-	assets := flag.String("asset-base-url", "", "optional https base URL serving email/logo.png")
+	assets := flag.String("asset-base-url", templates.DefaultAssetBaseURL, "https base URL serving email/logo-light@2x.png and email/logo-dark@2x.png")
 	flag.Parse()
 
 	brand := templates.DefaultBrand()

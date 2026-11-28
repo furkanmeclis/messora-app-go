@@ -4,11 +4,13 @@ Preheader: Acme Gıda, Büyüme planını istiyor (yıllık).
 Messora
 ========================================
 
+Plan değişikliği talebi
+
 Merhaba Deniz,
 
-Acme Gıda çalışma alanı 27 Kasım 2026, 14:05 (UTC+03:00) tarihinde plan değişikliği istedi.
+Acme Gıda firması 27 Kasım 2026, 14:05 (UTC+03:00) tarihinde plan değişikliği istedi.
 
-  Çalışma alanı: Acme Gıda
+  Firma: Acme Gıda
   Adres: https://acme.messora.tech
   Mevcut plan: Başlangıç
   İstenen plan: Büyüme

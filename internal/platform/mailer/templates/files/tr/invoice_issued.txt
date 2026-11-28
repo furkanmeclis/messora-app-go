@@ -1,9 +1,8 @@
 {{define "subject"}}Faturanız hazır: {{.D.InvoiceNo}}{{end}}
 {{define "preheader"}}{{money .D.Amount}} · son ödeme tarihi {{date .D.DueDate}}{{end}}
+{{define "title"}}Faturanız hazır{{end}}
 {{define "reason"}}Bu e-postayı, Messora aboneliğinizin fatura bildirimleri bu adrese gönderildiği için aldınız.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-{{with .D.Period}}{{.}} dönemine ait faturanız{{else}}Yeni faturanız{{end}} hazır.
+{{define "content"}}{{with .D.Period}}{{.}} dönemine ait faturanız{{else}}Yeni faturanız{{end}} hazır.
 {{template "rows" (rows "Fatura no" .D.InvoiceNo "Dönem" .D.Period "Tutar" (money .D.Amount) "Son ödeme tarihi" (date .D.DueDate))}}
 {{- with .D.Bank}}
 {{template "bank" (dict "B" . "L" $.L)}}{{end}}

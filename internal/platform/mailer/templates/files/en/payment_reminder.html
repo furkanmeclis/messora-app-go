@@ -1,14 +1,8 @@
 {{define "content"}}
-{{if .D.Overdue}}{{template "h1" "An invoice is overdue"}}{{else}}{{template "h1" "Upcoming payment reminder"}}{{end}}
-{{template "greeting" .}}
-{{if .D.Overdue}}
-<p class="m-text" style="{{css "p"}}">Invoice <strong>{{.D.InvoiceNo}}</strong> was due on {{date .D.DueDate}} and we haven't seen the payment yet.</p>
-{{template "note" (printf "Your account is working normally for now. If the payment doesn't arrive by %s, your workspace will switch to read-only mode." (date .D.GraceEndsAt))}}
-{{else}}
-<p class="m-text" style="{{css "p"}}">A friendly reminder: invoice <strong>{{.D.InvoiceNo}}</strong> is due on <strong>{{date .D.DueDate}}</strong>.</p>
-{{end}}
+{{if .D.Overdue}}<p {{ui "p"}}>Invoice <strong>{{.D.InvoiceNo}}</strong> was due on {{date .D.DueDate}} and we haven't seen the payment yet.</p>
+{{template "notice" (notice "warning" "Your workspace is working normally for now." (printf "If the payment doesn't arrive by %s, it will switch to read-only mode." (date .D.GraceEndsAt)))}}{{else}}<p {{ui "p"}}>A friendly reminder: invoice <strong>{{.D.InvoiceNo}}</strong> is due on <strong>{{date .D.DueDate}}</strong>.</p>{{end}}
 {{template "rows" (rows "Invoice no." .D.InvoiceNo "Amount" (money .D.Amount) "Due date" (date .D.DueDate) "Grace period ends" (opt .D.Overdue (date .D.GraceEndsAt)))}}
 {{with .D.Bank}}{{template "bank" (dict "B" . "L" $.L)}}{{end}}
-{{template "button" (dict "URL" .D.PayURL "Label" "Pay now" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">Already paid? Thank you. Bank transfers can take a business day to match; you can ignore this e-mail.</p>
+{{template "button" (dict "URL" .D.PayURL "Label" "Pay now")}}
+<p {{ui "small"}}>Already paid? Thank you; bank transfers can take a business day to match.</p>
 {{end}}

@@ -1,8 +1,6 @@
 {{define "content"}}
-{{template "h1" "Giriş kodunuz"}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}">Girişinizi tamamlamak için bu tek kullanımlık kodu girin:</p>
+<p {{ui "p"}}>Girişinizi tamamlamak için bu tek kullanımlık kodu girin:</p>
 {{template "code" .D.Code}}
-<p class="m-muted" style="{{css "muted"}}">Kod <strong>{{dur .D.ExpiresIn}}</strong> boyunca geçerlidir ve yalnızca bir kez kullanılabilir.</p>
-{{template "note" "Bu kodu kimseyle paylaşmayın; Messora ekibi sizden asla kod istemez. Giriş yapmaya çalışan siz değilseniz şifrenizi değiştirmenizi öneririz."}}
+<p {{ui "small"}}>Kod <strong>{{dur .D.ExpiresIn}}</strong> boyunca geçerlidir ve yalnızca bir kez kullanılabilir.</p>
+{{template "notice" (notice "warning" "Bu kodu kimseyle paylaşmayın." "Messora ekibi sizden asla kod istemez. Giriş yapmaya çalışan siz değilseniz şifrenizi değiştirin.")}}
 {{end}}

@@ -136,59 +136,113 @@ falls back to English.
 Preview all of them with `make mail-preview` and open
 `tmp/mail-preview/index.html` (git-ignored).
 
+## The design system
+
+Every e-mail has the same frame, rendered by `files/layout.html`; a kind only
+supplies its words and picks blocks from `files/partials.html`:
+
+1. **Header**: the real Messora logo, identical in every e-mail: the
+   horizontal lockup from the logo kit as retina PNGs on
+   `Brand.AssetBaseURL` (default `https://messora.tech`, the marketing site):
+   `email/logo-light@2x.png` (colour on light) and `email/logo-dark@2x.png`
+   (colour on dark), 1020×212 shown at 150×31, `alt="Messora"`, `border=0`,
+   `display:block`. The dark one sits in a `.m-logo-dark` wrapper hidden with
+   `display:none; mso-hide:all` and swapped in by the dark-mode block
+   (`prefers-color-scheme` and `[data-ogsc]`); clients without it show the
+   light logo. With images blocked the alt text shows "Messora" styled as
+   the wordmark (22 px, 800). `email/mark@2x.png` (the mark alone) is
+   published for later use. Mail about a workspace
+   shows the workspace on the right: its logo (`TenantLogoURL`, 28 px high,
+   alt = name) or its name. The text part starts with `Messora · <workspace>`.
+2. **Hero**: the eyebrow (the kind's category, small indigo capitals:
+   Hesap, Güvenlik, Davet, Başlangıç, Fatura ve ödeme, Krediler, Webhook'lar,
+   Platform yönetimi), the title (`title` in the kind's `.txt`, also the text
+   part's heading) and the greeting.
+3. **Content** in a fixed order: the lead paragraph (what happened), the
+   data (`code`, `card`/`rows`, `bank`), a `notice` that asks for action
+   (warning/danger) before the button it leads to, the one primary
+   `button`, the `fallback` copy-paste link (one-time token links only:
+   verify, reset, invitation, address change), small print (validity, "the
+   location is approximate"), and last an info `notice` for "didn't ask for
+   this?".
+4. **Footer**: why you got this, support link, unsubscribe (opt-out kinds
+   only), "sent automatically", © company and address.
+
+| Partial | Call | Use |
+| --- | --- | --- |
+| `button` | `(dict "URL" u "Label" "…")` | The only button. Indigo cell with white text (bulletproof) plus a VML `v:roundrect` for Outlook for Windows; full width on phones. One per e-mail. |
+| `fallback` | `(dict "URL" u "L" .L)` | "If the button doesn't work…" and the URL. |
+| `link` | `(dict "URL" u "Label" "…")` | Secondary inline link (indigo, underlined, semibold). |
+| `rows` / `card` | `(rows "Label" v …)` / `(dict "Title" t "Rows" r "Hint" h)` | Detail card: fog panel, muted labels, semibold values; empty values are skipped, an empty card is not drawn. `(mono v)` sets a value in monospace (IBAN, references, URLs, error codes). Rows stack on phones. |
+| `bank` | `(dict "B" .D.Bank "L" .L)` | Bank transfer card: bank, holder, monospace IBAN and reference, hint. |
+| `code` | `.D.Code` | One-time code: full-width monospace panel. |
+| `notice` | `(notice "info\|success\|warning\|danger" "Title" "Text")` | Tinted panel with a 4 px left bar in the tone's colour (indigo, mint, amber, red); the bold title runs into the text. |
+| `step` | `(dict "N" "1" "Title" … "Text" … "URL" … "Label" …)` | Numbered step with a mint badge (welcome). |
+| `h2` | `"…"` | Section heading. |
+
+Paragraphs are `<p {{ui "p"}}>` (16/24 body) and `<p {{ui "small"}}>`
+(14/20 muted); `<strong>` is allowed inside. Kind files contain no `style`,
+`class`, `bgcolor`, tables, links, images or headings of their own
+(`TestKindFilesUseOnlyPartials`).
+
+**Scale.** Spacing on an 8 px grid (card padding 40, 24 on phones; blocks
+24 apart; paragraphs 16), line heights on a 4 px grid. Type: eyebrow 12/16
+700 +0.08em, title 26/32 800 -0.02em, body 16/24, small 14/20, footer
+12/20, code 32/40 mono. Width 600 px, card radius 16, panels 12, button 10.
+
+**Voice.** Warm, short, "siz" in Turkish. Customer mail says "çalışma alanı"
+(the app's term); the platform admin mail (`plan_change_request`) says
+"firma", like the admin panel. Subjects are sentence case, no full stop, an
+identifier after a colon ("Faturanız hazır: MSR-2026-0142"). Security mail
+always says what to do if it wasn't you; codes never go into a subject.
+
 ## Adding a template
 
-1. Add a `Kind` constant, append it to `kinds`, and add a data struct with
-   `kind()` and `validate()` in `data.go` (and to `unsubscribable` only if the
-   recipient may opt out).
+1. Add a `Kind` constant, append it to `kinds`, give it a category in
+   `categories` (`format.go`), and add a data struct with `kind()` and
+   `validate()` in `data.go` (and to `unsubscribable` only if the recipient
+   may opt out).
 2. Write `files/tr/<kind>.txt` and `files/en/<kind>.txt` defining `subject`,
-   `preheader`, `reason` (the footer "why you got this" line) and `content`
-   (plain-text body).
-3. Write `files/tr/<kind>.html` and `files/en/<kind>.html` defining `content`,
-   built from the partials in `files/partials.html` (`h1`, `greeting`,
-   `button`, `code`, `rows`, `note`, `bank`) and `{{css "preset"}}` styles.
+   `preheader`, `title` (the hero title), `reason` (the footer "why you got
+   this" line) and `content` (plain-text body after the greeting).
+3. Write `files/tr/<kind>.html` and `files/en/<kind>.html` defining `content`
+   from the partials above, in the order above.
 4. Add realistic data to `Sample` in `samples.go`, run
    `go test ./internal/platform/mailer/templates -update`, review the new
    `testdata/*.golden` files and `make mail-preview`.
 
 ## Brand and client rules
 
-- **Inline styles only** (`{{css "…"}}` presets in `format.go`) as the light
-  default. No external CSS, fonts, scripts or SVG.
+- **Inline styles only**, written by `{{ui "preset"}}` (class and style
+  together, presets in `format.go`) as the light default. No external CSS,
+  fonts, scripts or SVG.
 - **Full dark theme** in the single `<head>` `<style>` block:
   `@media (prefers-color-scheme: dark)` plus Outlook.com's `[data-ogsc]` /
   `[data-ogsb]` selectors, all `!important` (body `#0B1220`, card `#141C2F`,
-  border `#25304A`, text `#F4F6FB`, muted `#C5CCDD`, panels `#1B2540`; button
-  stays Indigo with white text, Mint stays). Apple Mail darkens a white card
-  but keeps inline text colours, so **every element with an inline colour
-  must carry a theming class** (`m-bg`, `m-card`, `m-text`, `m-muted`,
-  `m-box`, `m-link`, `m-btn`, `m-accent`, `m-mark`, `m-mint`, `m-word`); the
+  border `#25304A`, text `#F4F6FB`, muted `#C5CCDD`, panels and notices
+  `#1B2540`; button stays Indigo with white text, Mint stays, notice bars
+  keep their colour). Apple Mail darkens a white card but keeps inline text
+  colours, so **every preset with a colour carries a theming class**
+  (`m-bg`, `m-card`, `m-text`, `m-muted`, `m-box`, `m-note`, `m-link`,
+  `m-btn`, `m-mint`, `m-logo-light`, `m-logo-dark`); `TestPresetsAreThemed` and the
   golden tests fail otherwise. The same block resets
   `a[x-apple-data-detectors]` (and Gmail's `u + #body a`) so auto-detected
   dates, numbers and addresses keep the surrounding style, and the
   `format-detection` meta turns detection off where supported.
+- **Outlook for Windows**: the button is a VML rounded rectangle inside
+  `<!--[if mso]>`, the HTML button is hidden from it; an `mso` block sets
+  96 PPI and an Arial fallback (Outlook would otherwise fall back to Times).
 - **Table layout**, 600 px max width, every table `role="presentation"`.
-  Buttons are "bulletproof": the coloured `<td>` carries the background, and a
-  plain link fallback follows every button.
 - **Preheader** text right after `<body>`, padded so clients do not pull body
   text into the inbox preview.
 - **Colours**: background Fog `#F4F6FB`, card white, text Night `#0B1220`,
-  primary Indigo `#3B4CCA` (buttons, white text; links), accent Mint
-  `#2DD4A7` only for small accents (top bar, step badges, note border) with
-  Night text on it, muted `#4A5468`.
+  primary Indigo `#3B4CCA` (eyebrow, button, links, info bar), Mint `#2DD4A7`
+  only for small accents (step badges, success bar) with Night text
+  on it, muted `#4A5468`, warning bar `#E39A0B`, danger bar `#D93F4C`.
 - **Type**: headings `'Plus Jakarta Sans', Inter, -apple-system, 'Segoe UI',
-  Roboto, Arial, sans-serif` bold; body Inter with system fallbacks.
-- **Logo**: clients block SVG, so the mark is an indigo rounded cell with a
-  mint dot plus the "messora" wordmark (800, letter-spacing -0.03em) in text.
-  Setting `Brand.AssetBaseURL` switches to `<AssetBaseURL>/email/logo.png`
-  (264×56, shown at 132×28) with `alt="messora"`.
-- **Tenant e-mails**: when `TenantName` is set the header reads
-  "<TenantName> · Messora ile" ("· with Messora"), with `TenantLogoURL` as an
-  image (alt = tenant name) when given.
-- **Footer**: why-you-got-this line, support link, unsubscribe link only for
-  opt-out kinds, company name (`Brand.CompanyName`, a placeholder until the
-  legal entity is configured) and optional address.
-- **Copy**: clear, warm and reassuring; no hype. Security mail always says what
-  to do if it wasn't you. Codes never go into a 2FA subject.
-- Golden tests enforce: no `<script>`, no external CSS, https on every link,
-  `alt` on every image, `role="presentation"` tables, HTML under 100 KB.
+  Roboto, Arial, sans-serif`; body Inter with system fallbacks; monospace
+  `'SF Mono', Menlo, Consolas`.
+- Tests enforce: no `<script>`, no external CSS, https on every link, `alt`
+  on every image, `role="presentation"` tables, HTML under 100 KB, the
+  shared header, hero and footer in every e-mail, the VML button wherever
+  there is an action, and a theming class on every coloured element.

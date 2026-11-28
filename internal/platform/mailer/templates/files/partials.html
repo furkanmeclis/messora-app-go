@@ -1,69 +1,114 @@
-{{/* Reusable HTML blocks. All styles are inline presets from format.go. */}}
+{{/*
+  The e-mail design system. Kind files build their "content" from these
+  partials and {{ui "p"}} / {{ui "small"}} paragraphs only (no style, class,
+  table or link markup of their own; TestKindFilesUseOnlyPartials).
 
-{{define "greeting"}}<p class="m-text" style="{{css "p"}}">{{if .C.Name}}{{.L.Hello}} {{.C.Name}},{{else}}{{.L.HelloAnon}}{{end}}</p>{{end}}
+    header    Messora logo (PNG, dark-mode swap), workspace on the right (layout)
+    hero      eyebrow, title, greeting                     (layout)
+    footer    why you got this, support, unsubscribe, company (layout)
+    button    dict "URL" "Label"         the one primary button
+    fallback  URL                        copy-paste link under a token button
+    link      dict "URL" "Label"         secondary inline link
+    card      dict "Title" "Rows" "Hint" detail card; rows from (rows "K" v ...)
+    rows      (rows "K" v ...)           a card without title
+    bank      *BankTransfer (with $.L)   bank transfer card, monospace IBAN
+    code      string                     one-time code
+    notice    (notice tone title text)   info|success|warning|danger panel
+    h2        string                     section heading
+    step      dict "N" "Title" "Text" "URL" "Label"
+*/}}
 
-{{define "h1"}}<h1 class="m-text" style="{{css "h1"}}">{{.}}</h1>{{end}}
-
-{{/* dict "URL" .. "Label" .. "L" $.L — bulletproof button: the cell carries the colour, so it renders even where <a> padding is ignored. */}}
-{{define "button"}}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="{{css "btnTable"}}">
+{{define "header"}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td align="center" bgcolor="#3B4CCA" class="m-btn" style="{{css "btnCell"}}"><a class="m-btn" href="{{.URL}}" target="_blank" rel="noopener" style="{{css "btnLink"}}">{{.Label}}</a></td>
+<td valign="middle" align="left">{{template "lockup" .}}</td>
+{{if .C.TenantName}}<td valign="middle" align="right" {{ui "tenant"}}>{{if .C.TenantLogoURL}}<img src="{{.C.TenantLogoURL}}" height="28" alt="{{.C.TenantName}}" {{ui "tenantImg"}}>{{else}}{{.C.TenantName}}{{end}}</td>{{end}}
 </tr>
 </table>
-<p class="m-muted" style="{{css "fallback"}}">{{.L.ButtonFallback}}<br><a class="m-link" href="{{.URL}}" target="_blank" rel="noopener" style="{{css "urlLink"}}">{{.URL}}</a></p>
 {{end}}
+
+{{define "lockup"}}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td valign="middle"><img src="{{.LogoLight}}" width="150" height="31" alt="Messora" border="0" {{ui "logoLight"}}><div {{ui "logoDarkWrap"}}><img src="{{.LogoDark}}" width="150" height="31" alt="Messora" border="0" {{ui "logoDark"}}></div></td>
+</tr>
+</table>
+{{end}}
+
+{{define "hero"}}
+<p {{ui "eyebrow"}}>{{.Eyebrow}}</p>
+<h1 {{ui "h1"}}>{{.Title}}</h1>
+<p {{ui "p"}}>{{if .C.Name}}{{.L.Hello}} {{.C.Name}},{{else}}{{.L.HelloAnon}}{{end}}</p>
+{{end}}
+
+{{define "footer"}}
+<p {{ui "footerP"}}>{{.Reason}}</p>
+<p {{ui "footerP"}}>{{.L.NeedHelp}} <a href="{{.Brand.SupportURL}}" target="_blank" rel="noopener" {{ui "footerA"}}>{{.L.Support}}</a>{{if .C.UnsubscribeURL}} · <a href="{{.C.UnsubscribeURL}}" target="_blank" rel="noopener" {{ui "footerA"}}>{{.L.Unsubscribe}}</a>{{end}}</p>
+<p {{ui "footerP"}}>{{.L.Automated}} © <a href="{{.Brand.WebsiteURL}}" target="_blank" rel="noopener" {{ui "footerA"}}>{{.Brand.CompanyName}}</a>{{with .Brand.CompanyAddress}} · {{.}}{{end}}</p>
+{{end}}
+
+{{define "button"}}
+{{msoButton .URL .Label}}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" {{ui "btnTable"}}>
+<tr>
+<td align="center" bgcolor="#3B4CCA" {{ui "btnCell"}}><a href="{{.URL}}" target="_blank" rel="noopener" {{ui "btnLink"}}>{{.Label}}</a></td>
+</tr>
+</table>
+{{msoEnd}}
+{{end}}
+
+{{define "fallback"}}
+<p {{ui "fallback"}}>{{.L.ButtonFallback}}<br><a href="{{.URL}}" target="_blank" rel="noopener" {{ui "fallbackA"}}>{{.URL}}</a></p>
+{{end}}
+
+{{define "link"}}<a href="{{.URL}}" target="_blank" rel="noopener" {{ui "link"}}>{{.Label}}</a>{{end}}
+
+{{define "card"}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" {{ui "box"}}>
+<tr>
+<td {{ui "boxPad"}}>
+{{with .Title}}<p {{ui "boxTitle"}}>{{.}}</p>{{end}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{{range .Rows}}
+<tr>
+<td {{ui "rowK"}}>{{.K}}</td>
+<td {{if .Mono}}{{ui "rowVMono"}}{{else}}{{ui "rowV"}}{{end}}>{{.V}}</td>
+</tr>
+{{end}}
+</table>
+{{with .Hint}}<p {{ui "boxHint"}}>{{.}}</p>{{end}}
+</td>
+</tr>
+</table>
+{{end}}
+
+{{define "rows"}}{{if .}}{{template "card" (dict "Rows" .)}}{{end}}{{end}}
+
+{{define "bank"}}{{template "card" (dict "Title" .L.BankTitle "Hint" .L.ReferenceHint "Rows" (rows .L.BankName .B.BankName .L.AccountHolder .B.AccountHolder "IBAN" (mono (iban .B.IBAN)) .L.Reference (mono .B.Reference)))}}{{end}}
 
 {{define "code"}}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="{{css "codeTable"}}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" {{ui "codeTable"}}>
 <tr>
-<td class="m-box m-text m-code" style="{{css "code"}}">{{.}}</td>
+<td {{ui "code"}}>{{.}}</td>
 </tr>
 </table>
 {{end}}
 
-{{/* rows: []kv from the rows func */}}
-{{define "rows"}}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="m-box" style="{{css "box"}}">
+{{define "notice"}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" {{ui "noteTable"}}>
 <tr>
-<td style="{{css "boxPad"}}">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0">
-{{range .}}
-<tr>
-<td class="m-muted" style="{{css "rowLabel"}}">{{.K}}</td>
-<td class="m-text" style="{{css "rowValue"}}">{{.V}}</td>
-</tr>
-{{end}}
-</table>
-</td>
-</tr>
-</table>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="{{css "spacer"}}">&nbsp;</td></tr></table>
-{{end}}
-
-{{define "note"}}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="{{css "noteTable"}}">
-<tr>
-<td class="m-box m-text" style="{{css "note"}}">{{.}}</td>
+<td {{ui .Preset}}>{{with .Title}}<strong {{ui "noteTitle"}}>{{.}}</strong> {{end}}{{.Text}}</td>
 </tr>
 </table>
 {{end}}
 
-{{/* dict "B" *BankTransfer "L" $.L */}}
-{{define "bank"}}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="m-box" style="{{css "box"}}">
+{{define "h2"}}<p {{ui "h2"}}>{{.}}</p>{{end}}
+
+{{define "step"}}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" {{ui "steps"}}>
 <tr>
-<td style="{{css "boxPad"}}">
-<p class="m-text" style="{{css "boxTitle"}}">{{.L.BankTitle}}</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0">
-{{with .B.BankName}}<tr><td class="m-muted" style="{{css "rowLabel"}}">{{$.L.BankName}}</td><td class="m-text" style="{{css "rowValue"}}">{{.}}</td></tr>{{end}}
-<tr><td class="m-muted" style="{{css "rowLabel"}}">{{.L.AccountHolder}}</td><td class="m-text" style="{{css "rowValue"}}">{{.B.AccountHolder}}</td></tr>
-<tr><td class="m-muted" style="{{css "rowLabel"}}">IBAN</td><td class="m-text" style="{{css "rowValue"}}"><span style="{{css "mono"}}">{{iban .B.IBAN}}</span></td></tr>
-<tr><td class="m-muted" style="{{css "rowLabel"}}">{{.L.Reference}}</td><td class="m-text" style="{{css "rowValue"}}"><span style="{{css "mono"}}">{{.B.Reference}}</span></td></tr>
-</table>
-<p class="m-muted" style="{{css "hint"}}">{{.L.ReferenceHint}}</p>
-</td>
+<td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#2DD4A7" {{ui "badge"}}>{{.N}}</td></tr></table></td>
+<td {{ui "stepBody"}}><p {{ui "stepH"}}>{{.Title}}</p><p {{ui "stepP"}}>{{.Text}} {{template "link" .}}</p></td>
 </tr>
 </table>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="{{css "spacer"}}">&nbsp;</td></tr></table>
 {{end}}

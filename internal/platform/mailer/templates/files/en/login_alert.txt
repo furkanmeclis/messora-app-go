@@ -1,9 +1,8 @@
 {{define "subject"}}New sign-in to your account{{end}}
 {{define "preheader"}}{{datetime .D.At}} · {{with .D.Location}}{{.}}{{else}}{{.D.IP}}{{end}}{{with .D.Device}} · {{.}}{{end}}{{end}}
-{{define "reason"}}This is a security notice, sent when your account is signed in to from a new device or place.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Someone just signed in to your Messora account.
+{{define "title"}}New sign-in to your account{{end}}
+{{define "reason"}}You're receiving this because your account was signed in to from a new device or place. Security notices can't be turned off.{{end}}
+{{define "content"}}Someone just signed in to your Messora account.
 {{template "rows" (rows "Time" (datetime .D.At) "IP address" .D.IP "Approximate location" .D.Location "Device" .D.Device)}}
 If this was you, there's nothing to do. The location is estimated from the IP address.
 

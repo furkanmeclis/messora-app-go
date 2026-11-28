@@ -142,7 +142,7 @@ func checkDarkMode(t *testing.T, html string) {
 			t.Errorf("dark mode / auto-link handling lacks %q", must)
 		}
 	}
-	for _, cls := range []string{".m-bg", ".m-card", ".m-text", ".m-muted", ".m-box", ".m-link", ".m-btn", ".m-mint"} {
+	for _, cls := range []string{".m-bg", ".m-card", ".m-text", ".m-muted", ".m-box", ".m-note", ".m-link", ".m-btn", ".m-mint", ".m-logo-dark"} {
 		if !strings.Contains(html, "  "+cls) && !strings.Contains(html, ", "+cls) {
 			t.Errorf("dark theme has no rule for %s", cls)
 		}
@@ -262,13 +262,15 @@ func TestEscapesUserData(t *testing.T) {
 
 func TestTenantBrandingAndLogo(t *testing.T) {
 	r := renderer(t)
+	const light = `<img src="https://messora.tech/email/logo-light@2x.png" width="150" height="31" alt="Messora" border="0" class="m-logo-light"`
+	const dark = `src="https://messora.tech/email/logo-dark@2x.png" width="150" height="31" alt="Messora"`
 	_, text, html, _ := r.Render(Invitation, "tr", Sample(Invitation, "tr"))
-	if !strings.Contains(html, "Acme Gıda") || !strings.Contains(html, "· Messora ile") || !strings.HasPrefix(text, "Acme Gıda · Messora ile\n") {
+	if !strings.Contains(html, ">Acme Gıda</td>") || !strings.Contains(html, light) || !strings.HasPrefix(text, "Messora · Acme Gıda\n") {
 		t.Error("tenant header missing")
 	}
 	_, text, html, _ = r.Render(VerifyEmail, "tr", Sample(VerifyEmail, "tr"))
-	if !strings.Contains(html, ">messora</td>") || !strings.HasPrefix(text, "Messora\n") || strings.Contains(html, "<img") {
-		t.Error("platform mail must use the HTML wordmark without images")
+	if !strings.Contains(html, light) || !strings.Contains(html, dark) || !strings.Contains(html, `class="m-logo-dark" style="display:none;mso-hide:all;`) || !strings.HasPrefix(text, "Messora\n") {
+		t.Error("platform mail must show the Messora logo, light by default with the dark one hidden")
 	}
 	d := Sample(Invitation, "en").(InvitationData)
 	d.TenantLogoURL = "https://cdn.example.com/acme.png"
@@ -284,8 +286,12 @@ func TestTenantBrandingAndLogo(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _, html, _ = rb.Render(VerifyEmail, "en", Sample(VerifyEmail, "en"))
-	if !strings.Contains(html, `src="https://assets.messora.tech/email/logo.png"`) || !strings.Contains(html, `alt="messora"`) {
-		t.Error("PNG logo from AssetBaseURL missing")
+	if !strings.Contains(html, `src="https://assets.messora.tech/email/logo-light@2x.png"`) || !strings.Contains(html, `src="https://assets.messora.tech/email/logo-dark@2x.png"`) {
+		t.Error("logo from AssetBaseURL missing")
+	}
+	b.AssetBaseURL = ""
+	if rb, err = New(b); err != nil || rb.brand.AssetBaseURL != DefaultAssetBaseURL {
+		t.Errorf("an empty AssetBaseURL must default to %s: %v", DefaultAssetBaseURL, err)
 	}
 	b.AssetBaseURL = "http://assets.example.com"
 	if _, err := New(b); err == nil {
@@ -388,6 +394,79 @@ func TestVerifyEmailWithoutCode(t *testing.T) {
 		}
 		if !strings.Contains(m.HTML, "verify-email?token=msv_x") || !strings.Contains(m.Text, "verify-email?token=msv_x") {
 			t.Errorf("%s: link missing", loc)
+		}
+	}
+}
+
+// TestPresetsAreThemed: every style preset that sets a colour carries a
+// theming class, so the dark theme reaches it.
+func TestPresetsAreThemed(t *testing.T) {
+	for name, p := range presets {
+		if reColor.MatchString(p.style) && !strings.Contains(" "+p.class, " m-") {
+			t.Errorf("preset %q sets a colour but has no m-* class", name)
+		}
+	}
+}
+
+func TestEveryKindHasACategory(t *testing.T) {
+	for _, k := range Kinds() {
+		for _, loc := range Locales {
+			if chromes[loc].Category[categories[k]] == "" {
+				t.Errorf("%s: no eyebrow in %s", k, loc)
+			}
+		}
+	}
+}
+
+var reOwnMarkup = regexp.MustCompile(`(?i)\bstyle=|\bclass=|\bbgcolor=|<table|<td|<a\s|<img|<h[1-6]|<div|<span|\{\{\s*css\b`)
+
+// TestKindFilesUseOnlyPartials: a kind's HTML is built from the shared
+// partials and {{ui}} paragraphs only; the header, hero and footer come
+// from the layout, so no kind can drift from the system.
+func TestKindFilesUseOnlyPartials(t *testing.T) {
+	for _, loc := range Locales {
+		for _, k := range Kinds() {
+			name := "files/" + loc + "/" + string(k) + ".html"
+			b, err := files.ReadFile(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := string(b)
+			if m := reOwnMarkup.FindString(s); m != "" {
+				t.Errorf("%s: own markup %q; use a partial or a {{ui}} preset", name, m)
+			}
+			for _, d := range []string{"layout", "header", "lockup", "hero", "footer", "button", "card", "notice"} {
+				if strings.Contains(s, `define "`+d+`"`) {
+					t.Errorf("%s overrides the shared partial %q", name, d)
+				}
+			}
+		}
+	}
+}
+
+// TestSharedChrome: every rendered e-mail has the shared header (Messora
+// lockup), one hero title, the footer and, where it has an action, the
+// Outlook-safe primary button.
+func TestSharedChrome(t *testing.T) {
+	r := renderer(t)
+	for _, k := range Kinds() {
+		for _, loc := range Locales {
+			e, err := r.Email(k, loc, Sample(k, loc))
+			if err != nil {
+				t.Fatal(err)
+			}
+			must := []string{`class="m-header"`, `alt="Messora" border="0" class="m-logo-light"`, `class="m-logo-dark"`, `class="m-footer m-muted"`, `<h1 class="m-text"`}
+			if k != TwoFactorCode { // a code, no action
+				must = append(must, "<!--[if mso]><v:roundrect", `class="m-btn m-btn-a"`, "<!--<![endif]-->")
+			}
+			for _, m := range must {
+				if !strings.Contains(e.HTML, m) {
+					t.Errorf("%s.%s lacks %q", k, loc, m)
+				}
+			}
+			if n := strings.Count(e.HTML, "<h1"); n != 1 {
+				t.Errorf("%s.%s: %d titles, want 1", k, loc, n)
+			}
 		}
 	}
 }

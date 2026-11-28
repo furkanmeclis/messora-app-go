@@ -1,5 +1,11 @@
+{{/*
+  The one layout every e-mail uses: preheader, header (Messora lockup and
+  the workspace), card with the hero (eyebrow, title, greeting), the kind's
+  content and the footer. Kind files only define "content", built from the
+  partials in partials.html; all styling comes from {{ui "preset"}}.
+*/}}
 {{define "layout"}}<!DOCTYPE html>
-<html lang="{{.Locale}}" dir="ltr">
+<html lang="{{.Locale}}" dir="ltr" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,55 +19,65 @@
 :root { color-scheme: light dark; supported-color-schemes: light dark; }
 /* Stop clients from restyling detected dates, numbers and addresses. */
 a[x-apple-data-detectors], u + #body a, #MessageViewBody a { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
-/* Full dark theme. Inline styles stay the light default for clients that
-   drop this block; every element with an inline colour carries one of
-   these classes so nothing dark is left on a dark background. */
+/* Dark theme. Inline styles stay the light default for clients that drop
+   this block; every element with an inline colour carries one of these
+   classes so nothing dark is left on a dark background. */
 @media (prefers-color-scheme: dark) {
   .m-bg { background-color: #0B1220 !important; }
   .m-card { background-color: #141C2F !important; border-color: #25304A !important; }
-  .m-text, .m-word { color: #F4F6FB !important; }
+  .m-text { color: #F4F6FB !important; }
   .m-muted { color: #C5CCDD !important; }
   .m-box { background-color: #1B2540 !important; border-color: #25304A !important; }
+  .m-note { background-color: #1B2540 !important; }
   .m-link { color: #AEB8FF !important; }
   .m-btn { background-color: #3B4CCA !important; color: #FFFFFF !important; }
-  .m-accent, .m-mark { background-color: #3B4CCA !important; }
+  .m-logo-light { display: none !important; }
+  .m-logo-dark { display: block !important; max-height: none !important; overflow: visible !important; }
   .m-mint { background-color: #2DD4A7 !important; color: #0B1220 !important; }
 }
 /* Outlook.com dark mode rewrites colours and marks the document. */
-[data-ogsc] .m-text, [data-ogsc] .m-word { color: #F4F6FB !important; }
+[data-ogsc] .m-logo-light { display: none !important; }
+[data-ogsc] .m-logo-dark { display: block !important; max-height: none !important; overflow: visible !important; }
+[data-ogsc] .m-text { color: #F4F6FB !important; }
 [data-ogsc] .m-muted { color: #C5CCDD !important; }
 [data-ogsc] .m-link { color: #AEB8FF !important; }
 [data-ogsc] .m-btn { color: #FFFFFF !important; }
 [data-ogsc] .m-mint { color: #0B1220 !important; }
 [data-ogsb] .m-bg { background-color: #0B1220 !important; }
 [data-ogsb] .m-card { background-color: #141C2F !important; }
-[data-ogsb] .m-box { background-color: #1B2540 !important; }
-[data-ogsb] .m-btn, [data-ogsb] .m-accent, [data-ogsb] .m-mark { background-color: #3B4CCA !important; }
+[data-ogsb] .m-box, [data-ogsb] .m-note { background-color: #1B2540 !important; }
+[data-ogsb] .m-btn { background-color: #3B4CCA !important; }
 [data-ogsb] .m-mint { background-color: #2DD4A7 !important; }
-@media only screen and (max-width: 620px) {
-  .m-pad { padding: 28px 22px 24px 22px !important; }
-  .m-code { font-size: 26px !important; letter-spacing: 0.18em !important; padding: 14px 18px !important; }
+/* Phones: tighter padding, full-width button, stacked detail rows. */
+@media only screen and (max-width: 520px) {
+  .m-outer { padding: 24px 8px !important; }
+  .m-pad { padding: 32px 24px 16px 24px !important; }
+  .m-box-pad { padding: 12px 16px !important; }
+  .m-btn-wrap { width: 100% !important; }
+  .m-btn-a { display: block !important; padding-left: 16px !important; padding-right: 16px !important; }
+  .m-row { display: block !important; width: 100% !important; padding-right: 0 !important; }
+  .m-row-k { padding-bottom: 0 !important; }
+  .m-mono { font-size: 13px !important; }
+  .m-code { font-size: 26px !important; letter-spacing: 0.2em !important; padding: 16px !important; }
 }
 </style>
+{{msoHead}}
 </head>
-<body id="body" class="m-bg" style="{{css "body"}}">
-<div style="{{css "preheader"}}">{{.Preheader}}&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="m-bg" style="{{css "outer"}}">
+<body id="body" {{ui "body"}}>
+<div {{ui "preheader"}}>{{.Preheader}}&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;&#8199;&#847;&zwnj;&nbsp;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F4F6FB" {{ui "outer"}}>
 <tr>
-<td align="center" style="padding:32px 12px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="{{css "wrap"}}">
+<td align="center" {{ui "outerPad"}}>
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" {{ui "wrap"}}>
 <tr>
-<td style="{{css "header"}}">{{template "brandmark" .}}</td>
+<td {{ui "header"}}>{{template "header" .}}</td>
 </tr>
 <tr>
-<td class="m-card" style="{{css "card"}}">
+<td bgcolor="#FFFFFF" {{ui "card"}}>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td width="86%" class="m-accent" style="{{css "accent"}}">&nbsp;</td>
-<td width="14%" class="m-mint" style="{{css "accentMint"}}">&nbsp;</td>
-</tr>
-<tr>
-<td colspan="2" class="m-pad" style="{{css "cardPad"}}">
+<td {{ui "cardPad"}}>
+{{template "hero" .}}
 {{template "content" .}}
 </td>
 </tr>
@@ -69,11 +85,7 @@ a[x-apple-data-detectors], u + #body a, #MessageViewBody a { color: inherit !imp
 </td>
 </tr>
 <tr>
-<td class="m-muted" style="{{css "footer"}}">
-<p class="m-muted" style="{{css "footerP"}}">{{.Reason}}</p>
-<p class="m-muted" style="{{css "footerP"}}">{{.L.NeedHelp}} <a class="m-link" href="{{.Brand.SupportURL}}" target="_blank" rel="noopener" style="{{css "footerLink"}}">{{.L.Support}}</a>{{if .C.UnsubscribeURL}} · <a class="m-link" href="{{.C.UnsubscribeURL}}" target="_blank" rel="noopener" style="{{css "footerLink"}}">{{.L.Unsubscribe}}</a>{{end}}</p>
-<p class="m-muted" style="{{css "footerP"}}">{{.L.Automated}} © <a class="m-link" href="{{.Brand.WebsiteURL}}" target="_blank" rel="noopener" style="{{css "footerLink"}}">{{.Brand.CompanyName}}</a>{{with .Brand.CompanyAddress}} · {{.}}{{end}}</p>
-</td>
+<td {{ui "footer"}}>{{template "footer" .}}</td>
 </tr>
 </table>
 </td>
@@ -81,26 +93,4 @@ a[x-apple-data-detectors], u + #body a, #MessageViewBody a { color: inherit !imp
 </table>
 </body>
 </html>
-{{end}}
-
-{{define "brandmark"}}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0">
-<tr>
-{{if .C.TenantName}}
-<td valign="middle">{{if .C.TenantLogoURL}}<img src="{{.C.TenantLogoURL}}" height="32" alt="{{.C.TenantName}}" style="display:block;height:32px;width:auto;max-width:200px;border:0;outline:none;text-decoration:none;">{{else}}<span class="m-text" style="{{css "tenant"}}">{{.C.TenantName}}</span>{{end}}</td>
-<td valign="middle" class="m-muted" style="{{css "with"}}">· {{.L.With}}</td>
-{{else if .LogoURL}}
-<td valign="middle"><img class="m-word" src="{{.LogoURL}}" width="132" height="28" alt="messora" style="display:block;width:132px;height:28px;border:0;outline:none;text-decoration:none;font-family:'Plus Jakarta Sans', Inter, Arial, sans-serif;font-size:22px;font-weight:800;color:#0B1220;"></td>
-{{else}}
-<td width="28" height="28" align="center" valign="middle" bgcolor="#3B4CCA" class="m-mark" style="{{css "mark"}}">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
-<tr>
-<td width="10" height="10" bgcolor="#2DD4A7" class="m-mint" style="{{css "dot"}}">&nbsp;</td>
-</tr>
-</table>
-</td>
-<td valign="middle" class="m-word" style="{{css "word"}}">messora</td>
-{{end}}
-</tr>
-</table>
 {{end}}

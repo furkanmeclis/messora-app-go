@@ -1,9 +1,8 @@
 {{define "content"}}
-{{template "h1" "E-posta adresinizi doğrulayın"}}
-{{template "greeting" .}}
-{{if .D.Code}}<p class="m-text" style="{{css "p"}}">Messora'ya hoş geldiniz. Hesabınızı etkinleştirmek için aşağıdaki kodu girin ya da butona tıklayın.</p>
-{{template "code" .D.Code}}{{else}}<p class="m-text" style="{{css "p"}}">Messora'ya hoş geldiniz. Hesabınızı etkinleştirmek için aşağıdaki butonla e-posta adresinizi doğrulayın.</p>{{end}}
-{{template "button" (dict "URL" .D.VerifyURL "Label" "E-postamı doğrula" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">{{if .D.Code}}Kod ve bağlantı{{else}}Bağlantı{{end}} <strong>{{dur .D.ExpiresIn}}</strong> boyunca geçerlidir.</p>
-{{template "note" "Bu hesabı siz oluşturmadıysanız bu e-postayı görmezden gelebilirsiniz; adres doğrulanmadan hesap etkinleşmez."}}
+{{if .D.Code}}<p {{ui "p"}}>Messora'ya hoş geldiniz. Hesabınızı etkinleştirmek için bu kodu girin ya da aşağıdaki butonu kullanın.</p>
+{{template "code" .D.Code}}{{else}}<p {{ui "p"}}>Messora'ya hoş geldiniz. Hesabınızı etkinleştirmek için e-posta adresinizi doğrulayın.</p>{{end}}
+{{template "button" (dict "URL" .D.VerifyURL "Label" "E-postamı doğrula")}}
+{{template "fallback" (dict "URL" .D.VerifyURL "L" .L)}}
+<p {{ui "small"}}>{{if .D.Code}}Kod ve bağlantı{{else}}Bağlantı{{end}} <strong>{{dur .D.ExpiresIn}}</strong> boyunca geçerlidir.</p>
+{{template "notice" (notice "info" "Bu hesabı siz mi oluşturdunuz?" "Değilse bu e-postayı görmezden gelebilirsiniz; adres doğrulanmadan hesap etkinleşmez.")}}
 {{end}}

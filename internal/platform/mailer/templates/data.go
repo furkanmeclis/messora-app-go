@@ -18,7 +18,7 @@ type Data interface {
 type Common struct {
 	// Name is the recipient's first name for the greeting (optional).
 	Name string
-	// TenantName brands the header as "<TenantName> · Messora ile" when set.
+	// TenantName shows the workspace on the right of the header when set.
 	TenantName string
 	// TenantLogoURL is an optional https image shown instead of TenantName.
 	TenantLogoURL string

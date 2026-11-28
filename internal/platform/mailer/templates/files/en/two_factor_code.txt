@@ -1,9 +1,8 @@
 {{define "subject"}}Your Messora sign-in code{{end}}
 {{define "preheader"}}Your one-time code is valid for {{dur .D.ExpiresIn}}.{{end}}
+{{define "title"}}Your sign-in code{{end}}
 {{define "reason"}}You're receiving this because a two-step verification code was requested while signing in to your account.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Enter this one-time code to finish signing in:
+{{define "content"}}Enter this one-time code to finish signing in:
 
     {{.D.Code}}
 
