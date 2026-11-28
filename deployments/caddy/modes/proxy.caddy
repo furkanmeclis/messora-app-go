@@ -1,0 +1,37 @@
+# EDGE_MODE=proxy: plain HTTP for every host; TLS ends in front of Caddy.
+{
+	admin off
+	servers {
+		# Whose X-Forwarded-For / X-Forwarded-Proto to believe. Behind
+		# Traefik set TRUSTED_PROXIES to the proxy network's subnet
+		# (docker network inspect dokploy-network); the default trusts no
+		# one, so a directly exposed Caddy cannot be fooled.
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+import ../routes.caddy
+
+# ":80" serves every host over plain HTTP. A single domain here (e.g.
+# messora.example.com) gets automatic HTTPS instead (one-domain servers).
+{$SITE_ADDRESS::80} {
+	import messora_routes
+}
+
+# Traefik's HTTP provider reads the custom-domain routers from here
+# (providers.http.endpoint = http://<PROXY_ROUTER>-edge:8081/internal/edge/traefik,
+# docs/STAGING_AWS.md). Only the trusted proxy network may ask; the port is
+# never published.
+:8081 {
+	@outsider not remote_ip {$TRUSTED_PROXIES:127.0.0.1/32}
+	handle @outsider {
+		respond 403
+	}
+	handle /internal/edge/traefik {
+		reverse_proxy messora-api:9100
+	}
+	handle {
+		respond 404
+	}
+}

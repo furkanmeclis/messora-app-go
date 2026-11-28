@@ -22,6 +22,8 @@ x-messora-app: &messora-app
   environment: &messora-env
     MESSORA_SECRETS_FILE: /run/messora-secrets/secrets.env
     PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
+    # Workspaces at <slug>.TENANT_BASE_DOMAIN, the admin panel at admin.<it>.
+    TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
     POSTGRES_HOST: postgres
     REDIS_ADDR: redis:6379
     CENTRIFUGO_API_URL: http://centrifugo:8000/api
@@ -67,6 +69,8 @@ services:
     environment:
       MESSORA_SECRETS_DIR: /secrets
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
+      # Centrifugo accepts realtime connections from every sub-domain.
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
     volumes:
       - messora-secrets:/secrets
 
@@ -79,6 +83,17 @@ services:
           memory: "${MEM_POSTGRES:-1g}"
           cpus: "2"
     image: postgres:18@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a
+    # Memory settings follow MEM_POSTGRES (docs/OPERATIONS.md, sizing).
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-128MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-512MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-8MB}
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-100}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-messora}
       POSTGRES_DB: ${POSTGRES_DB:-messora}
@@ -260,6 +275,8 @@ services:
       MESSORA_API_INTERNAL_URL: http://messora-api:8080
       MESSORA_SECRETS_FILE: /run/messora-secrets/secrets.env
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
+      # The admin host (admin.<base>) and the workspace addresses.
+      MESSORA_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
     volumes:
       - type: volume
         source: messora-secrets
@@ -292,26 +309,103 @@ services:
         limits:
           memory: "${MEM_CADDY:-128m}"
           cpus: "1"
-    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
+    # Caddy with the name.com DNS module (deployments/caddy/Dockerfile).
+    image: ${MESSORA_CADDY_IMAGE:-messora/messora-caddy}:${MESSORA_VERSION:-dev}
+    pull_policy: ${MESSORA_INIT_PULL:-build}
+    build:
+      context: ./deployments/caddy
     environment:
+      # proxy (default): plain HTTP, TLS ends in front (or nowhere, locally).
+      # caddy: Caddy is the edge, wildcard + on-demand certificates.
+      EDGE_MODE: ${EDGE_MODE:-proxy}
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1/32}
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
+      # EDGE_MODE=caddy: the name.com API user and token for DNS-01.
+      NAMECOM_USERNAME: ${NAMECOM_USERNAME:-}
+      NAMECOM_API_TOKEN: ${NAMECOM_API_TOKEN:-}
+      NAMECOM_SERVER: ${NAMECOM_SERVER:-https://api.name.com}
+      EDGE_ON_DEMAND_ISSUER: ${EDGE_ON_DEMAND_ISSUER:-acme}
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
       - "${HTTPS_PORT:-443}:443/udp"
     volumes:
-      - ./deployments/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deployments/caddy:/etc/caddy:ro
       - caddy-data:/data
       - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8082/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
     depends_on:
       messora-web:
         condition: service_healthy
       messora-api:
         condition: service_healthy
     networks: [edge]
+    # Caddy runs as UID 1000; it may bind ports 80 and 443 without root.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
     cap_drop: [ALL]
-    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    logging: *logging
+
+  # Nightly pg_dump to S3 (deployments/backup). Off unless the profile is
+  # enabled: COMPOSE_PROFILES=backup and BACKUP_S3_BUCKET in .env.
+  backup:
+    profiles: [backup]
+    deploy:
+      resources:
+        limits:
+          memory: "${MEM_BACKUP:-256m}"
+          cpus: "1"
+    image: ${MESSORA_BACKUP_IMAGE:-messora/messora-backup}:${MESSORA_VERSION:-dev}
+    pull_policy: ${MESSORA_INIT_PULL:-build}
+    build:
+      context: ./deployments/backup
+    # The owner's password file is readable by the postgres UID only.
+    user: "999:999"
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-messora}
+      PGDATABASE: ${POSTGRES_DB:-messora}
+      PGPASSFILE_SOURCE: /run/messora-secrets/password
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-ops/backups/postgres}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_SSE: ${BACKUP_S3_SSE:-AES256}
+      BACKUP_AT: ${BACKUP_AT:-02:30}
+      BACKUP_RUN_ON_START: ${BACKUP_RUN_ON_START:-false}
+      AWS_REGION: ${S3_REGION:-${AWS_REGION:-eu-central-1}}
+      # Static keys only when there is no instance role (EC2 IMDSv2 works
+      # from containers with a hop limit of 2).
+      AWS_ACCESS_KEY_ID: ${BACKUP_AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - type: volume
+        source: messora-secrets
+        target: /run/messora-secrets
+        read_only: true
+        volume:
+          subpath: postgres
+      - backup-work:/work
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/messora-backup", "health"]
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal, edge] # edge: outbound to S3
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     restart: unless-stopped
     logging: *logging
@@ -329,3 +423,4 @@ volumes:
   messora-media:
   caddy-data:
   caddy-config:
+  backup-work:

@@ -68,7 +68,7 @@ migrations-lint: ## Lint SQL migrations for unsafe operations (squawk)
 
 .PHONY: docker-lint
 docker-lint: ## Lint Dockerfiles (hadolint)
-	@for f in Dockerfile frontend/Dockerfile; do echo "hadolint $$f"; docker run --rm -i $(HADOLINT_IMAGE) hadolint --failure-threshold warning - < $$f || exit 1; done
+	@for f in Dockerfile frontend/Dockerfile deployments/caddy/Dockerfile deployments/backup/Dockerfile; do echo "hadolint $$f"; docker run --rm -i $(HADOLINT_IMAGE) hadolint --failure-threshold warning - < $$f || exit 1; done
 
 .PHONY: actions-lint
 actions-lint: ## Lint GitHub Actions workflows (actionlint)

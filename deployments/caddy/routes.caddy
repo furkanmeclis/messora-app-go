@@ -1,0 +1,93 @@
+# Routes shared by every edge mode; each site block imports messora_routes.
+#
+# Hosts (TENANT_BASE_DOMAIN = messora.tech):
+#   <slug>.messora.tech, custom domains  a company's panel, API (/api/v1),
+#                                        webhooks and realtime
+#   admin.messora.tech                   platform admin panel (the BFF)
+#   messora.tech, app., www.             sign-up (the BFF)
+#   hooks.messora.tech                   webhooks only (/meta/<key>, /webhooks/*)
+# The API resolves the company from the host; nothing here knows tenants.
+
+(messora_routes) {
+	encode zstd gzip
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# Headers only the internal network may set: the BFF's secret and the
+	# host it forwards. The API believes the host only together with the
+	# secret; dropping both here keeps them out of every upstream.
+	request_header -X-Messora-BFF
+	request_header -X-Messora-Tenant-Host
+
+	# The webhook host answers webhooks and nothing else.
+	@hooks_other {
+		host hooks.{$TENANT_BASE_DOMAIN:invalid}
+		not path /meta/* /webhooks/*
+	}
+	handle @hooks_other {
+		respond "Not found" 404
+	}
+
+	# Public developer API, Meta webhooks and media links (presigned
+	# downloads and public assets of the local storage driver) go straight
+	# to the Go API. /meta/* is the companies' keyed webhook address
+	# (https://hooks.<TENANT_BASE_DOMAIN>/meta/<key>); the same address also
+	# answers under /webhooks/meta/<key>.
+	@api path /api/v1/* /webhooks/* /media/* /meta/*
+	handle @api {
+		reverse_proxy messora-api:8080 {
+			# One verified address, never a client-supplied chain.
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Forwarded-Host {hostport}
+		}
+	}
+
+	# Realtime WebSocket connections. The panel always connects to its own
+	# host, so a browser Origin that is not this host is another site
+	# trying to use a visitor's session: refused here, for every host
+	# (sub-domains and custom domains alike). Centrifugo checks the Origin
+	# again against https://*.<TENANT_BASE_DOMAIN>; custom domains are not
+	# in that list, so for them the (already checked) Origin is dropped.
+	@realtime path /connection/*
+	handle @realtime {
+		@foreign_origin {
+			header Origin *
+			not expression `{http.request.header.Origin} == "https://" + {http.request.hostport} || {http.request.header.Origin} == "http://" + {http.request.hostport}`
+		}
+		respond @foreign_origin "Cross-origin realtime connection refused" 403
+
+		@platform_host host {$TENANT_BASE_DOMAIN:invalid} *.{$TENANT_BASE_DOMAIN:invalid} localhost
+		reverse_proxy @platform_host centrifugo:8000 {
+			header_up X-Forwarded-For {client_ip}
+		}
+		reverse_proxy centrifugo:8000 {
+			header_up X-Forwarded-For {client_ip}
+			header_up -Origin
+		}
+	}
+
+	# Everything else is the panel (Next.js BFF). X-Forwarded-Host is always
+	# the Host this edge received (Traefik in front passes the browser's
+	# Host through), never a value a client sent.
+	handle {
+		reverse_proxy messora-web:3000 {
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Forwarded-Host {hostport}
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Container healthcheck (docker-compose.yml): loopback only, never published.
+http://:8082 {
+	@local remote_ip 127.0.0.1/32 ::1/128
+	respond @local "ok" 200
+	respond 403
+}
