@@ -193,11 +193,12 @@ Messora's keys (never the key).
 **Credits.** A company's credits are lots in `ai_credit_lots` (millicredits;
 1 credit = 1000): the plan's monthly allowance (`ai_credits_per_month`, one
 lot per calendar month UTC, created by the first consumption and expiring at
-the month's end — WP9 aligns it to billing periods; the lot always follows
+the month's end (calendar months, not billing periods); the lot always follows
 the plan in effect, so a plan change applies to the current month at once),
 grants of the platform admin (`credits.Service.Grant`, source `grant`,
-optional expiry, both audit logs) and, in WP9, purchased top-ups (source
-`purchase`, `reference`). A call with Messora's key:
+optional expiry, both audit logs) and purchased AI credit packs (source
+`purchase`, `reference` = the proforma's payment reference, valid 12 months;
+docs/BILLING.md). A call with Messora's key:
 
 - **before** the call: `credits.Available` — no credits left → the call is
   refused (`credits_exhausted`, recorded as a refused usage row) without

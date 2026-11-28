@@ -5,7 +5,8 @@ budgets, monthly quotas, how many of something a workspace may create) and
 **feature flags** (docs/PHASE-17.md §1.5). Phase 17 WP4 introduced the
 interface and enforced the API-related parts; WP8 added the plan catalogue,
 the per-company overrides, the AI credits and wired every remaining hook
-(§5.12). Billing (invoices, payments, trial end) is WP9.
+(§5.12). Billing (subscriptions, payments, the trial's end, read-only mode)
+is WP9: docs/BILLING.md.
 
 Code: `internal/platform/entitlements` (plans, checks), `internal/modules/plans`
 (plan pages, platform panel), `internal/modules/credits` (AI credits).
@@ -122,7 +123,7 @@ Example (staging): `UPDATE platform_settings SET value = '{"api_calls_per_month"
 ## The plan catalogue (WP8)
 
 Migration 00034 seeds four plans (docs/design/rakip-fiyat-analizi.md; prices
-TRY, VAT excluded, for display only — billing is WP9). `0` = no limit.
+TRY, VAT excluded; billing charges them, docs/BILLING.md). `0` = no limit.
 
 | | Başlangıç (`starter`) | Büyüme (`growth`) | Pro (`pro`) | Kurumsal (`enterprise`) |
 |---|---|---|---|---|
@@ -147,7 +148,8 @@ what:
 
 - **New companies** (sign-up, platform panel) start their 14-day trial on
   the **growth** plan (`entitlements.TrialPlan`); a company opened without a
-  trial gets **starter**. The trial's end is WP9.
+  trial gets **starter**. At the trial's end an unpaid company turns
+  read-only (docs/BILLING.md).
 - **Companies from before plans** (migration 00034): on trial → growth,
   every other → **enterprise**, so none loses a feature it had; the platform
   admin reassigns.
@@ -186,7 +188,8 @@ A lower plan (or lower overrides) never deletes or switches off anything:
 
 Rationale: a plan change is a business decision that must never break a
 running inbox or lose data; the platform admin or the company resolves the
-overage (WP9 may add a grace period and a read-only mode for unpaid plans).
+overage. Unpaid plans are a different matter: 7 days of grace, then
+read-only mode (docs/BILLING.md).
 
 ## What is enforced where (WP8, complete)
 
