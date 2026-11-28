@@ -8,6 +8,8 @@ import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
 import { requestOrigin } from '@/lib/server/tenant-host';
 import type { ApiKey, RolesAndPermissions } from '@/lib/types';
+import { hasFeature } from '@/lib/plan';
+import { UpgradeHint } from '@/components/plan-hint';
 import { PageHeading } from '../panel-header';
 import { ApiBaseCard, ApiKeyTable, CreateKeyDialog } from './keys-client';
 
@@ -33,6 +35,7 @@ export default async function ApiKeysPage() {
         description: catalogue.find((p) => p.key === key)?.description ?? key,
     }));
 
+    const publicApi = hasFeature(me, 'public_api');
     return (
         <>
             <PageHeading
@@ -46,10 +49,17 @@ export default async function ApiKeysPage() {
                                 {t('apiDocs.link')}
                             </Link>
                         </Button>
-                        <CreateKeyDialog scopes={scopes} />
+                        {publicApi && <CreateKeyDialog scopes={scopes} />}
                     </>
                 }
             />
+            {!publicApi && (
+                <div className="mb-4">
+                    <UpgradeHint testId="public-api-locked">
+                        {t('plans.gate.apiKeys')}
+                    </UpgradeHint>
+                </div>
+            )}
             <ApiBaseCard baseUrl={apiBase} />
             <ApiKeyTable keys={keys} />
         </>

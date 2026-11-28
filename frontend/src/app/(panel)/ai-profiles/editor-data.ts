@@ -2,6 +2,7 @@ import 'server-only';
 
 import { api } from '@/lib/server/api';
 import { can } from '@/lib/server/auth';
+import { hasFeature } from '@/lib/plan';
 import type { Me, Schemas } from '@/lib/types';
 
 export type EditorData = {
@@ -39,7 +40,9 @@ export async function loadEditorData(me: Me): Promise<EditorData> {
             optional<string[]>('contacts.read', '/contacts/attribute-keys', []),
         ]);
     return {
-        providers,
+        // A profile may name only an own key, and only with byo_ai_keys;
+        // otherwise it uses the company default (Messora's keys).
+        providers: hasFeature(me, 'byo_ai_keys') ? providers : [],
         models,
         settings,
         numbers,

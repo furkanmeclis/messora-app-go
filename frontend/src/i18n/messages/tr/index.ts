@@ -30,6 +30,7 @@ import offers from './offers';
 import ai from './ai';
 import analytics from './analytics';
 import platform from './platform';
+import plans from './plans';
 
 export const tr: Messages = {
     common,
@@ -58,6 +59,7 @@ export const tr: Messages = {
     ai,
     analytics,
     platform,
+    plans,
     auth,
     overview,
     inbox,

@@ -162,6 +162,7 @@ const inbox: Messages['inbox'] = {
             ai_error: 'AI hata verdi',
             manual: 'Bir temsilci devretti',
             ai_budget: 'Aylık AI bütçesi doldu',
+            ai_credits: 'AI kredisi bitti',
             profile_complete: 'Yeni müşterinin bilgileri toplandı',
             automation: 'Bir otomasyon devretti',
         },

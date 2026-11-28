@@ -726,7 +726,7 @@ export interface paths {
         get: operations['getSmtpSettings'];
         /**
          * Change the outgoing e-mail configuration
-         * @description Refused with SMTP_MANAGED_BY_ENV while SMTP_HOST is set. An empty host turns e-mail off.
+         * @description The company's own SMTP server (plans with custom_smtp; otherwise 403 FEATURE_NOT_IN_PLAN). An empty host removes it: e-mail goes from Messora's sender.
          */
         put: operations['updateSmtpSettings'];
         post?: never;
@@ -3350,6 +3350,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/plan': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The workspace's plan, its limits and what is used
+         * @description The plan (with the company's own limits for enterprise plans), every limit next to its usage (users, numbers, AI agents, active automation flows, storage, API calls and AI credits this month), the features and an open plan change request. A limit of 0 means no limit.
+         */
+        get: operations['getPlan'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/plans': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The plans a workspace can compare and request
+         * @description Public, active plans of the catalogue with their limits, features and list prices (VAT excluded).
+         */
+        get: operations['listPlans'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/plan/change-requests': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask Messora to change the workspace's plan
+         * @description Until self-service billing, a plan change is a request the platform admins work (they are told by e-mail). One open request per workspace: 409 PLAN_REQUEST_OPEN.
+         */
+        post: operations['createPlanChangeRequest'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/settings/email': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How the workspace's e-mails are sent
+         * @description E-mails go from Messora's sender (Resend) with the company's name as the display name and its reply-to address, or, on plans with `custom_smtp`, through the company's own SMTP server when one is set up (falling back to Messora's sender when it fails).
+         */
+        get: operations['getEmailSettings'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the reply-to address of the workspace's e-mails */
+        patch: operations['updateEmailSettings'];
+        trace?: never;
+    };
+    '/ai/platform-providers': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Messora's AI keys a workspace can use
+         * @description The providers Messora holds keys for. Calls with them are paid with the workspace's AI credits; their models are in /ai/models with `key_source: platform`. Keys are never shown.
+         */
+        get: operations['listAIPlatformProviders'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/platform/auth/capabilities': {
         parameters: {
             query?: never;
@@ -4062,6 +4163,249 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/platform/plans': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The plan catalogue */
+        get: operations['listPlatformPlans'];
+        put?: never;
+        /** Add a plan */
+        post: operations['createPlatformPlan'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/plans/{planKey}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planKey: components['parameters']['PlanKey'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a plan's limits, features, prices or visibility
+         * @description Applies to every company on the plan within 30 seconds; recorded in the platform audit log.
+         */
+        patch: operations['updatePlatformPlan'];
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/plan': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        /** A company's plan, usage and AI credits */
+        get: operations['getPlatformTenantPlan'];
+        /**
+         * Assign a plan (and the company's own limits)
+         * @description `overrides` holds limits and features that replace the plan's for this company (mainly the enterprise plan's custom limits); `{}` clears them. Nothing is deleted when a plan is lowered: resources over a limit keep working, only creating more is refused.
+         */
+        put: operations['setPlatformTenantPlan'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/ai-credits': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant AI credits to a company
+         * @description A credit lot on top of the plan's monthly credits; recorded in both audit logs.
+         */
+        post: operations['grantPlatformTenantAICredits'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/ai-providers': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Messora's own AI keys */
+        get: operations['listPlatformAIProviders'];
+        put?: never;
+        /**
+         * Add Messora's key for a provider
+         * @description One key per provider kind (409 PROVIDER_EXISTS). The key is stored sealed and checked right away.
+         */
+        post: operations['createPlatformAIProvider'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/ai-providers/{providerId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Messora's key for a provider */
+        delete: operations['deletePlatformAIProvider'];
+        options?: never;
+        head?: never;
+        /** Rename, rotate the key, change the endpoint or disable */
+        patch: operations['updatePlatformAIProvider'];
+        trace?: never;
+    };
+    '/platform/ai-providers/{providerId}/test': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check the key and refresh the model list */
+        post: operations['testPlatformAIProvider'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/ai-settings': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI credit conversion and the default model of Messora's keys */
+        get: operations['getPlatformAISettings'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the credit conversion or the default model */
+        patch: operations['updatePlatformAISettings'];
+        trace?: never;
+    };
+    '/platform/email': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The platform's e-mail sender (Resend over SMTP)
+         * @description The sender set here wins over SMTP_* in the environment; without one the environment's is used.
+         */
+        get: operations['getPlatformEmail'];
+        /**
+         * Change the platform's e-mail sender
+         * @description The password is write-only and stored sealed. An empty host removes the panel's sender (the environment's applies).
+         */
+        put: operations['updatePlatformEmail'];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/email/test': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test e-mail with the sender in effect, or with an unsaved one */
+        post: operations['testPlatformEmail'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/plan-requests': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Plan change requests of every company */
+        get: operations['listPlatformPlanRequests'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/plan-requests/{requestId}/resolve': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: components['parameters']['RequestId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a plan change request
+         * @description With `status = done` and `apply = true` the requested plan is assigned to the company in the same step.
+         */
+        post: operations['resolvePlatformPlanRequest'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4163,6 +4507,7 @@ export interface components {
                 url?: string;
                 /** @description The workspace's own public API base URL (url + /api/v1). API keys of this workspace work only there; there is no shared API host. */
                 api_base_url?: string;
+                plan?: components['schemas']['MePlan'];
             };
             support?: components['schemas']['SupportInfo'] | null;
         };
@@ -5617,6 +5962,11 @@ export interface components {
             thinking: boolean | null;
         };
         AIModel: {
+            /**
+             * @description tenant: the company's own key (no credits); platform: Messora's key (paid with AI credits).
+             * @enum {string}
+             */
+            key_source: 'tenant' | 'platform';
             /** Format: uuid */
             provider_id: string;
             provider_name: string;
@@ -7017,7 +7367,10 @@ export interface components {
             /** @description Why (kept with the handoff). */
             note?: string;
         };
-        /** @enum {string} */
+        /**
+         * @description ai_budget: the company's monthly AI budget (own keys) is used up; ai_credits: its AI credits (Messora's keys) are used up.
+         * @enum {string}
+         */
         HandoffReason:
             | 'customer_request'
             | 'no_answer'
@@ -7028,6 +7381,7 @@ export interface components {
             | 'ai_error'
             | 'manual'
             | 'ai_budget'
+            | 'ai_credits'
             | 'profile_complete'
             | 'automation';
         /**
@@ -10036,6 +10390,8 @@ export interface components {
             id: string;
             slug: string;
             name: string;
+            /** @description The company's plan (null: the platform's default plan). */
+            plan_key: string | null;
             status: components['schemas']['TenantStatus'];
             subscription_status: components['schemas']['SubscriptionStatus'];
             /** Format: date-time */
@@ -10299,6 +10655,471 @@ export interface components {
             data: components['schemas']['PlatformFailedJob'][];
             meta: components['schemas']['Meta'];
         };
+        /**
+         * @description custom_smtp: the company's own SMTP server; byo_ai_keys: the company's own AI keys; custom_domain: its own domain; public_api: API keys; webhooks: outgoing webhooks; ai_agents: AI replies and AI steps.
+         * @enum {string}
+         */
+        PlanFeature:
+            | 'custom_smtp'
+            | 'byo_ai_keys'
+            | 'custom_domain'
+            | 'public_api'
+            | 'webhooks'
+            | 'ai_agents';
+        /** @enum {string} */
+        PlanResource:
+            | 'users'
+            | 'phone_numbers'
+            | 'ai_agents'
+            | 'automation_flows'
+            | 'contacts'
+            | 'webhook_endpoints'
+            | 'storage_bytes';
+        /** @description Every count and quota of a plan; 0 means no limit. */
+        PlanLimits: {
+            /** Format: int64 */
+            session_requests_per_minute: number;
+            /** Format: int64 */
+            api_key_requests_per_minute: number;
+            /** Format: int64 */
+            api_calls_per_month: number;
+            /** Format: int64 */
+            webhook_endpoints: number;
+            /** Format: int64 */
+            webhook_deliveries_per_minute: number;
+            /** Format: int64 */
+            contacts: number;
+            /** Format: int64 */
+            users: number;
+            /** Format: int64 */
+            phone_numbers: number;
+            /** Format: int64 */
+            ai_agents: number;
+            /** Format: int64 */
+            automation_flows: number;
+            /** Format: int64 */
+            ai_credits_per_month: number;
+            /** Format: int64 */
+            storage_bytes: number;
+            /** Format: int64 */
+            campaign_messages_per_second: number;
+        };
+        /** @description Limits to set; left-out keys keep their value. 0 means no limit. */
+        PlanLimitsInput: {
+            /** Format: int64 */
+            session_requests_per_minute?: number;
+            /** Format: int64 */
+            api_key_requests_per_minute?: number;
+            /** Format: int64 */
+            api_calls_per_month?: number;
+            /** Format: int64 */
+            webhook_endpoints?: number;
+            /** Format: int64 */
+            webhook_deliveries_per_minute?: number;
+            /** Format: int64 */
+            contacts?: number;
+            /** Format: int64 */
+            users?: number;
+            /** Format: int64 */
+            phone_numbers?: number;
+            /** Format: int64 */
+            ai_agents?: number;
+            /** Format: int64 */
+            automation_flows?: number;
+            /** Format: int64 */
+            ai_credits_per_month?: number;
+            /** Format: int64 */
+            storage_bytes?: number;
+            /** Format: int64 */
+            campaign_messages_per_second?: number;
+        };
+        PlanFeatures: {
+            custom_smtp: boolean;
+            byo_ai_keys: boolean;
+            custom_domain: boolean;
+            public_api: boolean;
+            webhooks: boolean;
+            ai_agents: boolean;
+        };
+        PlanFeaturesInput: {
+            custom_smtp?: boolean;
+            byo_ai_keys?: boolean;
+            custom_domain?: boolean;
+            public_api?: boolean;
+            webhooks?: boolean;
+            ai_agents?: boolean;
+        };
+        /** @description A list price as a decimal string (VAT excluded); null = not shown. */
+        Price: string | null;
+        CatalogPlan: {
+            key: string;
+            name_tr: string;
+            name_en: string;
+            description_tr: string;
+            description_en: string;
+            /** Format: int64 */
+            sort_order: number;
+            limits: components['schemas']['PlanLimits'];
+            features: components['schemas']['PlanFeatures'];
+            currency: string;
+            price_monthly: components['schemas']['Price'];
+            price_yearly: components['schemas']['Price'];
+            /** @description Priced per offer; price_monthly is the starting price. */
+            custom_pricing: boolean;
+            /** @description The workspace is on this plan. */
+            current: boolean;
+        };
+        CatalogPlanListResponse: {
+            data: components['schemas']['CatalogPlan'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlanUsage: {
+            resource: components['schemas']['PlanResource'];
+            /** Format: int64 */
+            used: number;
+            /**
+             * Format: int64
+             * @description 0 = no limit.
+             */
+            limit: number;
+            unlimited: boolean;
+            /** @description More is in use than the plan allows (after a plan change): nothing stops, but no more can be created. */
+            over: boolean;
+        };
+        /** @description AI credits of the calls made with Messora's keys. Amounts are credits (up to three decimals). The plan's credits reset at resets_at (calendar month, UTC); granted lots keep their own expiry. */
+        AICreditBalance: {
+            /** Format: date-time */
+            month_start: string;
+            /** Format: date-time */
+            resets_at: string;
+            /** @description The plan's credits for this month. */
+            included: number;
+            /** @description All usable credits now: the plan's month plus granted or bought lots. */
+            granted: number;
+            /** @description Credits used from the usable lots. */
+            used: number;
+            remaining: number;
+            used_this_month: number;
+            /** @description The plan meters AI credits without a limit. */
+            unlimited: boolean;
+            /** @description No credits left: AI with Messora's keys is paused until the reset or a top-up. */
+            exhausted: boolean;
+        };
+        PlanChangeRequest: {
+            /** Format: uuid */
+            id: string;
+            current_plan: string | null;
+            requested_plan: string;
+            /** @enum {string} */
+            billing_cycle: 'monthly' | 'yearly';
+            message: string;
+            /** @enum {string} */
+            status: 'open' | 'done' | 'declined';
+            resolution_note: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            resolved_at: string | null;
+        };
+        PlanChangeRequestResponse: {
+            data: components['schemas']['PlanChangeRequest'];
+            meta: components['schemas']['Meta'];
+        };
+        CreatePlanChangeRequest: {
+            plan_key: string;
+            /**
+             * @default monthly
+             * @enum {string}
+             */
+            billing_cycle: 'monthly' | 'yearly';
+            message?: string;
+        };
+        PlanOverview: {
+            /** @description The plan's key ("default" for a workspace without a plan). */
+            key: string;
+            name_tr: string;
+            name_en: string;
+            subscription_status: components['schemas']['SubscriptionStatus'];
+            /** Format: date-time */
+            trial_ends_at: string | null;
+            /** @description The workspace has limits of its own (enterprise). */
+            overridden: boolean;
+            limits: components['schemas']['PlanLimits'];
+            features: components['schemas']['PlanFeatures'];
+            usage: components['schemas']['PlanUsage'][];
+            /** @description API key calls this calendar month (UTC). */
+            api_calls: {
+                /** Format: int64 */
+                used: number;
+                /** Format: int64 */
+                limit: number;
+                unlimited: boolean;
+                /** Format: date-time */
+                month_start: string;
+            };
+            ai_credits: components['schemas']['AICreditBalance'];
+            open_request: components['schemas']['PlanChangeRequest'] | null;
+        };
+        PlanOverviewResponse: {
+            data: components['schemas']['PlanOverview'];
+            meta: components['schemas']['Meta'];
+        };
+        /** @description What the panel needs to show or hide gated features (the API checks them too). */
+        MePlan: {
+            key: string;
+            name_tr: string;
+            name_en: string;
+            features: components['schemas']['PlanFeature'][];
+            ai_credits_exhausted: boolean;
+        };
+        EmailSettings: {
+            /**
+             * @description platform: Messora's sender; custom: the company's own SMTP server.
+             * @enum {string}
+             */
+            mode: 'platform' | 'custom';
+            /** @description The plan includes custom_smtp. */
+            custom_smtp_allowed: boolean;
+            /** @description An own SMTP server is stored (used only with custom_smtp). */
+            custom_configured: boolean;
+            /** @description Messora's sender. */
+            sender: {
+                configured: boolean;
+                /** @description The sender address (the display name is the company's). */
+                from: string;
+            };
+            display_name: string;
+            reply_to: string | null;
+            /** @description The last failed send through the company's own server (it was sent through Messora's sender instead). */
+            last_failure: {
+                /** Format: date-time */
+                at: string;
+                error: string;
+            } | null;
+        };
+        EmailSettingsResponse: {
+            data: components['schemas']['EmailSettings'];
+            meta: components['schemas']['Meta'];
+        };
+        UpdateEmailSettingsRequest: {
+            reply_to: components['schemas']['Email'] | null;
+        };
+        AIPlatformProvider: {
+            /** Format: uuid */
+            id: string;
+            kind: components['schemas']['AIProviderKind'];
+            name: string;
+            enabled: boolean;
+            /** @enum {string} */
+            status: 'unknown' | 'ok' | 'invalid' | 'no_balance' | 'error';
+        };
+        AIPlatformProviderListResponse: {
+            data: components['schemas']['AIPlatformProvider'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformPlan: {
+            key: string;
+            name_tr: string;
+            name_en: string;
+            description_tr: string;
+            description_en: string;
+            /** Format: int64 */
+            sort_order: number;
+            limits: components['schemas']['PlanLimits'];
+            features: components['schemas']['PlanFeatures'];
+            currency: string;
+            price_monthly: components['schemas']['Price'];
+            price_yearly: components['schemas']['Price'];
+            custom_pricing: boolean;
+            /** @description May be assigned to companies. */
+            active: boolean;
+            /** @description Listed in the workspaces' plan comparison. */
+            public: boolean;
+            /** Format: int64 */
+            tenant_count: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        PlatformPlanResponse: {
+            data: components['schemas']['PlatformPlan'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformPlanListResponse: {
+            data: components['schemas']['PlatformPlan'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformPlanInput: {
+            key: string;
+            name_tr: string;
+            name_en: string;
+            description_tr?: string;
+            description_en?: string;
+            /** Format: int64 */
+            sort_order?: number;
+            limits: components['schemas']['PlanLimitsInput'];
+            features: components['schemas']['PlanFeaturesInput'];
+            currency?: string;
+            price_monthly?: components['schemas']['Price'];
+            price_yearly?: components['schemas']['Price'];
+            custom_pricing?: boolean;
+            active?: boolean;
+            public?: boolean;
+        };
+        PlatformPlanPatch: {
+            name_tr?: string;
+            name_en?: string;
+            description_tr?: string;
+            description_en?: string;
+            /** Format: int64 */
+            sort_order?: number;
+            limits?: components['schemas']['PlanLimitsInput'];
+            features?: components['schemas']['PlanFeaturesInput'];
+            currency?: string;
+            price_monthly?: components['schemas']['Price'];
+            price_yearly?: components['schemas']['Price'];
+            custom_pricing?: boolean;
+            active?: boolean;
+            public?: boolean;
+        };
+        AICreditLot: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            source: 'plan' | 'grant' | 'purchase';
+            /** Format: date */
+            period_start: string | null;
+            granted: number;
+            used: number;
+            remaining: number;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            expires_at: string | null;
+            note: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AICreditLotResponse: {
+            data: components['schemas']['AICreditLot'];
+            meta: components['schemas']['Meta'];
+        };
+        GrantAICreditsRequest: {
+            /** Format: int64 */
+            credits: number;
+            /**
+             * Format: date-time
+             * @description null = never expires.
+             */
+            expires_at?: string | null;
+            note: string;
+        };
+        PlatformTenantPlan: {
+            plan_key: string | null;
+            overrides: {
+                [key: string]: unknown;
+            };
+            overview: components['schemas']['PlanOverview'];
+            lots: components['schemas']['AICreditLot'][];
+        };
+        PlatformTenantPlanResponse: {
+            data: components['schemas']['PlatformTenantPlan'];
+            meta: components['schemas']['Meta'];
+        };
+        SetTenantPlanRequest: {
+            plan_key: string;
+            /** @description Limits (PlanLimitsInput keys) and a "features" object (PlanFeaturesInput) of this company only. */
+            overrides?: {
+                [key: string]: unknown;
+            };
+        };
+        PlatformAIProvider: components['schemas']['AIProvider'] & {
+            /** Format: int64 */
+            model_count: number;
+        };
+        PlatformAIProviderResponse: {
+            data: components['schemas']['PlatformAIProvider'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformAIProviderListResponse: {
+            data: components['schemas']['PlatformAIProvider'][];
+            meta: components['schemas']['Meta'];
+        };
+        Decimal: string;
+        /** @description Credits charged for a call with Messora's keys = cost at the platform price table (USD) × markup ÷ usd_per_credit, rounded up to 0.001 credit; a model without a price costs unpriced_call_credits per successful call. */
+        PlatformAISettings: {
+            usd_per_credit: components['schemas']['Decimal'];
+            markup: components['schemas']['Decimal'];
+            unpriced_call_credits: components['schemas']['Decimal'];
+            /**
+             * Format: uuid
+             * @description Messora's key used when a workspace chose no provider.
+             */
+            default_provider_id: string | null;
+            default_model: string;
+            models: components['schemas']['AIModel'][];
+        };
+        PlatformAISettingsResponse: {
+            data: components['schemas']['PlatformAISettings'];
+            meta: components['schemas']['Meta'];
+        };
+        UpdatePlatformAISettingsRequest: {
+            usd_per_credit?: components['schemas']['Decimal'];
+            markup?: components['schemas']['Decimal'];
+            unpriced_call_credits?: components['schemas']['Decimal'];
+            /** Format: uuid */
+            default_provider_id?: string | null;
+            default_model?: string;
+        };
+        PlatformEmail: {
+            /**
+             * @description panel: the sender set here; env: SMTP_* of the environment; none: e-mail is off.
+             * @enum {string}
+             */
+            source: 'panel' | 'env' | 'none';
+            host: string;
+            port: number;
+            username: string;
+            from: string;
+            tls: components['schemas']['SmtpTls'];
+            password_set: boolean;
+            reply_to: string | null;
+            env: {
+                configured: boolean;
+                host: string;
+                from: string;
+            };
+        };
+        PlatformEmailResponse: {
+            data: components['schemas']['PlatformEmail'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformPlanRequest: components['schemas']['PlanChangeRequest'] & {
+            tenant: components['schemas']['TenantRef'];
+            requested_by: {
+                email: string;
+                name: string;
+            } | null;
+        };
+        PlatformPlanRequestResponse: {
+            data: components['schemas']['PlatformPlanRequest'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformPlanRequestListResponse: {
+            data: components['schemas']['PlatformPlanRequest'][];
+            meta: components['schemas']['Meta'];
+        };
+        ResolvePlanRequest: {
+            /** @enum {string} */
+            status: 'done' | 'declined';
+            note?: string;
+            /**
+             * @description With done: assign the requested plan now.
+             * @default false
+             */
+            apply: boolean;
+        };
     };
     responses: {
         /** @description Error */
@@ -10452,6 +11273,8 @@ export interface components {
         TenantId: string;
         DomainId: string;
         GrantId: string;
+        PlanKey: string;
+        RequestId: string;
         UserId: string;
         SessionId: string;
         InvitationId: string;
@@ -16192,6 +17015,140 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    getPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan and its usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlanOverviewResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plans in display order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['CatalogPlanListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createPlanChangeRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreatePlanChangeRequest'];
+            };
+        };
+        responses: {
+            /** @description Request recorded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlanChangeRequestResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getEmailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description E-mail settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['EmailSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateEmailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateEmailSettingsRequest'];
+            };
+        };
+        responses: {
+            /** @description E-mail settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['EmailSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listAIPlatformProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Platform providers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPlatformProviderListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     getPlatformAuthCapabilities: {
         parameters: {
             query?: never;
@@ -17233,6 +18190,438 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['PlatformTechProviderTestResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plans with the number of companies on each */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformPlanListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createPlatformPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['PlatformPlanInput'];
+            };
+        };
+        responses: {
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformPlanResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updatePlatformPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planKey: components['parameters']['PlanKey'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['PlatformPlanPatch'];
+            };
+        };
+        responses: {
+            /** @description Changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformPlanResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformTenantPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plan, usage and credit lots */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantPlanResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    setPlatformTenantPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SetTenantPlanRequest'];
+            };
+        };
+        responses: {
+            /** @description Assigned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantPlanResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    grantPlatformTenantAICredits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['GrantAICreditsRequest'];
+            };
+        };
+        responses: {
+            /** @description Granted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AICreditLotResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformAIProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Providers (keys are never returned) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformAIProviderListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createPlatformAIProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateAIProviderRequest'];
+            };
+        };
+        responses: {
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformAIProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deletePlatformAIProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updatePlatformAIProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateAIProviderRequest'];
+            };
+        };
+        responses: {
+            /** @description Changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformAIProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    testPlatformAIProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: components['parameters']['ProviderId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Checked; see status and status_detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformAIProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformAISettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformAISettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updatePlatformAISettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdatePlatformAISettingsRequest'];
+            };
+        };
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformAISettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sender */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformEmailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updatePlatformEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SmtpSettingsInput'];
+            };
+        };
+        responses: {
+            /** @description Sender */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformEmailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    testPlatformEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SmtpTestRequest'];
+            };
+        };
+        responses: {
+            /** @description Sent */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformPlanRequests: {
+        parameters: {
+            query?: {
+                status?: 'open' | 'done' | 'declined';
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requests, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformPlanRequestListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    resolvePlatformPlanRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: components['parameters']['RequestId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['ResolvePlanRequest'];
+            };
+        };
+        responses: {
+            /** @description Closed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformPlanRequestResponse'];
                 };
             };
             default: components['responses']['Error'];

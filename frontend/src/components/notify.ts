@@ -11,7 +11,18 @@ export function notify<T>(
         if (r.message) toast.success(r.message);
         return true;
     }
-    toast.error(r.message);
+    const up = r.upgrade;
+    toast.error(
+        r.message,
+        up
+            ? {
+                  action: {
+                      label: up.label,
+                      onClick: () => window.location.assign(up.href),
+                  },
+              }
+            : undefined,
+    );
     return false;
 }
 

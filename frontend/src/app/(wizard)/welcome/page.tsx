@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requireMe } from '@/lib/server/auth';
+import { hasFeature } from '@/lib/plan';
 import type { Settings, SmtpSettings, WhatsAppAccount } from '@/lib/types';
 import { Wizard } from './wizard';
 
@@ -25,6 +26,7 @@ export default async function WelcomePage() {
             smtp={smtp}
             accounts={accounts}
             ownerEmail={me.user.email}
+            customSmtp={hasFeature(me, 'custom_smtp')}
         />
     );
 }

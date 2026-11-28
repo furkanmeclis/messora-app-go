@@ -86,6 +86,25 @@ export async function saveSmtpAction(
     );
 }
 
+/** Changes the reply-to address of the workspace's e-mails. */
+export async function saveEmailSettingsAction(
+    replyTo: string | null,
+): Promise<ActionResult<Schemas['EmailSettings']>> {
+    const t = await getT();
+    const res = await runAction(
+        async () =>
+            (
+                await api<Schemas['EmailSettings']>('/settings/email', {
+                    method: 'PATCH',
+                    body: { reply_to: replyTo },
+                })
+            ).data,
+        t('plans.email.saved'),
+    );
+    if (res.ok) revalidatePath('/settings/email');
+    return res;
+}
+
 export async function testSmtpAction(
     to: string,
     config?: Schemas['SmtpSettingsInput'],

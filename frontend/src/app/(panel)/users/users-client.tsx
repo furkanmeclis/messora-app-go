@@ -379,7 +379,7 @@ export function InvitationList({ invitations }: { invitations: Invitation[] }) {
             for (const id of ids) {
                 const r = await revokeInvitationAction(id);
                 if (!r.ok) {
-                    toast.error(r.message);
+                    void notify(r);
                     break;
                 }
                 revoked++;

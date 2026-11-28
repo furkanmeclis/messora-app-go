@@ -16,6 +16,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { notify } from '@/components/notify';
 import { useFormatDateTime } from '@/components/display-preferences';
 import { useReauth } from '@/components/reauth';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -374,7 +375,7 @@ function RotateKeyButton() {
         start(async () => {
             const r = await guard(() => rotateWebhookKeyAction(Number(grace)));
             if (r.ok) toast.success(r.message);
-            else toast.error(r.message);
+            else void notify(r);
         });
     return (
         <AlertDialog>
@@ -429,7 +430,7 @@ function RotateVerifyTokenButton() {
         start(async () => {
             const r = await guard(() => rotateVerifyTokenAction());
             if (r.ok) toast.success(r.message);
-            else toast.error(r.message);
+            else void notify(r);
         });
     return (
         <AlertDialog>
@@ -496,7 +497,7 @@ function AccountTest({ account: a }: { account: WhatsAppAccount }) {
         start(async () => {
             const r = await guard(() => testConnectionAction(a.id));
             if (!r.ok) {
-                toast.error(r.message);
+                void notify(r);
                 return;
             }
             setResult(r.data);

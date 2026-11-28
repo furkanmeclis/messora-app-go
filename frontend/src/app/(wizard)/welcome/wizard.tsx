@@ -87,11 +87,14 @@ export function Wizard({
     smtp,
     accounts: initialAccounts,
     ownerEmail,
+    customSmtp = true,
 }: {
     settings: Settings;
     smtp: SmtpSettings;
     accounts: WhatsAppAccount[];
     ownerEmail: string;
+    /** The plan includes the company's own SMTP server (Enterprise). */
+    customSmtp?: boolean;
 }) {
     const t = useT();
     const router = useRouter();
@@ -358,12 +361,18 @@ export function Wizard({
                                 )}
                                 {step.key === 'email' && (
                                     <>
-                                        <SmtpForm
-                                            smtp={smtp}
-                                            readOnly={false}
-                                            defaultTestTo={ownerEmail}
-                                            bare
-                                        />
+                                        {customSmtp ? (
+                                            <SmtpForm
+                                                smtp={smtp}
+                                                readOnly={false}
+                                                defaultTestTo={ownerEmail}
+                                                bare
+                                            />
+                                        ) : (
+                                            <p className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">
+                                                {t('plans.email.senderHint')}
+                                            </p>
+                                        )}
                                         <StepNav
                                             busy={busy}
                                             onBack={() => go(index - 1)}

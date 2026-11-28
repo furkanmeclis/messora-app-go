@@ -17,6 +17,11 @@ export default async function SettingsLayout({
             icon: 'general',
         },
         has('settings.read') && {
+            href: '/settings/plan',
+            label: t('plans.tab'),
+            icon: 'plan',
+        },
+        has('settings.read') && {
             href: '/settings/email',
             label: t('settings.tabs.email'),
             icon: 'email',

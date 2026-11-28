@@ -40,6 +40,8 @@ export type ActionResult<T = undefined> =
           code: string;
           message: string;
           fieldErrors?: Record<string, string>;
+          /** A plan limit or a missing feature: where to see plans. */
+          upgrade?: { href: string; label: string };
       };
 
 // ── Contacts, tags, groups, segments and imports ───────────────────────────

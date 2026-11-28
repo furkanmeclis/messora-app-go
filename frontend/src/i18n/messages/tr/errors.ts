@@ -104,5 +104,7 @@ const errors: Messages['errors'] = {
     NOT_TECH_PROVIDER: 'Bu hesap kendi Meta uygulamanızla bağlı.',
     PLATFORM_WRITE_DENIED:
         "Messora'nın Tech Provider ayarlarını yalnızca platform yöneticisi değiştirebilir.",
+    PLAN_REQUEST_OPEN: 'Açık bir plan değişikliği talebiniz zaten var.',
+    AI_CREDITS_EXHAUSTED: 'Bu ayın AI kredisi bitti.',
 };
 export default errors;

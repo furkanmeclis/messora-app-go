@@ -1,5 +1,6 @@
 'use client';
 
+import { planErrorText } from '@/components/plan-hint';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
@@ -156,8 +157,13 @@ function upload(
             let body: {
                 data?: ContactImport;
                 error?: {
+                    code?: string;
                     message?: string;
-                    details?: { message?: string }[];
+                    details?: {
+                        field?: string;
+                        code?: string;
+                        message?: string;
+                    }[];
                 };
             } | null = null;
             try {
@@ -178,6 +184,7 @@ function upload(
             }
             reject({
                 message:
+                    planErrorText(t, body?.error) ??
                     body?.error?.details?.[0]?.message ??
                     body?.error?.message ??
                     t('contacts.imports.uploadFailed', { status: xhr.status }),

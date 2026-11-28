@@ -160,6 +160,7 @@ const inbox = {
             ai_error: 'The AI failed',
             manual: 'Handed over by a person',
             ai_budget: 'The monthly AI budget is used up',
+            ai_credits: 'AI credits used up',
             profile_complete: 'The new customer’s details are collected',
             automation: 'Handed over by an automation',
         },

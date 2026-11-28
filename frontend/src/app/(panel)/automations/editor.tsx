@@ -34,6 +34,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { notify } from '@/components/notify';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -664,6 +665,12 @@ function Editor({
                 if (r.message) toast.success(r.message);
                 if (!automation) router.replace(`/automations/${r.data.id}`);
                 else router.refresh();
+                return;
+            }
+            if (r.upgrade) {
+                // A plan limit (active flows) or a missing feature.
+                setServer({ ...NO_ERRORS, message: r.message });
+                notify(r);
                 return;
             }
             const mapped = mapErrors(steps, r.fieldErrors);
