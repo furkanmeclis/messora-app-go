@@ -4,7 +4,7 @@ Bu rehber, firmanızın WhatsApp Business hesabını **kendi Meta uygulamanız**
 
 Panelde: **Ayarlar → WhatsApp / Meta**. Sayfadaki adımlar bu rehberle aynı sıradadır.
 
-> İkinci yöntem olan **Messora Tech Provider** ("Meta ile bağla", uygulama oluşturmadan) şimdilik kapalıdır; Meta, Messora'yı Tech Provider olarak onayladığında açılacak. O zamana kadar aşağıdaki yöntem kullanılır.
+> İkinci yöntem olan **Messora üzerinden bağlanma** ("Meta ile bağlan", uygulama oluşturmadan) şimdilik kapalıdır; Meta, Messora'yı Tech Provider olarak onayladığında platform yöneticisi açacak. Açıldığında nasıl kullanılacağı en sonda: [Messora üzerinden bağlanma](#messora-üzerinden-bağlanma). O zamana kadar aşağıdaki yöntem kullanılır.
 
 ## Gerekenler
 
@@ -110,4 +110,25 @@ Aynı sayfadaki **Geri çağırma adresi (Callback URL)** ve **Doğrulama belirt
 | Token "süresi doluyor" uyarısı | Geçici token kullanılmış; 2. adımdaki gibi süresi dolmayan bir System User token'ı oluşturup **Düzenle / token değiştir** ile girin. |
 | Eski adres 404 veriyor | Adres yenilenmiş ve süresi dolmuş; güncel adresi Ayarlar → WhatsApp / Meta'dan kopyalayın. |
 
-Teknik ayrıntılar: [WHATSAPP.md](WHATSAPP.md), güvenlik modeli: [SECURITY.md](SECURITY.md) "Meta webhook'ları".
+## Messora üzerinden bağlanma
+
+Bu yöntem, Messora Meta'nın **Tech Provider** onayını aldıktan ve platform yöneticisi özelliği açtıktan sonra kullanılabilir ([TECH_PROVIDER.md](TECH_PROVIDER.md)). Kapalıyken Ayarlar → WhatsApp / Meta'daki kart "Yakında" olarak görünür.
+
+Meta uygulaması, App ID, App secret ya da token gerekmez; webhook adresi de girmezsiniz. Hesabınız Messora'nın Meta uygulamasına bağlanır, olaylar Messora'nın tek adresine gelir ve WABA kimliğinizle size yönlendirilir.
+
+1. **Ayarlar → WhatsApp / Meta → Bağlantı yöntemi: Messora Tech Provider.**
+2. Verdiğiniz izinleri okuyun: WABA'nızı yönetmek (`whatsapp_business_management`), mesaj gönderip almak (`whatsapp_business_messaging`), pencerede seçtiğiniz işletme portföyünü okumak (`business_management`).
+3. **İki adımlı doğrulama PIN'i:** numaranızın zaten bir PIN'i varsa "Kendi PIN'imi kullanayım" deyip onu girin. Yoksa Messora bir PIN seçer ve bağlantı bitince **bir kez** gösterir; güvenli bir yere kaydedin (numarayı başka bir sağlayıcıya taşırken gerekir).
+4. **Meta ile bağlan:** Meta'nın penceresi açılır (açılır pencere engelleyicisine izin verin). Facebook ile giriş yapın, işletmenizi, WhatsApp Business hesabınızı ve numaranızı seçin ya da oluşturun, numarayı SMS/sesli kodla doğrulayın, **Finish** deyin.
+5. Messora adımları sırayla yapar ve ilerlemeyi gösterir: Meta'nın verdiği izinler kontrol edilir, hesap bu çalışma alanına ayrılır, webhook aboneliği yapılır, numara kaydedilir, hesap etkinleştirilir. Bitince hesap Kanallar'da "aktif" görünür.
+6. WhatsApp Manager'da **ödeme yöntemi** ekleyin (Overview → Add payment method); yoksa ücretli şablon mesajları gönderilemez.
+
+**Bir adım başarısız olursa** bağlantı o adımda bekler; kart nedenini ve "Tekrar dene"yi gösterir. Meta'nın penceresinden gelen kod 5 dakika geçerli ve tek kullanımlıktır: süresi dolduysa "Meta ile yeniden bağlan" yeterlidir, önceki adımlar tekrarlanmaz. Numara kaydı PIN yüzünden reddedildiyse doğru PIN'i girip tekrar deneyin. "Vazgeç" yarım bağlantıyı geri alır.
+
+**Kurallar:** bir WABA yalnızca bir çalışma alanında ve tek yöntemle bağlı olabilir.
+- Başka bir Messora çalışma alanına bağlı WABA reddedilir.
+- Kendi uygulamanızla bağlı bir WABA'yı Messora üzerinden bağlamak için önce o hesabı Kanallar'da **devre dışı** bırakın (geçmişi korunur); bağlantı aynı hesabı devralır.
+- **Bağlantıyı kes:** Messora'nın uygulaması WABA'nızdan ayrılır, olaylar artık kabul edilmez, hesap devre dışı kalır; konuşmalar ve geçmiş durur. Hesabı yeniden Meta ile ya da kendi uygulamanızla bağlayabilirsiniz (kendi uygulamanızla bağlarken aynı WABA ID'yi girin; geçmiş aynı hesapta kalır).
+- Erişimi Meta tarafında da kaldırabilirsiniz: Business Settings → Integrations → Connected apps.
+
+Teknik ayrıntılar: [WHATSAPP.md](WHATSAPP.md), güvenlik modeli: [SECURITY.md](SECURITY.md) "Meta webhook'ları" ve "Tech Provider webhook'u".
