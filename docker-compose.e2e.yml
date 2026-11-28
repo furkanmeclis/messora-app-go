@@ -1,0 +1,36 @@
+# E2E only (scripts/e2e.sh adds it): a fake Meta Graph API, so the browser
+# tests can drive Embedded Signup (Messora as Tech Provider) without
+# Facebook. `messora fake-meta` refuses to run with APP_ENV=production.
+services:
+  fake-meta:
+    image: ${MESSORA_IMAGE:-messora/messora}:${MESSORA_VERSION:-dev}
+    pull_policy: never # built by messora-init
+    command: ["fake-meta"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      FAKE_META_ADDR: ":8080"
+      FAKE_META_APP_ID: "1234"
+      FAKE_META_CALLBACK_URL: ${PUBLIC_APP_URL:-http://localhost}/webhooks/meta/tp
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/messora", "healthcheck", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [internal]
+
+  messora-api:
+    environment:
+      META_GRAPH_BASE_URL: http://fake-meta:8080
+    depends_on:
+      fake-meta:
+        condition: service_healthy
+
+  messora-worker:
+    environment:
+      META_GRAPH_BASE_URL: http://fake-meta:8080
+    depends_on:
+      fake-meta:
+        condition: service_healthy
