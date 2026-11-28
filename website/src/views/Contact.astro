@@ -1,0 +1,42 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import FormBlock from '../components/FormBlock.astro';
+import CompanyCard from '../components/CompanyCard.astro';
+import type { Lang } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes, appUrls } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const m = meta.contact[lang];
+const crumbs = [{ name: u.footer.contact, path: r(lang, 'contact') }];
+const ld = { '@type': 'ContactPage', name: m.title, url: `https://messora.tech${r(lang, 'contact')}` };
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'contact')} alt={staticRoutes.contact} crumbs={crumbs} jsonLd={[ld]}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={tr ? 'Bize yazın. İş günlerinde yanıt veriyoruz.' : 'Write to us. We reply on business days.'}
+    lead={tr ? 'Satış, teknik destek, fatura ya da iş ortaklığı — formu doldurun, talebiniz doğru kişiye ulaşsın. Size bir referans numarası ve e-posta ile kopya gönderiyoruz.' : 'Sales, support, billing or partnerships — fill in the form and it reaches the right person. You get a reference number and a copy by e-mail.'} />
+  <section class="sec">
+    <div class="wrap split" style="align-items:start">
+      <div class="form-card"><FormBlock type="contact" lang={lang} /></div>
+      <div class="stack">
+        <div class="card">
+          <h2 class="h3">{tr ? 'Hızlı yollar' : 'Shortcuts'}</h2>
+          <ul class="checks" style="margin-top:12px">
+            <li><Icon name="arrow-right" /><a href={r(lang, 'demo')}>{tr ? 'Ürünü görmek istiyorum: demo isteyin' : 'I want to see the product: request a demo'}</a></li>
+            <li><Icon name="arrow-right" /><a href={appUrls.signup} data-signup>{tr ? 'Hemen denemek istiyorum: 14 gün ücretsiz' : 'I want to try it now: 14 days free'}</a></li>
+            <li><Icon name="arrow-right" /><a href={r(lang, 'dataRequest')}>{tr ? 'Kişisel verilerimle ilgili başvuru' : 'A request about my personal data'}</a></li>
+            <li><Icon name="arrow-right" /><a href={r(lang, 'partners')}>{tr ? 'İş ortaklığı başvurusu' : 'Partner application'}</a></li>
+          </ul>
+        </div>
+        <CompanyCard lang={lang} />
+      </div>
+    </div>
+  </section>
+</Base>
+<style>.h3 { font-size: 1.15rem; font-weight: 700; }</style>

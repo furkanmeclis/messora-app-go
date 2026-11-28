@@ -1,0 +1,182 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import CtaBand from '../components/CtaBand.astro';
+import FaqList from '../components/FaqList.astro';
+import type { Lang, Faq } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes, appUrls, legalRoutes } from '../data/routes';
+import { plans, limits, tl } from '../data/plans';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+import { faqLd, productsLd, softwareLd } from '../lib/schema';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
+const u = t(lang);
+const m = meta.pricing[lang];
+const crumbs = [{ name: u.nav.pricing, path: r(lang, 'pricing') }];
+const metaId = tr ? 'meta-ucretleri' : 'meta-fees';
+const keyPts: Record<string, string[]> = {
+  starter: [T('1 numara, 2 kullanıcı', '1 number, 2 users'), T('1 AI ajanı, 300 AI kredisi/ay', '1 AI agent, 300 AI credits/mo'), T('3 aktif otomasyon', '3 active automations'), T('Webhook’lar', 'Webhooks')],
+  growth: [T('1 numara, 5 kullanıcı', '1 number, 5 users'), T('3 AI ajanı, 2.000 AI kredisi/ay', '3 AI agents, 2,000 AI credits/mo'), T('20 aktif otomasyon', '20 active automations'), T('API: 100 bin çağrı/ay', 'API: 100k calls/mo')],
+  pro: [T('3 numara, 12 kullanıcı', '3 numbers, 12 users'), T('10 AI ajanı, 8.000 AI kredisi/ay', '10 AI agents, 8,000 AI credits/mo'), T('Sınırsız otomasyon', 'Unlimited automations'), T('API: 1 milyon çağrı/ay', 'API: 1 million calls/mo')],
+  enterprise: [T('Özel numara, kullanıcı ve ajan sayısı', 'Custom numbers, users and agents'), T('Kendi SMTP sunucunuz', 'Your own SMTP server'), T('Kendi AI anahtarlarınız', 'Your own AI keys'), T('Sözleşme ve SLA', 'Contract and SLA')],
+};
+const faqs: Faq[] = tr ? [
+  { q: 'Fiyatlara KDV dahil mi?', a: 'Hayır. Tüm fiyatlar TL cinsindendir ve %20 KDV hariçtir. Örneğin Büyüme paketi KDV dahil aylık 3.588 TL’dir. Faturanız e-Fatura ya da e-Arşiv olarak kesilir.' },
+  { q: 'Nasıl ödeme yapabilirim?', a: 'Şu an havale/EFT ile ödeme alıyoruz. Paketinizi seçtiğinizde IBAN bilgisini ve size özel ödeme referansını iletiyoruz; referansı açıklamaya yazmanız eşleştirmeyi hızlandırır. Kartla ödeme yakında PayTR altyapısıyla açılacak.' },
+  { q: 'Taahhüt var mı?', a: 'Aylık paketlerde taahhüt yok; istediğiniz zaman iptal edebilirsiniz, iptal dönem sonunda geçerli olur. Yıllık ödemede 12 ayı 10 ay fiyatına alırsınız. Ayrıntılar [İptal, İade ve Cayma Koşulları](/yasal/iptal-iade-ve-cayma) sayfasında.' },
+  { q: 'Meta’ya ayrıca ödeme yapacak mıyım?', a: 'Evet. Meta, iletilen şablon mesajları için kategori ve ülkeye göre ücret alır ve bu ücret paket fiyatına dahil değildir. Messora her kampanyadan önce tahmini Meta ücretini gösterir. Aşağıdaki “Meta ücretleri nasıl hesaplanır” bölümüne bakın.' },
+  { q: 'Paket limitini aşarsam ne olur?', a: 'Kullanıcı, numara, AI ajanı ve aktif akış limitleri paketinize göre uygulanır; daha fazlası için üst pakete geçebilir ya da Kurumsal teklif isteyebilirsiniz. Kişi sayısı sınırsızdır, yalnızca adil kullanım koşulu geçerlidir.' },
+  { q: 'AI kredisi nedir?', a: 'AI ajanlarının ve otomasyondaki AI adımlarının kullanımını ölçen birimdir. Standart modelde bir kredi yaklaşık bir AI yanıtına denk gelir. Plana dahil kredi her ay yenilenir. Kurumsal pakette kendi AI anahtarlarınızı kullanabilirsiniz.' }
+] : [
+  { q: 'Is VAT included?', a: 'No. All prices are in Turkish lira and exclude 20% VAT. For example, Growth is 3,588 TL per month including VAT. You receive an e-Fatura or e-Arşiv invoice.' },
+  { q: 'How can I pay?', a: 'For now we take bank transfers. When you choose a plan we send you the IBAN and your own payment reference; putting the reference in the description speeds up matching. Card payments via PayTR are coming soon.' },
+  { q: 'Is there a commitment?', a: 'Monthly plans have no commitment; cancel any time and it takes effect at the end of the period. Paying yearly gets you 12 months for the price of 10. See the [Cancellation and Refund Terms](/en/legal/cancellation-and-refunds).' },
+  { q: 'Do I pay Meta separately?', a: 'Yes. Meta charges for delivered template messages by category and country, and this isn’t part of the plan price. Messora shows the estimated Meta fee before every campaign. See “How Meta fees are calculated” below.' },
+  { q: 'What if I hit a plan limit?', a: 'Users, numbers, AI agents and active flows are limited by plan; move up a plan or ask for an Enterprise quote for more. Contacts are unlimited, subject to fair use.' },
+  { q: 'What is an AI credit?', a: 'The unit that measures use of AI agents and AI steps in automations. On the standard model one credit is roughly one AI reply. Included credits renew every month. On Enterprise you can use your own AI keys.' }
+];
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'pricing')} alt={staticRoutes.pricing} crumbs={crumbs} jsonLd={[softwareLd(lang), ...productsLd(lang), faqLd(faqs)]}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={T('Sade paketler. Meta ücreti ayrı ve göndermeden önce ekranda.', 'Simple plans. Meta fees separate — and on screen before you send.')}
+    lead={T('Fiyatlar TL + KDV, aylık. Yıllık ödemede 12 ay, 10 ay fiyatına. 14 gün ücretsiz deneyin, kart gerekmez.', 'Prices in TL + VAT per month. Pay yearly and get 12 months for the price of 10. Try it free for 14 days, no card needed.')} />
+
+  <section class="sec-sm pr">
+    <div class="wrap">
+      <fieldset class="toggle">
+        <legend class="sr-only">{T('Ödeme dönemi', 'Billing period')}</legend>
+        <input type="radio" name="period" id="p-m" checked /><label for="p-m">{T('Aylık', 'Monthly')}</label>
+        <input type="radio" name="period" id="p-y" /><label for="p-y">{T('Yıllık', 'Yearly')} <span class="chip ai">{T('2 ay bedava', '2 months free')}</span></label>
+        <div class="plans">
+          {plans.map((p) => (
+            <div class:list={['plan', { pop: p.popular }]}>
+              {p.popular && <span class="badge">{T('Önerilen', 'Recommended')}</span>}
+              <h2>{p.name[lang]}</h2>
+              <p class="bl">{p.blurb[lang]}</p>
+              <p class="price mo">{p.from && <small>{T('başlangıç ', 'from ')}</small>}{tl(p.monthly, lang)}<small> TL</small></p>
+              <p class="per mo">{p.from ? T('+ KDV / ay, teklifle', '+ VAT / month, by quote') : T('+ KDV / ay', '+ VAT / month')}</p>
+              <p class="price yr">{p.yearly ? <Fragment>{tl(Math.round(p.yearly / 12), lang)}<small> TL</small></Fragment> : <Fragment><small>{T('başlangıç ', 'from ')}</small>{tl(p.monthly, lang)}<small> TL</small></Fragment>}</p>
+              <p class="per yr">{p.yearly ? T(`+ KDV / ay · yıllık ${tl(p.yearly, lang)} TL`, `+ VAT / month · ${tl(p.yearly, lang)} TL yearly`) : T('sözleşmeyle', 'by contract')}</p>
+              <ul class="checks">{keyPts[p.key].map((x) => <li><Icon name="check" />{x}</li>)}</ul>
+              {p.key === 'enterprise'
+                ? <a class="btn btn-ghost" href={r(lang, 'contact')}>{T('Teklif isteyin', 'Get a quote')}</a>
+                : <a class:list={['btn', { 'btn-ghost': !p.popular }]} href={appUrls.signup} data-signup>{u.trialLong}</a>}
+            </div>
+          ))}
+        </div>
+      </fieldset>
+      <p class="note center">{T('KDV dahil aylık: Başlangıç 1.548 TL · Büyüme 3.588 TL · Pro 7.788 TL. Ödeme havale/EFT ile; kartla ödeme yakında (PayTR).', 'Monthly incl. VAT: Starter 1,548 TL · Growth 3,588 TL · Pro 7,788 TL. Payment by bank transfer; card payments coming soon (PayTR).')}</p>
+    </div>
+  </section>
+
+  <section class="sec fog">
+    <div class="wrap">
+      <div class="sec-head"><h2>{T('Paketleri karşılaştırın', 'Compare plans')}</h2><p class="lead">{T('İzin yönetimi, şablon oluşturucu ve hazır otomasyonlar her pakette var; çünkü bunlar Meta uyumu için gerekli.', 'Consent management, the template builder and presets are in every plan, because they are needed to stay within Meta’s rules.')}</p></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">{T('Paket karşılaştırması', 'Plan comparison')}</caption>
+          <thead><tr><th scope="col">{T('Özellik', 'Feature')}</th>{plans.map((p) => <th scope="col">{p.name[lang]}</th>)}</tr></thead>
+          <tbody>
+            {limits.map((row) => (
+              <tr>
+                <th scope="row" style="font-weight:500">{row.label[lang]}{row.hint && <span class="hint">{row.hint[lang]}</span>}</th>
+                {row.values[lang].map((v) => <td>{v === true ? <Icon name="check" label={T('Var', 'Included')} /> : v === false ? <span class="no" aria-label={T('Yok', 'Not included')}>—</span> : v}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id={metaId}>
+    <div class="wrap split" style="align-items:start">
+      <div>
+        <p class="eyebrow">{T('Meta ücretleri', 'Meta fees')}</p>
+        <h2>{T('Meta ücretleri nasıl hesaplanır?', 'How are Meta fees calculated?')}</h2>
+        <div class="stack" style="margin-top:18px">
+          <p>{T('WhatsApp Business API’de Meta, iletilen her şablon mesaj için ayrı bir ücret alır. Ücret iki şeye bağlıdır: mesajın kategorisi ve alıcının ülke kodu. Bu ücret Messora paket fiyatına dahil değildir ve Meta hesabınıza yansır.', 'On the WhatsApp Business API, Meta charges for each delivered template message. The fee depends on two things: the message category and the recipient’s country code. It isn’t part of the Messora plan price and is billed to your Meta account.')}</p>
+          <ul class="checks">
+            <li><Icon name="check" /><span><strong>{T('Pazarlama', 'Marketing')}:</strong> {T('kampanya, indirim, duyuru. Her zaman ücretli.', 'campaigns, offers, announcements. Always charged.')}</span></li>
+            <li><Icon name="check" /><span><strong>{T('Hizmet bildirimi (utility)', 'Utility')}:</strong> {T('sipariş, kargo, randevu, fatura bildirimi. 1 Ekim 2026’dan beri açık 24 saatlik pencere içinde de ücretli.', 'order, shipping, appointment, invoice updates. Since 1 October 2026 also charged inside an open 24-hour window.')}</span></li>
+            <li><Icon name="check" /><span><strong>{T('Kimlik doğrulama', 'Authentication')}:</strong> {T('tek kullanımlık şifre (OTP). Her zaman ücretli.', 'one-time passwords (OTP). Always charged.')}</span></li>
+            <li><Icon name="check" /><span><strong>{T('Servis', 'Service')}:</strong> {T('müşterinin yazdığı konuşmaya 24 saat içinde verilen serbest yanıtlar. Numara başına ayda 1.000 mesajdan sonrası utility ücretiyle faturalanır (1 Ekim 2026’dan itibaren).', 'free-form replies within 24 hours of the customer’s message. Beyond 1,000 per number per month they are billed at the utility rate (from 1 October 2026).')}</span></li>
+          </ul>
+          <p class="muted small">{T('Meta fiyatlarını yalnızca 1 Ocak, 1 Nisan, 1 Temmuz ve 1 Ekim’de, bir ay önceden duyurarak değiştirir. Güncel liste için Meta’nın resmi fiyat sayfasına bakın:', 'Meta changes prices only on 1 January, 1 April, 1 July and 1 October, with a month’s notice. For the current list see Meta’s official pricing page:')} <a href="https://developers.facebook.com/docs/whatsapp/pricing" rel="noopener">developers.facebook.com/docs/whatsapp/pricing</a></p>
+        </div>
+      </div>
+      <div class="calc card" id="calc">
+        <h3>{T('Hızlı hesap', 'Quick estimate')}</h3>
+        <p class="small muted">{T('Türkiye numaraları için 1 Nisan 2026 tarifesiyle. Kur değerini kendiniz girin.', 'For Turkish numbers, at the 1 April 2026 rates. Enter your own exchange rate.')}</p>
+        <div class="form" style="margin-top:14px">
+          <div class="row2">
+            <div class="field"><label for="c-n">{T('Mesaj sayısı', 'Messages')}</label><input id="c-n" type="number" min="0" step="100" value="1000" inputmode="numeric" /></div>
+            <div class="field"><label for="c-fx">{T('1 USD kaç TL?', 'TL per 1 USD')}</label><input id="c-fx" type="number" min="1" step="0.1" value="50.5" inputmode="decimal" /></div>
+          </div>
+          <div class="field"><label for="c-c">{T('Kategori', 'Category')}</label>
+            <select id="c-c"><option value="0.0109">{T('Pazarlama · 0,0109 USD', 'Marketing · 0.0109 USD')}</option><option value="0.0009">{T('Hizmet bildirimi · 0,0009 USD', 'Utility · 0.0009 USD')}</option><option value="0.0009">{T('Kimlik doğrulama · 0,0009 USD', 'Authentication · 0.0009 USD')}</option></select>
+          </div>
+        </div>
+        <output class="res" for="c-n c-fx c-c" aria-live="polite"><span id="c-usd">10,90 USD</span><b id="c-tl">≈ 550,45 TL</b></output>
+        <p class="small muted">{T('Tahmindir; Meta’nın fatura kuru ve güncel tarifesi farklı olabilir. Messora, gönderim öncesi ekranında bu hesabı alıcıların ülkesine göre yapar.', 'An estimate; Meta’s billing rate and current price list may differ. Messora does this calculation per recipient country on the pre-send screen.')}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec fog">
+    <div class="wrap narrow">
+      <div class="sec-head"><h2>{T('Fiyatlarla ilgili sorular', 'Pricing questions')}</h2></div>
+      <FaqList items={faqs} />
+      <p class="note">{T('Ödeme ve iade koşulları:', 'Payment and refund terms:')} <a href={legalRoutes['distance-sales'][lang]}>{T('Mesafeli Satış Sözleşmesi', 'Distance Sales Agreement')}</a> · <a href={legalRoutes['pre-information'][lang]}>{T('Ön Bilgilendirme Formu', 'Pre-contract Information')}</a> · <a href={legalRoutes.refund[lang]}>{T('İptal ve İade', 'Cancellation and Refunds')}</a></p>
+    </div>
+  </section>
+  <CtaBand lang={lang} />
+</Base>
+
+<script>
+  const n = document.getElementById('c-n') as HTMLInputElement;
+  const fx = document.getElementById('c-fx') as HTMLInputElement;
+  const c = document.getElementById('c-c') as HTMLSelectElement;
+  const loc = document.documentElement.lang === 'en' ? 'en-GB' : 'tr-TR';
+  const f = (v: number) => new Intl.NumberFormat(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  function calc() {
+    const usd = Math.max(0, +n.value || 0) * (+c.value || 0);
+    document.getElementById('c-usd')!.textContent = `${f(usd)} USD`;
+    document.getElementById('c-tl')!.textContent = `≈ ${f(usd * Math.max(0, +fx.value || 0))} TL`;
+  }
+  [n, fx, c].forEach((el) => el?.addEventListener('input', calc));
+  if (n) calc();
+</script>
+
+<style>
+  .toggle { border: 0; margin: 0; padding: 0; min-width: 0; text-align: center; }
+  .toggle > input { position: absolute; opacity: 0; pointer-events: none; }
+  .toggle > label { display: inline-flex; gap: 8px; align-items: center; padding: 10px 18px; border-radius: 999px; font-weight: 600; cursor: pointer; background: var(--fog); color: var(--ink-2); margin: 0 3px 28px; }
+  .toggle > input:checked + label { background: var(--night); color: #fff; }
+  .toggle > input:focus-visible + label { outline: 3px solid var(--indigo-l); outline-offset: 2px; }
+  .plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; text-align: left; }
+  @media (max-width: 1060px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { .plans { grid-template-columns: 1fr; } }
+  .plan { position: relative; display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid var(--line); border-radius: var(--bubble); padding: 26px; }
+  .plan.pop { border: 2px solid var(--indigo); box-shadow: var(--shadow); }
+  .badge { position: absolute; top: -12px; left: 22px; background: var(--indigo); color: #fff; font: 700 .76rem/1 var(--f-body); padding: 6px 10px; border-radius: 999px; }
+  .plan h2 { font-size: 1.3rem; font-weight: 700; }
+  .bl { color: var(--muted); font-size: .93rem; min-height: 3em; }
+  .price { font: 800 2.3rem/1.1 var(--f-head); letter-spacing: -.03em; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .price small { font-size: .95rem; font-weight: 700; color: var(--muted); letter-spacing: 0; }
+  .per { font-size: .86rem; color: var(--muted); margin-bottom: 10px; }
+  .plan .checks { font-size: .94rem; margin: 6px 0 22px; flex: 1; }
+  .plan .btn { width: 100%; }
+  .yr { display: none; }
+  #p-y:checked ~ .plans .yr { display: block; }
+  #p-y:checked ~ .plans .mo { display: none; }
+  .calc { position: sticky; top: 92px; }
+  .res { display: flex; flex-direction: column; gap: 2px; margin: 18px 0 12px; padding: 16px; border-radius: 14px; background: var(--night); color: #E8ECF6; }
+  .res span { color: var(--muted-d); font-size: .9rem; }
+  .res b { font: 800 1.7rem/1.2 var(--f-head); color: #fff; font-variant-numeric: tabular-nums; }
+</style>

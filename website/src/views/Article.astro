@@ -1,0 +1,73 @@
+---
+// Blog post or the pillar guide page.
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import CtaBand from '../components/CtaBand.astro';
+import FaqList from '../components/FaqList.astro';
+import type { Lang } from '../data/types';
+import { blogBase, staticRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r, fmtDate, readingMinutes, ogFor } from '../lib/site';
+import { articleLd, faqLd } from '../lib/schema';
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+interface Props { lang: Lang; entry: CollectionEntry<'blog'> | CollectionEntry<'pages'>; kind: 'blog' | 'guide' }
+const { lang, entry, kind } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const { Content, headings } = await render(entry);
+const h2 = headings.filter((h) => h.depth === 2);
+const d = entry.data as any;
+const path = kind === 'guide' ? r(lang, 'guide') : `${blogBase[lang]}/${d.slug}`;
+let alt: { tr?: string; en?: string } = kind === 'guide' ? staticRoutes.guide : {};
+let related: CollectionEntry<'blog'>[] = [];
+if (kind === 'blog') {
+  const all = await getCollection('blog');
+  if (d.translationKey) {
+    const pair = all.find((e) => e.data.lang !== lang && e.data.translationKey === d.translationKey);
+    alt = { [lang]: path, ...(pair ? { [pair.data.lang]: `${blogBase[pair.data.lang]}/${pair.data.slug}` } : {}) };
+  }
+  related = all.filter((e) => e.data.lang === lang && e.id !== entry.id).sort((a, b) => +b.data.date - +a.data.date).slice(0, 3);
+}
+const crumbs = kind === 'guide'
+  ? [{ name: u.nav.resources, path: r(lang, 'resources') }, { name: d.title, path }]
+  : [{ name: u.nav.resources, path: r(lang, 'resources') }, { name: d.title, path }];
+const published: Date = d.date ?? d.updated ?? new Date('2026-11-28');
+const ld = [articleLd({ lang, title: d.title, description: d.description, path, published, modified: d.updated, image: ogFor(path), words: d.words })];
+if (d.faq?.length) ld.push(faqLd(d.faq) as any);
+---
+<Base lang={lang} title={d.seoTitle ?? d.title} description={d.description} path={path} alt={alt} crumbs={crumbs} jsonLd={ld} ogType="article" article={{ published, modified: d.updated }}>
+  <PageHero lang={lang} eyebrow={kind === 'guide' ? (tr ? 'Rehber' : 'Guide') : d.tags?.[0]} title={d.title} lead={d.description} crumbs={crumbs}>
+    <p class="docmeta"><span>{u.updated}: {fmtDate(d.updated ?? published, lang)}</span><span>{readingMinutes(d.words)} {u.minRead}</span><span>Messora</span></p>
+  </PageHero>
+  <section class="sec">
+    <div class="wrap doc">
+      <aside class="toc" aria-label={tr ? 'İçindekiler' : 'Contents'}>
+        {h2.length > 2 && (<Fragment><strong>{tr ? 'İçindekiler' : 'Contents'}</strong><ol>{h2.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}</ol></Fragment>)}
+      </aside>
+      <article class="prose">
+        <Content />
+        {d.faq?.length > 0 && (
+          <Fragment>
+            <h2 id="sss">{tr ? 'Sık sorulan sorular' : 'Frequently asked questions'}</h2>
+            <FaqList items={d.faq} />
+          </Fragment>
+        )}
+        <div class="tl-note" style="margin-top:40px"><Icon name="info" /><div>{tr ? 'Bu yazı bilgilendirme amaçlıdır, hukuki veya mali tavsiye değildir. Meta’nın kuralları ve fiyatları değişebilir; güncel bilgi için Meta’nın resmi sayfalarını kontrol edin.' : 'This article is for information only and is not legal or financial advice. Meta’s rules and prices change; check Meta’s official pages for current details.'}</div></div>
+      </article>
+    </div>
+  </section>
+  {related.length > 0 && (
+    <section class="sec-sm fog">
+      <div class="wrap">
+        <div class="sec-head"><h2 style="font-size:clamp(1.4rem,2.4vw,1.9rem)">{tr ? 'Bunlar da işinize yarayabilir' : 'You may also find useful'}</h2></div>
+        <div class="grid g3">
+          {related.map((p) => (
+            <a class="card" href={`${blogBase[lang]}/${p.data.slug}`}><p class="small muted">{readingMinutes(p.data.words)} {u.minRead}</p><h3 style="margin-top:8px">{p.data.title}</h3><span class="more">{u.readMore}<Icon name="arrow-right" /></span></a>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+  <CtaBand lang={lang} />
+</Base>

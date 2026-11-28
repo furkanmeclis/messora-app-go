@@ -1,0 +1,71 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import Mock from '../components/Mock.astro';
+import CtaBand from '../components/CtaBand.astro';
+import type { Lang, IconName } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes, legalRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
+const u = t(lang);
+const m = meta.security[lang];
+const crumbs = [{ name: u.nav.security, path: r(lang, 'security') }];
+const items: { i: IconName; h: string; p: string }[] = [
+  { i: 'database', h: T('Firma bazında veri izolasyonu', 'Per-company data isolation'), p: T('Tek PostgreSQL veritabanında her satır bir firmaya ait ve satır bazlı güvenlik (RLS) açık. Uygulamadaki bir hata bile başka firmanın kaydını döndüremez; veritabanı sorguyu firmanızla sınırlar. Kuyruk işleri, gerçek zamanlı kanallar, önbellek anahtarları ve medya dosyaları da firmaya göre ayrılır.', 'In one PostgreSQL database every row belongs to a company and row-level security (RLS) is on. Even a bug in the application can’t return another company’s record: the database limits the query to your company. Background jobs, realtime channels, cache keys and media files are separated per company too.') },
+  { i: 'globe', h: T('AB’de barındırma', 'Hosted in the EU'), p: T('Uygulama, veritabanı, dosyalar ve yedekler AWS’nin Frankfurt (eu-central-1) bölgesinde, Almanya’da tutulur. Yurt dışına aktarım KVKK md.9 kapsamında standart sözleşmelerle yapılır; ayrıntılar KVKK Aydınlatma Metni’nde.', 'The application, database, files and backups are kept in AWS’s Frankfurt region (eu-central-1), Germany. Transfers abroad are made with standard contracts under KVKK Art. 9; details are in the Privacy Notice.') },
+  { i: 'key', h: T('Şifreli sırlar', 'Encrypted secrets'), p: T('Meta erişim token’ları, AI sağlayıcı anahtarları ve webhook sırları uygulama anahtarıyla şifrelenerek saklanır, yalnızca kullanım anında çözülür, API yanıtlarında ve loglarda görünmez (yalnızca son dört hane).', 'Meta access tokens, AI provider keys and webhook secrets are stored encrypted with the application key, decrypted only when used, and never shown in API responses or logs (only the last four characters).') },
+  { i: 'refresh', h: T('Gece yedekleri', 'Nightly backups'), p: T('Veritabanının her gece şifreli yedeği alınır ve ayrı depolamada saklanır. Geri yükleme adımları belgelenmiş ve düzenli olarak prova edilir.', 'An encrypted backup of the database is taken every night and kept in separate storage. The restore procedure is documented and rehearsed regularly.') },
+  { i: 'lock', h: T('Hesap güvenliği', 'Account security'), p: T('Parolalar Argon2id ile saklanır, art arda hatalı denemede hesap geçici olarak kilitlenir. İki adımlı doğrulama (TOTP) ve kurtarma kodları her pakette var; hassas işlemlerde yeniden doğrulama istenir.', 'Passwords are stored with Argon2id and repeated failed attempts lock the account temporarily. Two-factor sign-in (TOTP) with recovery codes is in every plan, and sensitive actions ask you to confirm again.') },
+  { i: 'users', h: T('Roller ve denetim kaydı', 'Roles and audit log'), p: T('Owner, Admin, Manager ve Agent rolleri neyi kimin görebileceğini belirler. Bir temsilci yalnızca kendisine atanan veya atanmamış konuşmaları görür. Ayar değişiklikleri, dışa aktarımlar ve erişimler denetim kaydına yazılır.', 'Owner, Admin, Manager and Agent roles decide who sees what. An agent sees only conversations assigned to them or unassigned. Setting changes, exports and access are written to the audit log.') },
+  { i: 'shield', h: T('Web güvenliği', 'Web security'), p: T('Tüm trafik TLS ile şifrelenir. Panel sıkı bir içerik güvenliği politikası (nonce’lu CSP) ve güvenlik başlıklarıyla sunulur. Giden webhook’lar ve AI çağrıları özel ağ adreslerine gidemez (SSRF koruması).', 'All traffic is encrypted with TLS. The panel is served with a strict content security policy (nonce-based CSP) and security headers. Outgoing webhooks and AI calls can’t reach private network addresses (SSRF protection).') },
+  { i: 'sparkle', h: T('Yapay zekâ ve veri', 'AI and your data'), p: T('AI özellikleri siz açarsanız ve seçtiğiniz sağlayıcıyla çalışır. OpenAI isteklerinde saklama kapalıdır (store: false); sağlayıcılar ticari koşullarında API verisini model eğitimi için kullanmaz. Meta da WhatsApp verisinin model eğitiminde kullanılmasını yasaklar.', 'AI features run only if you turn them on, with the provider you choose. OpenAI requests are sent with storage off (store: false); providers don’t use API data for training under their commercial terms. Meta also forbids using WhatsApp data to train models.') },
+];
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'security')} alt={staticRoutes.security} crumbs={crumbs}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs} split
+    title={T('Müşterinizin konuşması size emanet. Biz de öyle davranıyoruz.', 'Your customers trust you with their conversations. We act like it.')}
+    lead={T('Burada abartısız biçimde, Messora’nın verinizi bugün nasıl koruduğunu anlatıyoruz. Sertifika iddiası yok; yapılanların listesi var.', 'Here is, plainly, how Messora protects your data today. No certificate claims — just a list of what is in place.')}>
+    <Mock slot="aside" kind="security" lang={lang} />
+  </PageHero>
+  <section class="sec">
+    <div class="wrap">
+      <div class="grid g2">
+        {items.map((x) => (
+          <article class="card rv"><span class:list={['ibox', { ai: x.i === 'sparkle' }]}><Icon name={x.i} /></span><h2 class="h3">{x.h}</h2><p>{x.p}</p></article>
+        ))}
+      </div>
+    </div>
+  </section>
+  <section class="sec fog">
+    <div class="wrap split" style="align-items:start">
+      <div>
+        <p class="eyebrow">KVKK · GDPR</p>
+        <h2>{T('Roller net: verinin sahibi sizsiniz.', 'Clear roles: the data is yours.')}</h2>
+        <div class="stack" style="margin-top:18px">
+          <p>{T('Panele yüklediğiniz kişiler, mesajlar ve kampanya verileri için siz veri sorumlususunuz, Messora veri işleyendir. Bu ilişkiyi Veri İşleme Sözleşmesi düzenler: verinizi yalnızca sizin talimatınızla işleriz, alt işleyenleri açıkça listeleriz ve değişikliği önceden bildiririz.', 'For the contacts, messages and campaign data you put in the panel you are the controller and Messora is the processor. The Data Processing Agreement governs this: we process your data only on your instructions, list our sub-processors openly and announce changes in advance.')}</p>
+          <p>{T('Hesap ve fatura bilgileri için Messora veri sorumlusudur; bunu KVKK Aydınlatma Metni anlatır. Bir ihlal fark edersek sizi gecikmeden, en geç 48 saat içinde bilgilendiririz; böylece Kurul’a 72 saatlik bildirim sürenizi kullanabilirsiniz.', 'For account and billing data Messora is the controller, as the Privacy Notice explains. If we notice a breach we tell you without delay and within 48 hours at most, so you can meet the 72-hour notice to the authority.')}</p>
+          <p>{T('Hizmet sona erdiğinde verinizi 30 gün boyunca dışa aktarabilirsiniz; ardından canlı sistemlerden silinir, yedekler en geç 35 gün içinde döner.', 'When the service ends you can export your data for 30 days; then it is deleted from live systems and backups roll over within 35 days at most.')}</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>{T('Belgeler', 'Documents')}</h3>
+        <ul class="checks" style="margin-top:14px">
+          <li><Icon name="check" /><a href={legalRoutes.dpa[lang]}>{T('Veri İşleme Sözleşmesi', 'Data Processing Agreement')}</a></li>
+          <li><Icon name="check" /><a href={legalRoutes.subprocessors[lang]}>{T('Alt işleyenler listesi', 'Sub-processors')}</a></li>
+          <li><Icon name="check" /><a href={legalRoutes.kvkk[lang]}>{T('KVKK Aydınlatma Metni', 'Privacy Notice (KVKK)')}</a></li>
+          <li><Icon name="check" /><a href={legalRoutes.privacy[lang]}>{T('Gizlilik Politikası', 'Privacy Policy')}</a></li>
+          <li><Icon name="check" /><a href={r(lang, 'dataRequest')}>{T('KVKK başvurusu ve veri silme', 'Data requests and deletion')}</a></li>
+        </ul>
+        <p class="note">{T('Güvenlik açığı bildirmek için iletişim formunda “Teknik destek” konusunu seçin; bildiriminizi önceliklendiririz.', 'To report a vulnerability, choose “Technical support” in the contact form; we prioritise it.')}</p>
+      </div>
+    </div>
+  </section>
+  <CtaBand lang={lang} />
+</Base>
+<style>.h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 8px; }</style>

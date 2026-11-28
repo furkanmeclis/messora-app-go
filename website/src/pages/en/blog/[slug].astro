@@ -1,0 +1,10 @@
+---
+import V from '../../../views/Article.astro';
+import { getCollection } from 'astro:content';
+export async function getStaticPaths() {
+  const all = await getCollection('blog', (e) => e.data.lang === 'en');
+  return all.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));
+}
+const { entry } = Astro.props as any;
+---
+<V lang="en" entry={entry} kind="blog" />

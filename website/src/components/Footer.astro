@@ -1,0 +1,81 @@
+---
+import type { Lang } from '../data/types';
+import Logo from './Logo.astro';
+import { t } from '../i18n/ui';
+import { features, solutions, fPath, sPath, r } from '../lib/site';
+import { legalRoutes } from '../data/routes';
+import { companyText } from '../config/company';
+interface Props { lang: Lang; minimal?: boolean }
+const { lang, minimal = false } = Astro.props;
+const u = t(lang);
+const L = (k: keyof typeof legalRoutes) => legalRoutes[k][lang];
+const legalLinks = lang === 'tr'
+  ? [['kvkk', 'KVKK Aydınlatma Metni'], ['privacy', 'Gizlilik Politikası'], ['cookies', 'Çerez Politikası'], ['terms', 'Kullanım Koşulları'], ['distance-sales', 'Mesafeli Satış Sözleşmesi'], ['pre-information', 'Ön Bilgilendirme Formu'], ['refund', 'İptal, İade ve Cayma'], ['delivery', 'Teslimat ve Hizmetin İfası'], ['dpa', 'Veri İşleme Sözleşmesi'], ['subprocessors', 'Alt İşleyenler']]
+  : [['kvkk', 'Privacy Notice (KVKK)'], ['privacy', 'Privacy Policy'], ['cookies', 'Cookie Policy'], ['terms', 'Terms of Service'], ['distance-sales', 'Distance Sales Agreement'], ['pre-information', 'Pre-contract Information'], ['refund', 'Cancellation and Refunds'], ['delivery', 'Service Delivery'], ['dpa', 'Data Processing Agreement'], ['subprocessors', 'Sub-processors']];
+const year = new Date().getFullYear();
+const co = (k: Parameters<typeof companyText>[0]) => companyText(k, lang);
+---
+<footer class="ftr">
+  <div class="wrap">
+    {!minimal && (
+      <div class="ftr-top">
+        <div>
+          <a href={r(lang, 'home')} class="logo" aria-label="Messora"><Logo dark size={30} /></a>
+          <p class="tag">{u.footer.tagline}</p>
+          <p class="about">{u.footer.about}</p>
+        </div>
+        <div>
+          <h2>{u.footer.product}</h2>
+          <ul>
+            {features(lang).map((f) => <li><a href={fPath(lang, f.key)}>{f.nav}</a></li>)}
+            <li><a href={r(lang, 'pricing')}>{u.nav.pricing}</a></li>
+            <li><a href={r(lang, 'security')}>{u.nav.security}</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2>{u.footer.solutions}</h2>
+          <ul>
+            {solutions(lang).map((s) => <li><a href={sPath(lang, s.key)}>{s.nav}</a></li>)}
+          </ul>
+        </div>
+        <div>
+          <h2>{u.footer.company}</h2>
+          <ul>
+            <li><a href={r(lang, 'about')}>{u.footer.aboutUs}</a></li>
+            <li><a href={r(lang, 'contact')}>{u.footer.contact}</a></li>
+            <li><a href={r(lang, 'demo')}>{u.demo}</a></li>
+            <li><a href={r(lang, 'partners')}>{u.footer.partners}</a></li>
+            <li><a href={r(lang, 'resources')}>{u.nav.blog}</a></li>
+            <li><a href={r(lang, 'guide')}>{u.nav.guide}</a></li>
+            <li><a href={r(lang, 'faq')}>{u.nav.faq}</a></li>
+            <li><a href={r(lang, 'status')}>{u.footer.status}</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2>{u.footer.legal}</h2>
+          <ul>
+            {legalLinks.map(([k, label]) => <li><a href={L(k as keyof typeof legalRoutes)}>{label}</a></li>)}
+            <li><a href={r(lang, 'dataRequest')}>{lang === 'tr' ? 'KVKK başvurusu / veri silme' : 'Data request / deletion'}</a></li>
+            <li><button class="linkbtn" type="button" data-cc-open>{u.footer.cookiePrefs}</button></li>
+          </ul>
+        </div>
+      </div>
+    )}
+    {minimal && (
+      <ul style="display:flex;flex-wrap:wrap;gap:10px 20px">
+        {legalLinks.slice(0, 4).map(([k, label]) => <li><a href={L(k as keyof typeof legalRoutes)}>{label}</a></li>)}
+        <li><a href={r(lang, 'contact')}>{u.footer.contact}</a></li>
+        <li><button class="linkbtn" type="button" data-cc-open>{u.footer.cookiePrefs}</button></li>
+      </ul>
+    )}
+    <div class="ftr-co">
+      <span>{co('unvan')} · {lang === 'tr' ? 'MERSİS' : 'MERSIS'}: {co('mersis')} · {co('vergiDairesi')} / {co('vergiNo')}</span>
+      <span>{co('adres')} · {co('telefon')} · <a href={`mailto:${co('eposta')}`}>{co('eposta')}</a></span>
+      <span>{u.footer.payments}</span>
+    </div>
+    <div class="ftr-bot">
+      <span>© {year} Messora. {u.footer.rights}</span>
+      <span>{u.footer.meta}</span>
+    </div>
+  </div>
+</footer>

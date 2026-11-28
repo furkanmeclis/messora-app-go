@@ -1,0 +1,107 @@
+---
+import '../styles/global.css';
+import type { Lang } from '../data/types';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import CookieBanner from '../components/CookieBanner.astro';
+import { t } from '../i18n/ui';
+import { abs, ogFor, SITE } from '../lib/site';
+
+export interface Crumb { name: string; path: string }
+interface Props {
+  lang: Lang;
+  title: string;            // without brand suffix (unless it already contains Messora)
+  description: string;
+  path: string;             // this page's path
+  alt?: { tr?: string; en?: string };   // language alternates (paths)
+  noindex?: boolean;
+  jsonLd?: Record<string, unknown>[];
+  crumbs?: Crumb[];
+  minimal?: boolean;         // landing pages: no nav clutter
+  ogType?: 'website' | 'article';
+  ogImage?: string;
+  article?: { published: Date; modified?: Date };
+}
+const { lang, title, description, path, alt = {}, noindex = false, jsonLd = [], crumbs, minimal = false, ogType = 'website', ogImage, article } = Astro.props;
+const u = t(lang);
+const fullTitle = /messora/i.test(title) ? title : `${title} | Messora`;
+const canonical = abs(path);
+const og = abs(ogImage ?? ogFor(path));
+const alternates = { tr: alt.tr ?? (lang === 'tr' ? path : undefined), en: alt.en ?? (lang === 'en' ? path : undefined) };
+const altPath = lang === 'tr' ? alternates.en : alternates.tr;
+
+const org = {
+  '@type': 'Organization', '@id': `${SITE}/#org`, name: 'Messora', url: SITE,
+  logo: { '@type': 'ImageObject', url: `${SITE}/icons/icon-512.png`, width: 512, height: 512 },
+  slogan: lang === 'tr' ? 'Konuşmak, satmanın en kısa yolu.' : 'Talking is the shortest way to sell.',
+  contactPoint: [{ '@type': 'ContactPoint', contactType: 'customer support', url: `${SITE}${lang === 'tr' ? '/iletisim' : '/en/contact'}`, availableLanguage: ['Turkish', 'English'] }],
+};
+const website = { '@type': 'WebSite', '@id': `${SITE}/#website`, url: SITE, name: 'Messora', inLanguage: ['tr-TR', 'en'], publisher: { '@id': `${SITE}/#org` } };
+const graph: Record<string, unknown>[] = [org, website, ...jsonLd];
+if (crumbs?.length) {
+  graph.push({
+    '@type': 'BreadcrumbList',
+    itemListElement: [{ name: u.breadcrumbHome, path: lang === 'tr' ? '/' : '/en' }, ...crumbs].map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: abs(c.path) })),
+  });
+}
+const ld = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }).replace(/</g, '\\u003c');
+---
+<!doctype html>
+<html lang={lang} dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{fullTitle}</title>
+  <meta name="description" content={description}>
+  {noindex ? <meta name="robots" content="noindex, follow"> : <meta name="robots" content="index, follow, max-image-preview:large">}
+  <link rel="canonical" href={canonical}>
+  {!noindex && alternates.tr && <link rel="alternate" hreflang="tr" href={abs(alternates.tr)}>}
+  {!noindex && alternates.en && <link rel="alternate" hreflang="en" href={abs(alternates.en)}>}
+  {!noindex && (alternates.tr || alternates.en) && <link rel="alternate" hreflang="x-default" href={abs(alternates.tr ?? alternates.en!)}>}
+  <link rel="preload" href="/fonts/jakarta-latin-800.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/inter-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0B1220">
+  <meta property="og:type" content={ogType}>
+  <meta property="og:site_name" content="Messora">
+  <meta property="og:title" content={fullTitle}>
+  <meta property="og:description" content={description}>
+  <meta property="og:url" content={canonical}>
+  <meta property="og:image" content={og}>
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content={title}>
+  <meta property="og:locale" content={lang === 'tr' ? 'tr_TR' : 'en_GB'}>
+  {altPath && <meta property="og:locale:alternate" content={lang === 'tr' ? 'en_GB' : 'tr_TR'}>}
+  {article && <meta property="article:published_time" content={article.published.toISOString()}>}
+  {article?.modified && <meta property="article:modified_time" content={article.modified.toISOString()}>}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content={fullTitle}>
+  <meta name="twitter:description" content={description}>
+  <meta name="twitter:image" content={og}>
+  <script is:inline>
+    document.documentElement.classList.add('js');
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { window.dataLayer.push(arguments); };
+    window.gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', functionality_storage: 'granted', security_storage: 'granted', wait_for_update: 500 });
+    window.gtag('set', 'ads_data_redaction', true);
+    window.gtag('set', 'url_passthrough', true);
+  </script>
+  <script is:inline src="/api/config.js" defer></script>
+  <script type="application/ld+json" set:html={ld} />
+  <slot name="head" />
+</head>
+<body>
+  <a class="skip" href="#main">{u.skip}</a>
+  <Header lang={lang} path={path} altPath={altPath ?? null} minimal={minimal} />
+  <main id="main">
+    <slot />
+  </main>
+  <Footer lang={lang} minimal={minimal} />
+  <CookieBanner lang={lang} />
+  <script>import '../scripts/site.ts';</script>
+</body>
+</html>

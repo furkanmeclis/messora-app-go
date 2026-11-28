@@ -1,0 +1,261 @@
+---
+// Product illustrations drawn in HTML/CSS (no screenshots): small, sharp,
+// translatable. Data shown is illustrative.
+import type { Lang } from '../data/types';
+import Icon from './Icon.astro';
+type Kind = 'inbox' | 'team' | 'campaigns' | 'ai' | 'automations' | 'templates' | 'analytics' | 'api' | 'security';
+interface Props { kind: Kind; lang: Lang; class?: string }
+const { kind, lang, class: cls } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
+---
+<div class:list={['mk', `mk-${kind}`, cls]} role="img" aria-label={T('Messora arayüzünden örnek görünüm', 'Illustrative view of the Messora interface')}>
+  {kind === 'inbox' && (
+    <div class="win">
+      <div class="bar"><i></i><i></i><i></i><span>firma.messora.tech/inbox</span></div>
+      <div class="ibx">
+        <ul class="ls">
+          <li class="on"><b>Ayşe Yılmaz</b><span>{T('Adresi değiştirebilir miyim?', 'Can I change the address?')}</span><em class="chip gray">Elif</em></li>
+          <li><b>Mert Kaya</b><span>{T('Teşekkürler, ulaştı.', 'Thanks, it arrived.')}</span><em class="chip ai">AI</em></li>
+          <li><b>+90 532 *** 41 07</b><span>{T('Fiyat listesi var mı?', 'Do you have a price list?')}</span><em class="chip soon">{T('Atanmamış', 'Unassigned')}</em></li>
+          <li><b>Deniz Ö.</b><span>{T('Yarın açık mısınız?', 'Are you open tomorrow?')}</span><em class="chip ai">AI</em></li>
+        </ul>
+        <div class="cv">
+          <div class="cvh"><b>Ayşe Yılmaz</b><span>{T('Sahibi: Elif K. · Pencere 21 sa açık', 'Owner: Elif K. · Window open 21 h')}</span></div>
+          <p class="m in">{T('Merhaba, 48213 numaralı siparişim ne zaman gelir?', 'Hi, when will order 48213 arrive?')}</p>
+          <p class="m ai"><small>{T('AI cevapladı', 'AI replied')}</small>{T('Siparişiniz dün kargoya verildi. Yarın teslim edilmesi bekleniyor.', 'Your order shipped yesterday and should arrive tomorrow.')}</p>
+          <p class="m in">{T('Adresi değiştirebilir miyim?', 'Can I change the address?')}</p>
+          <p class="sys"><Icon name="handoff" size={14} />{T('AI emin olmadı, Elif’e devretti', 'AI wasn’t sure and handed over to Elif')}</p>
+          <p class="nt"><Icon name="note" size={14} />{T('Not: kargo firmasını arıyorum, 10 dk.', 'Note: calling the courier, 10 min.')}</p>
+          <div class="cmp"><span>{T('Yanıt yazın…', 'Write a reply…')}</span><em>/{T('hızlı', 'quick')}</em></div>
+        </div>
+      </div>
+    </div>
+  )}
+  {kind === 'team' && (
+    <div class="win pad">
+      <div class="hd"><span class="chip">{T('Müşteri paneli', 'Customer panel')}</span><b>Ayşe Yılmaz · +90 532 *** 41 07</b></div>
+      <div class="tabs"><span class="on">{T('Bana atanan', 'Assigned to me')} <em>4</em></span><span>{T('Atanmamış', 'Unassigned')} <em>2</em></span><span>AI <em>7</em></span></div>
+      <dl class="kv">
+        <div><dt>{T('Sahibi', 'Owner')}</dt><dd>Elif K.</dd></div>
+        <div><dt>{T('Pazarlama izni', 'Marketing consent')}</dt><dd class="ok">{T('Var · 12.10.2026, web formu', 'Yes · 12.10.2026, web form')}</dd></div>
+        <div><dt>{T('Etiketler', 'Tags')}</dt><dd><span class="chip gray">{T('sadık-müşteri', 'loyal')}</span> <span class="chip gray">izmir</span></dd></div>
+        <div><dt>{T('24 saat penceresi', '24-hour window')}</dt><dd>{T('21 sa açık', 'open 21 h')}</dd></div>
+      </dl>
+      <p class="nt" style="margin-top:12px"><Icon name="note" size={14} />{T('Mert: Kargo değişikliği için müşteriye yarın dönülecek.', 'Mert: get back to the customer tomorrow about the delivery change.')}</p>
+      <ul class="hist">
+        <li><Icon name="handoff" size={13} />{T('AI → Elif K. devretti · 14:02', 'AI → handed to Elif K. · 14:02')}</li>
+        <li><Icon name="user" size={13} />{T('Mert → Elif atadı · dün', 'Mert → assigned to Elif · yesterday')}</li>
+      </ul>
+    </div>
+  )}
+  {kind === 'campaigns' && (
+    <div class="win pad">
+      <div class="hd"><span class="chip">{T('Gönderim öncesi', 'Before sending')}</span><b>{T('Kasım indirimi', 'November sale')}</b></div>
+      <dl class="kv">
+        <div><dt>{T('Kitle', 'Audience')}</dt><dd>1.200</dd></div>
+        <div class="warn"><dt>{T('Mesaj almak istemiyor — gönderilmeyecek', 'Opted out — will not be sent')}</dt><dd>85</dd></div>
+        <div><dt>{T('Gönderilecek', 'Will be sent')}</dt><dd>1.115</dd></div>
+        <div><dt>{T('Tahmini Meta ücreti (pazarlama, TR)', 'Estimated Meta fee (marketing, TR)')}</dt><dd>12,15 $</dd></div>
+        <div><dt>{T('Tahmini bitiş', 'Estimated finish')}</dt><dd>14:35</dd></div>
+      </dl>
+      <div class="lane"><span style="width:62%"></span><span class="b" style="width:38%"></span></div>
+      <p class="cap">{T('Numaranın hızı bu kampanya ile süren “Sepet hatırlatma” arasında adil paylaşılıyor.', 'The number’s throughput is shared fairly with the running “Cart reminder”.')}</p>
+      <div class="ft"><span class="ghost">{T('Taslak kaydet', 'Save draft')}</span><span class="go">{T('Gönderimi başlat', 'Start sending')}</span></div>
+    </div>
+  )}
+  {kind === 'ai' && (
+    <div class="win pad">
+      <div class="hd"><span class="chip ai">{T('AI ajanı', 'AI agent')}</span><b>{T('Satış asistanı · +90 850 ***', 'Sales assistant · +90 850 ***')}</b></div>
+      <p class="m in">{T('Merhaba, İzmir’e kurulum yapıyor musunuz? Ben Ayşe.', 'Hi, do you install in İzmir? I’m Ayşe.')}</p>
+      <p class="m ai"><small>{T('AI cevapladı', 'AI replied')}</small>{T('Evet, İzmir’de kurulum yapıyoruz. Size uygun gün için e-posta adresinizi alabilir miyim?', 'Yes, we install in İzmir. May I have your e-mail to find a suitable day?')}</p>
+      <p class="m in">ayse@ornek.com</p>
+      <div class="lead"><span>{T('Yakalanan bilgiler', 'Captured details')}</span><em>{T('Ad: Ayşe', 'Name: Ayşe')}</em><em>{T('Şehir: İzmir', 'City: İzmir')}</em><em>ayse@ornek.com</em></div>
+      <ul class="rules">
+        <li><Icon name="check" size={14} />{T('Emin değilse temsilciye devret', 'Hand over when unsure')}</li>
+        <li><Icon name="check" size={14} />{T('“temsilci” yazılınca devret', 'Hand over on “agent”')}</li>
+        <li><Icon name="check" size={14} />{T('Konuşmalar model eğitiminde kullanılmaz', 'Conversations are not used for training')}</li>
+      </ul>
+    </div>
+  )}
+  {kind === 'automations' && (
+    <div class="win canvas">
+      <svg class="edges" viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M200 58 V92" /><path d="M200 132 C200 160 100 150 100 180" /><path d="M200 132 C200 160 300 150 300 180" /><path d="M100 220 C100 250 200 240 200 258" /><path d="M300 220 C300 250 200 240 200 258" />
+      </svg>
+      <div class="nd trg" style="left:50%;top:6%"><Icon name="message" size={14} />{T('Mesaj geldi', 'Message received')}</div>
+      <div class="nd cond" style="left:50%;top:31%"><Icon name="filter" size={14} />{T('“temsilci” geçiyor mu?', 'Mentions “agent”?')}</div>
+      <div class="nd" style="left:25%;top:60%"><Icon name="handoff" size={14} />{T('Temsilciye devret', 'Hand to an agent')}<small>{T('evet', 'yes')}</small></div>
+      <div class="nd ai" style="left:75%;top:60%"><Icon name="sparkle" size={14} />{T('AI ile cevapla', 'Answer with AI')}<small>{T('hayır', 'no')}</small></div>
+      <div class="nd" style="left:50%;top:86%"><Icon name="tag" size={14} />{T('Etiket: destek', 'Tag: support')}</div>
+    </div>
+  )}
+  {kind === 'templates' && (
+    <div class="phone">
+      <div class="ph-h"><b>{T('Örnek Mağaza', 'Sample Store')}</b><span>{T('Şablon önizleme', 'Template preview')}</span></div>
+      <div class="tpl">
+        <div class="img" aria-hidden="true"><Icon name="tag" size={28} /></div>
+        <p class="lto"><Icon name="clock" size={14} />{T('Teklif 23:59’da bitiyor', 'Offer ends at 23:59')}</p>
+        <p>{T('Merhaba Ayşe, sepetinizdeki ürünlerde bugüne özel %15 indirim var. Kod: KASIM15', 'Hi Ayşe, items in your cart are 15% off today only. Code: NOV15')}</p>
+        <span class="tb">{T('Kodu kopyala', 'Copy code')}</span><span class="tb">{T('Alışverişe dön', 'Back to shop')}</span>
+      </div>
+      <div class="st"><span class="chip coral">{T('Pazarlama', 'Marketing')}</span><span class="chip ai">{T('Onaylandı', 'Approved')}</span></div>
+    </div>
+  )}
+  {kind === 'analytics' && (
+    <div class="win pad">
+      <div class="hd"><span class="chip">{T('Kampanya raporu', 'Campaign report')}</span><b>{T('Tahmin ve gerçekleşen', 'Forecast vs actual')}</b></div>
+      <div class="bars">
+        {[[T('Teslim', 'Delivered'), 94, 96], [T('Okundu', 'Read'), 71, 68], [T('Yanıtladı', 'Replied'), 12, 14], [T('Olumlu', 'Positive'), 7, 9]].map(([l, f, a]) => (
+          <div class="br"><span>{l}</span><div><i style={`width:${f}%`} class="f"></i><i style={`width:${a}%`} class="a"></i></div></div>
+        ))}
+      </div>
+      <div class="lg"><span><i class="f"></i>{T('Tahmin', 'Forecast')}</span><span><i class="a"></i>{T('Gerçekleşen', 'Actual')}</span><span class="dl"><Icon name="download" size={14} />XLSX · PDF</span></div>
+      <p class="cap">{T('Örnek görünüm. Tahmin, en az 3 tamamlanmış kampanya ve 500 alıcı olmadan hesaplanmaz.', 'Illustrative. No forecast without at least 3 completed campaigns and 500 recipients.')}</p>
+    </div>
+  )}
+  {kind === 'api' && (
+    <div class="win code">
+      <div class="bar"><i></i><i></i><i></i><span>firma.messora.tech/docs/api</span></div>
+<pre><code><span class="c"># {T('Mesaj gönder', 'Send a message')}</span>
+curl https://firma.messora.tech/api/v1/messages \
+  -H "Authorization: Bearer $MESSORA_KEY" \
+  -H "Idempotency-Key: siparis-48213" \
+  -d '&#123;"to":"+905321234567","template":"kargo_yolda"&#125;'
+
+<span class="c"># {T('Gelen webhook (imzalı)', 'Incoming webhook (signed)')}</span>
+POST /hooks/messora
+Messora-Event-Type: message.received
+Messora-Signature: t=1795426205,v1=e3d1cf83…</code></pre>
+    </div>
+  )}
+  {kind === 'security' && (
+    <div class="win pad sec">
+      <div class="hd"><span class="chip ai">{T('Ayrık veri', 'Isolated data')}</span><b>AWS eu-central-1 · Frankfurt</b></div>
+      <div class="tenants">
+        <div><Icon name="building" size={16} /><b>firma-a</b><span>tenant_id = a</span></div>
+        <div><Icon name="building" size={16} /><b>firma-b</b><span>tenant_id = b</span></div>
+        <div><Icon name="building" size={16} /><b>firma-c</b><span>tenant_id = c</span></div>
+      </div>
+      <div class="rls"><Icon name="lock" size={16} />{T('PostgreSQL satır bazlı güvenlik: her sorgu yalnızca kendi firmasını görür', 'PostgreSQL row-level security: every query sees only its own company')}</div>
+      <ul class="rules">
+        <li><Icon name="key" size={14} />{T('Token ve anahtarlar şifreli saklanır', 'Tokens and keys are stored encrypted')}</li>
+        <li><Icon name="refresh" size={14} />{T('Her gece şifreli yedek', 'Encrypted backup every night')}</li>
+        <li><Icon name="shield" size={14} />{T('İki adımlı doğrulama ve denetim kaydı', 'Two-factor sign-in and audit log')}</li>
+      </ul>
+    </div>
+  )}
+</div>
+
+<style>
+  .mk { position: relative; font-size: 13px; line-height: 1.45; color: #E8ECF6; }
+  .win { background: #0F1729; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; box-shadow: 0 30px 80px rgba(3,7,18,.45); overflow: hidden; }
+  :global(.fog) .win, :global(section:not(.dark)) > .wrap .win { box-shadow: 0 24px 60px rgba(11,18,32,.22); }
+  .pad { padding: 18px; }
+  .bar { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .bar i { width: 9px; height: 9px; border-radius: 50%; background: #2A3550; }
+  .bar span { margin-left: 8px; font-size: 11.5px; color: #8F9AB8; background: rgba(255,255,255,.05); padding: 3px 10px; border-radius: 6px; }
+  .chip { display: inline-flex; padding: 3px 9px; border-radius: 999px; font: 600 11px/1.3 var(--f-body); background: rgba(91,107,240,.25); color: #D4D9FF; font-style: normal; }
+  .chip.ai { background: var(--mint); color: var(--night); }
+  .chip.gray { background: rgba(255,255,255,.1); color: #D7DCEB; }
+  .chip.soon { background: rgba(255,122,89,.2); color: #FFC2B0; }
+  .chip.coral { background: var(--coral); color: var(--night); }
+  .hd { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .hd b { font: 700 14px/1.3 var(--f-head); color: #F4F6FB; }
+  .cap { color: #8F9AB8; font-size: 11.5px; margin-top: 10px; }
+  /* inbox */
+  .ibx { display: grid; grid-template-columns: 38% 1fr; min-height: 330px; }
+  .ls { list-style: none; border-right: 1px solid rgba(255,255,255,.08); padding: 8px; display: grid; gap: 4px; align-content: start; }
+  .ls li { display: grid; grid-template-columns: 1fr auto; gap: 2px 6px; padding: 9px 10px; border-radius: 10px; }
+  .ls li.on { background: rgba(59,76,202,.28); }
+  .ls b { font-weight: 600; font-size: 12.5px; color: #F4F6FB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ls span { grid-column: 1; color: #8F9AB8; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ls em { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+  .cv { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .cvh { display: flex; flex-direction: column; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .cvh b { color: #F4F6FB; font-size: 13px; }
+  .cvh span { color: #8F9AB8; font-size: 11px; }
+  .m { max-width: 88%; padding: 8px 11px; border-radius: 14px; margin: 0; }
+  .m.in { align-self: flex-start; background: #1C2740; border-bottom-left-radius: 4px; }
+  .m.ai { align-self: flex-end; background: #233080; border-bottom-right-radius: 4px; }
+  .m small { display: block; font-size: 10.5px; font-weight: 700; color: var(--mint); margin-bottom: 2px; }
+  .sys { align-self: center; display: inline-flex; gap: 6px; align-items: center; background: rgba(255,122,89,.14); color: #FFC2B0; font-size: 11px; padding: 5px 11px; border-radius: 999px; margin: 0; }
+  .nt { align-self: stretch; display: flex; gap: 6px; align-items: center; background: rgba(255,214,102,.12); color: #FFE08A; font-size: 11.5px; padding: 7px 10px; border-radius: 10px; margin: 0; }
+  .cmp { margin-top: auto; display: flex; justify-content: space-between; padding: 9px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; color: #8F9AB8; }
+  .cmp em { font-style: normal; color: #AEB7F5; }
+  @media (max-width: 520px) { .ibx { grid-template-columns: 1fr; } .ls { display: none; } }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tabs span { padding: 5px 10px; border-radius: 8px; background: rgba(255,255,255,.05); color: #A3AECA; font-size: 11.5px; }
+  .tabs span.on { background: rgba(59,76,202,.32); color: #fff; }
+  .tabs em { font-style: normal; opacity: .7; margin-left: 2px; }
+  .kv dd.ok { color: var(--mint); font: 600 12.5px/1.2 var(--f-body); }
+  .hist { list-style: none; display: grid; gap: 6px; margin-top: 12px; color: #8F9AB8; font-size: 11.5px; }
+  .hist li { display: flex; gap: 6px; align-items: center; }
+  /* campaign */
+  .kv { margin: 0; display: grid; gap: 2px; }
+  .kv div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .kv dt { color: #A3AECA; }
+  .kv dd { margin: 0; font: 700 14px/1.2 var(--f-head); color: #F4F6FB; font-variant-numeric: tabular-nums; }
+  .kv .warn dd { color: #FFB49F; }
+  .lane { display: flex; gap: 3px; height: 8px; margin-top: 16px; }
+  .lane span { background: var(--indigo-l); border-radius: 4px; }
+  .lane .b { background: rgba(255,255,255,.14); }
+  .ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .ft span { padding: 9px 14px; border-radius: 10px; font-weight: 600; font-size: 12.5px; }
+  .ft .ghost { border: 1px solid rgba(255,255,255,.16); color: #D7DCEB; }
+  .ft .go { background: var(--indigo); color: #fff; }
+  /* ai */
+  .mk-ai .win { display: flex; flex-direction: column; gap: 9px; }
+  .mk-ai .hd { margin-bottom: 4px; }
+  .lead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px; border-radius: 12px; background: rgba(45,212,167,.08); border: 1px dashed rgba(45,212,167,.4); }
+  .lead span { width: 100%; font-size: 11px; color: var(--mint); font-weight: 600; }
+  .lead em { font-style: normal; background: rgba(255,255,255,.08); padding: 3px 8px; border-radius: 6px; font-size: 11.5px; }
+  .rules { list-style: none; display: grid; gap: 6px; margin-top: 4px; color: #C9D0E3; font-size: 12px; }
+  .rules li { display: flex; gap: 8px; align-items: center; }
+  .rules :global(.ic) { color: var(--mint); flex: none; }
+  /* automations */
+  .canvas { position: relative; height: 330px; background-color: #0F1729; background-image: radial-gradient(rgba(255,255,255,.09) 1px, transparent 1px); background-size: 18px 18px; }
+  .edges { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .edges path { fill: none; stroke: #4A58B8; stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-dasharray: 5 6; animation: dash 1.8s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -22; } }
+  .nd { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 12px; background: #18233B; border: 1px solid rgba(255,255,255,.14); color: #F4F6FB; font-weight: 600; font-size: 12px; white-space: nowrap; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+  .nd small { position: absolute; top: -9px; right: 8px; font-size: 10px; background: #0F1729; padding: 0 5px; color: #A3AECA; border-radius: 4px; }
+  .nd.trg { border-color: var(--indigo-l); }
+  .nd.cond { border-color: #FFB49F; }
+  .nd.ai { background: var(--mint); color: var(--night); border-color: var(--mint); }
+  /* templates */
+  .phone { width: min(320px, 100%); margin: 0 auto; background: #0E1626; border: 1px solid rgba(255,255,255,.1); border-radius: 30px; padding: 14px; box-shadow: 0 30px 80px rgba(3,7,18,.45); }
+  .ph-h { display: flex; flex-direction: column; padding: 4px 8px 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .ph-h b { font-size: 13.5px; color: #F4F6FB; }
+  .ph-h span { font-size: 11px; color: var(--mint); }
+  .tpl { margin: 14px 4px 0; background: #1C2740; border-radius: 16px 16px 16px 4px; padding: 8px; }
+  .tpl .img { height: 120px; border-radius: 12px; background: linear-gradient(135deg, #3B4CCA, #5B6BF0 60%, #2DD4A7); display: grid; place-items: center; color: #fff; }
+  .tpl p { padding: 6px 6px 0; margin: 0; }
+  .tpl .lto { display: flex; gap: 6px; align-items: center; color: #FFB49F; font-weight: 600; font-size: 12px; }
+  .tb { display: block; text-align: center; color: #AEB7F5; font-weight: 600; padding: 9px; border-top: 1px solid rgba(255,255,255,.08); margin-top: 8px; }
+  .tb + .tb { margin-top: 0; }
+  .st { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+  /* analytics */
+  .bars { display: grid; gap: 12px; }
+  .br { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: center; }
+  .br span { color: #A3AECA; }
+  .br div { display: grid; gap: 3px; }
+  .br i { display: block; height: 9px; border-radius: 4px; }
+  .f { background: rgba(174,183,245,.45); }
+  .a { background: var(--mint); }
+  .lg { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; color: #A3AECA; font-size: 11.5px; align-items: center; }
+  .lg span { display: inline-flex; gap: 6px; align-items: center; }
+  .lg i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .lg .dl { margin-left: auto; color: #D7DCEB; }
+  /* api */
+  .code pre { margin: 0; padding: 16px 18px; font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #D7DCEB; overflow-x: auto; white-space: pre; }
+  .code .c { color: var(--mint); }
+  /* security */
+  .tenants { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tenants div { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: #18233B; border: 1px solid rgba(255,255,255,.1); }
+  .tenants b { color: #F4F6FB; font-size: 12.5px; }
+  .tenants span { color: #8F9AB8; font: 11px ui-monospace, Menlo, monospace; }
+  .tenants :global(.ic) { color: #AEB7F5; }
+  .rls { display: flex; gap: 8px; align-items: center; margin: 12px 0 8px; padding: 10px 12px; border-radius: 12px; background: rgba(59,76,202,.22); color: #E8ECF6; font-weight: 600; font-size: 12px; }
+  .rls :global(.ic) { color: var(--mint); flex: none; }
+</style>

@@ -1,0 +1,90 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import FormBlock from '../components/FormBlock.astro';
+import CompanyCard from '../components/CompanyCard.astro';
+import type { Lang } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes, legalRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+import { companyText } from '../config/company';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const m = meta.dataRequest[lang];
+const crumbs = [{ name: u.footer.legal, path: r(lang, 'legal') }, { name: m.title, path: r(lang, 'dataRequest') }];
+const kvkkMail = companyText('kvkkEposta', lang);
+const delId = tr ? 'veri-silme' : 'user-data-deletion';
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'dataRequest')} alt={staticRoutes.dataRequest} crumbs={crumbs}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={tr ? 'Kişisel verilerinizle ilgili başvuru ve veri silme talebi' : 'Requests about your personal data, and data deletion'}
+    lead={tr ? 'KVKK’nın 11. maddesindeki haklarınızı kullanmak ya da WhatsApp üzerinden Messora’ya ulaşan verilerinizin silinmesini istemek için bu sayfayı kullanın. Başvurunuzu en geç 30 gün içinde ücretsiz yanıtlarız.' : 'Use this page to exercise your rights under Article 11 of KVKK (and the GDPR where it applies), or to ask for deletion of your data that reached Messora through WhatsApp. We answer free of charge within 30 days at the latest.'} />
+
+  <section class="sec">
+    <div class="wrap split" style="align-items:start">
+      <div class="stack prose">
+        <h2 style="margin-top:0">{tr ? 'Nasıl başvurabilirsiniz?' : 'How to apply'}</h2>
+        {tr ? (
+          <Fragment>
+            <p>Veri Sorumlusuna Başvuru Usul ve Esasları Hakkında Tebliğ’e göre başvurunuzu şu yollardan biriyle yapabilirsiniz:</p>
+            <ul>
+              <li>Bu sayfadaki formla (kimliğinizi doğrulamak için sizinle e-postayla iletişime geçebiliriz);</li>
+              <li>Islak imzalı dilekçeyle şirket adresimize posta ya da elden teslim: <span class="ph-inline" set:html={companyText('adres', lang).startsWith('[') ? `<span class="ph">${companyText('adres', lang)}</span>` : companyText('adres', lang)} />;</li>
+              <li>KEP adresimize: <span set:html={companyText('kep', lang).startsWith('[') ? `<span class="ph">${companyText('kep', lang)}</span>` : companyText('kep', lang)} />;</li>
+              <li>Sistemimizde kayıtlı e-posta adresinizden ya da güvenli elektronik imzalı olarak <a href={`mailto:${kvkkMail}`}>{kvkkMail}</a> adresine.</li>
+            </ul>
+            <p>Başvuruda adınız soyadınız, T.C. kimlik numaranız (yabancılar için uyruk ve pasaport numarası), tebligata esas adresiniz, varsa e-posta ve telefonunuz ile talebinizin konusu bulunmalıdır. Talebin niteliğine göre en geç 30 gün içinde yanıt veririz; işlem ayrıca bir maliyet gerektirirse Kurul’un belirlediği tarife uygulanabilir.</p>
+            <p>Ayrıntılar: <a href={legalRoutes.kvkk[lang]}>KVKK Aydınlatma Metni</a> · <a href={legalRoutes.privacy[lang]}>Gizlilik Politikası</a></p>
+          </Fragment>
+        ) : (
+          <Fragment>
+            <p>Under the Communiqué on the Procedures for Applications to the Data Controller you can apply in one of these ways:</p>
+            <ul>
+              <li>With the form on this page (we may contact you by e-mail to verify your identity);</li>
+              <li>With a signed letter sent by post or delivered to our registered address: <span set:html={companyText('adres', lang).startsWith('[') ? `<span class="ph">${companyText('adres', lang)}</span>` : companyText('adres', lang)} />;</li>
+              <li>To our KEP (registered e-mail) address: <span set:html={companyText('kep', lang).startsWith('[') ? `<span class="ph">${companyText('kep', lang)}</span>` : companyText('kep', lang)} />;</li>
+              <li>From the e-mail address registered with us, or signed with a secure electronic signature, to <a href={`mailto:${kvkkMail}`}>{kvkkMail}</a>.</li>
+            </ul>
+            <p>Your application should include your full name, national ID number (for foreigners: nationality and passport number), postal address, e-mail and phone if available, and what you are asking for. We reply within 30 days at the latest; if handling it involves an extra cost, the fee set by the Board may apply.</p>
+            <p>More: <a href={legalRoutes.kvkk[lang]}>Privacy Notice (KVKK)</a> · <a href={legalRoutes.privacy[lang]}>Privacy Policy</a></p>
+          </Fragment>
+        )}
+
+        <h2 id={delId}>{tr ? 'WhatsApp / Meta kullanıcı verisi silme talimatları' : 'User Data Deletion instructions (WhatsApp / Meta)'}</h2>
+        {tr ? (
+          <Fragment>
+            <p>Messora, işletmelerin WhatsApp Business Platform (Meta) üzerinden müşterileriyle yazışmasını sağlayan bir yazılımdır. Messora kullanan bir işletmeyle WhatsApp’ta yazıştıysanız, mesajlarınız ve telefon numaranız o işletme adına Messora’da işlenir. Bu verilerin silinmesini istemek için:</p>
+            <ol>
+              <li>Bu sayfadaki formda “WhatsApp / Meta üzerinden gelen verilerimin silinmesi” seçeneğini işaretleyin.</li>
+              <li>Yazıştığınız WhatsApp numarasını ve biliyorsanız işletmenin adını yazın.</li>
+              <li>Formu gönderin. Size bir referans numarası e-postayla iletilir.</li>
+            </ol>
+            <p>Talebinizi, verinin sorumlusu olan işletmeye iletir ve onun talimatıyla ilgili kişi kaydını, konuşmaları ve medyayı canlı sistemlerden sileriz. Messora’nın kendi veri sorumlusu olduğu veriler (ör. sitemizden gönderdiğiniz formlar) doğrudan silinir. Silme işlemi en geç 30 gün içinde tamamlanır; şifreli yedekler en geç 35 gün içinde döner. Yasal saklama yükümlülüğü olan kayıtlar bu süre sonunda imha edilir. Sonucu e-postayla bildiririz.</p>
+            <p>Ayrıca WhatsApp’ta işletmeye “DUR” yazarak pazarlama mesajlarını hemen durdurabilir, işletmeyi WhatsApp uygulamasından engelleyebilirsiniz.</p>
+          </Fragment>
+        ) : (
+          <Fragment>
+            <p>Messora is software that lets businesses talk to their customers through the WhatsApp Business Platform (Meta). If you chatted on WhatsApp with a business that uses Messora, your messages and phone number are processed in Messora on behalf of that business. To ask for deletion of this data:</p>
+            <ol>
+              <li>In the form on this page, choose “Delete my data received through WhatsApp / Meta”.</li>
+              <li>Enter the WhatsApp number you chatted from and, if you know it, the name of the business.</li>
+              <li>Send the form. You receive a reference number by e-mail.</li>
+            </ol>
+            <p>We pass your request to the business that controls the data and, on its instruction, delete the contact record, conversations and media from our live systems. Data for which Messora itself is the controller (for example forms you sent on our website) is deleted directly. Deletion is completed within 30 days at the latest; encrypted backups roll over within 35 days at most. Records we must keep by law are destroyed when that period ends. We confirm the result by e-mail.</p>
+            <p>You can also reply “STOP” to the business on WhatsApp to stop marketing messages at once, or block the business in the WhatsApp app.</p>
+          </Fragment>
+        )}
+      </div>
+      <div class="stack">
+        <div class="form-card"><h2 class="h3" style="margin-bottom:16px">{tr ? 'Başvuru formu' : 'Request form'}</h2><FormBlock type="kvkk" lang={lang} submit={tr ? 'Başvuruyu gönder' : 'Send request'} /></div>
+        <div class="tl-note"><Icon name="clock" /><div>{tr ? 'Yasal yanıt süresi: başvurunun bize ulaştığı tarihten itibaren en geç 30 gün.' : 'Legal response time: within 30 days of receiving your request.'}</div></div>
+        <CompanyCard lang={lang} />
+      </div>
+    </div>
+  </section>
+</Base>
+<style>.h3 { font-size: 1.15rem; font-weight: 700; }</style>

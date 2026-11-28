@@ -1,0 +1,26 @@
+# Deployed by Dokploy (compose app "website"). Domains messora.tech and
+# www.messora.tech are attached in Dokploy; the server redirects www → apex.
+services:
+  website:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      PORT: "3000"
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      FORMS_TO: ${FORMS_TO:-}
+      FORMS_FROM: ${FORMS_FROM:-Messora <no-reply@messora.tech>}
+      GTAG_ID: ${GTAG_ID:-}
+      ADS_ID: ${ADS_ID:-}
+      ADS_LEAD_LABEL: ${ADS_LEAD_LABEL:-}
+      ADS_SIGNUP_LABEL: ${ADS_SIGNUP_LABEL:-}
+      GTAG_CONSENT_MODE: ${GTAG_CONSENT_MODE:-basic}
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

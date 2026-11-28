@@ -1,0 +1,9 @@
+---
+import V from '../../../views/LegalDoc.astro';
+import { legalRoutes } from '../../../data/routes';
+export function getStaticPaths() {
+  return Object.entries(legalRoutes).map(([k, p]) => ({ params: { slug: p.en.split('/').pop() }, props: { k } }));
+}
+const { k } = Astro.props as any;
+---
+<V lang="en" k={k} />

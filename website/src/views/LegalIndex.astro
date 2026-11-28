@@ -1,0 +1,44 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import type { Lang } from '../data/types';
+import { meta } from '../data/meta';
+import { legalRoutes, staticRoutes, type LegalKey } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+import { getCollection, getEntry, render } from 'astro:content';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const u = t(lang);
+const m = meta.legal[lang];
+const idx = await getEntry('legal', `${lang}/index`);
+const Intro = idx ? (await render(idx)).Content : null;
+const docs = (await getCollection('legal', (e) => e.data.lang === lang && e.data.slug !== 'index'));
+const order = Object.keys(legalRoutes) as LegalKey[];
+docs.sort((a, b) => order.indexOf(a.data.slug as LegalKey) - order.indexOf(b.data.slug as LegalKey));
+const crumbs = [{ name: u.footer.legal, path: r(lang, 'legal') }];
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'legal')} alt={staticRoutes.legal} crumbs={crumbs}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} title={m.title} crumbs={crumbs} />
+  <section class="sec">
+    <div class="wrap">
+      {Intro && <div class="prose" style="max-width:780px;margin-bottom:36px"><Intro /></div>}
+      <div class="grid g3">
+        {docs.map((d) => (
+          <a class="card" href={legalRoutes[d.data.slug as LegalKey]?.[lang]}>
+            <span class="ibox"><Icon name="note" /></span>
+            <h2 class="h3">{d.data.title}</h2>
+            <p>{d.data.description}</p>
+          </a>
+        ))}
+        <a class="card" href={r(lang, 'dataRequest')}>
+          <span class="ibox"><Icon name="user" /></span>
+          <h2 class="h3">{meta.dataRequest[lang].title}</h2>
+          <p>{meta.dataRequest[lang].description}</p>
+        </a>
+      </div>
+    </div>
+  </section>
+</Base>
+<style>.h3 { font-size: 1.12rem; font-weight: 700; margin-bottom: 8px; }</style>

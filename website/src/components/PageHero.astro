@@ -1,0 +1,29 @@
+---
+import type { Crumb } from '../layouts/Base.astro';
+import type { Lang } from '../data/types';
+import { t } from '../i18n/ui';
+interface Props { lang: Lang; eyebrow?: string; title: string; lead?: string; crumbs?: Crumb[]; split?: boolean; ai?: boolean }
+const { lang, eyebrow, title, lead, crumbs, split = false, ai = false } = Astro.props;
+const u = t(lang);
+---
+<section class:list={['page-hero', 'dark', { 'has-aside': split }]}>
+  <div class="wrap">
+    <div class={split ? 'hero-grid' : undefined}>
+      <div>
+        {crumbs && (
+          <nav aria-label={lang === 'tr' ? 'Sayfa yolu' : 'Breadcrumb'}>
+            <ol class="crumbs">
+              <li><a href={lang === 'tr' ? '/' : '/en'}>{u.breadcrumbHome}</a></li>
+              {crumbs.map((c, i) => <li>{i === crumbs.length - 1 ? <span aria-current="page">{c.name}</span> : <a href={c.path}>{c.name}</a>}</li>)}
+            </ol>
+          </nav>
+        )}
+        {eyebrow && <p class:list={['eyebrow', { ai }]}>{eyebrow}</p>}
+        <h1>{title}</h1>
+        {lead && <p class="lead">{lead}</p>}
+        <slot />
+      </div>
+      {split && <div><slot name="aside" /></div>}
+    </div>
+  </div>
+</section>

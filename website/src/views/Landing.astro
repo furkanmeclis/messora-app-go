@@ -1,0 +1,54 @@
+---
+// Focused ad landing pages (noindex): one message, one CTA, a short form.
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import Mock from '../components/Mock.astro';
+import FormBlock from '../components/FormBlock.astro';
+import FaqList from '../components/FaqList.astro';
+import type { Faq } from '../data/types';
+import { appUrls } from '../data/routes';
+export interface LandingData {
+  path: string; title: string; description: string; eyebrow: string; h1: string; lead: string;
+  points: string[]; mock: 'inbox' | 'campaigns' | 'ai' | 'automations';
+  why: { h: string; p: string }[]; faq: Faq[];
+}
+interface Props { d: LandingData }
+const { d } = Astro.props;
+---
+<Base lang="tr" title={d.title} description={d.description} path={d.path} noindex minimal>
+  <section class="hero dark lp">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">{d.eyebrow}</p>
+        <h1>{d.h1}</h1>
+        <p class="lead">{d.lead}</p>
+        <ul class="checks" style="margin-top:24px">{d.points.map((p) => <li><Icon name="check" />{p}</li>)}</ul>
+        <div class="actions" style="margin-top:28px">
+          <a class="btn btn-lg" href={appUrls.signup} data-signup>14 gün ücretsiz deneyin<Icon name="arrow-right" /></a>
+        </div>
+        <p class="note">Kart gerekmez. Fiyatlar 1.290 TL + KDV/ay’dan başlar; Meta mesaj ücretleri ayrıdır.</p>
+      </div>
+      <div class="form-card" id="form">
+        <h2 style="font-size:1.35rem;margin-bottom:6px">Size özel demo</h2>
+        <p class="muted small" style="margin-bottom:18px">Bilgilerinizi bırakın, iş günlerinde arayalım ya da yazalım.</p>
+        <FormBlock type="lp" lang="tr" submit="Demo isteyin" compact />
+      </div>
+    </div>
+  </section>
+  <section class="sec">
+    <div class="wrap split">
+      <div>
+        <div class="grid" style="gap:22px">{d.why.map((w) => <div><h2 class="h3">{w.h}</h2><p class="muted" style="margin-top:6px">{w.p}</p></div>)}</div>
+      </div>
+      <div><Mock kind={d.mock} lang="tr" /></div>
+    </div>
+  </section>
+  <section class="sec fog">
+    <div class="wrap narrow">
+      <h2 style="margin-bottom:24px">Sık sorulan sorular</h2>
+      <FaqList items={d.faq} />
+      <p class="center" style="margin-top:32px"><a class="btn btn-lg" href={appUrls.signup} data-signup>14 gün ücretsiz deneyin<Icon name="arrow-right" /></a></p>
+    </div>
+  </section>
+</Base>
+<style>.h3 { font-size: 1.2rem; font-weight: 700; } .lp .checks { color: #D7DCEB; }</style>

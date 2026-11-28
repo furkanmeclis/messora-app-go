@@ -1,0 +1,45 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import FormBlock from '../components/FormBlock.astro';
+import type { Lang, IconName } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const m = meta.partners[lang];
+const crumbs = [{ name: u.footer.partners, path: r(lang, 'partners') }];
+const who: { i: IconName; h: string; p: string }[] = tr ? [
+  { i: 'megaphone', h: 'Dijital ajanslar', p: 'Müşterilerinizin WhatsApp kampanyalarını izinli ve ölçülebilir biçimde yönetin; maliyet ve sonuçları raporla gösterin.' },
+  { i: 'code', h: 'Yazılım evleri ve entegratörler', p: 'E-ticaret, CRM ya da ERP sistemlerini Messora API’si ve imzalı webhook’larıyla WhatsApp’a bağlayın.' },
+  { i: 'users', h: 'Danışmanlar ve yönlendirenler', p: 'WhatsApp’a geçmek isteyen işletmeleri bize yönlendirin; kurulumu birlikte planlayalım.' },
+] : [
+  { i: 'megaphone', h: 'Digital agencies', p: 'Run your clients’ WhatsApp campaigns with consent and measurement; show costs and results in reports.' },
+  { i: 'code', h: 'Software houses and integrators', p: 'Connect e-commerce, CRM or ERP systems to WhatsApp with the Messora API and signed webhooks.' },
+  { i: 'users', h: 'Consultants and referrers', p: 'Refer businesses moving to WhatsApp to us, and plan the setup together.' },
+];
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'partners')} alt={staticRoutes.partners} crumbs={crumbs}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={tr ? 'Müşterilerinize resmi WhatsApp API’yi birlikte kuralım.' : 'Let’s bring the official WhatsApp API to your clients together.'}
+    lead={tr ? 'İş ortaklığı programımızı ilk ortaklarımızla birlikte şekillendiriyoruz. Koşulları — komisyon, indirim, ortak destek — başvurunuzu aldıktan sonra sizinle konuşarak belirliyoruz.' : 'We are shaping our partner programme with our first partners. Terms — commission, discounts, shared support — are agreed with you after we receive your application.'} />
+  <section class="sec">
+    <div class="wrap">
+      <div class="grid g3">
+        {who.map((w) => <div class="card"><span class="ibox"><Icon name={w.i} /></span><h2 class="h3">{w.h}</h2><p>{w.p}</p></div>)}
+      </div>
+    </div>
+  </section>
+  <section class="sec fog" id="basvuru">
+    <div class="wrap narrow">
+      <div class="sec-head"><h2>{tr ? 'İş ortaklığı başvurusu' : 'Partner application'}</h2><p class="lead">{tr ? 'Kendinizi ve müşterilerinizi kısaca anlatın; iş günlerinde dönüş yapıyoruz.' : 'Tell us briefly about yourself and your clients; we reply on business days.'}</p></div>
+      <div class="form-card"><FormBlock type="partner" lang={lang} submit={tr ? 'Başvuruyu gönder' : 'Send application'} /></div>
+    </div>
+  </section>
+</Base>
+<style>.h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; }</style>
