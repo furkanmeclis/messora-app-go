@@ -116,6 +116,10 @@ plus the source fields of the chosen Git provider (`sourceType`
 `github` with `repository`/`owner`/`branch`/`githubId`, or `git` with
 `customGitUrl`/`customGitBranch`/`customGitSSHKeyId`). Do **not** add
 domains to the application: routers come from the `caddy` labels.
+Those routers carry `priority=1`, so Dokploy's own `dokploy.messora.tech`
+router (and any other application's plain `Host()` router under the
+domain) still wins over the `*.messora.tech` catch-all; without it Traefik
+ranks by rule length and the panel's hostname would land on Messora.
 
 **Environment:** `deployments/dokploy/messora.env.example` with:
 
