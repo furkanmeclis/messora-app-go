@@ -182,6 +182,21 @@ export function Topbar({
     useRealtimeEvents((_channel, e) => {
         if (
             e.type === 'notification.created' &&
+            e.kind === 'ai.credits_exhausted' &&
+            !e.synced
+        ) {
+            toast.warning(t('plans.banner.credits'), {
+                id: 'ai-credits-exhausted',
+                action: {
+                    label: t('plans.banner.link'),
+                    onClick: () => router.push('/settings/plan'),
+                },
+            });
+            router.refresh();
+            return;
+        }
+        if (
+            e.type === 'notification.created' &&
             e.kind === 'consent.opt_out_requested' &&
             !e.synced
         ) {

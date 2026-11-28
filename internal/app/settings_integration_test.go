@@ -221,15 +221,16 @@ func TestSMTPSettingsFromThePanel(t *testing.T) {
 	}
 	h.expect(h.do(call{method: "PUT", path: "/api/v1/settings/smtp", token: owner, body: map[string]any{"host": "smtp.acme.test", "port": 587, "username": "", "from": "not an address", "tls": "starttls"}}), 422, "VALIDATION_ERROR")
 
-	// SMTP_HOST in the environment locks the panel.
+	// SMTP_HOST in the environment is the platform sender (Phase 17 WP8):
+	// it no longer locks a company's own server (enterprise plans).
 	envMail, _ := settings.NewMail(h.svc.queries, h.sealer(), mailer.Config{Host: "smtp.env.test", From: "x@env.test"})
 	h.svc.mail = envMail
 	h.remount()
 	r = h.do(call{method: "GET", path: "/api/v1/settings/smtp", token: owner})
-	if r.data()["managed_by_env"] != true || r.data()["host"] != "smtp.env.test" {
+	if r.data()["managed_by_env"] != false || r.data()["host"] != host {
 		t.Fatalf("env: %s", r.raw)
 	}
-	h.expect(h.do(call{method: "PUT", path: "/api/v1/settings/smtp", token: owner, body: cfg}), 409, "SMTP_MANAGED_BY_ENV")
+	h.expect(h.do(call{method: "PUT", path: "/api/v1/settings/smtp", token: owner, body: cfg}), 200, "")
 }
 
 func (h *harness) sealer() *crypto.Sealer {

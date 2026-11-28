@@ -35,6 +35,11 @@ const (
 	KindDisabled ErrorKind = "disabled"
 	// KindNotConfigured: no usable provider or model.
 	KindNotConfigured ErrorKind = "not_configured"
+	// KindCreditsExhausted: the company's AI credits are used up (calls
+	// with the platform's keys pause until the monthly reset or a top-up).
+	KindCreditsExhausted ErrorKind = "credits_exhausted"
+	// KindNotInPlan: the company's plan does not include AI (ai_agents).
+	KindNotInPlan ErrorKind = "not_in_plan"
 )
 
 // Error is a typed provider error. Message never contains the API key.
@@ -91,6 +96,10 @@ var (
 	// ErrAIDisabled is returned by every AI call while ai.enabled is off.
 	ErrAIDisabled    = &Error{Kind: KindDisabled}
 	ErrNotConfigured = &Error{Kind: KindNotConfigured}
+	// ErrCreditsExhausted: no AI credits left for the platform's keys.
+	ErrCreditsExhausted = &Error{Kind: KindCreditsExhausted}
+	// ErrNotInPlan: the plan has no AI.
+	ErrNotInPlan = &Error{Kind: KindNotInPlan}
 )
 
 // KindOf returns the error kind of err ("" when err is not an *Error).

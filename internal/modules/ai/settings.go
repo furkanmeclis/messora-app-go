@@ -156,14 +156,14 @@ func (s *Service) SaveSettings(ctx context.Context, in Settings, actor *uuid.UUI
 		return Settings{}, &FieldError{"default_model", "Model id is too long."}
 	}
 	if in.DefaultProviderID != nil {
-		p, err := s.q.GetAIProvider(ctx, *in.DefaultProviderID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Settings{}, &FieldError{"default_provider_id", "Unknown provider."}
-		}
+		kind, err := s.providerKind(ctx, s.q, *in.DefaultProviderID)
 		if err != nil {
 			return Settings{}, err
 		}
-		if Kind(p.Kind) == KindFake && !s.opts.AllowFake {
+		if kind == "" {
+			return Settings{}, &FieldError{"default_provider_id", "Unknown provider."}
+		}
+		if kind == KindFake && !s.opts.AllowFake {
 			return Settings{}, &FieldError{"default_provider_id", "The fake provider is not available here."}
 		}
 		if in.DefaultModel == "" {
@@ -223,4 +223,24 @@ func uuidPtrEq(a, b *uuid.UUID) bool {
 		return a == b
 	}
 	return *a == *b
+}
+
+// providerKind returns the kind of a company connection or of one of
+// Messora's keys with id ("" when neither exists).
+func (s *Service) providerKind(ctx context.Context, q *db.Queries, id uuid.UUID) (Kind, error) {
+	p, err := q.GetAIProvider(ctx, id)
+	if err == nil {
+		return Kind(p.Kind), nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	pp, err := q.GetPlatformAIProvider(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return Kind(pp.Kind), nil
 }

@@ -33,6 +33,10 @@ type Message struct {
 	HTML string
 	// ReplyTo is an optional RFC 5322 address for the Reply-To header.
 	ReplyTo string
+	// FromName optionally replaces the display name of the sender (the
+	// address stays the sender's): the platform sender sends a company's
+	// mail with the company's name.
+	FromName string
 	// ListUnsubscribe is an optional https or mailto URL for the
 	// List-Unsubscribe header. An https URL also gets RFC 8058 one-click
 	// (List-Unsubscribe-Post). Only for mail the recipient may opt out of.
@@ -174,6 +178,9 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 
 // validateOptional checks the optional headers for injection and syntax.
 func validateOptional(m Message) error {
+	if strings.ContainsAny(m.FromName, "\r\n") || len(m.FromName) > 200 {
+		return errors.New("mailer: invalid sender name")
+	}
 	if m.ReplyTo != "" {
 		if strings.ContainsAny(m.ReplyTo, "\r\n") {
 			return errors.New("mailer: reply-to contains a line break")
@@ -215,7 +222,11 @@ func (s *SMTP) render(to *mail.Address, m Message, now time.Time) ([]byte, error
 	}
 	var b bytes.Buffer
 	domain := s.from.Address[strings.LastIndex(s.from.Address, "@")+1:]
-	fmt.Fprintf(&b, "From: %s\r\n", s.from.String())
+	from := *s.from
+	if name := strings.TrimSpace(m.FromName); name != "" {
+		from.Name = name
+	}
+	fmt.Fprintf(&b, "From: %s\r\n", from.String())
 	fmt.Fprintf(&b, "To: %s\r\n", to.String())
 	if m.ReplyTo != "" {
 		rt, _ := mail.ParseAddress(m.ReplyTo) // validated above

@@ -39,9 +39,11 @@ export function AISettingsForm({
     providers,
     models,
     readOnly,
+    platform,
 }: {
     settings: Settings;
     providers: Schemas['AIProvider'][];
+    platform?: Schemas['AIPlatformProvider'][];
     models: Schemas['AIModel'][];
     readOnly: boolean;
 }) {
@@ -127,6 +129,7 @@ export function AISettingsForm({
                 <ProviderModelPicker
                     idPrefix="ai-default"
                     providers={providers}
+                    platform={platform}
                     models={models}
                     providerId={v.default_provider_id}
                     model={v.default_model}

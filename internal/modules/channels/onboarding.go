@@ -167,6 +167,10 @@ func (s *Service) StartOnboarding(ctx context.Context, in OnboardingInput, actor
 	}
 	var row db.MetaOnboarding
 	err = s.tx(ctx, func(q *db.Queries) error {
+		// The number this onboarding brings counts against the plan.
+		if err := s.checkNumbers(ctx, q, 1); err != nil {
+			return err
+		}
 		row, err = q.InsertMetaOnboarding(ctx, db.InsertMetaOnboardingParams{ID: id, WabaID: in.WABAID, PhoneNumberID: in.PhoneNumberID,
 			BusinessID: nonEmpty(in.BusinessID), Name: in.Name, PinEnc: pin, PinGenerated: generated, CreatedBy: actor})
 		if err != nil {

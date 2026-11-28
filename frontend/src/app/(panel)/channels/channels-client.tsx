@@ -303,7 +303,7 @@ function AccountRow({
                 toast.success(text);
             } else {
                 setSyncResult(null);
-                toast.error(r.message);
+                void notify(r);
             }
         });
 
@@ -576,7 +576,7 @@ function DisconnectButton({ account }: { account: WhatsAppAccount }) {
             } else if (r.code === 'ACCOUNT_HAS_MESSAGES') {
                 setBlocked(r.message);
             } else {
-                toast.error(r.message);
+                void notify(r);
             }
         });
 

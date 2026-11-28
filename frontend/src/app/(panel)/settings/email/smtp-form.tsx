@@ -23,6 +23,7 @@ export function SmtpForm({
     defaultTestTo,
     onSaved,
     bare,
+    customHint,
 }: {
     smtp: SmtpSettings;
     readOnly: boolean;
@@ -30,6 +31,8 @@ export function SmtpForm({
     onSaved?: (s: SmtpSettings) => void;
     /** Without the card chrome (inside the wizard). */
     bare?: boolean;
+    /** Titled as the company's own server (Settings → E-mail, Enterprise). */
+    customHint?: boolean;
 }) {
     const t = useT();
     const [current, setCurrent] = useState(smtp);
@@ -219,8 +222,16 @@ export function SmtpForm({
     }
     return (
         <Section
-            title={t('settings.email.title')}
-            description={t('settings.email.description')}
+            title={
+                customHint
+                    ? t('plans.email.customTitle')
+                    : t('settings.email.title')
+            }
+            description={
+                customHint
+                    ? t('plans.email.customHint')
+                    : t('settings.email.description')
+            }
             readOnly={disabled}
             dirty={dirty}
             saving={saving}

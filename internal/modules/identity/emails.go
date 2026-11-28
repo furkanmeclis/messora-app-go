@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer/templates"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
@@ -140,8 +141,12 @@ func (s *Service) sendToUser(ctx context.Context, id uuid.UUID, u db.User, kind 
 	return s.sendTo(ctx, w, u.Email, u.Locale, kind, build(w))
 }
 
-// replyTo is the platform's reply-to address (platform setting), or "".
+// replyTo is the workspace's reply-to address (its e-mail settings), else
+// the platform's (platform setting), or "".
 func (s *Service) replyTo(ctx context.Context) string {
+	if v := settings.TenantReplyTo(ctx, s.q); v != "" {
+		return v
+	}
 	raw, err := s.q.GetPlatformSetting(tenant.System(ctx), SettingReplyTo)
 	if err != nil {
 		return ""

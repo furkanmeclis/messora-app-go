@@ -104,7 +104,7 @@ export function ApiKeyTable({ keys }: { keys: ApiKey[] }) {
             for (const id of ids) {
                 const r = await revokeApiKeyAction(id);
                 if (!r.ok) {
-                    toast.error(r.message);
+                    void notify(r);
                     break;
                 }
                 revoked++;
@@ -256,7 +256,7 @@ export function CreateKeyDialog({
             form.set('idempotency_key', idem);
             const r = await guard(() => createApiKeyAction(null, form));
             setResult(r);
-            if (!r.ok) toast.error(r.message);
+            if (!r.ok) void notify(r);
         });
 
     return (

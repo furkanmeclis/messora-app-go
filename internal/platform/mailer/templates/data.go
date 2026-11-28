@@ -183,6 +183,25 @@ type CreditLowData struct {
 	TopUpURL   string
 }
 
+// PlanChangeRequestData is the payload for a workspace's request for
+// another plan (sent to the platform admins).
+type PlanChangeRequestData struct {
+	Common
+	// Workspace is the company that asks, with its address.
+	Workspace    string
+	WorkspaceURL string // optional
+	// CurrentPlan and RequestedPlan are plan names in the admin's language.
+	CurrentPlan   string // optional (a workspace without a plan)
+	RequestedPlan string
+	// BillingCycle is "monthly" or "yearly".
+	BillingCycle string
+	RequestedBy  string // name and address of the person who asked
+	Message      string // optional
+	RequestedAt  time.Time
+	// InboxURL opens the request inbox of the platform admin panel.
+	InboxURL string
+}
+
 // WebhookDisabledData is the payload for an outgoing webhook endpoint
 // Messora switched off (sent to the workspace's owners and admins).
 type WebhookDisabledData struct {
@@ -215,6 +234,7 @@ func (PaymentReceivedData) kind() Kind       { return PaymentReceived }
 func (SubscriptionSuspendedData) kind() Kind { return SubscriptionSuspended }
 func (CreditLowData) kind() Kind             { return CreditLow }
 func (WebhookDisabledData) kind() Kind       { return WebhookDisabled }
+func (PlanChangeRequestData) kind() Kind     { return PlanChangeRequest }
 
 func (d VerifyEmailData) validate(v *validator) {
 	v.url("VerifyURL", d.VerifyURL, true)
@@ -306,6 +326,20 @@ func (d CreditLowData) validate(v *validator) {
 		v.missing("Threshold")
 	}
 	v.url("TopUpURL", d.TopUpURL, true)
+}
+
+func (d PlanChangeRequestData) validate(v *validator) {
+	v.str("Workspace", d.Workspace)
+	v.str("RequestedPlan", d.RequestedPlan)
+	v.str("RequestedBy", d.RequestedBy)
+	if d.BillingCycle != "monthly" && d.BillingCycle != "yearly" {
+		v.fail("BillingCycle must be monthly or yearly")
+	}
+	v.time("RequestedAt", d.RequestedAt)
+	if d.WorkspaceURL != "" {
+		v.url("WorkspaceURL", d.WorkspaceURL, true)
+	}
+	v.url("InboxURL", d.InboxURL, true)
 }
 
 func (d WebhookDisabledData) validate(v *validator) {

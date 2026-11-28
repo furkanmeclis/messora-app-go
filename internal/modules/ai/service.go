@@ -21,6 +21,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/safehttp"
 )
 
@@ -61,6 +62,11 @@ type Service struct {
 	// onClassified stores a finished reply classification on the
 	// campaign's recipient row (SetClassificationSink).
 	onClassified ClassificationSink
+
+	// plans gives the features ai_agents and byo_ai_keys (SetPlans); meter
+	// meters the calls with the platform's keys (SetMeter).
+	plans entitlements.Provider
+	meter Meter
 }
 
 // New returns the service.
@@ -397,37 +403,35 @@ type ModelView struct {
 	Model        db.ListAIModelsRow
 	Capabilities Capabilities
 	Price        *db.GetAIPriceRow
+	// KeySource is whose key serves the model: the company's own (tenant)
+	// or Messora's (platform, paid with credits).
+	KeySource string
 }
 
-// ListModels returns the catalogue with today's prices.
+// ListModels returns the catalogue with today's prices: the models of the
+// company's own keys (only when its plan includes byo_ai_keys) and those of
+// Messora's keys.
 func (s *Service) ListModels(ctx context.Context) ([]ModelView, error) {
-	rows, err := s.q.ListAIModels(ctx)
-	if err != nil {
-		return nil, err
-	}
-	prices, err := s.q.ListAIPrices(ctx)
-	if err != nil {
-		return nil, err
-	}
-	domain := make([]Price, 0, len(prices))
-	byID := map[uuid.UUID]db.GetAIPriceRow{}
-	for _, p := range prices {
-		r := db.GetAIPriceRow(p)
-		domain = append(domain, priceFromRow(r))
-		byID[r.ID] = r
-	}
-	now := s.opts.Now()
-	out := make([]ModelView, len(rows))
-	for i, m := range rows {
-		var caps Capabilities
-		_ = json.Unmarshal(m.Capabilities, &caps)
-		out[i] = ModelView{Model: m, Capabilities: caps}
-		if p, ok := SelectPrice(domain, Kind(m.ProviderKind), m.ModelID, now); ok {
-			r := byID[p.ID]
-			out[i].Price = &r
+	var out []ModelView
+	if s.OwnKeysAllowed(ctx) {
+		rows, err := s.q.ListAIModels(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range rows {
+			var caps Capabilities
+			_ = json.Unmarshal(m.Capabilities, &caps)
+			out = append(out, ModelView{Model: m, Capabilities: caps, KeySource: KeySourceTenant})
+		}
+		if err := s.attachPrices(ctx, out); err != nil {
+			return nil, err
 		}
 	}
-	return out, nil
+	platform, err := s.PlatformModels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return append(out, platform...), nil
 }
 
 // ------------------------------------------------------------------ prices
@@ -672,6 +676,11 @@ type Result struct {
 	Estimated    bool
 	// CampaignID is the campaign the request was attributed to (nil = none).
 	CampaignID *uuid.UUID
+	// KeySource is whose key paid ("tenant", "platform"; "" when no key
+	// was reached); Credits the millicredits charged (platform keys).
+	KeySource          string
+	PlatformProviderID *uuid.UUID
+	Credits            int64
 }
 
 var purposes = []string{PurposeReply, PurposeSuggest, PurposeClassify, PurposeExtract, PurposeSummarize, PurposeAutomation, PurposeTest}
@@ -685,11 +694,17 @@ func (s *Service) Generate(ctx context.Context, c Call) (Result, error) {
 	}
 	start := s.opts.Now()
 	res := Result{}
-	prov, model, err := s.resolve(ctx, c)
+	rt, err := s.resolve(ctx, c)
+	model := rt.model
+	switch {
+	case rt.tenant != nil:
+		res.ProviderID, res.ProviderName, res.ProviderKind, res.KeySource = &rt.tenant.ID, rt.tenant.Name, Kind(rt.tenant.Kind), KeySourceTenant
+	case rt.platform != nil:
+		res.PlatformProviderID, res.ProviderName, res.ProviderKind, res.KeySource = &rt.platform.ID, rt.platform.Name, Kind(rt.platform.Kind), KeySourcePlatform
+	}
 	if err == nil {
-		res.ProviderID, res.ProviderName, res.ProviderKind = &prov.ID, prov.Name, Kind(prov.Kind)
 		var cfg ProviderConfig
-		if cfg, err = s.config(prov); err == nil {
+		if cfg, err = s.routeConfig(rt); err == nil {
 			var client Client
 			if client, err = NewClient(cfg); err == nil {
 				req := c.Request
@@ -710,57 +725,6 @@ func (s *Service) Generate(ctx context.Context, c Call) (Result, error) {
 	return res, err
 }
 
-// resolve picks the connection and model: the call's, the profile's, then
-// the company default. A connection must be enabled; AI must be on.
-func (s *Service) resolve(ctx context.Context, c Call) (db.AiProvider, string, error) {
-	st, err := s.Settings(ctx)
-	if err != nil {
-		return db.AiProvider{}, c.Model, err
-	}
-	if !st.Enabled {
-		return db.AiProvider{}, c.Model, &Error{Kind: KindDisabled, Message: "AI is turned off for the company"}
-	}
-	pid, model := c.ProviderID, c.Model
-	if c.ProfileID != nil {
-		pr, err := s.q.GetAIProfile(ctx, *c.ProfileID)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return db.AiProvider{}, model, err
-		}
-		// The profile's override applies unless the call names its own provider.
-		if err == nil && c.ProviderID == nil {
-			pid = pr.ProviderID
-			if model == "" && pr.Model != nil {
-				model = *pr.Model
-			}
-		}
-	}
-	if pid == nil {
-		pid = st.DefaultProviderID
-	}
-	if pid == nil {
-		return db.AiProvider{}, model, &Error{Kind: KindNotConfigured, Message: "no AI provider is chosen (set a default in the AI settings)"}
-	}
-	if model == "" && st.DefaultProviderID != nil && *pid == *st.DefaultProviderID {
-		model = st.DefaultModel
-	}
-	p, err := s.q.GetAIProvider(ctx, *pid)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return p, model, &Error{Kind: KindNotConfigured, Message: "the chosen AI provider no longer exists"}
-	}
-	if err != nil {
-		return p, model, err
-	}
-	switch {
-	case !p.Enabled:
-		return p, model, &Error{Kind: KindNotConfigured, Provider: Kind(p.Kind), Message: "the AI provider is disabled"}
-	case Kind(p.Kind) == KindFake && !s.opts.AllowFake:
-		return p, model, &Error{Kind: KindNotConfigured, Provider: KindFake, Message: "the fake provider is not available here"}
-	case model == "":
-		return p, model, &Error{Kind: KindNotConfigured, Provider: Kind(p.Kind), Message: "no model is chosen for the AI provider"}
-	}
-	return p, model, nil
-}
-
 // record writes the usage row and fills the cost into res. A failure to
 // record is logged, never returned: the answer already exists.
 func (s *Service) record(ctx context.Context, c Call, model string, at time.Time, res *Result, callErr error) {
@@ -769,7 +733,10 @@ func (s *Service) record(ctx context.Context, c Call, model string, at time.Time
 		CampaignID: c.CampaignID, AutomationRunID: c.AutomationRunID,
 		InputTokens: res.Usage.InputTokens, CachedTokens: res.Usage.CachedInputTokens, CacheWriteTokens: res.Usage.CacheWriteTokens,
 		CacheWrite1hTokens: res.Usage.CacheWrite1hTokens, OutputTokens: res.Usage.OutputTokens, ReasoningTokens: res.Usage.ReasoningTokens,
-		LatencyMs: res.Latency.Milliseconds(), Status: "ok"}
+		LatencyMs: res.Latency.Milliseconds(), Status: "ok", PlatformProviderID: res.PlatformProviderID}
+	if res.KeySource != "" {
+		params.KeySource = &res.KeySource
+	}
 	if callErr != nil {
 		params.Status = "error"
 		k := string(KindOf(callErr))
@@ -809,7 +776,29 @@ func (s *Service) record(ctx context.Context, c Call, model string, at time.Time
 		}
 	}
 	res.CampaignID = params.CampaignID
-	id, err := s.q.InsertAIUsage(ctx, params)
+	// Calls with Messora's keys are paid with AI credits, booked in the
+	// transaction that records the call.
+	if res.KeySource == KeySourcePlatform && s.meter != nil {
+		res.Credits = s.meter.Charge(ctx, deref(res.Cost), callErr == nil)
+		credits := res.Credits
+		params.Credits = &credits
+	}
+	var id uuid.UUID
+	err := s.tx(ctx, func(q *db.Queries) error {
+		var err error
+		if id, err = q.InsertAIUsage(ctx, params); err != nil {
+			return err
+		}
+		if res.Credits > 0 {
+			return s.meter.Consume(ctx, q, res.Credits)
+		}
+		return nil
+	})
+	if err != nil && res.Credits > 0 {
+		// The call's row matters more than the booking: keep it.
+		s.log.ErrorContext(ctx, "book ai credits", "err", err, "purpose", c.Purpose, "credits", res.Credits)
+		id, err = s.q.InsertAIUsage(ctx, params)
+	}
 	if err != nil {
 		s.log.ErrorContext(ctx, "record ai usage", "err", err, "purpose", c.Purpose)
 		return

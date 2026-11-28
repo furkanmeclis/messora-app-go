@@ -24,6 +24,9 @@ const (
 	ReasonManual             Reason = "manual"
 	// ReasonAIBudget: the company's monthly AI budget is used up.
 	ReasonAIBudget Reason = "ai_budget"
+	// ReasonAICredits: the company's AI credits (Messora's keys) are used
+	// up (Phase 17 WP8).
+	ReasonAICredits Reason = "ai_credits"
 	// ReasonProfileComplete: the AI collected every required field of a
 	// new contact and the profile hands such conversations to the team.
 	ReasonProfileComplete Reason = "profile_complete"

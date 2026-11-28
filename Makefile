@@ -42,8 +42,29 @@ test-integration: ## Run unit + integration tests against real PostgreSQL/Redis 
 # full 100,000-recipient criterion runs without -race in `make load-test`.
 COVER_LOAD_RECIPIENTS ?= 10000
 
+# The suite runs as two shards so neither test binary nears its timeout:
+# `app` is ./internal/app (the HTTP/worker integration suite, by far the
+# longest), `rest` is every other package. Each shard writes its own profile
+# with -coverpkg=./internal/...; cover-gate merges them (go tool cover sums
+# the counts of identical blocks) and checks the total. CI runs the shards as
+# parallel jobs; `make cover` runs both here, one after the other.
+COVER_APP_PKGS   := ./internal/app/...
+COVER_REST_PKGS   = $(shell go list $(GO_PKGS) | grep -v '/internal/app$$')
+
 cover: ## Integration tests with race detector + coverage gate (COVERAGE_MIN)
-	MESSORA_LOAD_RECIPIENTS=$(COVER_LOAD_RECIPIENTS) go test -race -count=1 -tags=integration -timeout 30m -coverpkg=./internal/... -coverprofile=coverage.out $(GO_PKGS)
+	$(MAKE) cover-shard SHARD=rest
+	$(MAKE) cover-shard SHARD=app
+	$(MAKE) cover-gate
+
+.PHONY: cover-shard
+cover-shard: ## One coverage shard: SHARD=app (./internal/app) or SHARD=rest (all other packages)
+	@case "$(SHARD)" in app) pkgs="$(COVER_APP_PKGS)";; rest) pkgs="$(COVER_REST_PKGS)";; *) echo "SHARD must be app or rest"; exit 2;; esac; \
+	MESSORA_LOAD_RECIPIENTS=$(COVER_LOAD_RECIPIENTS) go test -race -count=1 -tags=integration -timeout 40m -coverpkg=./internal/... -coverprofile=coverage-$(SHARD).out $$pkgs
+
+.PHONY: cover-gate
+cover-gate: ## Merge coverage-app.out + coverage-rest.out into coverage.out and enforce COVERAGE_MIN
+	@test -f coverage-app.out && test -f coverage-rest.out || { echo "coverage-app.out and coverage-rest.out are both required"; exit 1; }
+	@{ head -n 1 coverage-app.out; tail -q -n +2 coverage-app.out coverage-rest.out; } > coverage.out
 	@total=$$(go tool cover -func=coverage.out | awk '/^total:/{sub("%","",$$3); print $$3}'); \
 	echo "total coverage: $$total% (minimum $(COVERAGE_MIN)%)"; \
 	awk -v t="$$total" -v m="$(COVERAGE_MIN)" 'BEGIN{exit (t+0 < m+0)}' || { echo "coverage below minimum"; exit 1; }

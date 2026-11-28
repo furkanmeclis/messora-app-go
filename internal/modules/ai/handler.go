@@ -15,6 +15,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
@@ -59,6 +60,10 @@ func apiError(e *Error) *apperr.Error {
 		return apperr.Conflict("AI_DISABLED", "AI is turned off for the company. Turn it on in Settings → AI.")
 	case KindNotConfigured:
 		return apperr.Conflict("AI_NOT_CONFIGURED", "AI is not configured: "+msg)
+	case KindCreditsExhausted:
+		return apperr.Conflict("AI_CREDITS_EXHAUSTED", "The workspace's AI credits for this month are used up.")
+	case KindNotInPlan:
+		return entitlements.ErrFeature(entitlements.AIAgents)
 	case KindRateLimited:
 		return apperr.RateLimited("AI_RATE_LIMITED", "The AI provider is rate limiting requests: "+msg, e.RetryAfter)
 	}
@@ -229,8 +234,8 @@ func (h *Handler) ListAIModels(w http.ResponseWriter, r *http.Request) {
 		m := v.Model
 		out[i] = api.AIModel{ProviderId: m.ProviderID, ProviderName: m.ProviderName, ProviderKind: api.AIProviderKind(m.ProviderKind),
 			ModelId: m.ModelID, DisplayName: m.DisplayName, ContextWindow: m.ContextWindow, MaxOutput: m.MaxOutput, Lifecycle: m.Lifecycle,
-			SyncedAt: m.SyncedAt, Capabilities: api.AICapabilities{Tools: v.Capabilities.Tools, StructuredOutput: v.Capabilities.StructuredOutput,
-				Vision: v.Capabilities.Vision, Thinking: v.Capabilities.Thinking}}
+			SyncedAt: m.SyncedAt, KeySource: api.AIModelKeySource(v.KeySource), Capabilities: api.AICapabilities{Tools: v.Capabilities.Tools,
+				StructuredOutput: v.Capabilities.StructuredOutput, Vision: v.Capabilities.Vision, Thinking: v.Capabilities.Thinking}}
 		if v.Price != nil {
 			p := priceToAPI(*v.Price)
 			out[i].Price = &p

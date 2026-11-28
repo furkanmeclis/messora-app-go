@@ -8,6 +8,7 @@ import { papi } from '@/lib/server/platform';
 import type { Schemas } from '@/lib/types';
 import { Heading } from '../../heading';
 import { TenantDetail } from './tenant-client';
+import { TenantPlan } from './tenant-plan';
 
 export async function generateMetadata(): Promise<Metadata> {
     const t = await getT();
@@ -35,6 +36,14 @@ export default async function TenantPage({
             }),
     ]);
     if (!tenant) notFound();
+    const [plan, plans] = await Promise.all([
+        papi<Schemas['PlatformTenantPlan']>(`/platform/tenants/${id}/plan`)
+            .then((r) => r.data)
+            .catch(() => null),
+        papi<Schemas['PlatformPlan'][]>('/platform/plans')
+            .then((r) => r.data)
+            .catch(() => [] as Schemas['PlatformPlan'][]),
+    ]);
     return (
         <>
             <Link
@@ -49,6 +58,9 @@ export default async function TenantPage({
                 description={tenant.primary_host ?? tenant.slug}
             />
             <TenantDetail tenant={tenant} />
+            {plan && (
+                <TenantPlan tenantId={tenant.id} data={plan} plans={plans} />
+            )}
         </>
     );
 }

@@ -15,6 +15,7 @@ import type { Campaign, Conversation } from '@/lib/types';
 import { Topbar, type RunningCampaign } from './topbar';
 import { SetupBanner } from './setup-banner';
 import { SupportBanner } from './support-banner';
+import { CreditsBanner } from './credits-banner';
 import { myMemberships } from '@/lib/server/memberships';
 
 export default async function PanelLayout({
@@ -106,6 +107,8 @@ export default async function PanelLayout({
                                     {me.support && (
                                         <SupportBanner support={me.support} />
                                     )}
+                                    {me.tenant?.plan?.ai_credits_exhausted &&
+                                        !me.mfa_required && <CreditsBanner />}
                                     {isOwner &&
                                         !me.support &&
                                         !appearance.setup_completed &&

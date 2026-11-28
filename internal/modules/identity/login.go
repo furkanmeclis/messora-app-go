@@ -361,12 +361,16 @@ func (s *Service) Me(ctx context.Context, p *principal.Principal) (api.Me, error
 	}
 	if t, err := s.q.GetTenant(ctx, p.TenantID); err == nil {
 		me.Tenant = &struct {
-			ApiBaseUrl *string   `json:"api_base_url,omitempty"`
-			Id         uuid.UUID `json:"id"`
-			Name       string    `json:"name"`
-			Slug       string    `json:"slug"`
-			Url        *string   `json:"url,omitempty"`
+			ApiBaseUrl *string     `json:"api_base_url,omitempty"`
+			Id         uuid.UUID   `json:"id"`
+			Name       string      `json:"name"`
+			Plan       *api.MePlan `json:"plan,omitempty"`
+			Slug       string      `json:"slug"`
+			Url        *string     `json:"url,omitempty"`
 		}{Id: t.ID, Name: t.Name, Slug: t.Slug}
+		if s.mePlan != nil {
+			me.Tenant.Plan = s.mePlan(ctx, t.ID)
+		}
 		// Every workspace has its own API address (docs/PHASE-17.md §2).
 		if origin := s.tenantOrigin(ctx, t.ID, t.Slug); origin != "" {
 			apiBase := origin + "/api/v1"

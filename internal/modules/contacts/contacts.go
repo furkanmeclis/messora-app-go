@@ -23,6 +23,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/webhooks"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
@@ -33,7 +34,13 @@ type Service struct {
 	q    *db.Queries
 	log  *slog.Logger
 	imp  *ImportStore
+	// plans caps contacts (fair use: no plan caps them today, the hook
+	// stays) and the storage of import files (Phase 17 WP8).
+	plans entitlements.Provider
 }
+
+// SetPlans installs the plan provider.
+func (s *Service) SetPlans(p entitlements.Provider) { s.plans = p }
 
 // New returns the service; import files are kept in the private object
 // store, temporary files in its scratch directory.
@@ -154,6 +161,9 @@ func (s *Service) Create(ctx context.Context, phone string, f Fields, source str
 	attrs, _ := json.Marshal(nonNil(f.Attributes))
 	var c db.Contact
 	err := s.txx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		if err := entitlements.Check(ctx, q, s.plans, entitlements.Contacts, func() (int64, error) { return q.CountContactsForPlan(ctx) }); err != nil {
+			return err
+		}
 		var err error
 		c, err = q.InsertContact(ctx, db.InsertContactParams{PhoneE164: e, Name: name, Email: nullIfEmpty(f.Email),
 			Var1: nullIfEmpty(f.Vars[0]), Var2: nullIfEmpty(f.Vars[1]), Var3: nullIfEmpty(f.Vars[2]), Var4: nullIfEmpty(f.Vars[3]),

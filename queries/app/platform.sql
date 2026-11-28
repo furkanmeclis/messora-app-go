@@ -5,8 +5,8 @@
 -- ── Tenants ─────────────────────────────────────────────────────────────────
 
 -- name: CreateTenant :one
-INSERT INTO tenants (slug, name, subscription_status, trial_ends_at)
-VALUES (@slug, @name, @subscription_status, sqlc.narg(trial_ends_at))
+INSERT INTO tenants (slug, name, subscription_status, trial_ends_at, plan_key, plan_changed_at)
+VALUES (@slug, @name, @subscription_status, sqlc.narg(trial_ends_at), sqlc.narg(plan_key), now())
 RETURNING *;
 
 -- name: GetTenant :one

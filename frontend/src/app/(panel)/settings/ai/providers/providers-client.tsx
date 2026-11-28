@@ -43,8 +43,10 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
+import { UpgradeHint } from '@/components/plan-hint';
 import { useT } from '@/i18n/client';
 import type { Schemas } from '@/lib/types';
+import { PlatformProviders } from './platform-providers';
 import {
     checkProviderAction,
     createProviderAction,
@@ -68,12 +70,21 @@ const STATUS_TONE: Record<Provider['status'], string> = {
 export function ProvidersClient({
     providers,
     fakeAvailable,
-    canManage,
+    canManage: mayManage,
+    byo = true,
+    platform = [],
 }: {
     providers: Provider[];
     fakeAvailable: boolean;
     canManage: boolean;
+    /** The plan includes the company's own AI keys (Enterprise). */
+    byo?: boolean;
+    /** Messora's keys the workspace can use (paid with AI credits). */
+    platform?: Schemas['AIPlatformProvider'][];
 }) {
+    // Own keys are managed only with byo_ai_keys; stored keys of a plan
+    // without it stay listed so they can be deleted.
+    const canManage = mayManage && byo;
     const t = useT();
     const router = useRouter();
     const ask = useConfirm();
@@ -127,200 +138,254 @@ export function ProvidersClient({
         if (ok) run(async () => void notify(await deleteProviderAction(p.id)));
     };
 
+    const ownSection = byo || providers.length > 0;
     return (
-        <div className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                    <h2 className="font-semibold tracking-tight">
-                        {t('ai.providers.title')}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                        {t('ai.providers.description')}
-                    </p>
+        <div className="space-y-6">
+            <PlatformProviders providers={platform} />
+            {byo ? (
+                <p className="text-sm text-muted-foreground">
+                    {t('plans.ai.enterpriseFallback')}
+                </p>
+            ) : (
+                <UpgradeHint testId="byo-locked">
+                    {t('plans.ai.ownLocked')}
+                </UpgradeHint>
+            )}
+            {ownSection && (
+                <div className="space-y-4" data-testid="own-ai-keys">
+                    {!byo && (
+                        <p
+                            className="text-sm text-muted-foreground"
+                            data-testid="byo-stored-unused"
+                        >
+                            {t('plans.ai.storedUnused')}
+                        </p>
+                    )}
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h2 className="font-semibold tracking-tight">
+                                {t('ai.providers.title')}
+                            </h2>
+                            <p className="text-sm text-muted-foreground">
+                                {t('ai.providers.description')}
+                            </p>
+                        </div>
+                        {canManage && (
+                            <Button
+                                onClick={() => setAdding(true)}
+                                shortcut="n"
+                            >
+                                <Plus /> {t('ai.providers.add')}
+                            </Button>
+                        )}
+                    </div>
+                    <ClientDataTable
+                        rows={providers}
+                        rowId={(p) => p.id}
+                        storageKey="ai-providers"
+                        initialSort="name"
+                        rowTestId="ai-provider-row"
+                        empty={
+                            <Empty className="py-12">
+                                <EmptyHeader>
+                                    <EmptyMedia variant="icon">
+                                        <PlugZap />
+                                    </EmptyMedia>
+                                    <EmptyTitle>
+                                        {t('ai.providers.empty')}
+                                    </EmptyTitle>
+                                    <EmptyDescription>
+                                        {t('ai.providers.emptyHint')}
+                                    </EmptyDescription>
+                                </EmptyHeader>
+                            </Empty>
+                        }
+                        columns={[
+                            {
+                                id: 'name',
+                                header: t('ai.providers.columns.name'),
+                                hideable: false,
+                                sortValue: (p) => p.name,
+                                cell: (p) => (
+                                    <div className="min-w-0">
+                                        <div className="font-medium">
+                                            {p.name}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {t(`ai.kinds.${p.kind}`)}
+                                            {p.base_url && (
+                                                <span className="ml-1 font-mono">
+                                                    · {p.base_url}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ),
+                            },
+                            {
+                                id: 'status',
+                                header: t('ai.providers.columns.status'),
+                                sortValue: (p) => p.status,
+                                cell: (p) => (
+                                    <div className="max-w-sm space-y-1">
+                                        <Badge
+                                            variant="outline"
+                                            className={STATUS_TONE[p.status]}
+                                            data-testid="ai-provider-status"
+                                        >
+                                            {t(
+                                                `ai.providers.status.${p.status}`,
+                                            )}
+                                        </Badge>
+                                        {p.status_detail && (
+                                            <p className="line-clamp-2 text-xs text-muted-foreground">
+                                                {p.status_detail}
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-muted-foreground">
+                                            {t('ai.providers.checkedAt', {
+                                                time: p.checked_at
+                                                    ? formatDateTime(
+                                                          p.checked_at,
+                                                      )
+                                                    : t('ai.providers.never'),
+                                            })}
+                                        </p>
+                                    </div>
+                                ),
+                            },
+                            {
+                                id: 'key',
+                                header: t('ai.providers.columns.key'),
+                                cell: (p) => (
+                                    <span className="font-mono text-xs whitespace-nowrap text-muted-foreground">
+                                        •••• {p.key_last4}
+                                    </span>
+                                ),
+                            },
+                            {
+                                id: 'models',
+                                header: t('ai.providers.columns.models'),
+                                sortValue: (p) => p.models_synced_at,
+                                cell: (p) => (
+                                    <span className="text-sm whitespace-nowrap text-muted-foreground">
+                                        {t('ai.providers.syncedAt', {
+                                            time: p.models_synced_at
+                                                ? formatDateTime(
+                                                      p.models_synced_at,
+                                                  )
+                                                : t('ai.providers.never'),
+                                        })}
+                                    </span>
+                                ),
+                            },
+                            {
+                                id: 'enabled',
+                                header: t('ai.providers.columns.enabled'),
+                                sortValue: (p) => (p.enabled ? 1 : 0),
+                                cell: (p) => (
+                                    <Switch
+                                        checked={p.enabled}
+                                        disabled={!canManage || pending}
+                                        aria-label={t(
+                                            'ai.providers.columns.enabled',
+                                        )}
+                                        onCheckedChange={(c) => toggle(p, c)}
+                                    />
+                                ),
+                            },
+                        ]}
+                        rowActions={
+                            canManage
+                                ? (p) => (
+                                      <div className="flex gap-1">
+                                          <Button
+                                              size="sm"
+                                              variant="outline"
+                                              disabled={pending}
+                                              onClick={() => check(p)}
+                                          >
+                                              {pending ? (
+                                                  <Spinner />
+                                              ) : (
+                                                  <ShieldCheck />
+                                              )}
+                                              {t('ai.providers.check')}
+                                          </Button>
+                                          <Button
+                                              size="sm"
+                                              variant="outline"
+                                              disabled={pending}
+                                              onClick={() => sync(p)}
+                                          >
+                                              <RefreshCw />
+                                              {t('ai.providers.sync')}
+                                          </Button>
+                                      </div>
+                                  )
+                                : undefined
+                        }
+                        rowMenu={
+                            mayManage && !byo
+                                ? (p) => [
+                                      [
+                                          {
+                                              id: 'delete',
+                                              label: t('ai.providers.delete'),
+                                              icon: Trash2,
+                                              danger: true,
+                                              run: () => void remove(p),
+                                          },
+                                      ],
+                                  ]
+                                : canManage
+                                  ? (p) => [
+                                        [
+                                            {
+                                                id: 'check',
+                                                label: t('ai.providers.check'),
+                                                icon: ShieldCheck,
+                                                run: () => check(p),
+                                            },
+                                            {
+                                                id: 'sync',
+                                                label: t('ai.providers.sync'),
+                                                icon: RefreshCw,
+                                                run: () => sync(p),
+                                            },
+                                            {
+                                                id: 'rotate',
+                                                label: t('ai.providers.rotate'),
+                                                icon: KeyRound,
+                                                run: () => setRotating(p),
+                                            },
+                                        ],
+                                        [
+                                            {
+                                                id: 'delete',
+                                                label: t('ai.providers.delete'),
+                                                icon: Trash2,
+                                                danger: true,
+                                                run: () => void remove(p),
+                                            },
+                                        ],
+                                    ]
+                                  : undefined
+                        }
+                    />
+                    <AddProviderDialog
+                        open={adding}
+                        onOpenChange={setAdding}
+                        fakeAvailable={fakeAvailable}
+                        onDone={() => router.refresh()}
+                    />
+                    <RotateKeyDialog
+                        provider={rotating}
+                        onClose={() => setRotating(null)}
+                        onDone={() => router.refresh()}
+                    />
                 </div>
-                {canManage && (
-                    <Button onClick={() => setAdding(true)} shortcut="n">
-                        <Plus /> {t('ai.providers.add')}
-                    </Button>
-                )}
-            </div>
-            <ClientDataTable
-                rows={providers}
-                rowId={(p) => p.id}
-                storageKey="ai-providers"
-                initialSort="name"
-                rowTestId="ai-provider-row"
-                empty={
-                    <Empty className="py-12">
-                        <EmptyHeader>
-                            <EmptyMedia variant="icon">
-                                <PlugZap />
-                            </EmptyMedia>
-                            <EmptyTitle>{t('ai.providers.empty')}</EmptyTitle>
-                            <EmptyDescription>
-                                {t('ai.providers.emptyHint')}
-                            </EmptyDescription>
-                        </EmptyHeader>
-                    </Empty>
-                }
-                columns={[
-                    {
-                        id: 'name',
-                        header: t('ai.providers.columns.name'),
-                        hideable: false,
-                        sortValue: (p) => p.name,
-                        cell: (p) => (
-                            <div className="min-w-0">
-                                <div className="font-medium">{p.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                    {t(`ai.kinds.${p.kind}`)}
-                                    {p.base_url && (
-                                        <span className="ml-1 font-mono">
-                                            · {p.base_url}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        ),
-                    },
-                    {
-                        id: 'status',
-                        header: t('ai.providers.columns.status'),
-                        sortValue: (p) => p.status,
-                        cell: (p) => (
-                            <div className="max-w-sm space-y-1">
-                                <Badge
-                                    variant="outline"
-                                    className={STATUS_TONE[p.status]}
-                                    data-testid="ai-provider-status"
-                                >
-                                    {t(`ai.providers.status.${p.status}`)}
-                                </Badge>
-                                {p.status_detail && (
-                                    <p className="line-clamp-2 text-xs text-muted-foreground">
-                                        {p.status_detail}
-                                    </p>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                    {t('ai.providers.checkedAt', {
-                                        time: p.checked_at
-                                            ? formatDateTime(p.checked_at)
-                                            : t('ai.providers.never'),
-                                    })}
-                                </p>
-                            </div>
-                        ),
-                    },
-                    {
-                        id: 'key',
-                        header: t('ai.providers.columns.key'),
-                        cell: (p) => (
-                            <span className="font-mono text-xs whitespace-nowrap text-muted-foreground">
-                                •••• {p.key_last4}
-                            </span>
-                        ),
-                    },
-                    {
-                        id: 'models',
-                        header: t('ai.providers.columns.models'),
-                        sortValue: (p) => p.models_synced_at,
-                        cell: (p) => (
-                            <span className="text-sm whitespace-nowrap text-muted-foreground">
-                                {t('ai.providers.syncedAt', {
-                                    time: p.models_synced_at
-                                        ? formatDateTime(p.models_synced_at)
-                                        : t('ai.providers.never'),
-                                })}
-                            </span>
-                        ),
-                    },
-                    {
-                        id: 'enabled',
-                        header: t('ai.providers.columns.enabled'),
-                        sortValue: (p) => (p.enabled ? 1 : 0),
-                        cell: (p) => (
-                            <Switch
-                                checked={p.enabled}
-                                disabled={!canManage || pending}
-                                aria-label={t('ai.providers.columns.enabled')}
-                                onCheckedChange={(c) => toggle(p, c)}
-                            />
-                        ),
-                    },
-                ]}
-                rowActions={
-                    canManage
-                        ? (p) => (
-                              <div className="flex gap-1">
-                                  <Button
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={pending}
-                                      onClick={() => check(p)}
-                                  >
-                                      {pending ? <Spinner /> : <ShieldCheck />}
-                                      {t('ai.providers.check')}
-                                  </Button>
-                                  <Button
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={pending}
-                                      onClick={() => sync(p)}
-                                  >
-                                      <RefreshCw />
-                                      {t('ai.providers.sync')}
-                                  </Button>
-                              </div>
-                          )
-                        : undefined
-                }
-                rowMenu={
-                    canManage
-                        ? (p) => [
-                              [
-                                  {
-                                      id: 'check',
-                                      label: t('ai.providers.check'),
-                                      icon: ShieldCheck,
-                                      run: () => check(p),
-                                  },
-                                  {
-                                      id: 'sync',
-                                      label: t('ai.providers.sync'),
-                                      icon: RefreshCw,
-                                      run: () => sync(p),
-                                  },
-                                  {
-                                      id: 'rotate',
-                                      label: t('ai.providers.rotate'),
-                                      icon: KeyRound,
-                                      run: () => setRotating(p),
-                                  },
-                              ],
-                              [
-                                  {
-                                      id: 'delete',
-                                      label: t('ai.providers.delete'),
-                                      icon: Trash2,
-                                      danger: true,
-                                      run: () => void remove(p),
-                                  },
-                              ],
-                          ]
-                        : undefined
-                }
-            />
-            <AddProviderDialog
-                open={adding}
-                onOpenChange={setAdding}
-                fakeAvailable={fakeAvailable}
-                onDone={() => router.refresh()}
-            />
-            <RotateKeyDialog
-                provider={rotating}
-                onClose={() => setRotating(null)}
-                onDone={() => router.refresh()}
-            />
+            )}
         </div>
     );
 }

@@ -104,10 +104,11 @@ DELETE FROM ai_model_prices WHERE id = @id;
 -- name: InsertAIUsage :one
 INSERT INTO ai_usage (provider_id, provider_kind, model, purpose, profile_id, conversation_id, contact_id, campaign_id, automation_run_id,
                       input_tokens, cached_tokens, cache_write_tokens, cache_write_1h_tokens, output_tokens, reasoning_tokens,
-                      cost, currency, price_id, latency_ms, status, error_kind)
+                      cost, currency, price_id, latency_ms, status, error_kind, key_source, platform_provider_id, credits)
 VALUES (sqlc.narg(provider_id), @provider_kind, @model, @purpose, sqlc.narg(profile_id), sqlc.narg(conversation_id), sqlc.narg(contact_id),
         sqlc.narg(campaign_id), sqlc.narg(automation_run_id), @input_tokens, @cached_tokens, @cache_write_tokens, @cache_write_1h_tokens,
-        @output_tokens, @reasoning_tokens, (sqlc.narg(cost)::text)::numeric(12, 6), sqlc.narg(currency), sqlc.narg(price_id), @latency_ms, @status, sqlc.narg(error_kind))
+        @output_tokens, @reasoning_tokens, (sqlc.narg(cost)::text)::numeric(12, 6), sqlc.narg(currency), sqlc.narg(price_id), @latency_ms, @status, sqlc.narg(error_kind),
+        sqlc.narg(key_source), sqlc.narg(platform_provider_id), sqlc.narg(credits))
 RETURNING id;
 
 -- name: ListAIUsage :many
@@ -125,16 +126,16 @@ SELECT * FROM ai_profiles WHERE id = @id;
 SELECT * FROM ai_profiles WHERE phone_number_id = @phone_number_id;
 
 -- name: InsertAIProfile :one
-INSERT INTO ai_profiles (name, phone_number_id, system_prompt, provider_id, model, auto_reply, handoff, data_collection,
+INSERT INTO ai_profiles (name, phone_number_id, system_prompt, provider_id, platform_provider_id, model, auto_reply, handoff, data_collection,
                          allowed_actions, disclosure_mode, status, created_by)
-VALUES (@name, sqlc.narg(phone_number_id), @system_prompt, sqlc.narg(provider_id), sqlc.narg(model), @auto_reply, @handoff,
+VALUES (@name, sqlc.narg(phone_number_id), @system_prompt, sqlc.narg(provider_id), sqlc.narg(platform_provider_id), sqlc.narg(model), @auto_reply, @handoff,
         @data_collection, @allowed_actions, @disclosure_mode, @status, sqlc.narg(created_by))
 RETURNING *;
 
 -- name: UpdateAIProfile :one
 UPDATE ai_profiles SET
     name = @name, phone_number_id = sqlc.narg(phone_number_id), system_prompt = @system_prompt, provider_id = sqlc.narg(provider_id),
-    model = sqlc.narg(model), auto_reply = @auto_reply, handoff = @handoff, data_collection = @data_collection,
+    platform_provider_id = sqlc.narg(platform_provider_id), model = sqlc.narg(model), auto_reply = @auto_reply, handoff = @handoff, data_collection = @data_collection,
     allowed_actions = @allowed_actions, disclosure_mode = @disclosure_mode, status = @status, updated_at = now()
 WHERE id = @id
 RETURNING *;

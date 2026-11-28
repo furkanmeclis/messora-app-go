@@ -13,7 +13,8 @@ import (
 
 type Querier interface {
 	// ── Budget ──────────────────────────────────────────────────────────────────
-	// USD cost of AI requests since @since (the month's budget).
+	// USD cost of AI requests since @since (the month's budget). Calls with the
+	// platform's keys are paid with AI credits and not counted (Phase 17 WP8).
 	AICostSince(ctx context.Context, since time.Time) (string, error)
 	// ── Usage metrics ───────────────────────────────────────────────────────────
 	// Usage between @from (inclusive) and @to (exclusive) grouped by @group_by
@@ -29,7 +30,9 @@ type Querier interface {
 	ActiveCampaignIDs(ctx context.Context) ([]uuid.UUID, error)
 	// Campaigns that are sending (or about to) through the account's numbers.
 	ActiveCampaignsOfAccount(ctx context.Context, accountID uuid.UUID) ([]ActiveCampaignsOfAccountRow, error)
+	ActiveCreditTotals(ctx context.Context, now time.Time) (ActiveCreditTotalsRow, error)
 	AddContactTag(ctx context.Context, arg AddContactTagParams) error
+	AddCreditLotUsage(ctx context.Context, arg AddCreditLotUsageParams) error
 	AddGroupMembers(ctx context.Context, arg AddGroupMembersParams) (int64, error)
 	AdvanceAutomationRun(ctx context.Context, arg AdvanceAutomationRunParams) error
 	AdvanceMetaOnboarding(ctx context.Context, arg AdvanceMetaOnboardingParams) (MetaOnboarding, error)
@@ -126,11 +129,15 @@ type Querier interface {
 	ConvertAccountToTechProvider(ctx context.Context, arg ConvertAccountToTechProviderParams) (WhatsappAccount, error)
 	// Handoffs from the AI to people between @from_at and @to_at.
 	CountAIEscalations(ctx context.Context, arg CountAIEscalationsParams) (int64, error)
+	CountAIProfilesForPlan(ctx context.Context) (int64, error)
+	CountActiveAutomationsForPlan(ctx context.Context, exceptID *uuid.UUID) (int64, error)
+	CountActiveMembersForPlan(ctx context.Context) (int64, error)
 	CountActiveOwners(ctx context.Context) (int64, error)
 	// Billable messages of the same account, category and market sent earlier
 	// in the calendar month: the volume that selects a rate tier.
 	CountBillableInMonth(ctx context.Context, arg CountBillableInMonthParams) (int64, error)
 	CountCampaignsForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
+	CountContactsForPlan(ctx context.Context) (int64, error)
 	// AI reply and suggestion requests of a conversation in the last hour (the
 	// per-conversation rate and cost guard), failures included.
 	CountConversationAIRequests(ctx context.Context, conversationID *uuid.UUID) (int64, error)
@@ -142,9 +149,13 @@ type Querier interface {
 	CountLiveTechProviderAccounts(ctx context.Context) (int64, error)
 	CountMessagesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
+	CountPhoneNumbersForPlan(ctx context.Context) (int64, error)
 	CountPlatformAdmins(ctx context.Context) (int64, error)
 	CountRecentPasswordResets(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountRetries(ctx context.Context, campaignID uuid.UUID) (CountRetriesRow, error)
+	// Seats taken: active members and open invitations (an invitation holds a
+	// seat until it is accepted, revoked or expires).
+	CountSeatsForPlan(ctx context.Context) (int64, error)
 	// Earlier sessions of the user in this tenant, and those from ip, for the
 	// "new sign-in" e-mail.
 	CountSessionsFrom(ctx context.Context, arg CountSessionsFromParams) (CountSessionsFromRow, error)
@@ -163,6 +174,7 @@ type Querier interface {
 	CreateMembershipIn(ctx context.Context, arg CreateMembershipInParams) error
 	// ── Password reset ──────────────────────────────────────────────────────────
 	CreatePasswordReset(ctx context.Context, arg CreatePasswordResetParams) error
+	CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, error)
 	// ── Platform sessions ───────────────────────────────────────────────────────
 	CreatePlatformSession(ctx context.Context, arg CreatePlatformSessionParams) (PlatformSession, error)
 	// ── Sessions ────────────────────────────────────────────────────────────────
@@ -180,6 +192,8 @@ type Querier interface {
 	CreateTenantDomain(ctx context.Context, arg CreateTenantDomainParams) (TenantDomain, error)
 	// ── Users (global) and memberships (per tenant) ─────────────────────────────
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Millicredits charged to AI calls with the platform's keys since @since.
+	CreditsUsedSince(ctx context.Context, since time.Time) (int64, error)
 	DecideAIDraft(ctx context.Context, arg DecideAIDraftParams) (ConversationAiDraft, error)
 	// Meta withheld the message for ecosystem health (131049): it waits outside
 	// any campaign window until next_attempt_at.
@@ -201,12 +215,14 @@ type Querier interface {
 	// Retention; deliveries go with their event.
 	DeleteOldOutgoingWebhookEvents(ctx context.Context, arg DeleteOldOutgoingWebhookEventsParams) (int64, error)
 	DeleteOldWebhookEvents(ctx context.Context, before time.Time) (int64, error)
+	DeletePlatformAIProvider(ctx context.Context, id uuid.UUID) (int64, error)
 	DeletePlatformSetting(ctx context.Context, key string) error
 	// ── Recovery codes ──────────────────────────────────────────────────────────
 	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DeleteSegment(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSetting(ctx context.Context, key string) error
 	DeleteStaleAIModels(ctx context.Context, arg DeleteStaleAIModelsParams) (int64, error)
+	DeleteStalePlatformAIModels(ctx context.Context, arg DeleteStalePlatformAIModelsParams) (int64, error)
 	DeleteTag(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTemplate(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTemplatesNotSynced(ctx context.Context, arg DeleteTemplatesNotSyncedParams) (int64, error)
@@ -226,6 +242,9 @@ type Querier interface {
 	DueResumes(ctx context.Context) ([]uuid.UUID, error)
 	DueScheduledCampaigns(ctx context.Context) ([]uuid.UUID, error)
 	EndSupportGrant(ctx context.Context, id uuid.UUID) (SupportAccessGrant, error)
+	// ── AI credits (tenant context; amounts in millicredits) ───────────────────
+	EnsurePlanCreditLot(ctx context.Context, arg EnsurePlanCreditLotParams) error
+	ExistingContactPhones(ctx context.Context, phones []string) ([]string, error)
 	// scheduled or active → expired once ends_at passed.
 	ExpireDueOffers(ctx context.Context) ([]Offer, error)
 	// Frees the address of an expired, unaccepted invitation so it can be re-invited.
@@ -294,10 +313,15 @@ type Querier interface {
 	GetOffer(ctx context.Context, id uuid.UUID) (Offer, error)
 	GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []byte) (GetOpenInvitationByTokenHashRow, error)
 	GetOpenMetaOnboardingByWABA(ctx context.Context, wabaID string) (MetaOnboarding, error)
+	GetOpenPlanChangeRequest(ctx context.Context) (PlanChangeRequest, error)
 	GetOutgoingWebhookEvent(ctx context.Context, id uuid.UUID) (OutgoingWebhookEvent, error)
 	GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber, error)
 	GetPhoneNumberByMetaID(ctx context.Context, phoneNumberID string) (PhoneNumber, error)
 	GetPhoneNumberThroughput(ctx context.Context, id uuid.UUID) (*int32, error)
+	GetPlan(ctx context.Context, key string) (Plan, error)
+	GetPlanChangeRequest(ctx context.Context, id uuid.UUID) (PlanChangeRequest, error)
+	GetPlatformAIProvider(ctx context.Context, id uuid.UUID) (PlatformAiProvider, error)
+	GetPlatformAIProviderByKind(ctx context.Context, kind string) (PlatformAiProvider, error)
 	// ── Platform settings and audit ─────────────────────────────────────────────
 	GetPlatformSetting(ctx context.Context, key string) ([]byte, error)
 	GetReplyClassification(ctx context.Context, id uuid.UUID) (CampaignReplyClassification, error)
@@ -312,6 +336,15 @@ type Querier interface {
 	GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantDomain(ctx context.Context, id uuid.UUID) (TenantDomain, error)
 	GetTenantForUpdate(ctx context.Context, id uuid.UUID) (Tenant, error)
+	// Plans, usage meters, AI credits and plan change requests (Phase 17 WP8,
+	// docs/ENTITLEMENTS.md). The catalogue (plans) and the platform's AI keys
+	// are platform tables: the application reads them, the platform role
+	// (tenant.Platform) writes them. Usage, credits and requests are tenant
+	// rows under row-level security.
+	// ── Plans ───────────────────────────────────────────────────────────────────
+	// A tenant's plan as the entitlements provider reads it (readable without
+	// a tenant: tenants and plans are platform tables).
+	GetTenantPlan(ctx context.Context, id uuid.UUID) (GetTenantPlanRow, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error)
@@ -366,6 +399,7 @@ type Querier interface {
 	InsertConversationHandoff(ctx context.Context, arg InsertConversationHandoffParams) (ConversationHandoff, error)
 	// ── Notes ──────────────────────────────────────────────────────────────────
 	InsertConversationNote(ctx context.Context, arg InsertConversationNoteParams) (ConversationNote, error)
+	InsertCreditLot(ctx context.Context, arg InsertCreditLotParams) (AiCreditLot, error)
 	// Duplicate deliveries of the same wamid insert nothing (no row returned).
 	InsertInboundMessage(ctx context.Context, arg InsertInboundMessageParams) (Message, error)
 	// ── Media ───────────────────────────────────────────────────────────────────
@@ -380,6 +414,9 @@ type Querier interface {
 	// ── Messages ────────────────────────────────────────────────────────────────
 	InsertOutboundMessage(ctx context.Context, arg InsertOutboundMessageParams) (Message, error)
 	InsertOutgoingWebhookEvent(ctx context.Context, arg InsertOutgoingWebhookEventParams) error
+	// ── Plan change requests ───────────────────────────────────────────────────
+	InsertPlanChangeRequest(ctx context.Context, arg InsertPlanChangeRequestParams) (PlanChangeRequest, error)
+	InsertPlatformAIProvider(ctx context.Context, arg InsertPlatformAIProviderParams) (PlatformAiProvider, error)
 	InsertPlatformAuditLog(ctx context.Context, arg InsertPlatformAuditLogParams) error
 	InsertPlatformSettingIfAbsent(ctx context.Context, arg InsertPlatformSettingIfAbsentParams) (int64, error)
 	InsertRecipient(ctx context.Context, arg InsertRecipientParams) (int64, error)
@@ -474,6 +511,7 @@ type Querier interface {
 	// since, oldest change first, limited to what the viewer may read (see
 	// ListConversations) and to one channel's audience.
 	ListConversationsChangedSince(ctx context.Context, arg ListConversationsChangedSinceParams) ([]Conversation, error)
+	ListCreditLots(ctx context.Context, lim int32) ([]AiCreditLot, error)
 	ListMarketCountries(ctx context.Context, market string) ([]string, error)
 	ListMediaForMessage(ctx context.Context, messageID *uuid.UUID) ([]MediaFile, error)
 	ListMediaForMessages(ctx context.Context, messageIds []uuid.UUID) ([]MediaFile, error)
@@ -487,7 +525,16 @@ type Querier interface {
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
 	ListPhoneNumbers(ctx context.Context) ([]ListPhoneNumbersRow, error)
+	// Every tenant's requests (platform role), newest first.
+	ListPlanChangeRequests(ctx context.Context, arg ListPlanChangeRequestsParams) ([]ListPlanChangeRequestsRow, error)
+	ListPlans(ctx context.Context) ([]ListPlansRow, error)
+	ListPlatformAIModels(ctx context.Context, includeDisabled bool) ([]ListPlatformAIModelsRow, error)
+	// ── The platform's AI keys ─────────────────────────────────────────────────
+	ListPlatformAIProviders(ctx context.Context) ([]PlatformAiProvider, error)
+	// Platform admins to tell about a plan change request.
+	ListPlatformAdmins(ctx context.Context) ([]ListPlatformAdminsRow, error)
 	ListPlatformAuditLogs(ctx context.Context, arg ListPlatformAuditLogsParams) ([]ListPlatformAuditLogsRow, error)
+	ListPublicPlans(ctx context.Context) ([]Plan, error)
 	ListRecipients(ctx context.Context, arg ListRecipientsParams) ([]ListRecipientsRow, error)
 	ListRolePermissions(ctx context.Context) ([]ListRolePermissionsRow, error)
 	// ── Roles ───────────────────────────────────────────────────────────────────
@@ -519,6 +566,9 @@ type Querier interface {
 	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	ListWhatsAppAccountsToCheck(ctx context.Context) ([]WhatsappAccount, error)
 	LockAIDraft(ctx context.Context, arg LockAIDraftParams) (ConversationAiDraft, error)
+	// The lots usable now, in consumption order (the plan's month first, then
+	// what expires first), locked against concurrent consumption.
+	LockActiveCreditLots(ctx context.Context, now time.Time) ([]AiCreditLot, error)
 	LockAutomationRun(ctx context.Context, id uuid.UUID) (AutomationRun, error)
 	LockCampaign(ctx context.Context, id uuid.UUID) (Campaign, error)
 	LockContact(ctx context.Context, id uuid.UUID) (Contact, error)
@@ -534,6 +584,9 @@ type Querier interface {
 	// Serialises the limit checks of campaigns sharing an account. Advisory
 	// locks are database-wide, so the key names the tenant too.
 	LockPortfolio(ctx context.Context, accountID uuid.UUID) error
+	// Serialises the creating transactions of one counted resource of the
+	// tenant (count-then-insert under the same lock).
+	LockTenantPlanCounter(ctx context.Context, resource string) error
 	MarkAIModelsSynced(ctx context.Context, id uuid.UUID) error
 	MarkConversationAIDisclosed(ctx context.Context, id uuid.UUID) error
 	MarkConversationRead(ctx context.Context, id uuid.UUID) (Conversation, error)
@@ -545,6 +598,7 @@ type Querier interface {
 	// Consent blocked the message right before it was sent.
 	MarkMessageSkipped(ctx context.Context, arg MarkMessageSkippedParams) error
 	MarkMessageUnknown(ctx context.Context, arg MarkMessageUnknownParams) error
+	MarkPlatformAIModelsSynced(ctx context.Context, id uuid.UUID) error
 	MarkPlatformSessionReauthenticated(ctx context.Context, id uuid.UUID) (*time.Time, error)
 	// The recipient now mirrors the new message (pending).
 	MarkRecipientQueued(ctx context.Context, arg MarkRecipientQueuedParams) error
@@ -603,6 +657,8 @@ type Querier interface {
 	// Waiting runs whose resume task may have been lost.
 	OverdueWaitingRuns(ctx context.Context) ([]uuid.UUID, error)
 	PhoneNumberExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// ── Usage meters (tenant context) ──────────────────────────────────────────
+	PlanUsageCounts(ctx context.Context) (PlanUsageCountsRow, error)
 	PlatformCounts(ctx context.Context) (PlatformCountsRow, error)
 	// Campaign messages of the account that are queued or being sent: they
 	// count once accepted.
@@ -663,6 +719,7 @@ type Querier interface {
 	RequirePasswordReset(ctx context.Context, id uuid.UUID) error
 	// Manual redelivery: a fresh attempt budget, due now.
 	ResetWebhookDelivery(ctx context.Context, id uuid.UUID) (WebhookDelivery, error)
+	ResolvePlanChangeRequest(ctx context.Context, arg ResolvePlanChangeRequestParams) (PlanChangeRequest, error)
 	// A failed attempt of the current step: wait, then run the same step again.
 	RetryAutomationRun(ctx context.Context, arg RetryAutomationRunParams) error
 	RevokeApiKey(ctx context.Context, id uuid.UUID) (string, error)
@@ -726,6 +783,8 @@ type Querier interface {
 	SetMetaWebhookKey(ctx context.Context, arg SetMetaWebhookKeyParams) (MetaConnection, error)
 	// Values from a webhook; NULL keeps what is stored.
 	SetPhoneNumberSignals(ctx context.Context, arg SetPhoneNumberSignalsParams) error
+	SetPlanCreditLotGranted(ctx context.Context, arg SetPlanCreditLotGrantedParams) (int64, error)
+	SetPlatformAIProviderStatus(ctx context.Context, arg SetPlatformAIProviderStatusParams) (PlatformAiProvider, error)
 	SetPlatformAdmin(ctx context.Context, arg SetPlatformAdminParams) error
 	SetPrimaryDomain(ctx context.Context, arg SetPrimaryDomainParams) error
 	SetRecipientOptedOut(ctx context.Context, arg SetRecipientOptedOutParams) (int64, error)
@@ -742,6 +801,7 @@ type Querier interface {
 	// the tenant tables). Only for platform transactions that create or touch
 	// that tenant's rows.
 	SetTenantLocal(ctx context.Context, tenantID string) error
+	SetTenantPlan(ctx context.Context, arg SetTenantPlanParams) (Tenant, error)
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
 	// Rotation: with a grace period the current secret becomes the previous
@@ -764,6 +824,10 @@ type Querier interface {
 	StalePreparingCampaigns(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
 	StaleRunningRuns(ctx context.Context) ([]uuid.UUID, error)
 	StartContactImport(ctx context.Context, id uuid.UUID) (ContactImport, error)
+	// Bytes of the files the tenant keeps: received media, contact import
+	// files (kept 30 days) and finished campaign exports. Logos and template
+	// samples are small and not counted.
+	StorageBytesUsed(ctx context.Context) (int64, error)
 	// Claimed more than the given age ago and never settled: the worker died.
 	StuckSendingMessages(ctx context.Context, olderThanSeconds float64) ([]uuid.UUID, error)
 	// A newer draft (or a person's own reply) replaces the pending ones.
@@ -799,6 +863,8 @@ type Querier interface {
 	// Replaces every editable field (the service merges the request first).
 	UpdateOffer(ctx context.Context, arg UpdateOfferParams) (Offer, error)
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) error
+	UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, error)
+	UpdatePlatformAIProvider(ctx context.Context, arg UpdatePlatformAIProviderParams) (PlatformAiProvider, error)
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (User, error)
 	UpdateSegment(ctx context.Context, arg UpdateSegmentParams) (Segment, error)
 	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
@@ -828,6 +894,7 @@ type Querier interface {
 	// Called with Meta's current values (connect, sync and the hourly signal
 	// sync); a throughput Meta did not report keeps the stored one.
 	UpsertPhoneNumber(ctx context.Context, arg UpsertPhoneNumberParams) (PhoneNumber, error)
+	UpsertPlatformAIModel(ctx context.Context, arg UpsertPlatformAIModelParams) error
 	UpsertPlatformSetting(ctx context.Context, arg UpsertPlatformSettingParams) error
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
 	// Tags are matched case-insensitively; the first spelling wins.

@@ -26,8 +26,11 @@ export function ProviderModelPicker({
     disabled,
     noneLabel,
     idPrefix,
+    platform = [],
 }: {
     providers: Schemas['AIProvider'][];
+    /** Messora's keys (paid with AI credits); listed after the own keys. */
+    platform?: Schemas['AIPlatformProvider'][];
     models: Schemas['AIModel'][];
     providerId: string | null;
     model: string;
@@ -64,6 +67,19 @@ export function ProviderModelPicker({
                             disabled={!p.enabled}
                         >
                             {p.name} · {t(`ai.kinds.${p.kind}`)}
+                            {platform.length > 0 &&
+                                ` (${t('plans.ai.sourceOwn')})`}
+                        </SelectItem>
+                    ))}
+                    {platform.map((p) => (
+                        <SelectItem
+                            key={p.id}
+                            value={p.id}
+                            disabled={!p.enabled}
+                            data-source="platform"
+                        >
+                            {t(`ai.kinds.${p.kind}`)} · {p.name} (
+                            {t('plans.ai.sourcePlatform')})
                         </SelectItem>
                     ))}
                 </SelectContent>

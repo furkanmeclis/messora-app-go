@@ -13,6 +13,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { notify } from '@/components/notify';
 import { useReauth } from '@/components/reauth';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -588,14 +589,14 @@ function Failure({
                     pin: /^[0-9]{6}$/.test(newPin) ? newPin : undefined,
                 }),
             );
-            if (!r.ok) toast.error(r.message);
+            if (!r.ok) void notify(r);
             else onResult(r.data);
         });
     const cancel = () =>
         start(async () => {
             const r = await guard(() => cancelOnboardingAction(o.id));
             if (r.ok) toast.success(r.message);
-            else toast.error(r.message);
+            else void notify(r);
         });
 
     return (
@@ -682,7 +683,7 @@ function TPAccount({ account: a }: { account: WhatsAppAccount }) {
         start(async () => {
             const r = await guard(() => disconnectTechProviderAction(a.id));
             if (!r.ok) {
-                toast.error(r.message);
+                void notify(r);
                 return;
             }
             toast.success(r.message);

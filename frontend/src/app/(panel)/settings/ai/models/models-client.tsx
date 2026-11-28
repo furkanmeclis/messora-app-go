@@ -221,6 +221,11 @@ export function ModelsClient({
                                 cell: (m) => (
                                     <span className="text-sm whitespace-nowrap">
                                         {m.provider_name}
+                                        <span className="ml-1.5 text-xs text-muted-foreground">
+                                            {m.key_source === 'platform'
+                                                ? t('plans.ai.sourcePlatform')
+                                                : t('plans.ai.sourceOwn')}
+                                        </span>
                                     </span>
                                 ),
                             },

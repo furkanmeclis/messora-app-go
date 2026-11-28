@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { toastApiError } from '@/components/plan-hint';
 import { Trash2 } from 'lucide-react';
 import { BrandMark } from '@/components/brand';
 import { Button } from '@/components/ui/button';
@@ -40,13 +41,11 @@ export function LogoUploader({
             });
             const body = (await res.json().catch(() => null)) as {
                 data?: Settings;
-                error?: { message?: string };
+                error?: Parameters<typeof toastApiError>[1];
             } | null;
             setKey((k) => k + 1);
             if (!res.ok || !body?.data) {
-                toast.error(
-                    body?.error?.message ?? t('common.somethingWentWrong'),
-                );
+                toastApiError(t, body?.error, t('common.somethingWentWrong'));
                 return;
             }
             setCurrent(body.data.logo);

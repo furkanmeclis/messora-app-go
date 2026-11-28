@@ -25,10 +25,12 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/conversations"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/credits"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/identity"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/messaging"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ops"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/plans"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/platform"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/realtime"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/settings"
@@ -47,6 +49,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
+	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
 
 // Aliases give each embedded module handler a distinct field name.
@@ -68,6 +71,7 @@ type (
 	aiHandler         = ai.Handler
 	opsHandler        = ops.Handler
 	platformHandler   = platform.Handler
+	plansHandler      = plans.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -90,6 +94,7 @@ type apiServer struct {
 	*aiHandler
 	*opsHandler
 	*platformHandler
+	*plansHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -126,6 +131,12 @@ type services struct {
 	// plans answers each tenant's plan (docs/ENTITLEMENTS.md). Read
 	// through planOf, so tests can replace it after the API is mounted.
 	plans entitlements.Provider
+	// planDB is the plan table provider behind plans (invalidated by the
+	// platform panel); credits the AI credit ledger; plansSvc the plan
+	// pages of workspaces and of the platform panel.
+	planDB   *entitlements.DBProvider
+	credits  *credits.Service
+	plansSvc *plans.Service
 }
 
 // planOf is the services' plan provider as it is at call time.
@@ -163,6 +174,12 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 		return nil, err
 	}
 	q := db.New(pool)
+	// Every module reads the tenant's plan at call time through planOf
+	// (out is set below; nothing calls it before).
+	var out *services
+	planOf := entitlements.ProviderFunc(func(ctx context.Context, id uuid.UUID) (entitlements.Plan, error) {
+		return out.plans.Limits(ctx, id)
+	})
 	st := settings.NewStore(q, 15*time.Second)
 	if err := st.SetOverrides(cfg.Workspace); err != nil {
 		return nil, err
@@ -176,19 +193,36 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 		if err != nil {
 			return nil, err
 		}
+		// Only plans with custom_smtp send through the company's own server.
+		mailSettings.SetPlans(planOf)
+		mailSettings.SetLogger(log)
 		mail = mailSettings
 	}
 	hosts := tenant.NewHosts(cfg.PublicAppURL, cfg.TenantBaseDomain)
 	resolver := tenant.NewResolver(pool, 15*time.Second)
 	idsvc := identity.New(pool, rdb, sealer, st, mail, identity.Options{PublicAppURL: cfg.PublicAppURL, Hosts: hosts, Logger: log, Argon2: argon,
 		InvalidateHosts: resolver.Invalidate})
-	plat := platform.New(pool, idsvc, platform.Options{Hosts: hosts, Invalidate: resolver.Invalidate, Logger: log,
-		Sender: platform.Sender{Configured: cfg.SMTP.Host != "", From: cfg.SMTP.From, Host: cfg.SMTP.Host}})
+	idsvc.SetPlans(planOf)
+	platOpts := platform.Options{Hosts: hosts, Invalidate: resolver.Invalidate, Logger: log, Plans: planOf,
+		Sender: platform.Sender{Configured: cfg.SMTP.Host != "", From: cfg.SMTP.From, Host: cfg.SMTP.Host}}
+	if mailSettings != nil {
+		// The platform settings page shows the sender in effect (the
+		// admin panel's, else SMTP_*).
+		platOpts.CurrentSender = func(ctx context.Context) platform.Sender {
+			v, err := mailSettings.PlatformView(ctx, q)
+			if err != nil {
+				return platOpts.Sender
+			}
+			return platform.Sender{Configured: v.Source != "none", From: v.From, Host: v.Host}
+		}
+	}
+	plat := platform.New(pool, idsvc, platOpts)
 	wa, err := whatsapp.New(whatsapp.Options{BaseURL: cfg.Meta.GraphBaseURL, Version: cfg.Meta.GraphVersion, DryRun: cfg.Meta.DryRun})
 	if err != nil {
 		return nil, err
 	}
 	ch := channels.New(pool, sealer, wa, log)
+	ch.SetPlans(planOf)
 	// A new workspace gets its Meta connection (webhook address and verify
 	// token) at once.
 	idsvc.SetTenantOpened(func(ctx context.Context) error { _, err := ch.Connection(ctx); return err })
@@ -215,6 +249,7 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	media := messaging.NewMediaStore(stores.Private)
 	msg := messaging.New(pool, ch, media, log)
 	cts := contacts.New(pool, stores, log)
+	cts.SetPlans(planOf)
 	camp := campaigns.New(pool, cts, log)
 	msg.SetCampaignProgress(camp.PublishProgress)
 	msg.SetCampaignWithheld(camp.ScheduleResend)
@@ -231,18 +266,27 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// Each tenant's campaigns together send at most the fairness setting's
 	// rate, whatever numbers they use.
 	fair := fairness.NewSource(pool)
+	// The plan's campaign_messages_per_second caps it further (the lower
+	// of the two wins).
 	throttle := messaging.NewThrottle(rdb, messaging.DefaultThroughput).WithCeilings(msg.ThroughputCeiling).
-		SetReservedShare(float64(cfg.Worker.CampaignReservedPercent) / 100).WithTenantCampaignCap(fair.TenantCampaignMPS)
+		SetReservedShare(float64(cfg.Worker.CampaignReservedPercent) / 100).WithTenantCampaignCap(campaignCap(fair, planOf))
 	camp.SetScheduler(throttle)
 	inbox := conversations.New(pool, msg, media, log)
 	// Outgoing webhooks: https only outside development; private
 	// destinations are always refused (internal/platform/safehttp).
-	plans := entitlements.NewSettingsProvider(pool)
+	// Plans come from the plan table (tenants.plan_key, plans, overrides);
+	// a tenant without a plan gets the platform's default plan.
+	planDB := entitlements.NewDBProvider(pool, entitlements.NewSettingsProvider(pool))
+	credit := credits.New(pool, planOf)
 	hooks := webhooks.New(pool, sealer, webhooks.Options{AllowHTTP: cfg.Env == config.EnvDevelopment, Logger: log, Limiter: ratelimit.New(rdb, "messora:rl"),
 		AllowedPrefixes: cfg.WebhookAllowedCIDRs})
 	// AI provider calls go through an SSRF-safe client (https, public
 	// addresses only); the fake provider only with AI_FAKE_PROVIDER.
 	aiSvc := ai.New(pool, sealer, ai.Options{AllowFake: cfg.AIFakeProvider}, log)
+	// ai_agents and byo_ai_keys come from the plan; calls with Messora's
+	// keys are paid with AI credits.
+	aiSvc.SetPlans(planOf)
+	aiSvc.SetMeter(credit)
 	// The AI reply loop: inbound messages of conversations the AI answers
 	// schedule an ai:reply turn (see conversations.HandleAIReply).
 	inbox.SetAI(aiSvc)
@@ -251,14 +295,20 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// Automations: AI steps use the AI module, handoff and note steps the
 	// conversations module.
 	auto := automation.New(pool, msg, mail, automationHTTP(cfg), log)
+	auto.SetPlans(planOf)
 	auto.SetAI(aiSvc)
 	auto.SetInbox(inbox)
 	// AI field steps store values with their provenance (never over a
 	// person's or verified value).
 	auto.SetFieldWriter(inbox)
-	out := &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
+	out = &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
-		automation: auto, stores: stores, tenants: resolver, hosts: hosts, platform: plat, fairness: fair, plans: plans}
+		automation: auto, stores: stores, tenants: resolver, hosts: hosts, platform: plat, fairness: fair, plans: planDB,
+		planDB: planDB, credits: credit}
+	out.plansSvc = plans.New(pool, plans.Options{Plans: func() entitlements.Provider { return out.plans },
+		Invalidate: planDB.Invalidate, InvalidateAll: planDB.InvalidateAll, Credits: credit, AI: aiSvc, Identity: idsvc, Redis: rdb, Logger: log})
+	// /me tells the panel the plan's features and whether AI credits ran out.
+	idsvc.SetMePlan(out.plansSvc.MePlan)
 	// Webhook limits and the webhooks feature come from the tenant's plan;
 	// an endpoint switched off automatically is reported to the
 	// workspace's owners and admins by e-mail.
@@ -296,6 +346,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		return err
 	}
 	sh := settings.NewHandler(pool, svc.settings, svc.mail, svc.stores, log)
+	sh.SetPlans(svc.planOf())
 	ch := channels.NewHandler(svc.channels, channels.HandlerOptions{PublicURL: svc.cfg.PublicAppURL, WebhookBaseURL: svc.cfg.Meta.WebhookBaseURL}, log)
 	aih := ai.NewHandler(svc.ai, log)
 	srv := apiServer{
@@ -317,6 +368,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		platformHandler:   platform.NewHandler(svc.platform, ch.ListMetaRates, aih.ListAIPrices, sys.FailedJobs(), log),
 		opsHandler: ops.NewHandler(ops.New(pool, ops.Deps{Campaigns: svc.campaigns, FailedJobs: sys.FailedJobsTotal,
 			Budget: svc.ai.BudgetStatus}), log),
+		plansHandler: plans.NewHandler(svc.plansSvc, svc.mail, log),
 	}
 	// The public API description (only what an API key can call), anonymous.
 	raw, err := api.GetSpecJSON()
@@ -343,6 +395,12 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	}, log)
 	r.Method(http.MethodGet, apidocs.Path, docs)
 	r.Method(http.MethodHead, apidocs.Path, docs)
+	// Meta's rate card, published (docs/WHATSAPP.md "Rate card"): the one
+	// platform-wide card with its effective dates, on any host, without
+	// authentication; limited per client address.
+	rates := httpx.ClientMeta(publicMetaRates(ch.ListMetaRates, ratelimit.New(rdb, "messora:rl"), log))
+	r.Method(http.MethodGet, MetaRatesPath, rates)
+	r.Method(http.MethodHead, MetaRatesPath, rates)
 	// Everything below runs as the tenant of the request's host (unknown
 	// hosts get 404, suspended tenants 403).
 	byHost := tenant.Middleware(svc.tenants, svc.hosts, log)
@@ -406,4 +464,54 @@ func wireCampaignAI(aiSvc *ai.Service, camp *campaigns.Service, inbox *conversat
 		_, err := camp.SetReaction(ctx, campaignID, recipientID, &sentiment, campaigns.ReactionSourceAI)
 		return err
 	})
+}
+
+// campaignCap is each tenant's campaign send rate: the fairness setting,
+// lowered by the plan's campaign_messages_per_second (0 = no cap).
+func campaignCap(fair *fairness.Source, plans entitlements.Provider) func(context.Context) float64 {
+	return func(ctx context.Context) float64 {
+		capMPS := fair.TenantCampaignMPS(ctx)
+		plan, err := entitlements.For(ctx, plans)
+		if err != nil || plan.CampaignMessagesPerSecond <= 0 {
+			return capMPS
+		}
+		if p := float64(plan.CampaignMessagesPerSecond); capMPS <= 0 || p < capMPS {
+			return p
+		}
+		return capMPS
+	}
+}
+
+// MetaRatesPath is the public Meta rate card.
+const MetaRatesPath = "/api/v1/meta-rates"
+
+// publicMetaRatesPerMinute bounds one client address.
+const publicMetaRatesPerMinute = 60
+
+// publicMetaRates serves the rate card without a session: the card is
+// platform data, read without a tenant; responses may be cached for five
+// minutes by anyone.
+func publicMetaRates(list http.HandlerFunc, lim *ratelimit.Limiter, log *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ip := principal.Meta(r.Context()).IP; ip.IsValid() && lim != nil {
+			res, err := lim.Allow(r.Context(), tenant.GlobalRedisKey("rl:meta-rates:"+ip.String()), ratelimit.PerMinute(publicMetaRatesPerMinute))
+			if err == nil && !res.Allowed {
+				httpx.WriteError(w, r, apperr.RateLimited("RATE_LIMITED", "Too many requests", res.RetryAfter), log)
+				return
+			}
+		}
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		list(cacheable{w}, r.WithContext(tenant.System(r.Context())))
+	})
+}
+
+// cacheable marks a successful response as cacheable by anyone for five
+// minutes (the JSON writer marks every response no-store first).
+type cacheable struct{ http.ResponseWriter }
+
+func (c cacheable) WriteHeader(status int) {
+	if status == http.StatusOK {
+		c.Header().Set("Cache-Control", "public, max-age=300")
+	}
+	c.ResponseWriter.WriteHeader(status)
 }

@@ -74,6 +74,8 @@ const errors = {
     WEBHOOK_LIMIT: 'The webhook limit has been reached.',
     PLAN_LIMIT_REACHED: 'You have reached the limit of your plan.',
     FEATURE_NOT_IN_PLAN: 'Your plan does not include this feature.',
+    PLAN_REQUEST_OPEN: 'A plan change request is already open.',
+    AI_CREDITS_EXHAUSTED: 'This month’s AI credits are used up.',
     QUOTA_EXCEEDED: 'The monthly API quota of this workspace is used up.',
     AI_UNAVAILABLE: 'The AI is not available here: {detail}',
     DRAFT_DECIDED: 'Someone already decided on this draft.',

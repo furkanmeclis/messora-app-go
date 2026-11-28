@@ -47,6 +47,9 @@ const (
 	SubscriptionSuspended Kind = "subscription_suspended"
 	CreditLow             Kind = "credit_low"
 	WebhookDisabled       Kind = "webhook_disabled"
+	// PlanChangeRequest tells the platform admins about a workspace's
+	// request for another plan (Phase 17 WP8).
+	PlanChangeRequest Kind = "plan_change_request"
 )
 
 // kinds lists every kind in a stable order (preview gallery, tests).
@@ -54,7 +57,7 @@ var kinds = []Kind{
 	VerifyEmail, PasswordReset, PasswordChanged, Invitation, Welcome,
 	LoginAlert, TwoFactorCode, EmailChangeConfirm, InvoiceIssued,
 	PaymentReminder, PaymentReceived, SubscriptionSuspended, CreditLow,
-	WebhookDisabled,
+	WebhookDisabled, PlanChangeRequest,
 }
 
 // unsubscribable kinds are notifications the recipient may opt out of; only

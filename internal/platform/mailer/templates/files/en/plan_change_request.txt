@@ -1,0 +1,10 @@
+{{define "subject"}}Plan change request: {{.D.Workspace}}{{end}}
+{{define "preheader"}}{{.D.Workspace}} asks for the {{.D.RequestedPlan}} plan ({{if eq .D.BillingCycle "yearly"}}yearly{{else}}monthly{{end}}).{{end}}
+{{define "reason"}}You're receiving this because you are a platform admin of Messora.{{end}}
+{{define "content"}}{{template "greeting" .}}
+
+The {{.D.Workspace}} workspace asked for another plan on {{datetime .D.RequestedAt}}.
+{{template "rows" (rows "Workspace" .D.Workspace "Address" .D.WorkspaceURL "Current plan" .D.CurrentPlan "Requested plan" .D.RequestedPlan "Billing" (index (dict "yearly" "Yearly" "monthly" "Monthly") .D.BillingCycle) "Requested by" .D.RequestedBy "Message" .D.Message)}}
+Assign the plan in the platform admin panel and close the request:
+{{.D.InboxURL}}
+{{end}}

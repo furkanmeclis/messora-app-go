@@ -197,6 +197,19 @@ The delimiter may be `,` or `;` (as Excel saves it in many locales). The
 whole file is rejected, with every problem listed, when any row is invalid;
 re-importing the same file changes nothing.
 
+**One card for the whole platform (Phase 17 WP8).** The card is platform
+data: the platform admin panel imports it (`POST /platform/meta-rates/import`),
+every company reads the same card for message prices, cost estimates,
+forecasts and analytics, and no company can change it. It is published:
+
+- in every workspace: Settings → **Meta ücretleri** (read-only, with the
+  effective dates);
+- as public JSON on any host, without authentication:
+  `GET /api/v1/meta-rates` (same shape as `/settings/meta-rates`:
+  `{"data": [MetaRate…]}` with `effective_from` / `effective_to`),
+  `Cache-Control: public, max-age=300`, `Access-Control-Allow-Origin: *`,
+  60 requests per minute per client address.
+
 ### Meta's own cost (reconciliation)
 
 Once a day (`meta_cost_reconcile`) Messora asks Meta's `pricing_analytics`

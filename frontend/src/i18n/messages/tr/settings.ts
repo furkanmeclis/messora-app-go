@@ -16,6 +16,8 @@ const settings: Messages['settings'] = {
         title: 'Meta fiyat kartı',
         description:
             'Meta mesaj başı fiyatlarını API ile değil, yalnızca fiyat kartı olarak yayımlar. Kartı buraya aktarın; ücretli her mesaj hesabınızın para biriminde fiyatlandırılır. Meta’nın kendi günlük toplamları karşılaştırma için ayrıca çekilir.',
+        descriptionReadOnly:
+            'Meta mesaj başı fiyatlarını API ile değil, yalnızca fiyat kartı olarak yayımlar. Ücretli her mesaj bu karttan hesabınızın para biriminde fiyatlandırılır. Meta’nın kendi günlük toplamları karşılaştırma için ayrıca çekilir.',
         hint: 'En fazla 2 MB CSV dosyası. Aynı para birimi, pazar, kategori, kademe ve tarihteki satırlar öncekinin yerini alır.',
         format: 'Dosya biçimi',
         formatHelp:

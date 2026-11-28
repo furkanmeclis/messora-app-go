@@ -224,7 +224,7 @@ export function EndpointDialog({ catalogue }: { catalogue: EventInfo[] }) {
             form.set('idempotency_key', idem);
             const r = await createWebhookAction(null, form);
             setResult(r);
-            if (!r.ok) toast.error(r.message);
+            if (!r.ok) void notify(r);
         });
 
     return (

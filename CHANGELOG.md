@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (Phase 17 WP8: plans and entitlements)
+
+- **Plans:** the plan catalogue (Başlangıç, Büyüme, Pro, Kurumsal) with
+  limits, features and list prices (display only), per-company overrides,
+  and the plan-backed entitlements provider (docs/ENTITLEMENTS.md). New
+  companies get the growth plan during their trial; companies from before
+  plans the enterprise plan.
+- **Every plan hook enforced:** seats, contacts (fair use), WhatsApp
+  numbers, AI agents, active automation flows, storage, campaign rate,
+  custom domain, own SMTP server, own AI keys and AI; `403
+  FEATURE_NOT_IN_PLAN`, `409 PLAN_LIMIT_REACHED` with the limit and the
+  current count. A lower plan never deletes or stops anything.
+- **AI credits** for Messora's own AI keys: monthly allowance per plan,
+  grants (`credits.Grant`), metering from real usage at the platform price
+  table, a pause with a handoff (`ai_credits`) when they run out.
+- **Platform admin panel:** Plans, a company's plan, usage and credits,
+  Messora's AI keys and the credit conversion, the e-mail sender (Resend),
+  plan change requests.
+- **Workspaces:** Settings → Plan and usage, plan change requests, the
+  e-mail reply-to address, Messora's AI keys, plan-gated settings.
+- `GET /api/v1/meta-rates`: the platform's Meta rate card as public JSON.
+- E-mail template `plan_change_request`.
+
+### Changed (Phase 17 WP8)
+
+- E-mail goes through the platform sender with the company's name and
+  reply-to; only enterprise companies may use their own SMTP server, with a
+  fallback to the platform sender. `SMTP_HOST` no longer locks a company's
+  own server (`managed_by_env` is always false).
+- AI calls use a company's own keys only on plans with `byo_ai_keys`; the
+  monthly USD budget counts only those calls.
+- Every API key call is counted per month (also without a quota).
+
 Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
 (docs/PHASE-17.md). Features of the self-hosted product are removed.
 

@@ -325,6 +325,15 @@ func (s *Service) HandleAIReply(ctx context.Context, convID, msgID uuid.UUID) er
 			kind = "error"
 		}
 		s.log.WarnContext(ctx, "ai turn failed", "conversation_id", c.ID, "kind", kind)
+		if ai.KindOf(gerr) == ai.KindCreditsExhausted {
+			// AI with Messora's keys pauses until the monthly reset or a
+			// top-up; the conversation goes to a person, the people who
+			// manage AI are told once per month.
+			if err := s.withTx(ctx, func(tx pgx.Tx, q *db.Queries) error { return s.ai.NotifyCreditsExhausted(ctx, tx, q) }); err != nil {
+				return err
+			}
+			return s.fail(ctx, t, ReasonAICredits, kind)
+		}
 		return s.fail(ctx, t, ReasonAIError, kind)
 	}
 	raw := res.Structured

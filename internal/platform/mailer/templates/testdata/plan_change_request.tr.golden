@@ -1,0 +1,25 @@
+Subject: Plan değişikliği talebi: Acme Gıda
+Preheader: Acme Gıda, Büyüme planını istiyor (yıllık).
+
+Messora
+========================================
+
+Merhaba Deniz,
+
+Acme Gıda çalışma alanı 27 Kasım 2026, 14:05 (UTC+03:00) tarihinde plan değişikliği istedi.
+
+  Çalışma alanı: Acme Gıda
+  Adres: https://acme.messora.tech
+  Mevcut plan: Başlangıç
+  İstenen plan: Büyüme
+  Ödeme: Yıllık
+  Talep eden: Ayşe Yılmaz <ayse@acmegida.com.tr>
+  Mesaj: Ekibimiz büyüyor; iki kullanıcı daha ve API erişimi istiyoruz.
+
+Planı platform yönetici panelinden atayın ve talebi kapatın:
+https://admin.messora.tech/plan-requests
+
+----------------------------------------
+Bu e-postayı Messora'nın platform yöneticisi olduğunuz için aldınız.
+Bir sorunuz mu var? Destek ekibimize yazın: https://messora.tech/destek
+Bu e-posta otomatik gönderildi. © Messora · https://messora.tech
