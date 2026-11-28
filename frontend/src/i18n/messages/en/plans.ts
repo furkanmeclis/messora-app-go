@@ -17,7 +17,7 @@ const plans = {
     },
     usageTitle: 'Usage',
     usageHint:
-        'Limits reset never, except API calls and AI credits (monthly, UTC). Over a limit nothing stops, but nothing more can be created.',
+        'API calls and AI credits reset every month (UTC). Over a limit nothing stops, but nothing more can be added.',
     unlimited: 'Unlimited',
     fairUse: 'Unlimited (fair use)',
     of: '{used} of {limit}',

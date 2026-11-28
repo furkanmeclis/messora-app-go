@@ -157,7 +157,8 @@ test('the Meta rate card is read-only and published as JSON', async ({
         '/api/v1/meta-rates',
     );
     // No import on the workspace side.
-    await expect(page.getByRole('button', { name: /import/i })).toHaveCount(0);
+    await expect(page.locator('input[type="file"]')).toHaveCount(0);
+    await expect(page.getByText(/import it here/i)).toHaveCount(0);
     // Any host, no session.
     const anon = await playwright.request.newContext({ baseURL });
     const res = await anon.get('/api/v1/meta-rates');
