@@ -1,59 +1,13 @@
-# Messora edge proxy. SITE_ADDRESS ":80" serves plain HTTP (local use);
-# set it to your domain (e.g. "messora.example.com") for automatic HTTPS,
-# which WhatsApp webhooks require. Behind Traefik or Dokploy keep ":80" and
-# use docker-compose.proxy.yml (TLS ends at that proxy).
-{
-	admin off
-	servers {
-		# Behind another proxy (Traefik, Dokploy, a load balancer) set
-		# TRUSTED_PROXIES=private_ranges: the client address and the
-		# original scheme (https) are then taken from its headers. The
-		# default trusts no one, so a directly exposed Caddy cannot be fooled.
-		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
-		client_ip_headers X-Forwarded-For
-	}
-}
-
-{$SITE_ADDRESS::80} {
-	encode zstd gzip
-
-	header {
-		-Server
-		Strict-Transport-Security "max-age=31536000"
-	}
-
-	# Public developer API, Meta webhooks and media links (presigned
-	# downloads and public assets of the local storage driver) go straight
-	# to the Go API. The BFF secret header is stripped so it can only come
-	# from the internal network. /meta/* is the companies' keyed webhook
-	# address (https://hooks.<TENANT_BASE_DOMAIN>/meta/<key>); the same
-	# address also answers under /webhooks/meta/<key>.
-	@api path /api/v1/* /webhooks/* /media/* /meta/*
-	handle @api {
-		request_header -X-Messora-BFF
-		reverse_proxy messora-api:8080 {
-			# One verified address, never a client-supplied chain.
-			header_up X-Forwarded-For {client_ip}
-		}
-	}
-
-	# Realtime WebSocket / SSE connections.
-	handle /connection/* {
-		reverse_proxy centrifugo:8000 {
-			header_up X-Forwarded-For {client_ip}
-		}
-	}
-
-	# Everything else is the panel (Next.js BFF).
-	handle {
-		request_header -X-Messora-BFF
-		reverse_proxy messora-web:3000 {
-			header_up X-Forwarded-For {client_ip}
-		}
-	}
-
-	log {
-		output stdout
-		format json
-	}
-}
+# Messora edge proxy. EDGE_MODE picks how TLS is done (docs/INSTALL.md):
+#
+#   proxy (default)  Plain HTTP on :80 for every host. TLS ends in front of
+#                    Caddy (Traefik / Dokploy, a load balancer) or nowhere
+#                    (local use, E2E). SITE_ADDRESS may still name one
+#                    domain for automatic HTTPS on a single-domain server.
+#   caddy            Caddy is the internet edge: one wildcard certificate
+#                    for TENANT_BASE_DOMAIN and *.TENANT_BASE_DOMAIN by
+#                    DNS-01 (name.com), on-demand certificates for the
+#                    companies' verified custom domains.
+#
+# The routes are the same in both modes (routes.caddy).
+import modes/{$EDGE_MODE:proxy}.caddy

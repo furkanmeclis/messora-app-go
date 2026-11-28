@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -71,8 +72,11 @@ type Options struct {
 	Dir          string
 	Getenv       func(string) string
 	PublicAppURL string
-	Owners       Owners
-	Logger       *slog.Logger
+	// BaseDomain is TENANT_BASE_DOMAIN: realtime connections are accepted
+	// from every sub-domain of it (AllowedOrigins).
+	BaseDomain string
+	Owners     Owners
+	Logger     *slog.Logger
 }
 
 // Result reports what Run did.
@@ -121,7 +125,7 @@ func Run(o Options) (Result, error) {
 		return res, err
 	}
 
-	cfJSON, err := CentrifugoConfig(values[KeyCentrifugoAPIKey], values[KeyCentrifugoHMAC], o.PublicAppURL)
+	cfJSON, err := CentrifugoConfig(values[KeyCentrifugoAPIKey], values[KeyCentrifugoHMAC], AllowedOrigins(o.PublicAppURL, o.BaseDomain))
 	if err != nil {
 		return res, err
 	}
@@ -181,6 +185,43 @@ func RedisConf(password string) []byte {
 	}, "\n"))
 }
 
+// AllowedOrigins are the browser origins Centrifugo accepts: the
+// PUBLIC_APP_URL origin and, with a platform base domain, every sub-domain
+// of it (https://*.messora.tech; the port of PUBLIC_APP_URL is kept, so a
+// development stack on :8090 allows http://*.messora.localhost:8090).
+//
+// Custom domains are not listed: their number changes at run time. The
+// panel connects to /connection/websocket on its own host, and the edge
+// (Caddy) refuses a WebSocket whose Origin is not that host and drops the
+// Origin header for hosts outside the base domain once it has checked it
+// (deployments/caddy/routes.caddy); Centrifugo accepts a missing Origin.
+func AllowedOrigins(publicAppURL, baseDomain string) []string {
+	origin := strings.TrimRight(publicAppURL, "/")
+	if origin == "" {
+		origin = "http://localhost"
+	}
+	origins := []string{origin}
+	base := strings.Trim(strings.ToLower(strings.TrimSpace(baseDomain)), ".")
+	if base == "" {
+		return origins
+	}
+	scheme, port := "https", ""
+	if u, err := url.Parse(origin); err == nil {
+		if u.Scheme == "http" {
+			scheme = "http"
+		}
+		if p := u.Port(); p != "" {
+			port = ":" + p
+		}
+	}
+	for _, o := range []string{scheme + "://" + base + port, scheme + "://*." + base + port} {
+		if !slices.Contains(origins, o) {
+			origins = append(origins, o)
+		}
+	}
+	return origins
+}
+
 // CentrifugoConfig renders the Centrifugo v6 configuration. Clients connect
 // only with JWTs issued by the API. Every channel lives in the "tenant"
 // namespace (tenant:<tenant_id>:<channel>, realtime.TenantChannel): a
@@ -188,11 +229,10 @@ func RedisConf(password string) []byte {
 // for channels of the session's own tenant; the personal channel and the
 // tenant's notices are server-side subscriptions of the connection token.
 // There are no user-limited channels: a channel name alone never grants
-// access, whatever tenant it names.
-func CentrifugoConfig(apiKey, hmacSecret, publicAppURL string) ([]byte, error) {
-	origin := strings.TrimRight(publicAppURL, "/")
-	if origin == "" {
-		origin = "http://localhost"
+// access, whatever tenant it names. origins come from AllowedOrigins.
+func CentrifugoConfig(apiKey, hmacSecret string, origins []string) ([]byte, error) {
+	if len(origins) == 0 {
+		origins = []string{"http://localhost"}
 	}
 	// Ten minutes of history: a client that reconnects within that window
 	// gets the missed events replayed; after it, the panel re-syncs through
@@ -207,7 +247,7 @@ func CentrifugoConfig(apiKey, hmacSecret, publicAppURL string) ([]byte, error) {
 	cfg := map[string]any{
 		"log": map[string]any{"level": "info"},
 		"client": map[string]any{
-			"allowed_origins":    []string{origin},
+			"allowed_origins":    origins,
 			"token":              map[string]any{"hmac_secret_key": hmacSecret},
 			"subscription_token": map[string]any{"enabled": true, "hmac_secret_key": hmacSecret},
 		},

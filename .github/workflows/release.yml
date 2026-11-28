@@ -29,6 +29,8 @@ jobs:
         image:
           - { name: messora, context: . }
           - { name: messora-web, context: ./frontend }
+          - { name: messora-caddy, context: ./deployments/caddy }
+          - { name: messora-backup, context: ./deployments/backup }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

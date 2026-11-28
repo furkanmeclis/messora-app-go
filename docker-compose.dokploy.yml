@@ -1,0 +1,12 @@
+# Messora on Dokploy (or any host whose Traefik owns ports 80/443): set
+# this file as the Compose path of a Dokploy "Docker Compose" application.
+# It is docker-compose.yml with docker-compose.proxy.yml on top, as one
+# file, because Dokploy takes a single compose path.
+#
+# Environment: deployments/dokploy/messora.env.example (Dokploy writes it to
+# .env next to this file). Step by step: docs/INSTALL.md, staging on AWS:
+# docs/STAGING_AWS.md.
+include:
+  - path:
+      - docker-compose.yml
+      - docker-compose.proxy.yml

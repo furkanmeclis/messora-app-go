@@ -3,29 +3,61 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d
 #
-# Caddy then opens no host ports; it joins the proxy's Docker network and
-# Traefik routes PUBLIC_HOST to it and terminates TLS. Required in .env:
-#   PUBLIC_HOST=messora.example.com
-#   PUBLIC_APP_URL=https://messora.example.com
-# Optional: PROXY_NETWORK (default dokploy-network), PROXY_ENTRYPOINT
-# (websecure), PROXY_CERTRESOLVER (letsencrypt), PROXY_ROUTER (messora;
-# unique per installation on the same proxy).
+# (On Dokploy use docker-compose.dokploy.yml, which includes both.)
+#
+# Caddy then opens no host ports and runs EDGE_MODE=proxy (plain HTTP); it
+# joins the proxy's Docker network and Traefik terminates TLS:
+#   - TENANT_BASE_DOMAIN and every sub-domain of it (companies, admin.,
+#     app., hooks.) route here with ONE wildcard certificate from a DNS-01
+#     certificate resolver (PROXY_DNS_CERTRESOLVER, default letsencrypt-dns,
+#     which must exist in Traefik's static configuration);
+#   - companies' verified custom domains are added by Traefik's HTTP
+#     provider from http://<PROXY_ROUTER>-edge:8081/internal/edge/traefik
+#     (HTTP-01 resolver, one certificate per domain).
+# Setup: docs/INSTALL.md (Dokploy) and docs/STAGING_AWS.md.
+#
+# Required in .env: TENANT_BASE_DOMAIN, PUBLIC_APP_URL. Strongly advised:
+# TRUSTED_PROXIES = the proxy network's subnet (docker network inspect
+# dokploy-network), so only Traefik's X-Forwarded-* headers are believed.
+# Optional: PROXY_NETWORK (dokploy-network), PROXY_ENTRYPOINT (websecure),
+# PROXY_HTTP_ENTRYPOINT (web), PROXY_DNS_CERTRESOLVER (letsencrypt-dns),
+# PROXY_ROUTER (messora; unique per installation on the same proxy).
 services:
   caddy:
     ports: !reset []
     environment:
+      EDGE_MODE: proxy
       SITE_ADDRESS: ":80"
-      # Trust the proxy's X-Forwarded-For / X-Forwarded-Proto.
-      TRUSTED_PROXIES: private_ranges
-    networks: [edge, proxy]
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-private_ranges}
+    networks:
+      edge: {}
+      proxy:
+        # The name Traefik's HTTP provider uses to reach Caddy's :8081.
+        aliases: ["${PROXY_ROUTER:-messora}-edge"]
     labels:
       - traefik.enable=true
       - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.${PROXY_ROUTER:-messora}.rule=Host(`${PUBLIC_HOST:?set PUBLIC_HOST in .env}`)
+      # HTTPS: the base domain and one level of sub-domains (the wildcard
+      # certificate covers exactly that). Dots inside the base domain are
+      # not escaped in the regular expression; it still only matches names
+      # whose DNS points at this proxy.
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.rule=Host(`${TENANT_BASE_DOMAIN:?set TENANT_BASE_DOMAIN in .env}`) || HostRegexp(`^[a-z0-9-]+\.${TENANT_BASE_DOMAIN}$$`)
       - traefik.http.routers.${PROXY_ROUTER:-messora}.entrypoints=${PROXY_ENTRYPOINT:-websecure}
       - traefik.http.routers.${PROXY_ROUTER:-messora}.tls=true
-      - traefik.http.routers.${PROXY_ROUTER:-messora}.tls.certresolver=${PROXY_CERTRESOLVER:-letsencrypt}
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.tls.certresolver=${PROXY_DNS_CERTRESOLVER:-letsencrypt-dns}
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.tls.domains[0].main=${TENANT_BASE_DOMAIN}
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.tls.domains[0].sans=*.${TENANT_BASE_DOMAIN}
+      - traefik.http.routers.${PROXY_ROUTER:-messora}.service=${PROXY_ROUTER:-messora}
+      # HTTP: redirect to HTTPS (ACME HTTP-01 challenges are answered by
+      # Traefik itself before any router).
+      - traefik.http.routers.${PROXY_ROUTER:-messora}-http.rule=Host(`${TENANT_BASE_DOMAIN}`) || HostRegexp(`^[a-z0-9-]+\.${TENANT_BASE_DOMAIN}$$`)
+      - traefik.http.routers.${PROXY_ROUTER:-messora}-http.entrypoints=${PROXY_HTTP_ENTRYPOINT:-web}
+      - traefik.http.routers.${PROXY_ROUTER:-messora}-http.middlewares=${PROXY_ROUTER:-messora}-https
+      - traefik.http.routers.${PROXY_ROUTER:-messora}-http.service=${PROXY_ROUTER:-messora}
+      - traefik.http.middlewares.${PROXY_ROUTER:-messora}-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.${PROXY_ROUTER:-messora}-https.redirectscheme.permanent=true
       - traefik.http.services.${PROXY_ROUTER:-messora}.loadbalancer.server.port=80
+      - traefik.http.services.${PROXY_ROUTER:-messora}.loadbalancer.passhostheader=true
 
 networks:
   proxy:

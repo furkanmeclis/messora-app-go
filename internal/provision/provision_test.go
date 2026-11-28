@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -163,5 +164,40 @@ func TestOwnersFromEnv(t *testing.T) {
 	}
 	if _, err := OwnersFromEnv(func(k string) string { return "x" }); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestAllowedOrigins(t *testing.T) {
+	for _, c := range []struct {
+		url, base string
+		want      []string
+	}{
+		{"https://app.messora.tech", "messora.tech", []string{"https://app.messora.tech", "https://messora.tech", "https://*.messora.tech"}},
+		{"http://localhost:8090/", "e2e.localhost", []string{"http://localhost:8090", "http://e2e.localhost:8090", "http://*.e2e.localhost:8090"}},
+		{"https://messora.tech", ".Messora.Tech.", []string{"https://messora.tech", "https://*.messora.tech"}},
+		{"https://panel.example.com", "", []string{"https://panel.example.com"}},
+		{"", "", []string{"http://localhost"}},
+	} {
+		if got := AllowedOrigins(c.url, c.base); !slices.Equal(got, c.want) {
+			t.Errorf("AllowedOrigins(%q, %q) = %v, want %v", c.url, c.base, got, c.want)
+		}
+	}
+}
+
+func TestCentrifugoConfigOrigins(t *testing.T) {
+	raw, err := CentrifugoConfig("k", "h", AllowedOrigins("https://app.messora.tech", "messora.tech"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cf struct {
+		Client struct {
+			AllowedOrigins []string `json:"allowed_origins"`
+		} `json:"client"`
+	}
+	if err := json.Unmarshal(raw, &cf); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(cf.Client.AllowedOrigins, "https://*.messora.tech") {
+		t.Fatalf("allowed_origins = %v", cf.Client.AllowedOrigins)
 	}
 }
