@@ -608,7 +608,10 @@ func TestPlatformTenantsDomainsAndSuspension(t *testing.T) {
 		t.Fatalf("platform audit %s", r.raw)
 	}
 
-	// Custom domain: answers once its TXT record holds the token.
+	// Custom domain: a plan feature (Büyüme, where new companies land, lacks
+	// it), and it answers once its TXT record holds the token.
+	h.expect(h.admin(admin, "POST", "/tenants/"+id+"/domains", map[string]any{"hostname": "panel.kappa-example.com"}), 403, "FEATURE_NOT_IN_PLAN")
+	h.expect(h.admin(admin, "PUT", "/tenants/"+id+"/plan", map[string]any{"plan_key": "pro"}), 200, "")
 	h.expect(h.admin(admin, "POST", "/tenants/"+id+"/domains", map[string]any{"hostname": "crm.saas.test"}), 422, "VALIDATION_ERROR")
 	r = h.admin(admin, "POST", "/tenants/"+id+"/domains", map[string]any{"hostname": "Panel.Kappa-Example.com"})
 	h.expect(r, 201, "")
