@@ -203,6 +203,58 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
   start-up warning) and the account connected from them at start-up.
   `messora init` no longer generates a verify token.
 
+### Added (WP4 — each company's own API, webhooks and plan hooks)
+
+- **Each workspace's own API address:** the public API, its API keys and
+  the reference answer at `https://<workspace>.<base>/api/v1` (and verified
+  custom domains); there is no shared API host. `GET /me` returns
+  `tenant.url` and `tenant.api_base_url`; the API keys page shows the base
+  URL with a copy button and a `curl` sample.
+- **Per-workspace API reference:** `/api/v1/openapi.json` (and so
+  `/docs/api`) names the workspace's own address as the server, so every
+  code sample uses it; the introduction explains the workspace's keys, the
+  per-workspace address, plan limits and the replay window. Platform
+  addresses serve a generic document with a `{workspace}` server variable.
+- **Plan hooks** (`internal/platform/entitlements`, docs/ENTITLEMENTS.md):
+  `Provider.Limits(ctx, tenant)` with request budgets, a monthly API quota,
+  counts and feature flags (`custom_smtp`, `byo_ai_keys`, `custom_domain`,
+  `public_api`, `webhooks`, `ai_agents`). The default provider gives generous
+  defaults, overridable with the platform setting `default_plan`. Enforced
+  now: per-plan session/key budgets, `429 QUOTA_EXCEEDED` with `Retry-After`
+  and `X-Messora-Quota-*`, `403 FEATURE_NOT_IN_PLAN` (feature in
+  `error.details`, OpenAPI `x-messora-feature`), `409 PLAN_LIMIT_REACHED`
+  for webhook endpoints, webhook deliveries per minute.
+- **Webhook health:** `failure_streak`, `failing_since`, `last_success_at`,
+  `last_failure_at`, `disabled_at`. 20 failed attempts in a row over at least
+  24 hours switch an endpoint off and e-mail the owners and admins (new
+  branded `webhook_disabled` template, TR/EN); the panel has a re-enable
+  button that starts the count over.
+- **Secret rotation with overlap:** `rotate-secret` takes `grace_hours`
+  (0–168, default 24); during the overlap deliveries carry a signature with
+  both secrets (`previous_secret_expires_at`). The panel asks for the
+  overlap.
+- **Per-endpoint delivery budget:** at most 4 deliveries in flight per
+  endpoint and worker (1 while it is failing); deferrals cost no attempt.
+- `WEBHOOK_ALLOWED_CIDRS`: explicit allowlist of internal webhook receivers
+  (metadata services, loopback and very wide networks are refused).
+
+### Changed (WP4)
+
+- `rotate-secret` keeps the previous secret for 24 hours by default (was:
+  it stopped at once); send `{"grace_hours": 0}` for the old behaviour.
+- The 50-endpoint limit is the default plan's (`409 PLAN_LIMIT_REACHED`
+  instead of `409 WEBHOOK_LIMIT`).
+- The SSRF guard also refuses Teredo (`2001::/32`) addresses.
+- The panel caches `/me` for 5 seconds per session and prefetches sidebar
+  routes only on hover or focus (fewer API calls per page, no more 429s
+  from prefetch renders).
+
+### Fixed (WP4)
+
+- The flaky "right-click opens the panel menu" E2E (React error #441: a
+  prefetch render failing on a 429 from `/me`).
+- The Meta connection E2E seeded its user into the removed `user_roles`.
+
 ### Fixed
 
 - The panel's right-click menu no longer closes at once when the browser
