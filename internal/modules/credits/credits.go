@@ -51,8 +51,8 @@ type Settings struct {
 	UnpricedCallCredits string `json:"unpriced_call_credits"`
 }
 
-// DefaultSettings: 1 credit = 0.001 USD of provider cost, no markup, 5
-// credits for an unpriced call.
+// DefaultSettings is the built-in rate: 1 credit = 0.001 USD of provider
+// cost, no markup, 5 credits for an unpriced call.
 func DefaultSettings() Settings {
 	return Settings{USDPerCredit: "0.001", Markup: "1", UnpricedCallCredits: "5"}
 }
