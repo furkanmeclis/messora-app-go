@@ -330,10 +330,16 @@ function AccountRow({
                         <Badge variant={STATUS_BADGE[a.status]}>
                             {t(`channels.accounts.statuses.${a.status}`)}
                         </Badge>
-                        {!a.app_secret_configured && (
+                        {a.connection_method === 'tech_provider' ? (
                             <Badge variant="outline">
-                                {t('channels.accounts.noAppSecret')}
+                                {t('channels.accounts.viaMessora')}
                             </Badge>
+                        ) : (
+                            !a.app_secret_configured && (
+                                <Badge variant="outline">
+                                    {t('channels.accounts.noAppSecret')}
+                                </Badge>
+                            )
                         )}
                     </div>
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 text-sm text-muted-foreground">

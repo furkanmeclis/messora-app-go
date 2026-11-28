@@ -55,6 +55,7 @@ import type {
     MetaConnection,
     MetaConnectionCheck,
     MetaConnectionTest,
+    TechProvider,
     WhatsAppAccount,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -68,16 +69,27 @@ import {
     rotateWebhookKeyAction,
     testConnectionAction,
 } from './actions';
+import { TechProviderCard } from './tech-provider';
 
 /** Settings → WhatsApp / Meta: connect the company's own Meta app. */
 export function MetaConnectionView({
     connection: c,
     accounts,
+    techProvider,
 }: {
     connection: MetaConnection;
     accounts: WhatsAppAccount[];
+    /** Set only while the platform offers "Connect with Meta". */
+    techProvider: TechProvider | null;
 }) {
     const t = useT();
+    const offered = c.tech_provider_enabled && techProvider != null;
+    const [method, setMethod] = useState<'own_app' | 'tech_provider'>(
+        offered && c.method === 'tech_provider' ? 'tech_provider' : 'own_app',
+    );
+    const ownAccounts = accounts.filter(
+        (a) => a.connection_method !== 'tech_provider',
+    );
     return (
         <div className="space-y-6">
             <div className="space-y-1">
@@ -88,8 +100,15 @@ export function MetaConnectionView({
                     {t('channels.meta.description')}
                 </p>
             </div>
-            <MethodPicker techProvider={c.tech_provider_enabled} />
-            <Card>
+            <MethodPicker
+                techProvider={offered}
+                value={method}
+                onChange={setMethod}
+            />
+            {method === 'tech_provider' && techProvider && (
+                <TechProviderCard config={techProvider} accounts={accounts} />
+            )}
+            <Card hidden={method !== 'own_app'}>
                 <CardHeader>
                     <CardTitle>{t('channels.meta.steps.title')}</CardTitle>
                     <CardDescription>
@@ -116,7 +135,7 @@ export function MetaConnectionView({
                         <Step
                             n={3}
                             title={t('channels.meta.steps.account.title')}
-                            done={accounts.length > 0}
+                            done={ownAccounts.length > 0}
                         >
                             <p>{t('channels.meta.steps.account.body')}</p>
                             <div className="flex flex-wrap items-center gap-3">
@@ -161,7 +180,7 @@ export function MetaConnectionView({
                         </Step>
                         <Step n={5} title={t('channels.meta.steps.test.title')}>
                             <p>{t('channels.meta.steps.test.body')}</p>
-                            <ConnectionTests accounts={accounts} />
+                            <ConnectionTests accounts={ownAccounts} />
                         </Step>
                     </ol>
                 </CardContent>
@@ -171,7 +190,15 @@ export function MetaConnectionView({
     );
 }
 
-function MethodPicker({ techProvider }: { techProvider: boolean }) {
+function MethodPicker({
+    techProvider,
+    value,
+    onChange,
+}: {
+    techProvider: boolean;
+    value: 'own_app' | 'tech_provider';
+    onChange: (v: 'own_app' | 'tech_provider') => void;
+}) {
     const t = useT();
     return (
         <section className="space-y-2" aria-labelledby="meta-method">
@@ -179,7 +206,10 @@ function MethodPicker({ techProvider }: { techProvider: boolean }) {
                 {t('channels.meta.method.title')}
             </h3>
             <RadioCards
-                value="own_app"
+                value={value}
+                onValueChange={(v) =>
+                    onChange(v as 'own_app' | 'tech_provider')
+                }
                 className="sm:grid-cols-2"
                 aria-labelledby="meta-method"
             >
@@ -192,7 +222,7 @@ function MethodPicker({ techProvider }: { techProvider: boolean }) {
                         {t('channels.meta.method.ownAppHint')}
                     </span>
                 </RadioCard>
-                {/* WP6 turns this on with the platform switch tech_provider.enabled. */}
+                {/* On only with the platform switch (platform_settings.tech_provider). */}
                 <RadioCard
                     value="tech_provider"
                     disabled={!techProvider}
@@ -208,7 +238,9 @@ function MethodPicker({ techProvider }: { techProvider: boolean }) {
                         )}
                     </span>
                     <span className="mt-1 block text-muted-foreground">
-                        {t('channels.meta.method.techProviderHint')}
+                        {techProvider
+                            ? t('channels.meta.method.techProviderHintOn')
+                            : t('channels.meta.method.techProviderHint')}
                     </span>
                 </RadioCard>
             </RadioCards>

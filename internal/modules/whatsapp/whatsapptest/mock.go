@@ -66,6 +66,22 @@ type Server struct {
 	pricingQ   []string            // pricing_analytics field expansions requested
 	created    []json.RawMessage   // template creation bodies, as received
 	subscribed map[string][]string // waba → subscribed app IDs
+	// Embedded Signup (Tech Provider).
+	codes      map[string]signupCode // single-use code → what it grants
+	apps       map[string]string     // app ID → app secret (scripted apps only)
+	appSubs    map[string][]whatsapp.AppSubscription
+	registered map[string]string // phone number ID → PIN
+	failures   map[string][]failure
+	autoSignup bool
+}
+
+type signupCode struct {
+	token, appID string
+}
+
+type failure struct {
+	status, code int
+	msg          string
 }
 
 // DefaultAppID is the app debug_token reports for a token whose info is not
@@ -94,11 +110,22 @@ func (s *Server) SetSubscribed(waba string, appIDs ...string) {
 func (s *Server) subscribedApps(w http.ResponseWriter, r *http.Request, waba, token string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if r.Method == http.MethodPost {
-		app := DefaultAppID
-		if info, ok := s.tokenInfo[token]; ok && info.AppID != "" {
-			app = info.AppID
+	app := DefaultAppID
+	if info, ok := s.tokenInfo[token]; ok && info.AppID != "" {
+		app = info.AppID
+	}
+	if r.Method == http.MethodDelete {
+		keep := []string{}
+		for _, a := range s.subscribed[waba] {
+			if a != app {
+				keep = append(keep, a)
+			}
 		}
+		s.subscribed[waba] = keep
+		writeJSON(w, http.StatusOK, map[string]any{"success": true})
+		return
+	}
+	if r.Method == http.MethodPost {
 		for _, a := range s.subscribed[waba] {
 			if a == app {
 				writeJSON(w, http.StatusOK, map[string]any{"success": true})
@@ -245,6 +272,10 @@ func (s *Server) debugToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) exchange(w http.ResponseWriter, r *http.Request) {
+	if code := r.URL.Query().Get("code"); code != "" {
+		s.exchangeCode(w, r, code)
+		return
+	}
 	s.mu.Lock()
 	long, ok := s.exchanged[r.URL.Query().Get("fb_exchange_token")]
 	s.mu.Unlock()
@@ -253,6 +284,215 @@ func (s *Server) exchange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"access_token": long, "token_type": "bearer", "expires_in": 5183944})
+}
+
+// ── Embedded Signup (Tech Provider) ────────────────────────────────────────
+
+// SetApp scripts a Meta app: the code exchange then requires its secret
+// and app tokens ("id|secret") are checked against it.
+func (s *Server) SetApp(appID, secret string) {
+	s.mu.Lock()
+	s.apps[appID] = secret
+	s.mu.Unlock()
+}
+
+// Signup is what an Embedded Signup grants: Meta's popup ends with a code
+// that trades for a business token with access to WABA and its number.
+type Signup struct {
+	AppID         string // the Tech Provider's app (DefaultAppID when empty)
+	WABA          string
+	PhoneNumberID string
+	Display       string // display phone number
+	VerifiedName  string
+	Status        string // the number's status before registration ("PENDING" when empty)
+}
+
+// AddSignup provisions what one Embedded Signup creates on Meta's side (the
+// WABA, its number, a business token restricted to the WABA) and returns
+// the single-use code and the business token.
+func (s *Server) AddSignup(sg Signup) (code, token string) {
+	if sg.AppID == "" {
+		sg.AppID = DefaultAppID
+	}
+	if sg.Status == "" {
+		sg.Status = "PENDING"
+	}
+	code, token = newID("es-code-"), newID("EAAB-business-")
+	s.provision(sg, code, token)
+	return code, token
+}
+
+func (s *Server) provision(sg Signup, code, token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	known := false
+	for _, n := range s.numbers[sg.WABA] {
+		known = known || n.ID == sg.PhoneNumberID
+	}
+	if !known {
+		s.numbers[sg.WABA] = append(s.numbers[sg.WABA], whatsapp.PhoneNumber{ID: sg.PhoneNumberID, DisplayPhoneNumber: sg.Display,
+			VerifiedName: sg.VerifiedName, QualityRating: "GREEN", Status: sg.Status, CodeVerificationStatus: "VERIFIED"})
+	}
+	s.codes[code] = signupCode{token: token, appID: sg.AppID}
+	if len(s.tokens) > 0 {
+		s.tokens[token] = true
+	}
+	s.tokenInfo[token] = TokenInfo{AppID: sg.AppID, Type: "SYSTEM_USER",
+		Scopes:  []string{"whatsapp_business_management", "whatsapp_business_messaging", "business_management"},
+		Targets: map[string][]string{"whatsapp_business_management": {sg.WABA}, "whatsapp_business_messaging": {sg.WABA}}}
+}
+
+// autoSignupCode recognises the codes of the E2E stack's fake SDK,
+// "e2e-es.<waba>.<phone number id>", and provisions them on first use.
+func (s *Server) autoSignupCode(code string) {
+	parts := strings.Split(code, ".")
+	if len(parts) != 3 || parts[0] != "e2e-es" || !digits(parts[1]) || !digits(parts[2]) {
+		return
+	}
+	s.mu.Lock()
+	_, issued := s.codes[code]
+	_, used := s.codes["used:"+code]
+	s.mu.Unlock()
+	if !issued && !used {
+		s.provision(Signup{AppID: DefaultAppID, WABA: parts[1], PhoneNumberID: parts[2], Display: "+90 555 " + parts[2][max(0, len(parts[2])-7):],
+			VerifiedName: "E2E İşletme", Status: "PENDING"}, code, "EAAB-e2e-"+parts[1])
+	}
+}
+
+func digits(v string) bool {
+	if v == "" || len(v) > 32 {
+		return false
+	}
+	for _, c := range v {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) exchangeCode(w http.ResponseWriter, r *http.Request, code string) {
+	q := r.URL.Query()
+	if s.autoSignup {
+		s.autoSignupCode(code)
+	}
+	s.mu.Lock()
+	c, ok := s.codes[code]
+	secret, scripted := s.apps[q.Get("client_id")]
+	badSecret := scripted && secret != q.Get("client_secret")
+	otherApp := ok && c.appID != q.Get("client_id")
+	if ok && !badSecret && !otherApp {
+		delete(s.codes, code) // single use
+		s.codes["used:"+code] = signupCode{}
+	}
+	s.mu.Unlock()
+	switch {
+	case badSecret:
+		graphError(w, http.StatusBadRequest, 1, "Error validating client secret.")
+	case !ok:
+		graphError(w, http.StatusBadRequest, 100, "This authorization code has been used or has expired.")
+	case otherApp:
+		graphError(w, http.StatusBadRequest, 100, "The code was issued to another app.")
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"access_token": c.token, "token_type": "bearer"})
+	}
+}
+
+// appTokenOK checks an app token ("id|secret") against a scripted app;
+// other bearer tokens, and apps that were not scripted, pass.
+func (s *Server) appTokenOK(r *http.Request) bool {
+	id, secret, ok := strings.Cut(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), "|")
+	if !ok {
+		return true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	want, scripted := s.apps[id]
+	return !scripted || want == secret
+}
+
+// SetAppSubscription scripts GET /{app-id}/subscriptions.
+func (s *Server) SetAppSubscription(appID string, sub whatsapp.AppSubscription) {
+	s.mu.Lock()
+	s.appSubs[appID] = []whatsapp.AppSubscription{sub}
+	s.mu.Unlock()
+}
+
+func (s *Server) appSubscriptions(w http.ResponseWriter, appID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data := []any{}
+	for _, sub := range s.appSubs[appID] {
+		fields := []any{}
+		for _, f := range sub.Fields {
+			fields = append(fields, map[string]string{"name": f, "version": "v26.0"})
+		}
+		data = append(data, map[string]any{"object": sub.Object, "callback_url": sub.CallbackURL, "active": sub.Active, "fields": fields})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": data})
+}
+
+// Registered returns the PIN a number was registered with ("" if never).
+func (s *Server) Registered(phoneNumberID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.registered[phoneNumberID]
+}
+
+// Registrations counts the register calls that succeeded.
+func (s *Server) Registrations() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.registered)
+}
+
+func (s *Server) register(w http.ResponseWriter, r *http.Request, phoneNumberID string) {
+	var body struct {
+		Product string `json:"messaging_product"`
+		PIN     string `json:"pin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Product != "whatsapp" || len(body.PIN) != 6 || !digits(body.PIN) {
+		graphError(w, http.StatusBadRequest, 100, "Invalid parameter: pin must be 6 digits")
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.registered[phoneNumberID] = body.PIN
+	for waba := range s.numbers {
+		for i := range s.numbers[waba] {
+			if s.numbers[waba][i].ID == phoneNumberID {
+				s.numbers[waba][i].Status = "CONNECTED"
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// FailOnce makes the next request matching method and edge fail with a
+// Graph error. edge is the path's last part after the node id
+// ("subscribed_apps", "register", "phone_numbers"), "" for the node itself,
+// "oauth" for the code exchange and "debug_token".
+func (s *Server) FailOnce(method, edge string, code int, msg string) {
+	s.mu.Lock()
+	k := method + " " + edge
+	s.failures[k] = append(s.failures[k], failure{status: http.StatusBadRequest, code: code, msg: msg})
+	s.mu.Unlock()
+}
+
+// scriptedFailure answers a request FailOnce scripted; false otherwise.
+func (s *Server) scriptedFailure(w http.ResponseWriter, method, edge string) bool {
+	s.mu.Lock()
+	k := method + " " + edge
+	list := s.failures[k]
+	if len(list) == 0 {
+		s.mu.Unlock()
+		return false
+	}
+	f := list[0]
+	s.failures[k] = list[1:]
+	s.mu.Unlock()
+	graphError(w, f.status, f.code, f.msg)
+	return true
 }
 
 // New starts a mock Graph API.
@@ -269,11 +509,30 @@ func NewHandler() (*Server, http.Handler) {
 	return s, http.HandlerFunc(s.serve)
 }
 
+// NewAutoSignupHandler is NewHandler for the E2E stack (messora fake-meta):
+// Embedded Signup codes of the form "e2e-es.<waba>.<phone number id>",
+// which the E2E fake SDK hands out, provision their WABA and number on
+// first use, and the Tech Provider app's subscription answers as set up.
+func NewAutoSignupHandler(appID, callbackURL string) (*Server, http.Handler) {
+	s := newServer()
+	s.autoSignup = true
+	// Only the business tokens it hands out work: a made-up token (the
+	// connect form's error path) is refused as by Meta.
+	s.tokens["\x00no-token"] = true
+	if appID != "" {
+		s.appSubs[appID] = []whatsapp.AppSubscription{{Object: "whatsapp_business_account", CallbackURL: callbackURL, Active: true,
+			Fields: []string{"messages", "message_template_status_update", "account_update"}}}
+	}
+	return s, http.HandlerFunc(s.serve)
+}
+
 func newServer() *Server {
 	return &Server{numbers: map[string][]whatsapp.PhoneNumber{}, templates: map[string][]whatsapp.TemplateInfo{},
 		media: map[string][]byte{}, mediaType: map[string]string{}, tokens: map[string]bool{},
 		tokenInfo: map[string]TokenInfo{}, exchanged: map[string]string{}, currency: map[string]string{},
-		pricing: map[string][]whatsapp.PricingDataPoint{}, subscribed: map[string][]string{}}
+		pricing: map[string][]whatsapp.PricingDataPoint{}, subscribed: map[string][]string{},
+		codes: map[string]signupCode{}, apps: map[string]string{}, appSubs: map[string][]whatsapp.AppSubscription{},
+		registered: map[string]string{}, failures: map[string][]failure{}}
 }
 
 // Script queues behaviors for the next send requests (FIFO); once exhausted
@@ -341,13 +600,35 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	edge := ""
+	if len(parts) > 2 {
+		edge = parts[2]
+	}
+	if parts[1] == "oauth" || parts[1] == "debug_token" {
+		edge = parts[1]
+	}
+	if s.scriptedFailure(w, r.Method, edge) {
+		return
+	}
 	// Token endpoints authenticate with an app token, not the inspected one.
 	switch parts[1] {
 	case "debug_token":
+		if !s.appTokenOK(r) {
+			graphError(w, http.StatusBadRequest, 190, "Invalid OAuth access token - Cannot parse access token")
+			return
+		}
 		s.debugToken(w, r)
 		return
 	case "oauth":
 		s.exchange(w, r)
+		return
+	}
+	if edge == "subscriptions" && r.Method == http.MethodGet {
+		if !s.appTokenOK(r) {
+			graphError(w, http.StatusBadRequest, 190, "Invalid OAuth access token - Cannot parse access token")
+			return
+		}
+		s.appSubscriptions(w, parts[1])
 		return
 	}
 	// Resumable upload: POST /{app}/uploads opens a session, POST
@@ -374,10 +655,6 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := parts[1]
-	edge := ""
-	if len(parts) > 2 {
-		edge = parts[2]
-	}
 	switch {
 	case r.Method == http.MethodPost && edge == "messages":
 		s.send(w, r, id, token)
@@ -401,10 +678,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		graphError(w, http.StatusBadRequest, 100, "Unsupported get request")
-	case edge == "subscribed_apps" && (r.Method == http.MethodGet || r.Method == http.MethodPost):
+	case edge == "subscribed_apps" && (r.Method == http.MethodGet || r.Method == http.MethodPost || r.Method == http.MethodDelete):
 		s.subscribedApps(w, r, id, token)
 	case r.Method == http.MethodPost && edge == "register":
-		writeJSON(w, http.StatusOK, map[string]any{"success": true})
+		s.register(w, r, id)
 	case edge == "message_templates":
 		s.templatesHandler(w, r, id)
 	case r.Method == http.MethodPost && edge == "media":

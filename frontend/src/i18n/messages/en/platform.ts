@@ -1,6 +1,7 @@
 const platform = {
     name: 'Platform admin',
     nav: {
+        techProvider: 'Meta Tech Provider',
         overview: 'Overview',
         tenants: 'Companies',
         users: 'Accounts',
@@ -254,6 +255,74 @@ const platform = {
             details: 'Details',
         },
         more: 'Load more',
+    },
+    techProvider: {
+        title: 'Meta Tech Provider',
+        description:
+            "Messora's own Meta app, with which companies connect WhatsApp through Embedded Signup (“Connect with Meta”).",
+        switch: 'Connect with Meta',
+        switchHint:
+            'When on, every company sees “Connect with Meta”. Turn it on only after Meta approved Messora as Tech Provider. Turning it off also stops the events of companies connected this way.',
+        ready: 'Set up',
+        incomplete: 'Incomplete',
+        app: "Messora's Meta app",
+        appHint:
+            "App ID and App secret (App settings → Basic), the Embedded Signup configuration (Facebook Login for Business → Configurations) and a system user token of Messora's business. Secrets are stored encrypted and never shown.",
+        appId: 'App ID',
+        configurationId: 'Embedded Signup configuration ID',
+        appSecret: 'App secret',
+        systemToken: 'System user token',
+        secretPlaceholder: 'Leave empty to keep',
+        version: 'Graph API version',
+        scopes: 'App Review must grant: {scopes}.',
+        saved: 'Tech Provider settings saved.',
+        webhook: 'Webhook',
+        webhookHint:
+            "Enter these in the app's WhatsApp → Configuration and subscribe the fields (at least messages). Every company connected through Messora uses this one address.",
+        callbackUrl: 'Callback URL',
+        verifyToken: 'Verify token',
+        rotate: 'New verify token',
+        unrouted: 'Events for unknown accounts since the API started: {count}',
+        test: 'Test with Meta',
+        testHint:
+            "Checks the app credentials and the system user token (debug_token), the configuration ID and the app's webhook subscription.",
+        testButton: 'Test',
+        keys: {
+            app: 'App',
+            configuration: 'Configuration',
+            system_user_token: 'System user token',
+            webhook: 'Webhook',
+        },
+        codes: {
+            tp_app_ok: 'Meta accepted the App ID and App secret.',
+            tp_app_missing:
+                "Enter the App ID and the App secret of Messora's Meta app.",
+            tp_app_invalid: 'Meta refused the app credentials: {detail}',
+            tp_configuration_ok: 'An Embedded Signup configuration ID is set.',
+            tp_configuration_missing:
+                'Create an Embedded Signup configuration and enter its ID.',
+            tp_system_token_ok:
+                'The system user token is valid with every permission.',
+            tp_system_token_missing:
+                "No system user token of Messora's business is stored.",
+            tp_system_token_invalid:
+                'Meta says the system user token is not valid: {detail}',
+            tp_system_token_other_app:
+                'The system user token belongs to app {token_app}, not to {app_id}.',
+            tp_system_token_scopes: 'The system user token lacks {missing}.',
+            tp_subscription_ok:
+                "The app's webhook points at Messora's Tech Provider address.",
+            tp_subscription_missing:
+                'The app has no webhook for WhatsApp Business Accounts; enter {callback_url} with the verify token.',
+            tp_subscription_url:
+                "The app's webhook points at {current}, not at {callback_url}.",
+            tp_subscription_inactive:
+                "The app's WhatsApp webhook is not active.",
+            tp_subscription_fields:
+                "The app's webhook does not subscribe the messages field.",
+            tp_subscription_error:
+                "Meta did not return the app's webhook subscriptions: {detail}",
+        },
     },
 };
 export default platform;

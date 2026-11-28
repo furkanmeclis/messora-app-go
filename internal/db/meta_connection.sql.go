@@ -75,10 +75,37 @@ func (q *Queries) InsertMetaConnection(ctx context.Context, arg InsertMetaConnec
 	return i, err
 }
 
-const listWABAIDs = `-- name: ListWABAIDs :many
-SELECT waba_id FROM whatsapp_accounts
+const listTechProviderWABAIDs = `-- name: ListTechProviderWABAIDs :many
+SELECT waba_id FROM whatsapp_accounts WHERE connection_method = 'tech_provider'
 `
 
+func (q *Queries) ListTechProviderWABAIDs(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listTechProviderWABAIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var waba_id string
+		if err := rows.Scan(&waba_id); err != nil {
+			return nil, err
+		}
+		items = append(items, waba_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWABAIDs = `-- name: ListWABAIDs :many
+SELECT waba_id FROM whatsapp_accounts WHERE connection_method = 'own_app'
+`
+
+// The WABAs whose events the tenant's own webhook address accepts: those
+// connected with the tenant's own app. A Tech Provider WABA is accepted
+// only at the platform address (a WABA never receives events in two places).
 func (q *Queries) ListWABAIDs(ctx context.Context) ([]string, error) {
 	rows, err := q.db.Query(ctx, listWABAIDs)
 	if err != nil {
@@ -115,6 +142,15 @@ UPDATE meta_connections SET waba_mismatches = waba_mismatches + 1, last_waba_mis
 
 func (q *Queries) RecordMetaWABAMismatch(ctx context.Context, wabaID *string) error {
 	_, err := q.db.Exec(ctx, recordMetaWABAMismatch, wabaID)
+	return err
+}
+
+const setMetaConnectionMethod = `-- name: SetMetaConnectionMethod :exec
+UPDATE meta_connections SET method = $1, updated_at = now()
+`
+
+func (q *Queries) SetMetaConnectionMethod(ctx context.Context, method string) error {
+	_, err := q.db.Exec(ctx, setMetaConnectionMethod, method)
 	return err
 }
 

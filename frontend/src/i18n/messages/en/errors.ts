@@ -89,5 +89,19 @@ const errors = {
     AI_INVALID_OUTPUT: 'The model’s answer did not match the expected format.',
     AI_PROVIDER_ERROR: 'The AI provider request failed: {detail}',
     NETWORK: 'The server could not be reached. Check your connection.',
+    TECH_PROVIDER_DISABLED:
+        "Connecting through Messora's Meta app is not available.",
+    ONBOARDING_RUNNING:
+        'This account is being connected already; wait a moment.',
+    ONBOARDING_FINISHED: 'This connection has finished; start a new one.',
+    MANAGED_BY_MESSORA:
+        "This account is connected through Messora's Meta app; Messora manages its credentials.",
+    TECH_PROVIDER_DISCONNECTED:
+        'This account was disconnected from Messora; connect it again with Meta.',
+    WABA_CONNECTED_TECH_PROVIDER:
+        "This WhatsApp Business Account is connected through Messora's Meta app; disconnect it there first.",
+    NOT_TECH_PROVIDER: 'This account is connected with your own Meta app.',
+    PLATFORM_WRITE_DENIED:
+        "Only the platform admin can change Messora's Tech Provider settings.",
 };
 export default errors;

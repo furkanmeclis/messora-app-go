@@ -24,6 +24,7 @@ type Querier interface {
 	AcceptInvitation(ctx context.Context, id uuid.UUID) (int64, error)
 	// scheduled → active once starts_at passed (and the offer has not ended).
 	ActivateDueOffers(ctx context.Context) ([]Offer, error)
+	ActivateWhatsAppAccount(ctx context.Context, id uuid.UUID) error
 	ActiveAutomationsFor(ctx context.Context, triggerType string) ([]Automation, error)
 	ActiveCampaignIDs(ctx context.Context) ([]uuid.UUID, error)
 	// Campaigns that are sending (or about to) through the account's numbers.
@@ -31,6 +32,7 @@ type Querier interface {
 	AddContactTag(ctx context.Context, arg AddContactTagParams) error
 	AddGroupMembers(ctx context.Context, arg AddGroupMembersParams) (int64, error)
 	AdvanceAutomationRun(ctx context.Context, arg AdvanceAutomationRunParams) error
+	AdvanceMetaOnboarding(ctx context.Context, arg AdvanceMetaOnboardingParams) (MetaOnboarding, error)
 	// Run trace: the step a run just executed.
 	AppendAutomationRunVisited(ctx context.Context, arg AppendAutomationRunVisitedParams) error
 	// Monotonic status transition from a webhook; see the messages table comment.
@@ -71,6 +73,7 @@ type Querier interface {
 	// (replies and opt-outs still arrive).
 	CampaignsToReconcile(ctx context.Context, horizonDays int32) ([]uuid.UUID, error)
 	CampaignsUsingOffer(ctx context.Context, offerID *uuid.UUID) ([]CampaignsUsingOfferRow, error)
+	CancelMetaOnboarding(ctx context.Context, id uuid.UUID) (MetaOnboarding, error)
 	CancelPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
 	CancelRunsOfAutomation(ctx context.Context, automationID uuid.UUID) (int64, error)
 	CancelUnsentMessages(ctx context.Context, campaignID *uuid.UUID) (int64, error)
@@ -88,6 +91,9 @@ type Querier interface {
 	// sent. A message left in "sending" means a previous attempt died
 	// mid-request; it must not be sent again.
 	ClaimMessageForSend(ctx context.Context, id uuid.UUID) (Message, error)
+	// Starts a retry: a failed onboarding, or a running one whose request died
+	// (no progress for two minutes). Concurrent retries get no row.
+	ClaimMetaOnboarding(ctx context.Context, id uuid.UUID) (MetaOnboarding, error)
 	ClaimPendingRecipients(ctx context.Context, arg ClaimPendingRecipientsParams) ([]ClaimPendingRecipientsRow, error)
 	// Takes a due delivery, or one whose previous worker vanished mid-request.
 	ClaimWebhookDelivery(ctx context.Context, arg ClaimWebhookDeliveryParams) (WebhookDelivery, error)
@@ -101,6 +107,9 @@ type Querier interface {
 	// market and category.
 	CloseSupersededMetaRates(ctx context.Context) error
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
+	// Done: the business token now lives in the account. The PIN (the
+	// number's two-step verification PIN) stays sealed for the owner to read.
+	CompleteMetaOnboarding(ctx context.Context, id uuid.UUID) (MetaOnboarding, error)
 	ConsumePasswordReset(ctx context.Context, tokenHash []byte) (uuid.UUID, error)
 	ContactGroupIDs(ctx context.Context, contactID uuid.UUID) ([]uuid.UUID, error)
 	ContactHasMessages(ctx context.Context, contactID uuid.UUID) (bool, error)
@@ -110,6 +119,11 @@ type Querier interface {
 	// contenders for the number's campaign capacity.
 	ContendingCampaigns(ctx context.Context, phoneNumberID uuid.UUID) ([]ContendingCampaignsRow, error)
 	ConversationThreadOf(ctx context.Context, id uuid.UUID) (ConversationThreadOfRow, error)
+	// A disconnected Tech Provider account switches back to the company's own app.
+	ConvertAccountToOwnApp(ctx context.Context, arg ConvertAccountToOwnAppParams) (WhatsappAccount, error)
+	// A disabled own-app account (its history is kept) switches to Messora's
+	// app: Messora's app id, no app secret, the business token.
+	ConvertAccountToTechProvider(ctx context.Context, arg ConvertAccountToTechProviderParams) (WhatsappAccount, error)
 	// Handoffs from the AI to people between @from_at and @to_at.
 	CountAIEscalations(ctx context.Context, arg CountAIEscalationsParams) (int64, error)
 	CountActiveOwners(ctx context.Context) (int64, error)
@@ -125,6 +139,7 @@ type Querier interface {
 	CountDeferred(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountHeld(ctx context.Context, campaignID *uuid.UUID) (int64, error)
 	CountInFlight(ctx context.Context, campaignID *uuid.UUID) (int64, error)
+	CountLiveTechProviderAccounts(ctx context.Context) (int64, error)
 	CountMessagesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
 	CountPlatformAdmins(ctx context.Context) (int64, error)
@@ -199,6 +214,7 @@ type Querier interface {
 	DeleteWebhookEndpoint(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWhatsAppAccount(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableWebhookEndpoint(ctx context.Context, arg DisableWebhookEndpointParams) error
+	DisableWhatsAppAccount(ctx context.Context, arg DisableWhatsAppAccountParams) (WhatsappAccount, error)
 	// Deferred messages whose retry time passed a while ago: their send task
 	// may have been lost.
 	DueDeferredMessages(ctx context.Context, olderThanSeconds float64) ([]DueDeferredMessagesRow, error)
@@ -218,6 +234,7 @@ type Querier interface {
 	// (contacts.ExpireImports). Running and queued imports are left alone.
 	ExpiredContactImports(ctx context.Context, arg ExpiredContactImportsParams) ([]ExpiredContactImportsRow, error)
 	FailCampaignExport(ctx context.Context, arg FailCampaignExportParams) error
+	FailMetaOnboarding(ctx context.Context, arg FailMetaOnboardingParams) (MetaOnboarding, error)
 	// One delivery per subscribed active endpoint; running it again for the
 	// same event inserts nothing.
 	FanOutWebhookEvent(ctx context.Context, arg FanOutWebhookEventParams) ([]uuid.UUID, error)
@@ -270,9 +287,11 @@ type Querier interface {
 	GetMessageCost(ctx context.Context, id uuid.UUID) (GetMessageCostRow, error)
 	// ── Meta connection (Phase 17 WP5) ─────────────────────────────────────────
 	GetMetaConnection(ctx context.Context) (MetaConnection, error)
+	GetMetaOnboarding(ctx context.Context, id uuid.UUID) (MetaOnboarding, error)
 	GetMetaRateMarket(ctx context.Context, country string) (string, error)
 	GetOffer(ctx context.Context, id uuid.UUID) (Offer, error)
 	GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []byte) (GetOpenInvitationByTokenHashRow, error)
+	GetOpenMetaOnboardingByWABA(ctx context.Context, wabaID string) (MetaOnboarding, error)
 	GetOutgoingWebhookEvent(ctx context.Context, id uuid.UUID) (OutgoingWebhookEvent, error)
 	GetPhoneNumber(ctx context.Context, id uuid.UUID) (PhoneNumber, error)
 	GetPhoneNumberByMetaID(ctx context.Context, phoneNumberID string) (PhoneNumber, error)
@@ -351,6 +370,7 @@ type Querier interface {
 	InsertMediaFile(ctx context.Context, arg InsertMediaFileParams) (MediaFile, error)
 	// Returns no row when another request created the tenant's row first.
 	InsertMetaConnection(ctx context.Context, arg InsertMetaConnectionParams) (MetaConnection, error)
+	InsertMetaOnboarding(ctx context.Context, arg InsertMetaOnboardingParams) (MetaOnboarding, error)
 	// ── User preferences ────────────────────────────────────────────────────────
 	InsertMetaUserPreference(ctx context.Context, arg InsertMetaUserPreferenceParams) (MetaUserPreference, error)
 	// ── Offers (Phase 16C P4) ───────────────────────────────────────────────────
@@ -367,6 +387,9 @@ type Querier interface {
 	InsertReplyClassification(ctx context.Context, arg InsertReplyClassificationParams) (uuid.UUID, error)
 	InsertSegment(ctx context.Context, arg InsertSegmentParams) (Segment, error)
 	InsertSettingIfAbsent(ctx context.Context, arg InsertSettingIfAbsentParams) (int64, error)
+	// ── Tech Provider / Embedded Signup (Phase 17 WP6) ─────────────────────────
+	// The account of an Embedded Signup; disabled until the onboarding finishes.
+	InsertTechProviderAccount(ctx context.Context, arg InsertTechProviderAccountParams) (WhatsappAccount, error)
 	InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDeliveryParams) (WebhookDelivery, error)
 	InsertWebhookEndpoint(ctx context.Context, arg InsertWebhookEndpointParams) (WebhookEndpoint, error)
 	// ── Webhook events ──────────────────────────────────────────────────────────
@@ -407,6 +430,8 @@ type Querier interface {
 	ListAIUsage(ctx context.Context, lim int32) ([]AiUsage, error)
 	ListActiveWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
 	ListApiKeys(ctx context.Context) ([]ListApiKeysRow, error)
+	// The app secrets the tenant's own webhook address accepts: those of its
+	// own-app accounts (Tech Provider accounts are signed by Messora's app).
 	ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
 	ListAutomationRunSteps(ctx context.Context, runID uuid.UUID) ([]AutomationRunStep, error)
@@ -453,6 +478,8 @@ type Querier interface {
 	// Every company the person belongs to, with the address of each.
 	ListMembershipsOfUser(ctx context.Context, userID uuid.UUID) ([]ListMembershipsOfUserRow, error)
 	ListMessagesByContact(ctx context.Context, arg ListMessagesByContactParams) ([]Message, error)
+	// The unfinished onboardings and the most recent finished ones.
+	ListMetaOnboardings(ctx context.Context) ([]MetaOnboarding, error)
 	ListMetaRates(ctx context.Context) ([]ListMetaRatesRow, error)
 	ListOffers(ctx context.Context, status *string) ([]Offer, error)
 	ListOpenInvitations(ctx context.Context) ([]ListOpenInvitationsRow, error)
@@ -468,6 +495,7 @@ type Querier interface {
 	ListSupportGrants(ctx context.Context, arg ListSupportGrantsParams) ([]ListSupportGrantsRow, error)
 	// ── Tags ────────────────────────────────────────────────────────────────────
 	ListTags(ctx context.Context) ([]ListTagsRow, error)
+	ListTechProviderWABAIDs(ctx context.Context) ([]string, error)
 	ListTemplates(ctx context.Context, arg ListTemplatesParams) ([]ListTemplatesRow, error)
 	ListTenantDomains(ctx context.Context, tenantID uuid.UUID) ([]TenantDomain, error)
 	ListTenants(ctx context.Context, arg ListTenantsParams) ([]ListTenantsRow, error)
@@ -480,6 +508,9 @@ type Querier interface {
 	// The members of the connection's tenant. status is the membership's,
 	// or disabled when the account itself is.
 	ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error)
+	// The WABAs whose events the tenant's own webhook address accepts: those
+	// connected with the tenant's own app. A Tech Provider WABA is accepted
+	// only at the platform address (a WABA never receives events in two places).
 	ListWABAIDs(ctx context.Context) ([]string, error)
 	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]ListWebhookDeliveriesRow, error)
 	ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, error)
@@ -680,8 +711,11 @@ type Querier interface {
 	// Pricing arrives on "sent" or "delivered" (never both); a later webhook
 	// without it never clears what was stored.
 	SetMessagePricing(ctx context.Context, arg SetMessagePricingParams) error
+	SetMetaConnectionMethod(ctx context.Context, method string) error
 	// Only an actual change touches the row (and returns 1).
 	SetMetaMarketingStopped(ctx context.Context, arg SetMetaMarketingStoppedParams) (int64, error)
+	// A retry may bring a new code (a new business token) or a new PIN.
+	SetMetaOnboardingInput(ctx context.Context, arg SetMetaOnboardingInputParams) (MetaOnboarding, error)
 	SetMetaVerifyToken(ctx context.Context, verifyTokenEnc []byte) (MetaConnection, error)
 	SetMetaWebhookKey(ctx context.Context, arg SetMetaWebhookKeyParams) (MetaConnection, error)
 	// Values from a webhook; NULL keeps what is stored.
@@ -696,6 +730,7 @@ type Querier interface {
 	SetRecipientReaction(ctx context.Context, arg SetRecipientReactionParams) (int64, error)
 	SetRecipientReplied(ctx context.Context, arg SetRecipientRepliedParams) (int64, error)
 	SetRecipientReplyPayload(ctx context.Context, arg SetRecipientReplyPayloadParams) error
+	SetTechProviderAccountToken(ctx context.Context, arg SetTechProviderAccountTokenParams) (WhatsappAccount, error)
 	SetTemplateQualityByMetaID(ctx context.Context, arg SetTemplateQualityByMetaIDParams) (int64, error)
 	// Scopes the rest of the transaction to one tenant (row-level security of
 	// the tenant tables). Only for platform transactions that create or touch

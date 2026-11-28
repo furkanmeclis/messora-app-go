@@ -14,6 +14,7 @@ import {
     Moon,
     ScrollText,
     Settings,
+    Sparkles,
     Sun,
     Users,
     type LucideIcon,
@@ -47,6 +48,11 @@ const OPERATIONS: Item[] = [
 const CATALOGUE: Item[] = [
     { href: '/meta-rates', label: 'platform.nav.metaRates', icon: Coins },
     { href: '/ai-prices', label: 'platform.nav.aiPrices', icon: Cpu },
+    {
+        href: '/tech-provider',
+        label: 'platform.nav.techProvider',
+        icon: Sparkles,
+    },
 ];
 
 export function PlatformSidebar({

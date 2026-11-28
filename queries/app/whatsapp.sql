@@ -15,7 +15,10 @@ SELECT * FROM whatsapp_accounts WHERE waba_id = @waba_id;
 SELECT * FROM whatsapp_accounts ORDER BY created_at;
 
 -- name: ListAppSecrets :many
-SELECT id, app_secret_enc FROM whatsapp_accounts WHERE app_secret_enc IS NOT NULL AND status <> 'disabled';
+-- The app secrets the tenant's own webhook address accepts: those of its
+-- own-app accounts (Tech Provider accounts are signed by Messora's app).
+SELECT id, app_secret_enc FROM whatsapp_accounts
+WHERE app_secret_enc IS NOT NULL AND status <> 'disabled' AND connection_method = 'own_app';
 
 -- name: UpdateWhatsAppAccount :one
 UPDATE whatsapp_accounts SET

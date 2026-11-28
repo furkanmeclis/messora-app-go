@@ -3,6 +3,7 @@ import type { Messages } from '../en';
 const platform: Messages['platform'] = {
     name: 'Platform yönetimi',
     nav: {
+        techProvider: 'Meta Tech Provider',
         overview: 'Genel bakış',
         tenants: 'Firmalar',
         users: 'Hesaplar',
@@ -259,6 +260,77 @@ const platform: Messages['platform'] = {
             details: 'Ayrıntılar',
         },
         more: 'Daha fazla',
+    },
+    techProvider: {
+        title: 'Meta Tech Provider',
+        description:
+            "Firmaların Embedded Signup ile (“Meta ile bağlan”) WhatsApp'ı bağladığı, Messora'nın kendi Meta uygulaması.",
+        switch: 'Meta ile bağlan',
+        switchHint:
+            "Açıkken bütün firmalar “Meta ile bağlan”ı görür. Yalnızca Meta, Messora'yı Tech Provider olarak onayladıktan sonra açın. Kapatmak bu yolla bağlı firmaların olaylarını da durdurur.",
+        ready: 'Hazır',
+        incomplete: 'Eksik',
+        app: "Messora'nın Meta uygulaması",
+        appHint:
+            "App ID ve App secret (App settings → Basic), Embedded Signup yapılandırması (Facebook Login for Business → Configurations) ve Messora işletmesinin bir system user token'ı. Sırlar şifreli saklanır, hiç gösterilmez.",
+        appId: 'App ID',
+        configurationId: 'Embedded Signup yapılandırma kimliği',
+        appSecret: 'App secret',
+        systemToken: "System user token'ı",
+        secretPlaceholder: 'Değiştirmemek için boş bırakın',
+        version: 'Graph API sürümü',
+        scopes: 'App Review şu izinleri vermeli: {scopes}.',
+        saved: 'Tech Provider ayarları kaydedildi.',
+        webhook: 'Webhook',
+        webhookHint:
+            'Bunları uygulamanın WhatsApp → Configuration sayfasına girin ve alanlara (en az messages) abone olun. Messora üzerinden bağlanan bütün firmalar bu tek adresi kullanır.',
+        callbackUrl: 'Geri çağırma adresi',
+        verifyToken: 'Doğrulama belirteci',
+        rotate: 'Yeni doğrulama belirteci',
+        unrouted:
+            'API açıldığından beri bilinmeyen hesaplara gelen olay: {count}',
+        test: 'Meta ile test et',
+        testHint:
+            "Uygulama bilgilerini ve system user token'ını (debug_token), yapılandırma kimliğini ve uygulamanın webhook aboneliğini kontrol eder.",
+        testButton: 'Test et',
+        keys: {
+            app: 'Uygulama',
+            configuration: 'Yapılandırma',
+            system_user_token: "System user token'ı",
+            webhook: 'Webhook',
+        },
+        codes: {
+            tp_app_ok: "Meta, App ID ve App secret'ı kabul etti.",
+            tp_app_missing:
+                "Messora'nın Meta uygulamasının App ID ve App secret'ını girin.",
+            tp_app_invalid: 'Meta uygulama bilgilerini reddetti: {detail}',
+            tp_configuration_ok:
+                'Bir Embedded Signup yapılandırma kimliği ayarlı.',
+            tp_configuration_missing:
+                'Bir Embedded Signup yapılandırması oluşturup kimliğini girin.',
+            tp_system_token_ok:
+                "System user token'ı geçerli, bütün izinler var.",
+            tp_system_token_missing:
+                "Messora işletmesinin system user token'ı kayıtlı değil.",
+            tp_system_token_invalid:
+                "Meta, system user token'ının geçersiz olduğunu söylüyor: {detail}",
+            tp_system_token_other_app:
+                "System user token'ı {token_app} uygulamasına ait, {app_id} değil.",
+            tp_system_token_scopes:
+                "System user token'ında eksik izin: {missing}.",
+            tp_subscription_ok:
+                "Uygulamanın webhook'u Messora'nın Tech Provider adresine yönleniyor.",
+            tp_subscription_missing:
+                'Uygulamada WhatsApp Business hesapları için webhook yok; {callback_url} adresini doğrulama belirteciyle girin.',
+            tp_subscription_url:
+                "Uygulamanın webhook'u {current} adresine yönleniyor, {callback_url} değil.",
+            tp_subscription_inactive:
+                "Uygulamanın WhatsApp webhook'u etkin değil.",
+            tp_subscription_fields:
+                "Uygulamanın webhook'u messages alanına abone değil.",
+            tp_subscription_error:
+                'Meta uygulamanın webhook aboneliklerini vermedi: {detail}',
+        },
     },
 };
 export default platform;

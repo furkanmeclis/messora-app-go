@@ -741,6 +741,28 @@ type MetaCostDaily struct {
 	TenantID        pgtype.UUID
 }
 
+type MetaOnboarding struct {
+	ID               pgtype.UUID
+	TenantID         pgtype.UUID
+	WabaID           string
+	PhoneNumberID    string
+	BusinessID       *string
+	Name             string
+	Status           string
+	Step             string
+	BusinessTokenEnc []byte
+	PinEnc           []byte
+	PinGenerated     bool
+	AccountID        pgtype.UUID
+	Attempts         int64
+	ErrorCode        *string
+	ErrorMessage     *string
+	CreatedBy        pgtype.UUID
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	CompletedAt      pgtype.Timestamptz
+}
+
 type MetaRate struct {
 	ID            pgtype.UUID
 	Currency      string
@@ -760,6 +782,12 @@ type MetaRateMarket struct {
 	Country    string
 	Market     string
 	ImportedAt pgtype.Timestamptz
+}
+
+type MetaRoute struct {
+	WabaID    string
+	TenantID  pgtype.UUID
+	CreatedAt pgtype.Timestamptz
 }
 
 type MetaUserPreference struct {
@@ -1112,6 +1140,7 @@ type WhatsappAccount struct {
 	TokenNotifiedAt          pgtype.Timestamptz
 	Currency                 *string
 	TenantID                 pgtype.UUID
+	ConnectionMethod         string
 }
 
 type WhatsappAccountEvent struct {

@@ -622,7 +622,7 @@ func (q *Queries) GetWebhookEvent(ctx context.Context, id uuid.UUID) (WebhookEve
 }
 
 const getWhatsAppAccount = `-- name: GetWhatsAppAccount :one
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts WHERE id = $1
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id, connection_method FROM whatsapp_accounts WHERE id = $1
 `
 
 func (q *Queries) GetWhatsAppAccount(ctx context.Context, id uuid.UUID) (WhatsappAccount, error) {
@@ -650,12 +650,13 @@ func (q *Queries) GetWhatsAppAccount(ctx context.Context, id uuid.UUID) (Whatsap
 		&i.TokenNotifiedAt,
 		&i.Currency,
 		&i.TenantID,
+		&i.ConnectionMethod,
 	)
 	return i, err
 }
 
 const getWhatsAppAccountByWABA = `-- name: GetWhatsAppAccountByWABA :one
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts WHERE waba_id = $1
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id, connection_method FROM whatsapp_accounts WHERE waba_id = $1
 `
 
 func (q *Queries) GetWhatsAppAccountByWABA(ctx context.Context, wabaID string) (WhatsappAccount, error) {
@@ -683,6 +684,7 @@ func (q *Queries) GetWhatsAppAccountByWABA(ctx context.Context, wabaID string) (
 		&i.TokenNotifiedAt,
 		&i.Currency,
 		&i.TenantID,
+		&i.ConnectionMethod,
 	)
 	return i, err
 }
@@ -920,7 +922,7 @@ const insertWhatsAppAccount = `-- name: InsertWhatsAppAccount :one
 
 INSERT INTO whatsapp_accounts (id, name, waba_id, app_id, access_token_enc, app_secret_enc, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id
+RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id, connection_method
 `
 
 type InsertWhatsAppAccountParams struct {
@@ -967,12 +969,14 @@ func (q *Queries) InsertWhatsAppAccount(ctx context.Context, arg InsertWhatsAppA
 		&i.TokenNotifiedAt,
 		&i.Currency,
 		&i.TenantID,
+		&i.ConnectionMethod,
 	)
 	return i, err
 }
 
 const listAppSecrets = `-- name: ListAppSecrets :many
-SELECT id, app_secret_enc FROM whatsapp_accounts WHERE app_secret_enc IS NOT NULL AND status <> 'disabled'
+SELECT id, app_secret_enc FROM whatsapp_accounts
+WHERE app_secret_enc IS NOT NULL AND status <> 'disabled' AND connection_method = 'own_app'
 `
 
 type ListAppSecretsRow struct {
@@ -980,6 +984,8 @@ type ListAppSecretsRow struct {
 	AppSecretEnc []byte
 }
 
+// The app secrets the tenant's own webhook address accepts: those of its
+// own-app accounts (Tech Provider accounts are signed by Messora's app).
 func (q *Queries) ListAppSecrets(ctx context.Context) ([]ListAppSecretsRow, error) {
 	rows, err := q.db.Query(ctx, listAppSecrets)
 	if err != nil {
@@ -1247,7 +1253,7 @@ func (q *Queries) ListTemplates(ctx context.Context, arg ListTemplatesParams) ([
 }
 
 const listWhatsAppAccounts = `-- name: ListWhatsAppAccounts :many
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts ORDER BY created_at
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id, connection_method FROM whatsapp_accounts ORDER BY created_at
 `
 
 func (q *Queries) ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error) {
@@ -1281,6 +1287,7 @@ func (q *Queries) ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, 
 			&i.TokenNotifiedAt,
 			&i.Currency,
 			&i.TenantID,
+			&i.ConnectionMethod,
 		); err != nil {
 			return nil, err
 		}
@@ -1293,7 +1300,7 @@ func (q *Queries) ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, 
 }
 
 const listWhatsAppAccountsToCheck = `-- name: ListWhatsAppAccountsToCheck :many
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts WHERE status <> 'disabled' ORDER BY created_at
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id, connection_method FROM whatsapp_accounts WHERE status <> 'disabled' ORDER BY created_at
 `
 
 func (q *Queries) ListWhatsAppAccountsToCheck(ctx context.Context) ([]WhatsappAccount, error) {
@@ -1327,6 +1334,7 @@ func (q *Queries) ListWhatsAppAccountsToCheck(ctx context.Context) ([]WhatsappAc
 			&i.TokenNotifiedAt,
 			&i.Currency,
 			&i.TenantID,
+			&i.ConnectionMethod,
 		); err != nil {
 			return nil, err
 		}
@@ -1572,7 +1580,7 @@ UPDATE whatsapp_accounts SET
     token_checked_at             = now(),
     updated_at                   = now()
 WHERE id = $6
-RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id
+RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id, connection_method
 `
 
 type SetWhatsAppTokenInfoParams struct {
@@ -1617,6 +1625,7 @@ func (q *Queries) SetWhatsAppTokenInfo(ctx context.Context, arg SetWhatsAppToken
 		&i.TokenNotifiedAt,
 		&i.Currency,
 		&i.TenantID,
+		&i.ConnectionMethod,
 	)
 	return i, err
 }
@@ -1667,7 +1676,7 @@ UPDATE whatsapp_accounts SET
     last_error       = CASE WHEN $5::text = 'active' THEN NULL ELSE last_error END,
     updated_at       = now()
 WHERE id = $6
-RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id
+RETURNING id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id, connection_method
 `
 
 type UpdateWhatsAppAccountParams struct {
@@ -1711,6 +1720,7 @@ func (q *Queries) UpdateWhatsAppAccount(ctx context.Context, arg UpdateWhatsAppA
 		&i.TokenNotifiedAt,
 		&i.Currency,
 		&i.TenantID,
+		&i.ConnectionMethod,
 	)
 	return i, err
 }

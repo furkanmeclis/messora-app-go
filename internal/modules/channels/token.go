@@ -136,7 +136,16 @@ func (s *Service) saveTokenInfo(ctx context.Context, q *db.Queries, id uuid.UUID
 }
 
 // appCredentials returns an account's app id and app secret, if stored.
-func (s *Service) appCredentials(acc db.WhatsappAccount) (appID, appSecret string) {
+// A Tech Provider account uses Messora's app.
+func (s *Service) appCredentials(ctx context.Context, acc db.WhatsappAccount) (appID, appSecret string) {
+	if acc.ConnectionMethod == MethodTechProvider {
+		cfg, err := s.TechProvider(ctx)
+		if err != nil {
+			s.log.WarnContext(ctx, "read the tech provider settings", "error", err)
+			return "", ""
+		}
+		return cfg.AppID, cfg.AppSecret
+	}
 	if acc.AppID != nil {
 		appID = *acc.AppID
 	}
@@ -156,7 +165,7 @@ func (s *Service) CheckToken(ctx context.Context, id uuid.UUID) (db.WhatsappAcco
 	if err != nil {
 		return acc, err
 	}
-	appID, appSecret := s.appCredentials(acc)
+	appID, appSecret := s.appCredentials(ctx, acc)
 	rep, err := s.inspectToken(ctx, acc.WabaID, appID, appSecret, token)
 	var problem *tokenProblem
 	if errors.As(err, &problem) {
