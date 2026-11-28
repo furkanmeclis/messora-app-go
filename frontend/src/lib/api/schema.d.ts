@@ -5197,7 +5197,7 @@ export interface components {
             status: 'queued' | 'running' | 'waiting' | 'failed';
             /** @description Why it failed. */
             error?: string;
-            /** @description Why a failed run failed (as AutomationRun.error_code): ai_disabled, ai_not_configured, ai_not_allowed, ai_no_profile, ai_error, retries_exhausted or step_failed; null for runs in progress. */
+            /** @description Why a failed run failed (as AutomationRun.error_code): ai_disabled, ai_not_configured, ai_not_allowed, ai_no_profile, ai_error, ai_credits_exhausted, ai_not_in_plan, retries_exhausted or step_failed; null for runs in progress. */
             error_code?: string | null;
             /** @description Retries of the failing step (0 = first attempt). */
             attempt?: number;
@@ -10792,13 +10792,24 @@ export interface components {
             month_start: string;
             /** Format: date-time */
             resets_at: string;
-            /** @description The plan's credits for this month. */
+            /**
+             * Format: double
+             * @description The plan's credits for this month.
+             */
             included: number;
-            /** @description All usable credits now: the plan's month plus granted or bought lots. */
+            /**
+             * Format: double
+             * @description All usable credits now: the plan's month plus granted or bought lots.
+             */
             granted: number;
-            /** @description Credits used from the usable lots. */
+            /**
+             * Format: double
+             * @description Credits used from the usable lots.
+             */
             used: number;
+            /** Format: double */
             remaining: number;
+            /** Format: double */
             used_this_month: number;
             /** @description The plan meters AI credits without a limit. */
             unlimited: boolean;
@@ -10990,8 +11001,11 @@ export interface components {
             source: 'plan' | 'grant' | 'purchase';
             /** Format: date */
             period_start: string | null;
+            /** Format: double */
             granted: number;
+            /** Format: double */
             used: number;
+            /** Format: double */
             remaining: number;
             /** Format: date-time */
             starts_at: string;
