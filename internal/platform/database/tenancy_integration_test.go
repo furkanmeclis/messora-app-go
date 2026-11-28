@@ -30,12 +30,12 @@ import (
 var platformTables = []string{
 	"goose_db_version", "tenants", "tenant_domains", "platform_settings",
 	"permissions", "roles", "role_permissions",
-	"meta_rates", "meta_rate_markets", "ai_model_prices", "meta_webhook_keys",
+	"meta_rates", "meta_rate_markets", "ai_model_prices", "meta_webhook_keys", "meta_routes",
 }
 
 // routingTables are platform tables whose tenant_id names the tenant a
 // request routes to, read before any tenant is known.
-var routingTables = []string{"tenant_domains", "meta_webhook_keys"}
+var routingTables = []string{"tenant_domains", "meta_webhook_keys", "meta_routes"}
 
 // nullableTenant may hold rows without a tenant (platform events).
 var nullableTenant = []string{"outbox_events"}

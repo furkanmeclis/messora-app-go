@@ -252,7 +252,7 @@ func (q *Queries) LatestMetaUserPreference(ctx context.Context, arg LatestMetaUs
 }
 
 const listActiveWhatsAppAccounts = `-- name: ListActiveWhatsAppAccounts :many
-SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id FROM whatsapp_accounts WHERE status = 'active' ORDER BY created_at
+SELECT id, name, waba_id, app_id, access_token_enc, app_secret_enc, status, last_error, last_synced_at, created_by, created_at, updated_at, token_type, token_expires_at, token_data_access_expires_at, token_scopes, token_checked_at, token_warning, token_notified_at, currency, tenant_id, connection_method FROM whatsapp_accounts WHERE status = 'active' ORDER BY created_at
 `
 
 func (q *Queries) ListActiveWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error) {
@@ -286,6 +286,7 @@ func (q *Queries) ListActiveWhatsAppAccounts(ctx context.Context) ([]WhatsappAcc
 			&i.TokenNotifiedAt,
 			&i.Currency,
 			&i.TenantID,
+			&i.ConnectionMethod,
 		); err != nil {
 			return nil, err
 		}

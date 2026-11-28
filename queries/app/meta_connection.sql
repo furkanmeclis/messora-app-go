@@ -32,4 +32,13 @@ UPDATE meta_connections SET waba_mismatches = waba_mismatches + 1, last_waba_mis
     last_mismatch_waba_id = @waba_id;
 
 -- name: ListWABAIDs :many
-SELECT waba_id FROM whatsapp_accounts;
+-- The WABAs whose events the tenant's own webhook address accepts: those
+-- connected with the tenant's own app. A Tech Provider WABA is accepted
+-- only at the platform address (a WABA never receives events in two places).
+SELECT waba_id FROM whatsapp_accounts WHERE connection_method = 'own_app';
+
+-- name: ListTechProviderWABAIDs :many
+SELECT waba_id FROM whatsapp_accounts WHERE connection_method = 'tech_provider';
+
+-- name: SetMetaConnectionMethod :exec
+UPDATE meta_connections SET method = @method, updated_at = now();
