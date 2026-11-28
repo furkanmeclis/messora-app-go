@@ -106,12 +106,15 @@ test('the Meta connection page guides the set-up and its address answers Meta', 
         .inputValue();
     expect(callback).toMatch(/\/meta\/[a-z2-7]{52}$/);
     expect(verify).toMatch(/^[a-z2-7]{52}$/);
-    // No account yet: signatures cannot be verified.
+    // Accounts seeded by other specs have no App secret (or are disabled):
+    // signatures cannot be verified.
     await expect(page.getByTestId('signature-warning')).toBeVisible();
-    await expect(page.getByText('Connect an account first')).toBeVisible();
 
     // The connect form asks for the app's credentials.
-    await page.getByRole('button', { name: 'Connect account' }).click();
+    await page
+        .getByTestId('meta-steps')
+        .getByRole('button', { name: /^Connect (another )?account$/ })
+        .click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByLabel('App ID', { exact: true })).toHaveAttribute(
         'required',
