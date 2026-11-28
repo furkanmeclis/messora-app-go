@@ -7,6 +7,7 @@ import FormBlock from '../components/FormBlock.astro';
 import FaqList from '../components/FaqList.astro';
 import type { Faq } from '../data/types';
 import { appUrls } from '../data/routes';
+import { plans, P } from '../lib/plans';
 export interface LandingData {
   path: string; title: string; description: string; eyebrow: string; h1: string; lead: string;
   points: string[]; mock: 'inbox' | 'campaigns' | 'ai' | 'automations';
@@ -16,7 +17,7 @@ interface Props { d: LandingData }
 const { d } = Astro.props;
 ---
 <Base lang="tr" title={d.title} description={d.description} path={d.path} noindex minimal>
-  <section class="hero dark lp">
+  <section class="hero dark lit lp">
     <div class="wrap hero-grid">
       <div>
         <p class="eyebrow">{d.eyebrow}</p>
@@ -26,7 +27,7 @@ const { d } = Astro.props;
         <div class="actions" style="margin-top:28px">
           <a class="btn btn-lg" href={appUrls.signup} data-signup>14 gün ücretsiz deneyin<Icon name="arrow-right" /></a>
         </div>
-        <p class="note">Kart gerekmez. Fiyatlar 1.290 TL + KDV/ay’dan başlar; Meta mesaj ücretleri ayrıdır.</p>
+        <p class="note">Kart gerekmez. Fiyatlar {P.phrases(plans, 'tr').from}; Meta mesaj ücretleri ayrıdır.</p>
       </div>
       <div class="form-card" id="form">
         <h2 style="font-size:1.35rem;margin-bottom:6px">Size özel demo</h2>

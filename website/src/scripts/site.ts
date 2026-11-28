@@ -1,4 +1,5 @@
-// Site behaviour: menus, reveal-on-scroll, consent + Google tag, signup link
+import './ui';
+// Site behaviour (interface motion lives in ui.ts): consent + Google tag, signup link
 // tracking (UTM pass-through, cross-domain linker) and forms.
 type Cfg = { gtag?: string; ads?: string; leadLabel?: string; signupLabel?: string; mode?: 'basic' | 'advanced' };
 type Consent = { a: boolean; m: boolean; v: 1; t: number };
@@ -10,52 +11,6 @@ declare global {
 const cfg: Cfg = window.__MSR_CFG || {};
 const tagIds = [cfg.gtag, cfg.ads].filter((x): x is string => !!x && /^(G|AW)-[A-Z0-9]+$/.test(x));
 const lang = document.documentElement.lang === 'en' ? 'en' : 'tr';
-
-/* ── Menus ─────────────────────────────────────────────── */
-const megas = document.querySelectorAll<HTMLButtonElement>('[data-mega]');
-function closeMegas(except?: HTMLButtonElement) {
-  megas.forEach((b) => {
-    if (b === except) return;
-    b.setAttribute('aria-expanded', 'false');
-    document.getElementById(b.getAttribute('aria-controls')!)?.classList.remove('open');
-  });
-}
-megas.forEach((b) => {
-  b.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const open = b.getAttribute('aria-expanded') !== 'true';
-    closeMegas(b);
-    b.setAttribute('aria-expanded', String(open));
-    document.getElementById(b.getAttribute('aria-controls')!)?.classList.toggle('open', open);
-  });
-});
-document.addEventListener('click', (e) => {
-  if (!(e.target as Element).closest('.mega')) closeMegas();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    const open = [...megas].find((b) => b.getAttribute('aria-expanded') === 'true');
-    closeMegas();
-    open?.focus();
-  }
-});
-const burger = document.querySelector<HTMLButtonElement>('[data-burger]');
-burger?.addEventListener('click', () => {
-  const open = burger.getAttribute('aria-expanded') !== 'true';
-  burger.setAttribute('aria-expanded', String(open));
-  document.getElementById('mnav')?.classList.toggle('open', open);
-  document.body.style.overflow = open ? 'hidden' : '';
-});
-
-/* ── Reveal on scroll ───────────────────────────────────── */
-const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const rv = document.querySelectorAll('.rv');
-if (!reduce && 'IntersectionObserver' in window) {
-  const io = new IntersectionObserver((es) => es.forEach((en) => {
-    if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
-  }), { rootMargin: '0px 0px -8% 0px' });
-  rv.forEach((el) => io.observe(el));
-} else rv.forEach((el) => el.classList.add('in'));
 
 /* ── Consent + Google tag (Consent Mode v2) ─────────────── */
 const CK = 'msr_consent';

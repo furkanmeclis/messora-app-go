@@ -16,7 +16,7 @@ Bu Kullanım Koşulları ve Hizmet Sözleşmesi ("**Sözleşme**"), {{marka}} ya
 ## 2. Tanımlar
 
 - **Hizmet:** {{marka}}'nın internet üzerinden yazılım hizmeti (SaaS) olarak sunduğu; ekip gelen kutusu, kampanya, şablon, otomasyon, yapay zekâ temsilcisi, analitik ve raporlama, API ve webhook özelliklerini içeren platform.
-- **Panel:** Müşteriye ait `firma.messora.tech` biçimindeki alt alan adı veya Müşterinin bağladığı kendi alan adı üzerinden erişilen yönetim arayüzü.
+- **Panel:** `app.messora.tech` ortak paneli üzerinden ya da Kurumsal pakette Müşteriye ait `firma.messora.tech` biçimindeki alt alan adı veya Müşterinin bağladığı kendi alan adı üzerinden erişilen yönetim arayüzü.
 - **Kullanıcı:** Müşteri tarafından panele erişim yetkisi verilen kişi.
 - **Müşteri Verisi:** Müşterinin veya Kullanıcıların Hizmet'e yüklediği ya da Hizmet aracılığıyla işlenen her türlü veri; özellikle kişi listeleri, telefon numaraları, WhatsApp mesajları ve medyaları, notlar, etiketler, kampanya, şablon ve otomasyon verileri.
 - **Meta:** Meta Platforms, Inc., Meta Platforms Ireland Ltd. ve WhatsApp dahil bağlı şirketleri.

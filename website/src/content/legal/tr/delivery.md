@@ -15,7 +15,7 @@ version: "1.0"
 
 - Kayıt [app.messora.tech/signup](https://app.messora.tech/signup) adresinden yapılır.
 - E-posta adresiniz doğrulandıktan sonra hesabınız **hemen** açılır ve 14 günlük ücretsiz deneme süresi başlar. Kart bilgisi istenmez.
-- Hesabınıza size ait `firma.messora.tech` biçimindeki alt alan adından erişirsiniz. Dilerseniz kendi alan adınızı bağlayabilirsiniz; bu durumda TLS sertifikası otomatik olarak düzenlenir. Kendi alan adınızın DNS ayarlarını yapmak sizin sorumluluğunuzdadır ve DNS değişikliklerinin yayılması alan adı sağlayıcınıza bağlıdır.
+- Hesabınıza `app.messora.tech` ortak panelinden erişirsiniz. Kurumsal pakette size ait `firma.messora.tech` biçiminde bir alt alan adı verilir ve kendi alan adınızı bağlayabilirsiniz; bu durumda TLS sertifikası otomatik olarak düzenlenir. Kendi alan adınızın DNS ayarlarını yapmak sizin sorumluluğunuzdadır ve DNS değişikliklerinin yayılması alan adı sağlayıcınıza bağlıdır.
 
 ## 3. Ücretli planın etkinleştirilmesi
 

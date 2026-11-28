@@ -62,7 +62,7 @@ If the account is suspended or the contract is terminated because of use contrar
 ## 9. How to request a cancellation or refund
 
 - **Through the panel:** You can cancel your subscription in the billing section of the panel.
-- **By e-mail:** To {{eposta}}, stating your account address (`firma.messora.tech`), your legal name or name, your order reference and your request.
+- **By e-mail:** To {{eposta}}, stating your company name in the panel (or, on Enterprise, your own address such as `firma.messora.tech`), your legal name or name, your order reference and your request.
 - **Using the contact form:** Through the form on the [Contact](/en/contact) page.
 - **By KEP (registered electronic mail):** To {{kep}}.
 

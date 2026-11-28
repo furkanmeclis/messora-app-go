@@ -46,7 +46,7 @@ Sözleşme'nin konusu, Alıcının Satıcıya ait {{marka}} yazılım hizmetine 
 | Hizmet | {{marka}} — resmi WhatsApp Business Cloud API üzerinde çalışan ekip gelen kutusu, kampanya, şablon, otomasyon, yapay zekâ ve raporlama yazılımı (SaaS) |
 | Plan | Sipariş özetinde belirtilen plan (Başlangıç, Büyüme veya Pro) ve [Fiyatlar](/fiyatlar) sayfasında sipariş tarihinde yayımlanan plan içeriği ve limitleri |
 | Abonelik dönemi | Sipariş özetinde belirtilen aylık veya yıllık dönem |
-| Sunuluş şekli | İnternet üzerinden; Alıcıya ait `firma.messora.tech` adresi veya Alıcının bağladığı alan adı üzerinden erişim |
+| Sunuluş şekli | İnternet üzerinden; `app.messora.tech` ortak paneli üzerinden erişim; Kurumsal pakette Alıcıya ait `firma.messora.tech` alt alan adı veya Alıcının bağladığı alan adı üzerinden erişim |
 | Çalışma ortamı | Güncel sürümlü bir web tarayıcısı ve internet bağlantısı. Mesaj gönderimi için Alıcının kendi Meta Business ve WhatsApp Business hesabının bağlanması gerekir. |
 
 Hizmet'in ayrıntılı koşulları, Sözleşme'nin ayrılmaz parçası olan [Kullanım Koşulları](/yasal/kullanim-kosullari)'nda düzenlenmiştir.

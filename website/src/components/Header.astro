@@ -7,67 +7,114 @@ import { features, solutions, fPath, sPath, r } from '../lib/site';
 import { appUrls } from '../data/routes';
 interface Props { lang: Lang; path: string; altPath?: string | null; minimal?: boolean }
 const { lang, path, altPath, minimal = false } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
 const u = t(lang);
 const fs = features(lang);
 const ss = solutions(lang);
+const ai = fs.find((f) => f.key === 'ai');
 const cur = (p: string) => (path === p || path.startsWith(p + '/') ? 'page' : undefined);
-const langHref = altPath ?? (lang === 'tr' ? '/en' : '/');
+const langHref = altPath ?? (tr ? '/en' : '/');
+const desc = (s: string) => s.split('. ')[0].replace(/\.$/, '');
+const links = [['pricing', u.nav.pricing], ['security', u.nav.security], ['resources', u.nav.resources]] as const;
 ---
-<header class="hdr">
+<header class="hdr" data-hdr>
   <div class="wrap hdr-in">
-    <a href={r(lang, 'home')} class="logo" aria-label="Messora"><Logo dark size={30} /></a>
+    <a href={r(lang, 'home')} class="hdr-logo" aria-label={T('Messora ana sayfa', 'Messora home')}><Logo dark size={30} /></a>
     {!minimal && (
-      <nav aria-label={lang === 'tr' ? 'Ana menü' : 'Main menu'} style="flex:1">
-        <ul class="nav">
+      <nav class="nav" aria-label={T('Ana menü', 'Main menu')}>
+        <ul class="nav-list" data-nav>
           <li>
             <button class="nav-a" type="button" aria-expanded="false" aria-controls="mega-f" data-mega>{u.nav.features}<Icon name="chevron-down" /></button>
             <div class="mega" id="mega-f">
-              {fs.map((f) => (
-                <a href={fPath(lang, f.key)}><span class:list={['mi', { ai: f.key === 'ai' }]}><Icon name={f.icon} /></span><span><strong>{f.nav}</strong><span class="d">{f.summary.split('. ')[0].replace(/\.$/, '')}</span></span></a>
-              ))}
-              <a class="all" href={r(lang, 'features')}>{u.nav.allFeatures}<Icon name="arrow-right" /></a>
+              <div class="mega-in">
+                <div>
+                  <ul class="mega-list">
+                    {fs.map((f) => (
+                      <li><a class="mega-item" href={fPath(lang, f.key)}><span class:list={['mi', { ai: f.key === 'ai' }]}><Icon name={f.icon} /></span><span><strong>{f.nav}</strong><span class="d">{desc(f.summary)}</span></span></a></li>
+                    ))}
+                  </ul>
+                  <p class="mega-foot"><span>{T('Hepsi tek panelde, aynı veriye bakar.', 'All in one panel, on the same data.')}</span><a class="link-arrow" href={r(lang, 'features')}>{u.nav.allFeatures}<Icon name="arrow-right" /></a></p>
+                </div>
+                {ai && (
+                  <a class="mega-feat" href={fPath(lang, 'ai')}>
+                    <span class="mf-vis" aria-hidden="true">
+                      <i class="a">{T('İzmir’e kurulum var mı?', 'Do you install in İzmir?')}</i>
+                      <i class="b">{T('Evet! E-postanızı alabilir miyim?', 'Yes! May I have your e-mail?')}</i>
+                      <i class="c">{T('Emin değilse ekibe devreder', 'Hands over when unsure')}</i>
+                    </span>
+                    <span class="chip ai">AI</span>
+                    <strong>{ai.nav}</strong>
+                    <span class="t">{desc(ai.summary)}</span>
+                    <span class="link-arrow">{u.learnMore}<Icon name="arrow-right" /></span>
+                  </a>
+                )}
+              </div>
             </div>
           </li>
           <li>
             <button class="nav-a" type="button" aria-expanded="false" aria-controls="mega-s" data-mega>{u.nav.solutions}<Icon name="chevron-down" /></button>
             <div class="mega" id="mega-s">
-              {ss.map((s) => (
-                <a href={sPath(lang, s.key)}><span class="mi"><Icon name={s.icon} /></span><span><strong>{s.nav}</strong><span class="d">{s.summary.split('. ')[0].replace(/\.$/, '')}</span></span></a>
-              ))}
-              <a class="all" href={r(lang, 'solutions')}>{u.nav.allSolutions}<Icon name="arrow-right" /></a>
+              <div class="mega-in">
+                <div>
+                  <ul class="mega-list">
+                    {ss.map((s) => (
+                      <li><a class="mega-item" href={sPath(lang, s.key)}><span class="mi"><Icon name={s.icon} /></span><span><strong>{s.nav}</strong><span class="d">{desc(s.summary)}</span></span></a></li>
+                    ))}
+                  </ul>
+                  <p class="mega-foot"><span>{T('Her sektör için akış ve şablon örnekleri.', 'Flows and template examples for each industry.')}</span><a class="link-arrow" href={r(lang, 'solutions')}>{u.nav.allSolutions}<Icon name="arrow-right" /></a></p>
+                </div>
+                <a class="mega-feat" href={r(lang, 'guide')}>
+                  <span class="mf-vis" aria-hidden="true">
+                    <i class="a">{T('Resmi API mı, uygulama mı?', 'Official API or the app?')}</i>
+                    <i class="c">{T('Başvuru · onay · ücretler', 'Apply · approval · fees')}</i>
+                  </span>
+                  <span class="chip">{T('Rehber', 'Guide')}</span>
+                  <strong>{u.nav.guide}</strong>
+                  <span class="t">{T('Başvurudan şablon onayına, adım adım.', 'From applying to template approval, step by step.')}</span>
+                  <span class="link-arrow">{T('Rehberi okuyun', 'Read the guide')}<Icon name="arrow-right" /></span>
+                </a>
+              </div>
             </div>
           </li>
-          <li><a class="nav-a" href={r(lang, 'pricing')} aria-current={cur(r(lang, 'pricing'))}>{u.nav.pricing}</a></li>
-          <li><a class="nav-a" href={r(lang, 'security')} aria-current={cur(r(lang, 'security'))}>{u.nav.security}</a></li>
-          <li><a class="nav-a" href={r(lang, 'resources')} aria-current={cur(r(lang, 'resources'))}>{u.nav.resources}</a></li>
+          {links.map(([k, label]) => <li><a class="nav-a" href={r(lang, k)} aria-current={cur(r(lang, k))}>{label}</a></li>)}
+          <li aria-hidden="true" class="nav-pill" data-pill></li>
         </ul>
       </nav>
     )}
     <div class="hdr-r">
-      {!minimal && <a class="lang" href={langHref} hreflang={lang === 'tr' ? 'en' : 'tr'} lang={lang === 'tr' ? 'en' : 'tr'} aria-label={u.switchLangLabel}>{lang === 'tr' ? 'EN' : 'TR'}</a>}
+      {!minimal && <a class="lang" href={langHref} hreflang={tr ? 'en' : 'tr'} lang={tr ? 'en' : 'tr'} aria-label={u.switchLangLabel}><Icon name="globe" />{tr ? 'EN' : 'TR'}</a>}
       <a class="login" href={appUrls.login}>{u.login}</a>
       <a class="btn btn-sm" href={appUrls.signup} data-signup>{u.trial}</a>
-      {!minimal && <button class="burger" type="button" aria-expanded="false" aria-controls="mnav" aria-label={u.menu} data-burger><Icon name="menu" /></button>}
+      {!minimal && <button class="burger" type="button" aria-expanded="false" aria-controls="mnav" aria-label={u.menu} data-burger><span></span><span></span></button>}
     </div>
   </div>
-  {!minimal && (
-    <div class="mnav dark" id="mnav">
-      <details><summary>{u.nav.features}<Icon name="chevron-down" /></summary>
-        {fs.map((f) => <a href={fPath(lang, f.key)}>{f.nav}</a>)}
-        <a href={r(lang, 'features')}>{u.nav.allFeatures}</a>
-      </details>
-      <details><summary>{u.nav.solutions}<Icon name="chevron-down" /></summary>
-        {ss.map((s) => <a href={sPath(lang, s.key)}>{s.nav}</a>)}
-        <a href={r(lang, 'solutions')}>{u.nav.allSolutions}</a>
-      </details>
-      <a href={r(lang, 'pricing')}>{u.nav.pricing}</a>
-      <a href={r(lang, 'security')}>{u.nav.security}</a>
-      <a href={r(lang, 'resources')}>{u.nav.resources}</a>
-      <a href={langHref} hreflang={lang === 'tr' ? 'en' : 'tr'}>{u.switchLang}</a>
-      <div class="actions">
-        <a class="btn" href={appUrls.signup} data-signup>{u.trialLong}</a>
-        <a class="btn btn-ghost" href={appUrls.login}>{u.login}</a>
-      </div>
-    </div>
-  )}
 </header>
+{!minimal && (
+  <div class="msheet" id="mnav" data-msheet>
+    <nav aria-label={T('Mobil menü', 'Mobile menu')}>
+      <ul class="ms-list">
+        <li style="--i:0">
+          <button class="ms-top" type="button" aria-expanded="false" aria-controls="ms-f" data-acc>{u.nav.features}<Icon name="chevron-down" /></button>
+          <div class="ms-sub" id="ms-f"><div><ul>
+            {fs.map((f) => <li><a href={fPath(lang, f.key)}><span class:list={['mi', { ai: f.key === 'ai' }]}><Icon name={f.icon} /></span>{f.nav}</a></li>)}
+            <li><a href={r(lang, 'features')}><span class="mi"><Icon name="arrow-right" /></span>{u.nav.allFeatures}</a></li>
+          </ul></div></div>
+        </li>
+        <li style="--i:1">
+          <button class="ms-top" type="button" aria-expanded="false" aria-controls="ms-s" data-acc>{u.nav.solutions}<Icon name="chevron-down" /></button>
+          <div class="ms-sub" id="ms-s"><div><ul>
+            {ss.map((s) => <li><a href={sPath(lang, s.key)}><span class="mi"><Icon name={s.icon} /></span>{s.nav}</a></li>)}
+            <li><a href={r(lang, 'solutions')}><span class="mi"><Icon name="arrow-right" /></span>{u.nav.allSolutions}</a></li>
+          </ul></div></div>
+        </li>
+        {links.map(([k, label], i) => <li style={`--i:${i + 2}`}><a class="ms-top" href={r(lang, k)} aria-current={cur(r(lang, k))}>{label}<Icon name="arrow-right" /></a></li>)}
+      </ul>
+      <div class="ms-foot">
+        <a class="btn btn-lg" href={appUrls.signup} data-signup>{u.trialLong}<Icon name="arrow-right" /></a>
+        <a class="btn btn-ghost btn-lg" href={appUrls.login}>{u.login}</a>
+        <a class="ms-lang" href={langHref} hreflang={tr ? 'en' : 'tr'} lang={tr ? 'en' : 'tr'}><Icon name="globe" />{u.switchLang}</a>
+      </div>
+    </nav>
+  </div>
+)}

@@ -226,6 +226,6 @@ Entegrasyonu gerçek müşterilere açmadan önce bir test numarasıyla şu sena
 
 ## Messora'da API ve webhook
 
-Messora'nın [herkese açık REST API'si](/ozellikler/api-ve-webhook) yetki kapsamıyla sınırlanan API anahtarları, hız sınırları ve Idempotency-Key desteğiyle çalışır. Giden webhook'lar HMAC-SHA256 ile imzalanır, başarısız teslimler yaklaşık 24 saat boyunca yeniden denenir ve her teslimin kaydını panelde görürsünüz. Her şirketin API belgeleri kendi adresinde, kendi temel URL'siyle yayımlanır. Kod yazmadan yapılacak akışlar için [otomasyonlar](/ozellikler/otomasyonlar) da kullanılabilir.
+Messora'nın [herkese açık REST API'si](/ozellikler/api-ve-webhook) yetki kapsamıyla sınırlanan API anahtarları, hız sınırları ve Idempotency-Key desteğiyle çalışır. Giden webhook'lar HMAC-SHA256 ile imzalanır, başarısız teslimler yaklaşık 24 saat boyunca yeniden denenir ve her teslimin kaydını panelde görürsünüz. API'nin temel adresi `https://app.messora.tech/api/v1`; şirketinizi API anahtarı belirler (Kurumsal pakette kendi adresinizi kullanırsınız). Kod yazmadan yapılacak akışlar için [otomasyonlar](/ozellikler/otomasyonlar) da kullanılabilir.
 
 API erişimi plana göre değişir; Başlangıç planında yalnızca webhook, üst planlarda aylık API çağrısı kotası bulunur. Ayrıntılar [fiyatlar sayfasında](/fiyatlar). Kendi sisteminize özel bir akışı konuşmak isterseniz [demo talep edebilirsiniz](/demo).

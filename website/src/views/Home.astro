@@ -2,15 +2,16 @@
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
 import Mock from '../components/Mock.astro';
+import HeroVisual from '../components/HeroVisual.astro';
 import CtaBand from '../components/CtaBand.astro';
 import FaqList from '../components/FaqList.astro';
 import type { Lang, Faq } from '../data/types';
 import { meta } from '../data/meta';
 import { appUrls } from '../data/routes';
-import { plans, tl } from '../data/plans';
+import { plans, P } from '../lib/plans';
 import { t } from '../i18n/ui';
 import { features, solutions, fPath, sPath, r, readingMinutes } from '../lib/site';
-import { faqLd, softwareLd } from '../lib/schema';
+import { faqLd } from '../lib/schema';
 import { getCollection } from 'astro:content';
 interface Props { lang: Lang }
 const { lang } = Astro.props;
@@ -22,6 +23,7 @@ const fs = features(lang);
 const f = (k: string) => fs.find((x) => x.key === k)!;
 const posts = (await getCollection('blog', (e) => e.data.lang === lang)).sort((a, b) => +b.data.date - +a.data.date).slice(0, 3);
 const blogBase = tr ? '/blog/' : '/en/blog/';
+const ph = P.phrases(plans, lang);
 
 const rows = [
   { k: 'inbox', mock: 'team', eyebrow: T('Ekip gelen kutusu', 'Team inbox'),
@@ -46,7 +48,8 @@ const rows = [
     pts: [T('Döngü ve çift tetiklenme koruması', 'Loop and duplicate protection'), T('Geri al / yinele, otomatik yerleşim', 'Undo / redo, automatic layout'), T('Hazır şablonlar her pakette', 'Presets in every plan')] },
 ] as const;
 
-const rest = ['templates', 'analytics', 'api'].map(f);
+const ft = f('templates'), fa = f('analytics'), fapi = f('api');
+const providers = [['Meta WhatsApp Cloud API', T('resmi API', 'official API')], ['OpenAI', T('AI ajanları', 'AI agents')], ['Anthropic', T('AI ajanları', 'AI agents')], ['Google Gemini', T('AI ajanları', 'AI agents')], ['AWS', 'eu-central-1 · Frankfurt'], ['PostgreSQL', T('satır bazlı güvenlik', 'row-level security')]];
 
 const faqs: Faq[] = tr ? [
   { q: 'Messora resmi WhatsApp API’si mi kullanıyor?', a: 'Evet. Messora yalnızca Meta’nın resmi WhatsApp Business Cloud API’si ile çalışır. QR kodla bağlanan, WhatsApp Web’i taklit eden yöntemler kullanmayız; bu yüzden numaranız kapanma riskiyle karşılaşmaz ve şablonlarınız Meta onayından geçer.' },
@@ -62,76 +65,105 @@ const faqs: Faq[] = tr ? [
   { q: 'Where is our data stored?', a: 'In AWS’s Frankfurt region (eu-central-1), in the European Union. Each company’s data is separated in the database with row-level security, and encrypted backups are taken every night. More on the [security page](/en/security).' },
 ];
 ---
-<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'home')} alt={{ tr: '/', en: '/en' }} jsonLd={[softwareLd(lang), faqLd(faqs)]}>
-  <section class="hero dark">
-    <div class="wrap hero-grid">
-      <div>
-        <p class="eyebrow">{m.eyebrow}</p>
-        <h1>{T('WhatsApp’ta satış, destek ve kampanya.', 'Sales, support and campaigns on WhatsApp.')} <em>{T('Tek panelde.', 'In one place.')}</em></h1>
-        <p class="lead">{T('Messora, ekibinizin WhatsApp konuşmalarını tek gelen kutusunda toplar, izin veren müşterilerinize kampanya gönderir ve yapay zekâyı ekibin yanında çalıştırır. Meta’nın ücretini göndermeden önce görürsünüz.',
-          'Messora brings your team’s WhatsApp conversations into one inbox, sends campaigns to customers who said yes, and puts AI to work next to your team. You see Meta’s fee before you send.')}</p>
-        <div class="actions">
-          <a class="btn btn-lg" href={appUrls.signup} data-signup>{u.trialLong}<Icon name="arrow-right" /></a>
-          <a class="btn btn-ghost btn-lg" href={r(lang, 'demo')}>{u.demo}</a>
-        </div>
-        <ul class="hero-points">
-          <li><Icon name="check-circle" />{T('Meta’nın resmi Cloud API’si', 'Meta’s official Cloud API')}</li>
-          <li><Icon name="check-circle" />{T('Veriler AB’de, Frankfurt’ta', 'Data in the EU, in Frankfurt')}</li>
-          <li><Icon name="check-circle" />{T('Kart gerekmez', 'No card needed')}</li>
-        </ul>
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'home')} alt={{ tr: '/', en: '/en' }} jsonLd={[faqLd(faqs)]} plansLd="home">
+  <section class="hero-home dark lit">
+    <div class="wrap hh-copy">
+      <p class="pill-eyebrow ld"><b>Meta</b>{m.eyebrow}</p>
+      <h1 class="ld-h">{T('WhatsApp’ta satış, destek ve kampanya.', 'Sales, support and campaigns on WhatsApp.')} <span class="grad-text">{T('Tek panelde.', 'In one place.')}</span></h1>
+      <p class="lead ld" style="--i:1">{T('Messora, ekibinizin WhatsApp konuşmalarını tek gelen kutusunda toplar, izin veren müşterilerinize kampanya gönderir ve yapay zekâyı ekibin yanında çalıştırır. Meta’nın ücretini göndermeden önce görürsünüz.',
+        'Messora brings your team’s WhatsApp conversations into one inbox, sends campaigns to customers who said yes, and puts AI to work next to your team. You see Meta’s fee before you send.')}</p>
+      <div class="actions ld" style="--i:2">
+        <a class="btn btn-lg" href={appUrls.signup} data-signup>{u.trialLong}<Icon name="arrow-right" /></a>
+        <a class="btn btn-ghost btn-lg" href={r(lang, 'demo')}>{u.demo}</a>
       </div>
-      <div class="hero-vis">
-        <Mock kind="inbox" lang={lang} />
-        <div class="float-card" aria-hidden="true">
-          <span class="chip">{T('Kampanya', 'Campaign')}</span>
-          <p>{T('1.200 kişiye ulaşılacak. 85’i mesaj almak istemiyor; onlara gönderilmeyecek.', 'Reaching 1,200 people. 85 don’t want messages; they won’t get one.')}</p>
+      <ul class="hero-points ld" style="--i:3">
+        <li><Icon name="check-circle" />{T('Meta’nın resmi Cloud API’si', 'Meta’s official Cloud API')}</li>
+        <li><Icon name="check-circle" />{T('Veriler AB’de, Frankfurt’ta', 'Data in the EU, in Frankfurt')}</li>
+        <li><Icon name="check-circle" />{T('Kart gerekmez', 'No card needed')}</li>
+      </ul>
+    </div>
+    <div class="wrap hh-vis"><HeroVisual lang={lang} /></div>
+  </section>
+
+  <section class="after-hero">
+    <div class="wrap">
+      <p class="trust-label rv">{T('Üzerine kurulduğu altyapı', 'Built on')}</p>
+      <div class="marquee rv">
+        <div class="marquee-track">
+          <ul aria-label={T('Messora’nın kullandığı altyapı', 'Infrastructure Messora uses')}>{providers.map(([n, d]) => <li>{n}<small>{d}</small></li>)}</ul>
+          <ul aria-hidden="true">{providers.map(([n, d]) => <li>{n}<small>{d}</small></li>)}</ul>
         </div>
+      </div>
+      <div class="why">
+        <div class="rv"><span class="ibox"><Icon name="shield" /></span><h2 class="h3">{T('Resmi API, kapanma korkusu yok', 'Official API, no ban roulette')}</h2><p>{T('Gönderimler Meta’nın onayladığı şablonlarla ve kalite kurallarına göre yapılır.', 'Messages go out with Meta-approved templates and within the quality rules.')}</p></div>
+        <div class="rv"><span class="ibox"><Icon name="coin" /></span><h2 class="h3">{T('Ücret sürpriz değil', 'No surprise fees')}</h2><p>{T('Meta’nın ücreti, kampanyayı başlatmadan önce ülke ve kategoriye göre hesaplanır.', 'Meta’s fee is calculated by country and category before the campaign starts.')}</p></div>
+        <div class="rv"><span class="ibox"><Icon name="check-circle" /></span><h2 class="h3">{T('İzin kayıt altında', 'Consent on record')}</h2><p>{T('Kim, ne zaman, hangi kategori için izin verdi ya da çıktı — geçmişiyle saklanır.', 'Who opted in or out, when and for which category — stored with its history.')}</p></div>
       </div>
     </div>
   </section>
 
-  <section class="sec-sm fog">
+  <section class="sec story" data-story>
     <div class="wrap">
-      <div class="grid g3 why">
-        <div class="rv"><Icon name="shield" /><h2 class="h3">{T('Resmi API, kapanma korkusu yok', 'Official API, no ban roulette')}</h2><p>{T('Gönderimler Meta’nın onayladığı şablonlarla ve kalite kurallarına göre yapılır.', 'Messages go out with Meta-approved templates and within the quality rules.')}</p></div>
-        <div class="rv"><Icon name="coin" /><h2 class="h3">{T('Ücret sürpriz değil', 'No surprise fees')}</h2><p>{T('Meta’nın ücreti, kampanyayı başlatmadan önce ülke ve kategoriye göre hesaplanır.', 'Meta’s fee is calculated by country and category before the campaign starts.')}</p></div>
-        <div class="rv"><Icon name="check-circle" /><h2 class="h3">{T('İzin kayıt altında', 'Consent on record')}</h2><p>{T('Kim, ne zaman, hangi kategori için izin verdi ya da çıktı — geçmişiyle saklanır.', 'Who opted in or out, when and for which category — stored with its history.')}</p></div>
+      <div class="sec-head center">
+        <p class="eyebrow rv">{T('Tek panel', 'One panel')}</p>
+        <h2 class="rv-h">{T('Bir konuşmanın bütün yolculuğu, aynı ekranda.', 'A conversation’s whole journey, on one screen.')}</h2>
       </div>
-    </div>
-  </section>
-
-  <section class="sec">
-    <div class="wrap">
-      {rows.map((row, i) => (
-        <div class:list={['split', { rev: i % 2 === 1 }]}>
-          <div class="rv">
-            <p class:list={['eyebrow', { ai: 'ai' in row && row.ai }]}>{row.eyebrow}</p>
-            <h2>{row.h}</h2>
-            <p class="lead">{row.p}</p>
-            <ul class="checks">{row.pts.map((p) => <li><Icon name="check" />{p}</li>)}</ul>
-            <a class="more" href={fPath(lang, row.k)}>{f(row.k).nav}: {u.learnMore.toLowerCase()}<Icon name="arrow-right" /></a>
+      <div class="story-grid">
+        <div class="story-steps">
+          {rows.map((row) => (
+            <article class="story-step" data-step>
+              <p class:list={['eyebrow', { ai: 'ai' in row && row.ai }]}>{row.eyebrow}</p>
+              <h2>{row.h}</h2>
+              <p class="lead">{row.p}</p>
+              <ul class="checks">{row.pts.map((p) => <li><Icon name="check" />{p}</li>)}</ul>
+              <a class="link-arrow" href={fPath(lang, row.k)}>{f(row.k).nav}: {u.learnMore.toLowerCase()}<Icon name="arrow-right" /></a>
+              <div class="story-inline"><Mock kind={row.mock} lang={lang} /></div>
+            </article>
+          ))}
+        </div>
+        <div class="story-stage" aria-hidden="true">
+          <div class="story-sticky">
+            <div class="story-dots">{rows.map((row) => <span data-dot class:list={{ ai: 'ai' in row && row.ai }}>{row.eyebrow}</span>)}</div>
+            <div class="story-vis-wrap">
+              {rows.map((row) => <div class="story-vis" data-vis><Mock kind={row.mock} lang={lang} /></div>)}
+            </div>
           </div>
-          <div class="rv"><Mock kind={row.mock} lang={lang} /></div>
         </div>
-      ))}
+      </div>
     </div>
   </section>
 
   <section class="sec fog">
     <div class="wrap">
       <div class="sec-head">
-        <p class="eyebrow">{T('Ve daha fazlası', 'And more')}</p>
-        <h2>{T('Şablondan rapora, panelden API’ye.', 'From templates to reports, from the panel to the API.')}</h2>
+        <p class="eyebrow rv">{T('Ve daha fazlası', 'And more')}</p>
+        <h2 class="rv-h">{T('Şablondan rapora, panelden API’ye.', 'From templates to reports, from the panel to the API.')}</h2>
       </div>
-      <div class="grid g3">
-        {rest.map((x) => (
-          <a class="card rv" href={fPath(lang, x.key)}>
-            <span class="ibox"><Icon name={x.icon} /></span>
-            <h3>{x.nav}</h3>
-            <p>{x.summary}</p>
-            <span class="more">{u.learnMore}<Icon name="arrow-right" /></span>
-          </a>
-        ))}
+      <div class="bento">
+        <a class="card b-tpl rv" href={fPath(lang, ft.key)}>
+          <span class="ibox"><Icon name={ft.icon} /></span>
+          <h3>{ft.nav}</h3>
+          <p>{ft.summary}</p>
+          <span class="more">{u.learnMore}<Icon name="arrow-right" /></span>
+          <div class="b-vis"><Mock kind="templates" lang={lang} /></div>
+        </a>
+        <a class="card b-an rv" href={fPath(lang, fa.key)}>
+          <span class="ibox"><Icon name={fa.icon} /></span>
+          <h3>{fa.nav}</h3>
+          <p>{fa.summary}</p>
+          <span class="more">{u.learnMore}<Icon name="arrow-right" /></span>
+          <div class="mini-bars" aria-hidden="true">{[94, 71, 38, 62, 84, 46, 76].map((h) => <i style={`--h:${h}%`}></i>)}</div>
+        </a>
+        <a class="card b-api dark rv" href={fPath(lang, fapi.key)}>
+          <span class="ibox"><Icon name={fapi.icon} /></span>
+          <h3>{fapi.nav}</h3>
+          <p>{fapi.summary}</p>
+          <pre aria-hidden="true"><code><span class="k">POST</span> /api/v1/messages{'\n'}<span class="c">Idempotency-Key:</span> siparis-48213{'\n'}<span class="c">→</span> <span class="ok">202 Accepted</span></code></pre>
+          <span class="more">{u.learnMore}<Icon name="arrow-right" /></span>
+        </a>
+        <div class="card b-sm rv"><span class="ibox"><Icon name="globe" /></span><h3>{T('Kurumsal’da kendi adresiniz', 'Your own address on Enterprise')}</h3><p>{T('Panel app.messora.tech’te; Kurumsal pakette firma.messora.tech ya da kendi alan adınız.', 'The panel is at app.messora.tech; on Enterprise, company.messora.tech or your own domain.')}</p></div>
+        <div class="card b-sm rv"><span class="ibox"><Icon name="users" /></span><h3>{T('Roller ve iki adımlı doğrulama', 'Roles and two-factor sign-in')}</h3><p>{T('Owner, Admin, Manager ve Agent rolleri; her işlem denetim kaydında.', 'Owner, Admin, Manager and Agent roles, with every action in the audit log.')}</p></div>
+        <div class="card b-sm rv"><span class="ibox"><Icon name="download" /></span><h3>{T('Dışa aktarım', 'Exports')}</h3><p>{T('Listeler CSV/Excel, kampanya raporları PDF olarak her pakette.', 'Lists as CSV/Excel and campaign reports as PDF, in every plan.')}</p></div>
       </div>
     </div>
   </section>
@@ -139,9 +171,9 @@ const faqs: Faq[] = tr ? [
   <section class="sec">
     <div class="wrap">
       <div class="sec-head">
-        <p class="eyebrow">{T('Sektörünüze göre', 'For your industry')}</p>
-        <h2>{T('Aynı WhatsApp, farklı işler.', 'Same WhatsApp, different jobs.')}</h2>
-        <p class="lead">{T('Kargo bildiriminden randevu hatırlatmasına, her sektör için gerçekçi akışlar ve onaya uygun şablon örnekleri.', 'From shipping updates to appointment reminders: realistic flows and approval-ready template examples for each industry.')}</p>
+        <p class="eyebrow rv">{T('Sektörünüze göre', 'For your industry')}</p>
+        <h2 class="rv-h">{T('Aynı WhatsApp, farklı işler.', 'Same WhatsApp, different jobs.')}</h2>
+        <p class="lead rv">{T('Kargo bildiriminden randevu hatırlatmasına, her sektör için gerçekçi akışlar ve onaya uygun şablon örnekleri.', 'From shipping updates to appointment reminders: realistic flows and approval-ready template examples for each industry.')}</p>
       </div>
       <div class="grid g4 sectors">
         {solutions(lang).map((s) => (
@@ -156,7 +188,7 @@ const faqs: Faq[] = tr ? [
     </div>
   </section>
 
-  <section class="sec dark">
+  <section class="sec dark lit">
     <div class="wrap split">
       <div class="rv">
         <p class="eyebrow ai">{T('Güvenlik ve veri', 'Security and data')}</p>
@@ -176,12 +208,12 @@ const faqs: Faq[] = tr ? [
   <section class="sec">
     <div class="wrap">
       <div class="sec-head">
-        <p class="eyebrow">{T('Başlamak', 'Getting started')}</p>
-        <h2>{T('Bir öğleden sonra kurulur.', 'Set up in an afternoon.')}</h2>
-        <p class="lead">{T('Meta’nın işletme doğrulaması ve şablon onayı birkaç gün sürebilir; Messora’daki kurulumunuz ise kısa.', 'Meta’s business verification and template approval can take a few days; your setup in Messora is short.')}</p>
+        <p class="eyebrow rv">{T('Başlamak', 'Getting started')}</p>
+        <h2 class="rv-h">{T('Bir öğleden sonra kurulur.', 'Set up in an afternoon.')}</h2>
+        <p class="lead rv">{T('Meta’nın işletme doğrulaması ve şablon onayı birkaç gün sürebilir; Messora’daki kurulumunuz ise kısa.', 'Meta’s business verification and template approval can take a few days; your setup in Messora is short.')}</p>
       </div>
       <ol class="steps">
-        <li class="rv"><h3>{T('Hesabınızı açın', 'Create your account')}</h3><p>{T('Firmanıza ait adres hazır: firma.messora.tech. İsterseniz kendi alan adınızı bağlayın.', 'Your company address is ready: company.messora.tech. Connect your own domain if you like.')}</p></li>
+        <li class="rv"><h3>{T('Hesabınızı açın', 'Create your account')}</h3><p>{T('app.messora.tech’te kaydolun, 14 gün ücretsiz deneyin; kart gerekmez.', 'Sign up at app.messora.tech and try it free for 14 days, no card needed.')}</p></li>
         <li class="rv"><h3>{T('Meta hesabınızı bağlayın', 'Connect your Meta account')}</h3><p>{T('Kendi Meta uygulamanızla, sihirbazın gösterdiği adımlarla. Tek tıkla bağlantı (Embedded Signup) yakında.', 'With your own Meta app, following the wizard. One-click connection (Embedded Signup) is coming soon.')}</p></li>
         <li class="rv"><h3>{T('Şablonlarınızı onaya gönderin', 'Submit your templates')}</h3><p>{T('Şablon oluşturucuda hazırlayın, Meta’ya gönderin; onay durumu panelde güncellenir.', 'Build them in the template builder and send them to Meta; the approval status updates in the panel.')}</p></li>
         <li class="rv"><h3>{T('Ekibinizi davet edin', 'Invite your team')}</h3><p>{T('Rolleri verin, hazır otomasyonları açın, ilk kampanyanızın maliyetini görün.', 'Give out roles, switch on presets and see what your first campaign will cost.')}</p></li>
@@ -192,36 +224,31 @@ const faqs: Faq[] = tr ? [
   <section class="sec fog">
     <div class="wrap">
       <div class="sec-head center">
-        <p class="eyebrow">{u.nav.pricing}</p>
-        <h2>{T('Taahhüt yok. Meta ücreti ayrı ve görünür.', 'No lock-in. Meta fees separate and visible.')}</h2>
-        <p class="lead">{T('Fiyatlar TL + KDV, aylık. Yıllık ödemede 12 ay, 10 ay fiyatına.', 'Prices in TL + VAT per month. Pay yearly: 12 months for the price of 10.')}</p>
+        <p class="eyebrow rv">{u.nav.pricing}</p>
+        <h2 class="rv-h">{T('Taahhüt yok. Meta ücreti ayrı ve görünür.', 'No lock-in. Meta fees separate and visible.')}</h2>
+        <p class="lead rv">{T(`Fiyatlar TL + KDV, aylık. ${ph.yearly}`, `Prices in TL + VAT per month. ${ph.yearly}`)}</p>
       </div>
-      <div class="grid g4 plans-mini">
-        {plans.map((p) => (
-          <div class:list={['card', 'rv', { pop: p.popular }]}>
-            <h3>{p.name[lang]}</h3>
-            <p class="price">{p.from && <small>{T('başlangıç', 'from')} </small>}{tl(p.monthly, lang)} <small>TL</small></p>
-            <p class="per">{T('+ KDV / ay', '+ VAT / month')}</p>
-            <p>{p.blurb[lang]}</p>
-          </div>
-        ))}
-      </div>
-      <p class="center" style="margin-top:28px"><a class="btn btn-ghost" href={r(lang, 'pricing')}>{T('Paketleri karşılaştırın', 'Compare plans')}<Icon name="arrow-right" /></a></p>
+      <Fragment set:html={P.slot(`teaser:${lang}`, P.teaser(plans, lang))} />
+      <p class="center" style="margin-top:36px"><a class="btn btn-ghost" href={r(lang, 'pricing')}>{T('Paketleri karşılaştırın', 'Compare plans')}<Icon name="arrow-right" /></a></p>
     </div>
   </section>
 
   {posts.length > 0 && (
     <section class="sec">
       <div class="wrap">
-        <div class="sec-head">
-          <p class="eyebrow">{u.nav.resources}</p>
-          <h2>{T('WhatsApp Business API’yi doğru kullanmak için.', 'Using the WhatsApp Business API the right way.')}</h2>
+        <div class="sec-head row-head">
+          <div>
+            <p class="eyebrow rv">{u.nav.resources}</p>
+            <h2 class="rv-h">{T('WhatsApp Business API’yi doğru kullanmak için.', 'Using the WhatsApp Business API the right way.')}</h2>
+          </div>
+          <a class="link-arrow rv" href={r(lang, 'resources')}>{u.nav.blog}<Icon name="arrow-right" /></a>
         </div>
-        <div class="grid g3">
-          {posts.map((p) => (
-            <a class="card rv" href={blogBase + p.data.slug}>
+        <div class="grid g3 posts">
+          {posts.map((p, i) => (
+            <a class="card post rv" href={blogBase + p.data.slug}>
+              <span class:list={['post-art', `pa${i}`]} aria-hidden="true"><Icon name={(['chart', 'shield', 'message'] as const)[i % 3]} size={26} /></span>
               <p class="small muted">{p.data.tags[0]} · {readingMinutes(p.data.words)} {u.minRead}</p>
-              <h3 style="margin-top:10px">{p.data.title}</h3>
+              <h3>{p.data.title}</h3>
               <p>{p.data.description}</p>
               <span class="more">{u.readMore}<Icon name="arrow-right" /></span>
             </a>
@@ -232,10 +259,13 @@ const faqs: Faq[] = tr ? [
   )}
 
   <section class="sec fog">
-    <div class="wrap narrow">
-      <div class="sec-head center"><h2>{u.nav.faq}</h2></div>
+    <div class="wrap faq-wrap">
+      <div class="sec-head">
+        <p class="eyebrow rv">{u.nav.faq}</p>
+        <h2 class="rv-h">{T('Aklınıza takılanlar', 'Questions you may have')}</h2>
+        <p class="rv" style="margin-top:20px"><a class="link-arrow" href={r(lang, 'faq')}>{T('Tüm sorular', 'All questions')}<Icon name="arrow-right" /></a></p>
+      </div>
       <FaqList items={faqs} />
-      <p class="center note"><a href={r(lang, 'faq')}>{T('Tüm sorular', 'All questions')}</a></p>
     </div>
   </section>
 
@@ -243,18 +273,92 @@ const faqs: Faq[] = tr ? [
 </Base>
 
 <style>
-  .hero-vis { position: relative; }
-  .float-card { position: absolute; left: -36px; bottom: -78px; width: min(290px, 80%); background: #fff; color: var(--ink); border-radius: 18px 18px 18px 6px; padding: 14px 16px; box-shadow: var(--shadow-lg); font-size: .9rem; line-height: 1.45; animation: floaty 6s ease-in-out infinite; }
-  .float-card p { margin-top: 8px; color: var(--ink-2); }
-  @keyframes floaty { 50% { transform: translateY(-6px); } }
-  @media (max-width: 920px) { .float-card { position: relative; left: auto; bottom: auto; margin: 16px 0 0 16px; } }
-  .why > div { display: grid; gap: 8px; }
-  .why :global(.ic) { color: var(--indigo); width: 26px; height: 26px; }
-  .why .h3 { font-size: 1.15rem; font-weight: 700; }
-  .why p { color: var(--muted); font-size: .98rem; }
+  .hero-home { padding: calc(var(--hdr-h) + clamp(56px, 9vw, 120px)) 0 0; overflow: visible; z-index: 2; }
+  .hh-copy { text-align: center; display: flex; flex-direction: column; align-items: center; }
+  .hh-copy .pill-eyebrow { margin-bottom: 28px; }
+  .hero-home h1 { font-size: var(--fs-display); letter-spacing: -.045em; line-height: 1; color: #F4F6FB; max-width: 1000px; }
+  .hero-home .lead { margin-top: 26px; max-width: 700px; }
+  .hero-home .actions { justify-content: center; margin-top: 36px; }
+  .hero-home .hero-points { justify-content: center; }
+  .hh-vis { margin-top: clamp(56px, 7vw, 88px); margin-bottom: calc(-1 * clamp(90px, 14vw, 200px)); }
+  .after-hero { padding: calc(clamp(90px, 14vw, 200px) + clamp(56px, 7vw, 88px)) 0 clamp(64px, 8vw, 104px); background: linear-gradient(var(--white), var(--fog)); }
+  .trust-label { text-align: center; font: 600 12.5px/1 var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 22px; }
+  .why { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: clamp(56px, 7vw, 88px); border-top: 1px solid var(--line); }
+  .why > div { padding: 32px 32px 0 0; }
+  .why > div + div { padding-left: 32px; border-left: 1px solid var(--line); }
+  .why .h3 { margin-bottom: 8px; }
+  .why p { color: var(--muted); font-size: .97rem; }
+  @media (max-width: 860px) { .why { grid-template-columns: 1fr; } .why > div, .why > div + div { padding: 28px 0; border-left: 0; border-bottom: 1px solid var(--line); } .why > div:last-child { border-bottom: 0; } }
+
+  /* Sticky story */
+  .story-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(32px, 6vw, 96px); }
+  .story-step { position: relative; min-height: 78vh; display: flex; flex-direction: column; justify-content: center; padding: 40px 0 40px 32px; }
+  .story-step::before { content: ''; position: absolute; left: 0; top: 50%; height: 0; width: 2px; border-radius: 2px; background: linear-gradient(var(--indigo-l), var(--mint)); transform: translateY(-50%); transition: height .7s var(--ease-out); }
+  .story-step.on::before { height: 70%; }
+  .story-step:not(.on) h2, .story-step:not(.on) .eyebrow { color: #5B6478; }
+  .story-step h2 { transition: color var(--d-3); }
+  .story-step h2 { font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.3rem); }
+  .story-step .lead { margin-top: 16px; font-size: 1.06rem; }
+  .story-step .checks { margin-top: 22px; }
+  .story-step .link-arrow { margin-top: 26px; }
+  .story-inline { display: none; }
+  .story-sticky { position: sticky; top: calc(50vh - 260px); }
+  .story-dots { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+  .story-dots span { padding: 7px 12px; border-radius: 999px; font: 600 .8rem/1 var(--f-body); color: var(--muted); background: var(--fog); transition: background var(--d-2), color var(--d-2); }
+  .story-dots span.on { background: var(--night); color: #fff; }
+  .story-dots span.on.ai { background: var(--mint); color: var(--night); }
+  .story-vis-wrap { position: relative; display: grid; padding: clamp(20px, 3vw, 40px); border-radius: var(--r-xl); background: var(--night); overflow: hidden; isolation: isolate; min-height: 460px; align-items: center; }
+  .story-vis-wrap::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(70% 60% at 30% 0%, rgba(91,107,240,.4), transparent 70%), radial-gradient(50% 50% at 100% 100%, rgba(45,212,167,.16), transparent 70%), linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px) 0 0 / 32px 32px; }
+  .story-vis { grid-area: 1 / 1; opacity: 0; transform: translateY(24px) scale(.97); filter: blur(6px); transition: opacity .6s var(--ease-out), transform .8s var(--ease-out), filter .6s var(--ease-out); pointer-events: none; }
+  .story-vis.on { opacity: 1; transform: none; filter: none; }
+  @media (max-width: 960px) {
+    .story-grid { grid-template-columns: 1fr; }
+    .story-stage { display: none; }
+    .story-step { min-height: 0; padding: 0; }
+    .story-step::before { display: none; }
+    .story-step:not(.on) h2, .story-step:not(.on) .eyebrow { color: inherit; }
+    .story-step + .story-step { margin-top: 88px; }
+    .story-inline { display: block; margin-top: 32px; padding: 20px; border-radius: var(--r-lg); background: var(--night); }
+  }
+
+  /* Bento */
+  .bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px; }
+  .bento .card { overflow: hidden; }
+  .b-tpl { grid-column: span 7; grid-row: span 2; display: flex !important; flex-direction: column; }
+  .b-an, .b-api { grid-column: span 5; }
+  .b-sm { grid-column: span 4; }
+  .b-vis { margin: 28px -28px -28px; padding: 28px 28px 0; flex: 1; display: flex; align-items: flex-end; justify-content: center; background: radial-gradient(70% 80% at 50% 100%, rgba(59,76,202,.22), transparent 70%), var(--night); border-top: 1px solid var(--line); min-height: 300px; overflow: hidden; }
+  .b-vis :global(.phone) { transform: translateY(26px); transition: transform var(--d-4) var(--ease-out); }
+  .b-tpl:hover .b-vis :global(.phone) { transform: translateY(8px); }
+  .mini-bars { display: flex; align-items: flex-end; gap: 8px; height: 84px; margin-top: 22px; }
+  .mini-bars i { flex: 1; height: var(--h); border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, var(--indigo-l), var(--indigo-200)); transform-origin: bottom; transition: transform var(--d-4) var(--ease-out); }
+  .mini-bars i:nth-child(3n) { background: linear-gradient(180deg, var(--mint), #A6EFD9); }
+  :global(.js) .b-an:not(.in) .mini-bars i { transform: scaleY(.1); }
+  .mini-bars i:nth-child(2) { transition-delay: 60ms; } .mini-bars i:nth-child(3) { transition-delay: 120ms; } .mini-bars i:nth-child(4) { transition-delay: 180ms; } .mini-bars i:nth-child(5) { transition-delay: 240ms; } .mini-bars i:nth-child(6) { transition-delay: 300ms; } .mini-bars i:nth-child(7) { transition-delay: 360ms; }
+  .b-api { background: var(--night); color: var(--on-dark); border-color: transparent; }
+  .b-api p { color: var(--muted-d); }
+  .b-api .more { color: #C8CEFF; }
+  .b-api pre { margin: 20px 0 0; padding: 14px 16px; border-radius: 12px; background: rgba(0,0,0,.3); border: 1px solid var(--night-line); font: 12.5px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #D7DCEB; overflow-x: auto; }
+  .b-api .k { color: #AEB7F5; font-weight: 700; } .b-api .c { color: #7F8AA8; } .b-api .ok { color: var(--mint); }
+  @media (max-width: 960px) { .b-tpl, .b-an, .b-api { grid-column: span 12; grid-row: auto; } .b-sm { grid-column: span 6; } .b-sm:last-child { grid-column: span 12; } }
+  @media (max-width: 640px) { .b-sm, .b-sm:last-child { grid-column: span 12; } }
+
   .sectors .all { display: flex; flex-direction: column; justify-content: center; background: var(--fog); border-color: transparent; }
-  .plans-mini .price { font: 800 2rem/1.1 var(--f-head); color: var(--ink); margin-top: 10px; letter-spacing: -.02em; }
-  .plans-mini .price small { font-size: .9rem; font-weight: 700; color: var(--muted); }
-  .plans-mini .per { font-size: .85rem; margin: 2px 0 12px; }
-  .plans-mini .pop { outline: 2px solid var(--indigo); outline-offset: -2px; }
+  .row-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; max-width: none; }
+  .row-head > div { max-width: 760px; }
+  .post { display: flex !important; flex-direction: column; }
+  .post h3 { margin-top: 10px; }
+  .post .more { margin-top: auto; padding-top: 18px; }
+  .post-art { display: grid; place-items: center; height: 150px; margin: -28px -28px 24px; border-radius: var(--r-lg) var(--r-lg) 0 0; color: #fff; background: var(--night); position: relative; overflow: hidden; isolation: isolate; }
+  .post-art::before { content: ''; position: absolute; inset: 0; z-index: -1; background-image: radial-gradient(rgba(255,255,255,.14) 1px, transparent 1px); background-size: 14px 14px; transition: transform var(--d-4) var(--ease-out); }
+  .post-art::after { content: ''; position: absolute; inset: 0; z-index: -1; }
+  .pa0::after { background: radial-gradient(60% 90% at 20% 0%, rgba(91,107,240,.7), transparent 70%); }
+  .pa1::after { background: radial-gradient(60% 90% at 80% 100%, rgba(45,212,167,.45), transparent 70%), radial-gradient(60% 90% at 0% 0%, rgba(59,76,202,.5), transparent 70%); }
+  .pa2::after { background: radial-gradient(70% 90% at 50% 0%, rgba(91,107,240,.55), transparent 70%), radial-gradient(40% 50% at 100% 100%, rgba(255,122,89,.3), transparent 70%); }
+  .post-art :global(.ic) { width: 48px; height: 48px; padding: 11px; border-radius: 14px; background: rgba(255,255,255,.1); box-shadow: 0 0 0 1px rgba(255,255,255,.15) inset; transition: transform var(--d-3) var(--ease-spring); }
+  .post:hover .post-art::before { transform: scale(1.08); }
+  .post:hover .post-art :global(.ic) { transform: scale(1.08) rotate(-4deg); }
+  .faq-wrap { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: clamp(32px, 6vw, 96px); align-items: start; }
+  .faq-wrap .sec-head { position: sticky; top: 110px; margin-bottom: 0; }
+  @media (max-width: 900px) { .faq-wrap { grid-template-columns: 1fr; } .faq-wrap .sec-head { position: static; margin-bottom: 8px; } .row-head { flex-direction: column; align-items: flex-start; } }
 </style>

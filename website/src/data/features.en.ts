@@ -490,7 +490,7 @@ export const features: Feature[] = [
     seoDescription: "Send WhatsApp messages from your own systems and receive events through signed webhooks. Integrate with scoped API keys and API docs for your own company.",
     eyebrow: "API and webhooks",
     h1: "WhatsApp API integration: send from your own systems, get events as they happen",
-    lead: "Your order, booking or CRM system sends WhatsApp messages and manages contacts and campaigns through Messora's REST API. Signed webhooks tell your system about new messages, delivery status and opt-outs. Each company's API documentation is published at its own address, with its own base URL.",
+    lead: "Your order, booking or CRM system sends WhatsApp messages and manages contacts and campaigns through Messora's REST API. Signed webhooks tell your system about new messages, delivery status and opt-outs. The API base URL is https://app.messora.tech/api/v1, and your API key identifies your company. On Enterprise you use your own address.",
     summary: "Manage messages, contacts and campaigns over the REST API, and receive events in your system through signed webhooks.",
     highlights: ["Scoped API keys", "HMAC-SHA256 signed webhooks", "API docs per company"],
     blocks: [
@@ -526,13 +526,13 @@ export const features: Feature[] = [
         body: "Every request carries an HMAC-SHA256 signature with your endpoint's secret and a timestamp, so you can verify it came from Messora unchanged. Webhook addresses cannot point to private or local network addresses; the check runs when you save and again on every connection.",
       },
       {
-        title: "API documentation for your company",
-        body: "Each company runs at its own address, and its API documentation is published there with its own base URL. The interactive reference has request and response examples and code samples for every operation.",
+        title: "Interactive API documentation",
+        body: "The API documentation is published in the panel; the base URL is https://app.messora.tech/api/v1 and your API key identifies the company. On Enterprise the docs and the API run at your own address. The interactive reference has request and response examples and code samples for every operation.",
       },
     ],
     steps: [
       { title: "Create a key", body: "Create an API key in the panel with only the permissions it needs." },
-      { title: "Open the docs", body: "Try the request examples with your own address in your company's API documentation." },
+      { title: "Open the docs", body: "Try the request examples with your own key in the API documentation in the panel." },
       { title: "Add a webhook", body: "Register your HTTPS address, choose events and test your receiver with a test event." },
       { title: "Verify the signature", body: "Check every request's signature and timestamp, and drop duplicates by event ID." },
     ],

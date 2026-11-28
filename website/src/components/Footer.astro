@@ -1,12 +1,15 @@
 ---
 import type { Lang } from '../data/types';
 import Logo from './Logo.astro';
+import Icon from './Icon.astro';
+import { appUrls } from '../data/routes';
 import { t } from '../i18n/ui';
 import { features, solutions, fPath, sPath, r } from '../lib/site';
 import { legalRoutes } from '../data/routes';
 import { companyText } from '../config/company';
-interface Props { lang: Lang; minimal?: boolean }
-const { lang, minimal = false } = Astro.props;
+interface Props { lang: Lang; minimal?: boolean; altPath?: string | null }
+const { lang, minimal = false, altPath } = Astro.props;
+const langHref = altPath ?? (lang === 'tr' ? '/en' : '/');
 const u = t(lang);
 const L = (k: keyof typeof legalRoutes) => legalRoutes[k][lang];
 const legalLinks = lang === 'tr'
@@ -23,6 +26,10 @@ const co = (k: Parameters<typeof companyText>[0]) => companyText(k, lang);
           <a href={r(lang, 'home')} class="logo" aria-label="Messora"><Logo dark size={30} /></a>
           <p class="tag">{u.footer.tagline}</p>
           <p class="about">{u.footer.about}</p>
+          <div class="ftr-cta">
+            <a class="btn btn-sm" href={appUrls.signup} data-signup>{u.trial}<Icon name="arrow-right" /></a>
+            <a class="btn btn-sm btn-ghost" href={r(lang, 'demo')}>{u.demo}</a>
+          </div>
         </div>
         <div>
           <h2>{u.footer.product}</h2>
@@ -76,6 +83,13 @@ const co = (k: Parameters<typeof companyText>[0]) => companyText(k, lang);
     <div class="ftr-bot">
       <span>© {year} Messora. {u.footer.rights}</span>
       <span>{u.footer.meta}</span>
+      {!minimal && (
+        <span class="ftr-lang" role="group" aria-label={lang === 'tr' ? 'Dil' : 'Language'}>
+          {lang === 'tr' ? <span aria-current="true">TR</span> : <a href={langHref} hreflang="tr" lang="tr">TR</a>}
+          {lang === 'en' ? <span aria-current="true">EN</span> : <a href={langHref} hreflang="en" lang="en">EN</a>}
+        </span>
+      )}
     </div>
+    {!minimal && <p class="ftr-word" aria-hidden="true">messora</p>}
   </div>
 </footer>

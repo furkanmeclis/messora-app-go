@@ -3,7 +3,8 @@
 //
 // Env: PORT (3000), DIST_DIR (../dist), RESEND_API_KEY, FORMS_TO,
 //      FORMS_FROM ("Messora <no-reply@messora.tech>"), CANONICAL_HOST (messora.tech),
-//      GTAG_ID, ADS_ID, ADS_LEAD_LABEL, ADS_SIGNUP_LABEL, GTAG_CONSENT_MODE (basic|advanced)
+//      GTAG_ID, ADS_ID, ADS_LEAD_LABEL, ADS_SIGNUP_LABEL, GTAG_CONSENT_MODE (basic|advanced),
+//      PLANS_API_URL (default https://app.messora.tech/api/v1/plans; "off" disables live plans)
 import { createServer } from 'node:http';
 import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
@@ -12,6 +13,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { forms } from './forms-spec.mjs';
 import { internalMail, confirmationMail } from './mail.mjs';
+import { createPlans } from './plans-live.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const DIST = normalize(process.env.DIST_DIR || join(here, '../dist'));
@@ -20,6 +22,8 @@ const HOST = process.env.CANONICAL_HOST || 'messora.tech';
 const FROM = process.env.FORMS_FROM || 'Messora <no-reply@messora.tech>';
 
 const log = (o) => process.stdout.write(JSON.stringify({ t: new Date().toISOString(), ...o }) + '\n');
+const plans = createPlans({ dist: DIST, log });
+plans.init();
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -64,7 +68,7 @@ async function fileFor(pathname) {
 }
 
 function cacheControl(pathname, ext) {
-  if (pathname.startsWith('/_astro/') || pathname.startsWith('/fonts/')) return 'public, max-age=31536000, immutable';
+  if (pathname.startsWith('/_astro/') || pathname.startsWith('/fonts/') || pathname.startsWith('/email/')) return 'public, max-age=31536000, immutable';
   if (pathname.startsWith('/og/') || pathname.startsWith('/icons/') || ext === '.ico') return 'public, max-age=86400';
   if (ext === '.html' || ext === '') return 'public, max-age=0, must-revalidate';
   return 'public, max-age=3600';
@@ -72,6 +76,10 @@ function cacheControl(pathname, ext) {
 
 async function serveFile(req, res, f, status = 200, pathname = '') {
   const ext = extname(f.full);
+  if (ext === '.html' && status === 200) {
+    const dyn = await plans.page(f.full);
+    if (dyn) return serveBuffer(req, res, dyn, pathname);
+  }
   const etag = `W/"${f.s.size.toString(36)}-${Math.floor(f.s.mtimeMs).toString(36)}"`;
   const headers = { ...SEC, 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Cache-Control': status === 200 ? cacheControl(pathname, ext) : 'no-store', ETag: etag, Vary: 'Accept-Encoding' };
   if (status === 200 && req.headers['if-none-match'] === etag) { res.writeHead(304, headers); return res.end(); }
@@ -84,6 +92,19 @@ async function serveFile(req, res, f, status = 200, pathname = '') {
   res.writeHead(status, headers);
   if (req.method === 'HEAD') return res.end();
   createReadStream(file).pipe(res);
+}
+
+// Pages whose plan blocks were re-rendered from the live plans API.
+function serveBuffer(req, res, d, pathname) {
+  const headers = { ...SEC, 'Content-Type': TYPES['.html'], 'Cache-Control': cacheControl(pathname, '.html'), ETag: d.etag, Vary: 'Accept-Encoding' };
+  if (req.headers['if-none-match'] === d.etag) { res.writeHead(304, headers); return res.end(); }
+  const ae = String(req.headers['accept-encoding'] || '');
+  let body = d.body;
+  if (ae.includes('br')) { body = d.br; headers['Content-Encoding'] = 'br'; }
+  else if (ae.includes('gzip')) { body = d.gz; headers['Content-Encoding'] = 'gzip'; }
+  headers['Content-Length'] = body.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
 }
 
 // ── Runtime config (Google tag) ───────────────────────────

@@ -1,6 +1,7 @@
 ---
 import type { Lang } from '../data/types';
 import Icon from './Icon.astro';
+import Logo from './Logo.astro';
 import { t } from '../i18n/ui';
 import { appUrls } from '../data/routes';
 import { r } from '../lib/site';
@@ -11,12 +12,11 @@ const u = t(lang);
 <section class:list={['sec-sm', { fog }]}>
   <div class="wrap">
     <div class="cta-band dark rv">
-      <div>
-        <h2>{title ?? (lang === 'tr' ? 'İlk konuşmanızı bugün başlatın.' : 'Start your first conversation today.')}</h2>
-        <p>{text ?? u.noCard}</p>
-      </div>
+      <Logo dark size={56} wordmark={false} class="logo-mark" />
+      <h2>{title ?? (lang === 'tr' ? 'İlk konuşmanızı bugün başlatın.' : 'Start your first conversation today.')}</h2>
+      <p>{text ?? u.noCard}</p>
       <div class="actions">
-        <a class="btn btn-lg" href={appUrls.signup} data-signup>{u.trialLong}<Icon name="arrow-right" /></a>
+        <a class="btn btn-lg btn-light" href={appUrls.signup} data-signup>{u.trialLong}<Icon name="arrow-right" /></a>
         <a class="btn btn-ghost btn-lg" href={r(lang, 'demo')}>{u.demo}</a>
       </div>
     </div>

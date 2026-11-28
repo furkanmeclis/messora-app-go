@@ -60,7 +60,7 @@ WhatsApp mesajları için Meta'nın uyguladığı ücretler Meta tarafından do�
 ## 9. İptal ve iade talebi nasıl yapılır
 
 - **Panelden:** Aboneliğinizi panelin faturalandırma bölümünden iptal edebilirsiniz.
-- **E-posta ile:** {{eposta}} adresine, hesap adresinizi (`firma.messora.tech`), unvanınızı veya adınızı, sipariş referansınızı ve talebinizi yazarak.
+- **E-posta ile:** {{eposta}} adresine, paneldeki firma adınızı (Kurumsal pakette `firma.messora.tech` gibi kendi adresinizi), unvanınızı veya adınızı, sipariş referansınızı ve talebinizi yazarak.
 - **İletişim formu ile:** [İletişim](/iletisim) sayfasındaki form üzerinden.
 - **KEP ile:** {{kep}} adresine.
 

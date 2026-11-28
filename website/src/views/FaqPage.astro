@@ -35,8 +35,8 @@ const groups: { h: string; items: Faq[] }[] = tr ? [
   ] },
   { h: 'Kurulum ve kullanım', items: [
     { q: 'Kurulum ne kadar sürer?', a: 'Messora tarafı kısa: hesap açılır, Meta bağlantısı sihirbazla yapılır. Meta’nın işletme doğrulaması ve şablon onayı ise Meta’ya bağlıdır ve birkaç gün sürebilir.' },
-    { q: 'Kendi alan adımı kullanabilir miyim?', a: 'Evet. Firmanız firma.messora.tech adresiyle açılır; isterseniz kendi alan adınızı bağlarsınız, TLS sertifikası otomatik alınır.' },
-    { q: 'Hangi sistemlerle entegre olur?', a: 'Hazır eklenti yerine açık bir REST API ve imzalı webhook’lar sunuyoruz; e-ticaret, CRM veya ERP sisteminizi bunlarla bağlayabilirsiniz. Her firmanın API belgeleri kendi adresinde açılır.' },
+    { q: 'Kendi alan adımı kullanabilir miyim?', a: 'Kurumsal pakette evet: firmanız firma.messora.tech gibi kendi alt alan adıyla açılır ya da panel.firmaniz.com gibi kendi alan adınızı bağlarsınız; TLS sertifikası otomatik alınır. Başlangıç, Büyüme, Pro ve 14 günlük deneme ortak panelde, app.messora.tech adresinde çalışır.' },
+    { q: 'Hangi sistemlerle entegre olur?', a: 'Hazır eklenti yerine açık bir REST API ve imzalı webhook’lar sunuyoruz; e-ticaret, CRM veya ERP sisteminizi bunlarla bağlayabilirsiniz. API’nin temel adresi app.messora.tech/api/v1; firmanızı API anahtarı belirler.' },
   ] },
 ] : [
   { h: 'WhatsApp Business API', items: [
@@ -58,8 +58,8 @@ const groups: { h: string; items: Faq[] }[] = tr ? [
   ] },
   { h: 'Setup and use', items: [
     { q: 'How long does setup take?', a: 'Messora’s part is short: create the account and connect Meta with the wizard. Meta’s business verification and template approval depend on Meta and can take a few days.' },
-    { q: 'Can I use my own domain?', a: 'Yes. Your company opens at company.messora.tech; you can connect your own domain and the TLS certificate is issued automatically.' },
-    { q: 'What does it integrate with?', a: 'Instead of ready-made plug-ins we offer an open REST API and signed webhooks to connect your e-commerce, CRM or ERP system. Each company’s API docs open at its own address.' },
+    { q: 'Can I use my own domain?', a: 'On Enterprise, yes: your company gets its own subdomain such as company.messora.tech, or you connect your own domain such as panel.yourcompany.com, with the TLS certificate issued automatically. Starter, Growth, Pro and the 14-day trial use the shared panel at app.messora.tech.' },
+    { q: 'What does it integrate with?', a: 'Instead of ready-made plug-ins we offer an open REST API and signed webhooks to connect your e-commerce, CRM or ERP system. The API base URL is app.messora.tech/api/v1, and your API key identifies your company.' },
   ] },
 ];
 const all = groups.flatMap((g) => g.items);

@@ -1,4 +1,5 @@
 ---
+import '../styles/fonts.css';
 import '../styles/global.css';
 import type { Lang } from '../data/types';
 import Header from '../components/Header.astro';
@@ -6,6 +7,7 @@ import Footer from '../components/Footer.astro';
 import CookieBanner from '../components/CookieBanner.astro';
 import { t } from '../i18n/ui';
 import { abs, ogFor, SITE } from '../lib/site';
+import { plans, P } from '../lib/plans';
 
 export interface Crumb { name: string; path: string }
 interface Props {
@@ -21,8 +23,9 @@ interface Props {
   ogType?: 'website' | 'article';
   ogImage?: string;
   article?: { published: Date; modified?: Date };
+  plansLd?: 'home' | 'pricing';   // plan/price structured data (re-rendered live by the server)
 }
-const { lang, title, description, path, alt = {}, noindex = false, jsonLd = [], crumbs, minimal = false, ogType = 'website', ogImage, article } = Astro.props;
+const { lang, title, description, path, alt = {}, noindex = false, jsonLd = [], crumbs, minimal = false, ogType = 'website', ogImage, article, plansLd } = Astro.props;
 const u = t(lang);
 const fullTitle = /messora/i.test(title) ? title : `${title} | Messora`;
 const canonical = abs(path);
@@ -92,6 +95,7 @@ const ld = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })
   </script>
   <script is:inline src="/api/config.js" defer></script>
   <script type="application/ld+json" set:html={ld} />
+  {plansLd && <script type="application/ld+json" data-plans-ld={`${plansLd}:${lang}`} set:html={P.plansLdJson(plans, plansLd, lang)} />}
   <slot name="head" />
 </head>
 <body>
@@ -100,7 +104,7 @@ const ld = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })
   <main id="main">
     <slot />
   </main>
-  <Footer lang={lang} minimal={minimal} />
+  <Footer lang={lang} minimal={minimal} altPath={altPath ?? null} />
   <CookieBanner lang={lang} />
   <script>import '../scripts/site.ts';</script>
 </body>

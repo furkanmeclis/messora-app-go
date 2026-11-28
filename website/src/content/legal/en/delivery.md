@@ -17,7 +17,7 @@ No physical product, shipment or installation media is sent for the {{marka}} se
 
 - Registration is done at [app.messora.tech/signup](https://app.messora.tech/signup).
 - Once your e-mail address is verified, your account is opened **immediately** and the 14-day free trial begins. No card details are required.
-- You access your account through your own subdomain in the form `firma.messora.tech`. If you wish, you can connect your own domain; in that case the TLS certificate is issued automatically. Configuring the DNS settings of your own domain is your responsibility, and the propagation of DNS changes depends on your domain provider.
+- You access your account through the shared panel at `app.messora.tech`. On the Enterprise plan you get your own subdomain in the form `firma.messora.tech` and can connect your own domain; in that case the TLS certificate is issued automatically. Configuring the DNS settings of your own domain is your responsibility, and the propagation of DNS changes depends on your domain provider.
 
 ## 3. Activating a paid plan
 

@@ -26,9 +26,9 @@ export const meta: Record<StaticKey, Record<Lang, PageMeta>> = {
   },
   pricing: {
     tr: { title: 'Fiyatlar: WhatsApp Business API paketleri', og: 'Şeffaf fiyat, Meta ücreti ayrı ve görünür', eyebrow: 'Fiyatlar',
-      description: 'Messora paketleri 1.290 TL + KDV/ay’dan başlar. Yıllıkta 12 ay 10 ay fiyatına. Meta mesaj ücretleri ayrıdır ve göndermeden önce gösterilir.' },
+      description: 'Messora paketleri ve fiyatları. Meta mesaj ücretleri ayrıdır ve göndermeden önce gösterilir.' /* the page builds its own from live plan data */ },
     en: { title: 'Pricing: WhatsApp Business API plans', og: 'Clear prices, Meta fees shown separately', eyebrow: 'Pricing',
-      description: 'Messora plans start at 1,290 TL + VAT per month; yearly is 12 months for the price of 10. Meta message fees are separate and shown before you send.' },
+      description: 'Messora plans and prices. Meta message fees are separate and shown before you send.' /* the page builds its own from live plan data */ },
   },
   security: {
     tr: { title: 'Güvenlik ve veri: KVKK, AB’de barındırma, şifreleme', og: 'Verileriniz AB’de, ayrık ve şifreli', eyebrow: 'Güvenlik',

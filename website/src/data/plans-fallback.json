@@ -1,0 +1,37 @@
+{
+  "updated_at": "2026-11-28T00:00:00Z",
+  "plans": [
+    {
+      "key": "starter",
+      "name": { "tr": "Başlangıç", "en": "Starter" },
+      "description": { "tr": "Tek numara, küçük ekip. Gelen kutusu, kampanya ve ilk AI ajanınız.", "en": "One number, a small team. Inbox, campaigns and your first AI agent." },
+      "prices": { "monthly_try": 1290, "yearly_try": 12900, "vat_rate": 0.2, "currency": "TRY", "custom_pricing": false },
+      "limits": { "phone_numbers": 1, "users": 2, "ai_agents": 1, "automation_flows": 3, "ai_credits_per_month": 300, "api_calls_per_month": 0 },
+      "features": { "custom_smtp": false, "byo_ai_keys": false, "custom_domain": false, "public_api": false, "webhooks": true, "ai_agents": true }
+    },
+    {
+      "key": "growth",
+      "name": { "tr": "Büyüme", "en": "Growth" },
+      "description": { "tr": "Ekibi büyüyen işletmeler için: daha çok kullanıcı, akış ve API.", "en": "For growing teams: more users, flows and API access." },
+      "prices": { "monthly_try": 2990, "yearly_try": 29900, "vat_rate": 0.2, "currency": "TRY", "custom_pricing": false },
+      "limits": { "phone_numbers": 1, "users": 5, "ai_agents": 3, "automation_flows": 20, "ai_credits_per_month": 2000, "api_calls_per_month": 100000 },
+      "features": { "custom_smtp": false, "byo_ai_keys": false, "custom_domain": false, "public_api": true, "webhooks": true, "ai_agents": true }
+    },
+    {
+      "key": "pro",
+      "name": { "tr": "Pro", "en": "Pro" },
+      "description": { "tr": "Birden çok numara, sınırsız akış, yüksek API kotası.", "en": "Several numbers, unlimited flows, a high API quota." },
+      "prices": { "monthly_try": 6490, "yearly_try": 64900, "vat_rate": 0.2, "currency": "TRY", "custom_pricing": false },
+      "limits": { "phone_numbers": 3, "users": 12, "ai_agents": 10, "automation_flows": null, "ai_credits_per_month": 8000, "api_calls_per_month": 1000000 },
+      "features": { "custom_smtp": false, "byo_ai_keys": false, "custom_domain": false, "public_api": true, "webhooks": true, "ai_agents": true }
+    },
+    {
+      "key": "enterprise",
+      "name": { "tr": "Kurumsal", "en": "Enterprise" },
+      "description": { "tr": "Özel limitler, kendi adresiniz, kendi SMTP ve AI anahtarlarınız, sözleşmeli hizmet.", "en": "Custom limits, your own address, your own SMTP and AI keys, a contracted service." },
+      "prices": { "monthly_try": 14990, "yearly_try": null, "vat_rate": 0.2, "currency": "TRY", "custom_pricing": true },
+      "limits": { "phone_numbers": null, "users": null, "ai_agents": null, "automation_flows": null, "ai_credits_per_month": null, "api_calls_per_month": null },
+      "features": { "custom_smtp": true, "byo_ai_keys": true, "custom_domain": true, "public_api": true, "webhooks": true, "ai_agents": true }
+    }
+  ]
+}

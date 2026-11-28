@@ -6,7 +6,7 @@ interface Props { lang: Lang; eyebrow?: string; title: string; lead?: string; cr
 const { lang, eyebrow, title, lead, crumbs, split = false, ai = false } = Astro.props;
 const u = t(lang);
 ---
-<section class:list={['page-hero', 'dark', { 'has-aside': split }]}>
+<section class:list={['page-hero', 'dark', 'lit', { 'has-aside': split }]}>
   <div class="wrap">
     <div class={split ? 'hero-grid' : undefined}>
       <div>
@@ -19,11 +19,11 @@ const u = t(lang);
           </nav>
         )}
         {eyebrow && <p class:list={['eyebrow', { ai }]}>{eyebrow}</p>}
-        <h1>{title}</h1>
-        {lead && <p class="lead">{lead}</p>}
+        <h1 class="ld-h">{title}</h1>
+        {lead && <p class="lead ld" style="--i:1">{lead}</p>}
         <slot />
       </div>
-      {split && <div><slot name="aside" /></div>}
+      {split && <div class="ld" style="--i:2"><slot name="aside" /></div>}
     </div>
   </div>
 </section>

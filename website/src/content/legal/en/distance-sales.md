@@ -48,7 +48,7 @@ The subject of the Agreement is the determination, in accordance with the provis
 | Service | {{marka}} — team inbox, campaign, template, automation, artificial intelligence and reporting software (SaaS) running on the official WhatsApp Business Cloud API |
 | Plan | The plan stated in the order summary (Starter, Growth or Pro) and the plan content and limits published on the [Pricing](/en/pricing) page on the order date |
 | Subscription period | The monthly or yearly period stated in the order summary |
-| Method of provision | Over the internet; access through the Buyer's `firma.messora.tech` address or a domain connected by the Buyer |
+| Method of provision | Over the internet; access through the shared panel at `app.messora.tech`; on the Enterprise plan, through the Buyer's own subdomain (`firma.messora.tech`) or a domain connected by the Buyer |
 | Operating environment | An up-to-date web browser and an internet connection. To send messages, the Buyer must connect its own Meta Business and WhatsApp Business account. |
 
 The detailed terms of the Service are set out in the [Terms of Service](/en/legal/terms-of-service), which form an integral part of the Agreement.

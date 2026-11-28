@@ -26,7 +26,7 @@ const crumbs = [{ name: u.footer.legal, path: r(lang, 'legal') }, { name: entry.
       <aside class="toc" aria-label={tr ? 'İçindekiler' : 'Contents'}>
         {h2.length > 2 && (<Fragment><strong>{tr ? 'İçindekiler' : 'Contents'}</strong><ol>{h2.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}</ol></Fragment>)}
       </aside>
-      <article class="prose">
+      <article class="prose" data-progress>
         <Content />
         {k === 'cookies' && (
           <p><button type="button" class="btn" data-cc-open><Icon name="list" />{u.footer.cookiePrefs}</button></p>

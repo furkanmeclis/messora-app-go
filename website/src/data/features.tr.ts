@@ -490,7 +490,7 @@ export const features: Feature[] = [
     seoDescription: "Kendi sisteminizden WhatsApp mesajı gönderin, olayları imzalı webhook'larla alın. Yetki kapsamlı API anahtarları ve firmanıza özel API dokümanıyla entegrasyon.",
     eyebrow: "API ve webhook",
     h1: "WhatsApp API entegrasyonu: kendi sisteminizden mesaj gönderin, olayları anında alın",
-    lead: "Sipariş, randevu ya da CRM sisteminiz Messora'nın REST API'siyle WhatsApp mesajı gönderir, kişileri ve kampanyaları yönetir. İmzalı webhook'lar yeni mesajı, teslim durumunu ve abonelikten çıkmayı sisteminize bildirir. Her firmanın API dokümanı kendi adresinde, kendi temel adresiyle yayınlanır.",
+    lead: "Sipariş, randevu ya da CRM sisteminiz Messora'nın REST API'siyle WhatsApp mesajı gönderir, kişileri ve kampanyaları yönetir. İmzalı webhook'lar yeni mesajı, teslim durumunu ve abonelikten çıkmayı sisteminize bildirir. API'nin temel adresi https://app.messora.tech/api/v1; hangi firmaya ait olduğunuzu API anahtarınız belirler. Kurumsal pakette kendi adresinizi kullanırsınız.",
     summary: "REST API ile mesaj, kişi ve kampanya yönetin; imzalı webhook'larla olayları sisteminize alın.",
     highlights: ["Yetki kapsamlı API anahtarları", "HMAC-SHA256 imzalı webhook", "Firmaya özel API dokümanı"],
     blocks: [
@@ -526,13 +526,13 @@ export const features: Feature[] = [
         body: "Her istek, uç noktanıza özel gizli anahtarla HMAC-SHA256 imzası ve zaman damgası taşır; isteğin Messora'dan geldiğini ve değiştirilmediğini doğrularsınız. Webhook adresleri özel ve yerel ağ adreslerine yönlendirilemez; kontrol kayıtta ve her bağlantıda tekrarlanır.",
       },
       {
-        title: "Firmanıza özel API dokümanı",
-        body: "Her firma kendi adresinde çalışır ve API dokümanı da orada, kendi temel adresiyle yayınlanır. Etkileşimli referansta her işlem için istek ve yanıt örnekleri ile kod örnekleri bulunur.",
+        title: "Etkileşimli API dokümanı",
+        body: "API dokümanı panelde yayınlanır; temel adres https://app.messora.tech/api/v1, firma ise API anahtarından anlaşılır. Kurumsal pakette doküman ve API kendi adresinizde çalışır. Etkileşimli referansta her işlem için istek ve yanıt örnekleri ile kod örnekleri bulunur.",
       },
     ],
     steps: [
       { title: "Anahtar oluşturun", body: "Panelden yalnızca gereken yetkilerle bir API anahtarı oluşturun." },
-      { title: "Dokümanı açın", body: "Firmanıza özel API dokümanında istek örneklerini kendi adresinizle deneyin." },
+      { title: "Dokümanı açın", body: "Paneldeki API dokümanında istek örneklerini kendi anahtarınızla deneyin." },
       { title: "Webhook ekleyin", body: "HTTPS adresinizi kaydedin, olayları seçin, test olayıyla alıcınızı sınayın." },
       { title: "İmzayı doğrulayın", body: "Gelen her isteğin imzasını ve zaman damgasını kontrol edin, olay kimliğiyle tekrarları ayıklayın." },
     ],

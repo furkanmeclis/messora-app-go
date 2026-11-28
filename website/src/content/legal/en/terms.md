@@ -18,7 +18,7 @@ This English version is provided for convenience; the Turkish version prevails i
 ## 2. Definitions
 
 - **Service:** The platform offered by {{marka}} over the internet as software as a service (SaaS), including team inbox, campaign, template, automation, AI agent, analytics and reporting, API and webhook features.
-- **Panel:** The management interface accessed through the Customer's subdomain in the form `firma.messora.tech` or through the Customer's own domain connected by the Customer.
+- **Panel:** The management interface accessed through the shared panel at `app.messora.tech`, or, on the Enterprise plan, through the Customer's own subdomain in the form `firma.messora.tech` or a domain connected by the Customer.
 - **User:** A person authorised by the Customer to access the panel.
 - **Customer Data:** Any data uploaded to the Service by the Customer or Users or processed through the Service; in particular contact lists, telephone numbers, WhatsApp messages and media, notes, tags, campaign, template and automation data.
 - **Meta:** Meta Platforms, Inc., Meta Platforms Ireland Ltd. and their affiliates, including WhatsApp.
