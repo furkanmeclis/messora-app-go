@@ -14,7 +14,7 @@ Bu sayfa, {{unvan}} ("**{{marka}}**") tarafından Hizmet'in sunulması sırasın
 | Alt işleyen | Konum | Hizmet | İşlenen veriler | Ne zaman |
 |---|---|---|---|---|
 | Amazon Web Services EMEA SARL | AWS eu-central-1, Frankfurt (Almanya) | Barındırma, veritabanı, dosya depolama, şifreli yedekleme | Hizmet'te işlenen tüm veriler | Her zaman |
-| Resend, Inc. | Amerika Birleşik Devletleri | İşlem e-postaları: e-posta doğrulama, parola sıfırlama, bildirimler, zamanlanmış raporlar, form yanıtları | Alıcının adı ve e-posta adresi, e-posta içeriği | Her zaman |
+| Resend, Inc. | Amerika Birleşik Devletleri | İşlem e-postaları: e-posta doğrulama, parola sıfırlama, bildirimler, form yanıtları | Alıcının adı ve e-posta adresi, e-posta içeriği | Her zaman |
 
 ## 2. Yapay zekâ sağlayıcıları
 

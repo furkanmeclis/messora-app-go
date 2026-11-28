@@ -64,7 +64,7 @@ It's about how you use WhatsApp more than company size. Consider the API if:
 
 ## What you can do
 
-- **Team inbox**: every agent works on the same number from the browser, with assignment, internal notes and quick replies. History survives phone changes and staff turnover.
+- **Team inbox**: every agent works on the same number from the browser, with assignment, ownership and internal notes. History survives phone changes and staff turnover.
 - **Campaigns**: send approved templates to opted-in customers, targeted by segment, tag or uploaded list, and measure delivery, reads, replies and opt-outs.
 - **Notifications**: order confirmations, shipping updates, reminders, invoices and one-time passcodes sent from your systems.
 - **Automations and chatbots**: welcome flows, opt-out handling, follow-ups for unanswered customers, built with triggers and conditions.
@@ -121,7 +121,7 @@ Step-by-step instructions: [How to apply for the WhatsApp Business API](/en/blog
 
 Messora is a platform on the official WhatsApp Business Cloud API, built for small and mid-sized businesses in Turkey. On top of Meta's infrastructure it adds:
 
-- [Team inbox](/en/features/team-inbox): assignment, internal notes, quick replies, 24-hour window tracking
+- [Team inbox](/en/features/team-inbox): assignment, ownership, internal notes, 24-hour window tracking
 - [Campaigns](/en/features/campaigns): segments and lists, consent and opt-out management, Meta cost and a forecast before sending
 - [Template builder](/en/features/template-builder): media headers, buttons, limited-time offers, carousels, OTP and Flows
 - [Automations](/en/features/automations): a visual flow editor with ready-made presets

@@ -70,7 +70,7 @@ Sektör örnekleri:
 
 ### Ekip gelen kutusu
 
-Tüm temsilciler aynı numaranın konuşmalarını tarayıcıdan yönetir. Konuşmalar kişilere atanır, iç notlar alınır, hızlı cevaplar kullanılır, kimin neyle ilgilendiği görünür. Telefon değişse veya çalışan ayrılsa da geçmiş kaybolmaz.
+Tüm temsilciler aynı numaranın konuşmalarını tarayıcıdan yönetir. Konuşmalar kişilere atanır, ekibe özel notlar alınır, kimin neyle ilgilendiği görünür. Telefon değişse veya çalışan ayrılsa da geçmiş kaybolmaz.
 
 ### Kampanyalar ve toplu mesaj
 
@@ -156,7 +156,7 @@ Başvuru adımlarını ayrıntılı anlattığımız rehber: [WhatsApp Business 
 
 Messora, resmi WhatsApp Business Cloud API üzerinde çalışan, Türkiye'deki KOBİ'ler için hazırlanmış bir platform. Meta'nın altyapısını kullanır; üstüne şunları ekler:
 
-- [Ekip gelen kutusu](/ozellikler/ekip-gelen-kutusu): konuşma atama, iç notlar, hızlı cevaplar, 24 saat penceresinin takibi
+- [Ekip gelen kutusu](/ozellikler/ekip-gelen-kutusu): konuşma atama, sahiplik, ekibe özel notlar, 24 saat penceresinin takibi
 - [WhatsApp kampanyaları](/ozellikler/whatsapp-kampanyalari): segment ve liste bazlı gönderim, onay ve çıkış yönetimi, gönderimden önce Meta maliyeti ve ön analiz
 - [Şablon oluşturucu](/ozellikler/sablon-olusturucu): medya başlıkları, butonlar, sınırlı süreli teklif, kaydırmalı kartlar, OTP ve Flows
 - [Otomasyonlar](/ozellikler/otomasyonlar): görsel akış editörü ve hazır otomasyon şablonları

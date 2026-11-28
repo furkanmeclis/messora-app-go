@@ -110,11 +110,11 @@ export const solutions: Solution[] = [
     nav: "Retail",
     icon: "store",
     seoTitle: "WhatsApp for Retail and Physical Stores",
-    seoDescription: "WhatsApp for your stores: pickup notices, quick answers to store questions, limited-time coupon offers and city-based campaigns, all with consent checks.",
+    seoDescription: "WhatsApp for your stores: pickup notices, instant answers to store questions, limited-time coupon offers and city-based campaigns, all with consent checks.",
     eyebrow: "Retail",
     h1: "WhatsApp for retail: keep talking to store customers after the till",
     lead: "Tell customers when their reserved item arrives, answer opening-hours questions without a wait, and announce your sale with a coupon offer. All on the official WhatsApp Business API, with consent checks.",
-    summary: "Ready-for-pickup notices, quick answers to store questions and coupon campaigns to customers who opted in.",
+    summary: "Ready-for-pickup notices, instant answers to store questions and coupon campaigns to customers who opted in.",
     pains: [
       {
         title: "Store questions keep the phone busy",

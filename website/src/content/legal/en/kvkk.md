@@ -84,7 +84,7 @@ Persons who register for the Service, open an account, are invited to the panel,
 | Authentication, session management, two-factor authentication, authorisation | Performance of a contract (Art. 5/2-c) and legitimate interest (Art. 5/2-f) |
 | Pricing, invoicing, collection, issuing e-Fatura / e-Arşiv (e-invoice / e-archive invoice) | Performance of a contract (Art. 5/2-c), expressly provided for by law and compliance with a legal obligation (Art. 5/2-a, 5/2-ç; Tax Procedure Law No. 213 (VUK), Turkish Commercial Code No. 6102 (TTK)) |
 | Keeping accounting records and commercial books | Expressly provided for by law and compliance with a legal obligation (Art. 5/2-a, 5/2-ç) |
-| Sending service notifications (e-mail verification, password reset, security alerts, plan and invoice notifications, scheduled reports) | Performance of a contract (Art. 5/2-c) |
+| Sending service notifications (e-mail verification, password reset, security alerts, plan and invoice notifications) | Performance of a contract (Art. 5/2-c) |
 | Responding to support requests | Performance of a contract (Art. 5/2-c) |
 | Ensuring information security, detecting misuse and unauthorised access, keeping an audit log | Legitimate interest (Art. 5/2-f) and compliance with a legal obligation (Art. 5/2-ç; KVKK Art. 12) |
 | Monitoring usage and fair-use limits, developing the Service | Legitimate interest (Art. 5/2-f) |

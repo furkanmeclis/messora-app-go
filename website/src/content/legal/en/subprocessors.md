@@ -16,7 +16,7 @@ This English version is provided for convenience; the Turkish version prevails i
 | Sub-processor | Location | Service | Data processed | When |
 |---|---|---|---|---|
 | Amazon Web Services EMEA SARL | AWS eu-central-1, Frankfurt (Germany) | Hosting, database, file storage, encrypted backups | All data processed in the Service | Always |
-| Resend, Inc. | United States of America | Transactional e-mails: e-mail verification, password reset, notifications, scheduled reports, form replies | Recipient's name and e-mail address, e-mail content | Always |
+| Resend, Inc. | United States of America | Transactional e-mails: e-mail verification, password reset, notifications, form replies | Recipient's name and e-mail address, e-mail content | Always |
 
 ## 2. Artificial intelligence providers
 

@@ -350,7 +350,7 @@ export const features: Feature[] = [
         title: "Header, body, footer and buttons",
         body: "The header can be text, an image, a video, a document or a location. The body runs to 1,024 characters and carries variables such as {{1}} and {{2}}, each with the sample value Meta asks for. A template can have up to 10 buttons.",
         points: [
-          "Quick reply, website link, phone, copy code and voice call buttons",
+          "Template buttons: quick-reply button, website link, phone, copy code and voice call",
           "The sample file for a media header is uploaded to Meta from the builder",
           "Character and button limits shown as you type",
         ],
@@ -452,7 +452,7 @@ export const features: Feature[] = [
     ],
     steps: [
       { title: "Launch the campaign", body: "The pre-launch analysis is fixed at start and compared with actuals later." },
-      { title: "Map the reactions", body: "Mark quick reply buttons as positive or negative." },
+      { title: "Map the reactions", body: "Mark the template's quick-reply buttons as positive or negative." },
       { title: "Read the results", body: "Check rates, cost and breakdowns in the analysis centre." },
       { title: "Act on them", body: "Select those who did not reply or replied positively, tag them or prepare a follow-up campaign." },
     ],

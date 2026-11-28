@@ -82,7 +82,7 @@ Hizmet'e kayıt olan, hesap açan, panele davet edilen veya Müşteri adına sö
 | Kimlik doğrulama, oturum yönetimi, iki adımlı doğrulama, yetkilendirme | Sözleşmenin ifası (md. 5/2-c) ve meşru menfaat (md. 5/2-f) |
 | Ücretlendirme, faturalandırma, tahsilat, e-Fatura / e-Arşiv düzenlenmesi | Sözleşmenin ifası (md. 5/2-c), kanunlarda açıkça öngörülmesi ve hukuki yükümlülük (md. 5/2-a, 5/2-ç; 213 sayılı VUK, 6102 sayılı TTK) |
 | Muhasebe ve ticari defterlerin tutulması | Kanunlarda açıkça öngörülmesi ve hukuki yükümlülük (md. 5/2-a, 5/2-ç) |
-| Hizmet bildirimlerinin gönderilmesi (e-posta doğrulama, parola sıfırlama, güvenlik uyarıları, plan ve fatura bildirimleri, zamanlanmış raporlar) | Sözleşmenin ifası (md. 5/2-c) |
+| Hizmet bildirimlerinin gönderilmesi (e-posta doğrulama, parola sıfırlama, güvenlik uyarıları, plan ve fatura bildirimleri) | Sözleşmenin ifası (md. 5/2-c) |
 | Destek taleplerinin yanıtlanması | Sözleşmenin ifası (md. 5/2-c) |
 | Bilgi güvenliğinin sağlanması, kötüye kullanımın ve yetkisiz erişimin tespiti, denetim kaydı tutulması | Meşru menfaat (md. 5/2-f) ve hukuki yükümlülük (md. 5/2-ç; KVKK md. 12) |
 | Kullanım ve adil kullanım limitlerinin izlenmesi, Hizmet'in geliştirilmesi | Meşru menfaat (md. 5/2-f) |

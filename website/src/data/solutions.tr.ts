@@ -110,11 +110,11 @@ export const solutions: Solution[] = [
     nav: "Perakende",
     icon: "store",
     seoTitle: "Perakende ve Mağazalar için WhatsApp",
-    seoDescription: "Mağazanız için WhatsApp: ürün hazır bildirimleri, mağaza sorularına hızlı cevap, kuponlu süreli teklifler ve şehir bazlı kampanyalar, hepsi izin kontrolüyle.",
+    seoDescription: "Mağazanız için WhatsApp: ürün hazır bildirimleri, mağaza sorularına anında cevap, kuponlu süreli teklifler ve şehir bazlı kampanyalar, hepsi izin kontrolüyle.",
     eyebrow: "Perakende",
     h1: "Perakende için WhatsApp: mağaza müşterinizle kasadan sonra da konuşun",
     lead: "Ayırttığı ürün geldiğinde müşteriye haber verin, çalışma saatlerini soranı bekletmeyin, indirim dönemini kuponlu bir teklifle duyurun. Hepsi resmi WhatsApp Business API üzerinden ve izin kontrolüyle.",
-    summary: "Ürün hazır bildirimleri, mağaza sorularına hızlı cevap ve izinli müşterilere kuponlu kampanyalar.",
+    summary: "Ürün hazır bildirimleri, mağaza sorularına anında cevap ve izinli müşterilere kuponlu kampanyalar.",
     pains: [
       {
         title: "Mağaza soruları telefonu meşgul ediyor",

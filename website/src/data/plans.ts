@@ -37,17 +37,17 @@ export const limits: LimitRow[] = [
   { label: { tr: 'API çağrısı / ay', en: 'API calls per month' }, values: { tr: ['Yalnızca webhook', '100 bin', '1 milyon', 'Özel'], en: ['Webhooks only', '100k', '1 million', 'Custom'] } },
   { label: { tr: 'Kişi (alıcı)', en: 'Contacts' }, values: { tr: ['Sınırsız*', 'Sınırsız*', 'Sınırsız*', 'Sınırsız*'], en: ['Unlimited*', 'Unlimited*', 'Unlimited*', 'Unlimited*'] },
     hint: { tr: '* Adil kullanım koşuluyla.', en: '* Subject to fair use.' } },
-  { label: { tr: 'Ekip gelen kutusu, notlar, hızlı yanıtlar', en: 'Team inbox, notes, quick replies' }, values: same([true, true, true, true]) },
+  { label: { tr: 'Ekip gelen kutusu: atama, sahiplik, ekibe özel notlar', en: 'Team inbox: assignment, ownership, internal notes' }, values: same([true, true, true, true]) },
   { label: { tr: 'Kampanyalar, izin ve ret yönetimi', en: 'Campaigns, consent and opt-out' }, values: same([true, true, true, true]) },
   { label: { tr: 'Şablon oluşturucu (carousel, süreli teklif, OTP, Flows)', en: 'Template builder (carousel, limited-time offer, OTP, Flows)' }, values: same([true, true, true, true]) },
   { label: { tr: '11 hazır otomasyon şablonu', en: '11 ready-made automation presets' }, values: same([true, true, true, true]) },
   { label: { tr: 'Gönderim öncesi maliyet ve tahmin', en: 'Cost and forecast before sending' }, values: same([true, true, true, true]) },
-  { label: { tr: 'Dışa aktarım ve zamanlanmış raporlar', en: 'Exports and scheduled reports' }, values: same([true, true, true, true]) },
+  { label: { tr: 'Dışa aktarım (CSV/Excel) ve PDF raporlar', en: 'Exports (CSV/Excel) and PDF reports' }, values: same([true, true, true, true]) },
   { label: { tr: 'Kendi alt alan adınız veya alan adınız', en: 'Your own subdomain or domain' }, values: same([true, true, true, true]) },
   { label: { tr: 'İki adımlı doğrulama, roller, denetim kaydı', en: '2FA, roles, audit log' }, values: same([true, true, true, true]) },
   { label: { tr: 'Kendi SMTP sunucunuz', en: 'Your own SMTP server' }, values: same([false, false, false, true]) },
   { label: { tr: 'Kendi AI anahtarlarınız', en: 'Your own AI keys' }, values: same([false, false, false, true]) },
-  { label: { tr: 'Destek', en: 'Support' }, values: { tr: ['E-posta', 'E-posta + canlı sohbet', 'Öncelikli + kurulum görüşmesi', 'Atanmış yönetici, SLA'], en: ['E-mail', 'E-mail + live chat', 'Priority + onboarding call', 'Account manager, SLA'] } },
+  { label: { tr: 'Destek', en: 'Support' }, values: { tr: ['E-posta', 'E-posta', 'Öncelikli e-posta', 'E-posta, atanmış yönetici'], en: ['E-mail', 'E-mail', 'Priority e-mail', 'E-mail, account manager'] } },
 ];
 
 export function tl(n: number, lang: Lang): string {

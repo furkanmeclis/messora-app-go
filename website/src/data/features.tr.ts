@@ -350,7 +350,7 @@ export const features: Feature[] = [
         title: "Başlık, gövde, altbilgi ve butonlar",
         body: "Başlık metin, görsel, video, belge ya da konum olabilir. Gövde 1.024 karaktere kadar çıkar ve {{1}}, {{2}} gibi değişkenler taşır; her değişken için Meta'nın istediği örnek değeri girersiniz. Bir şablona en fazla 10 buton eklenir.",
         points: [
-          "Hızlı yanıt, web bağlantısı, telefon, kod kopyalama ve sesli arama butonları",
+          "Şablon butonları: hızlı yanıt butonu, web bağlantısı, telefon, kod kopyalama ve sesli arama",
           "Medya başlığının örnek dosyası Meta'ya oluşturucudan yüklenir",
           "Karakter ve buton sınırları yazarken gösterilir",
         ],
@@ -430,7 +430,7 @@ export const features: Feature[] = [
       },
       {
         title: "Olumlu ve olumsuz dönüşler",
-        body: "Şablonunuzdaki hızlı yanıt butonlarını olumlu, olumsuz ya da nötr olarak eşleyin; müşteri dokunduğunda etiket kendiliğinden yazılır. Serbest metin yanıtlarını isterseniz yapay zeka sınıflandırır. Bir temsilcinin elle verdiği etiket sistem tarafından değiştirilmez.",
+        body: "Şablonunuzdaki hızlı yanıt (quick reply) butonlarını olumlu, olumsuz ya da nötr olarak eşleyin; müşteri dokunduğunda etiket kendiliğinden yazılır. Serbest metin yanıtlarını isterseniz yapay zeka sınıflandırır. Bir temsilcinin elle verdiği etiket sistem tarafından değiştirilmez.",
       },
       {
         title: "Kırılımlar",
@@ -452,7 +452,7 @@ export const features: Feature[] = [
     ],
     steps: [
       { title: "Kampanyayı başlatın", body: "Ön analiz kampanya başlarken sabitlenir ve sonradan gerçekle karşılaştırılır." },
-      { title: "Tepkileri eşleyin", body: "Hızlı yanıt butonlarını olumlu ya da olumsuz olarak işaretleyin." },
+      { title: "Tepkileri eşleyin", body: "Şablondaki hızlı yanıt butonlarını olumlu ya da olumsuz olarak işaretleyin." },
       { title: "Sonuçları okuyun", body: "Analiz merkezinde oranlara, maliyete ve kırılımlara bakın." },
       { title: "Harekete geçin", body: "Yanıt vermeyenleri ya da olumlu dönenleri seçin, etiketleyin veya takip kampanyası hazırlayın." },
     ],
