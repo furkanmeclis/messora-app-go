@@ -71,6 +71,9 @@ const errors: Messages['errors'] = {
     EMAIL_ALREADY_VERIFIED: 'Bu e-posta adresi zaten doğrulanmış.',
     VALIDATION_ERROR: 'Girilen bilgileri kontrol edin: {detail}',
     WEBHOOK_LIMIT: 'Webhook sınırına ulaşıldı.',
+    PLAN_LIMIT_REACHED: 'Planınızın sınırına ulaşıldı.',
+    FEATURE_NOT_IN_PLAN: 'Bu özellik planınızda yok.',
+    QUOTA_EXCEEDED: 'Çalışma alanının aylık API kotası doldu.',
     AI_UNAVAILABLE: 'AI bu sohbette kullanılamıyor: {detail}',
     DRAFT_DECIDED: 'Bu taslak için zaten karar verildi.',
     AI_DISABLED:

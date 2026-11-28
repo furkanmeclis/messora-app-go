@@ -75,10 +75,12 @@ export async function setWebhookActiveAction(
 
 export async function rotateWebhookSecretAction(
     id: string,
+    graceHours: number,
 ): Promise<ActionResult<string>> {
     const res = await runAction(async () => {
         const r = await api<EndpointSecret>(`${path(id)}/rotate-secret`, {
             method: 'POST',
+            body: { grace_hours: graceHours },
         });
         return r.data.secret;
     });

@@ -10,6 +10,14 @@ const apiKeys = {
         lastUsed: 'Last used',
         expires: 'Expires',
     },
+    base: {
+        title: 'Your API address',
+        description:
+            'Every workspace has its own API address. Keys of this workspace work only here; at any other address they answer 401.',
+        copy: 'Copy base URL',
+        copied: 'Base URL copied',
+        sample: 'Try a key',
+    },
     never: 'Never',
     revoke: 'Revoke',
     revoked: 'API key revoked.',
