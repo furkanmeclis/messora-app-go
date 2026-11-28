@@ -3,6 +3,7 @@ package identity
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -127,7 +128,7 @@ func (s *Service) CompleteHandoff(ctx context.Context, token string) (api.Sessio
 		return api.SessionCreated{}, errHandoffInvalid
 	}
 	raw, err := s.rdb.GetDel(ctx, handoffKey(token)).Bytes()
-	if err == goredis.Nil {
+	if errors.Is(err, goredis.Nil) {
 		return api.SessionCreated{}, errHandoffInvalid
 	}
 	if err != nil {
@@ -255,7 +256,7 @@ func (s *Service) ConfirmEmailChange(ctx context.Context, token string) error {
 		return errEmailChangeInvalid
 	}
 	raw, err := s.rdb.GetDel(ctx, emailChangeKey(ctx, token)).Bytes()
-	if err == goredis.Nil {
+	if errors.Is(err, goredis.Nil) {
 		return errEmailChangeInvalid
 	}
 	if err != nil {

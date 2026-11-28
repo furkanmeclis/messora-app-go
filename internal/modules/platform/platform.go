@@ -97,6 +97,9 @@ func (s *Service) inTenant(ctx context.Context, tenantID uuid.UUID, fn func(q *d
 	})
 }
 
+// pageLimit bounds a page size (the spec allows 1–200).
+func pageLimit(n int) int32 { return int32(min(max(n, 1), 200)) } //nolint:gosec // bounded above
+
 func isNoRows(err error) bool { return errors.Is(err, pgx.ErrNoRows) }
 
 var errTenantNotFound = apperr.NotFound("Company not found")
@@ -140,11 +143,11 @@ func tenantView(t db.Tenant) api.PlatformTenant {
 func (s *Service) ListTenants(ctx context.Context, p api.ListPlatformTenantsParams) ([]api.PlatformTenant, string, error) {
 	limit := int32(50)
 	if p.Limit != nil {
-		limit = int32(*p.Limit)
+		limit = pageLimit(*p.Limit)
 	}
 	var after *uuid.UUID
 	if p.Cursor != nil && *p.Cursor != "" {
-		id, err := uuid.Parse(string(*p.Cursor))
+		id, err := uuid.Parse(*p.Cursor)
 		if err != nil {
 			return nil, "", apperr.Validation("cursor", "Invalid cursor")
 		}
@@ -570,11 +573,11 @@ func userView(u db.User, memberships int64) api.PlatformUser {
 func (s *Service) SearchUsers(ctx context.Context, query *string, cursor *api.Cursor, lim *api.Limit) ([]api.PlatformUser, string, error) {
 	limit := int32(50)
 	if lim != nil {
-		limit = int32(*lim)
+		limit = pageLimit(*lim)
 	}
 	var after *uuid.UUID
 	if cursor != nil && *cursor != "" {
-		id, err := uuid.Parse(string(*cursor))
+		id, err := uuid.Parse(*cursor)
 		if err != nil {
 			return nil, "", apperr.Validation("cursor", "Invalid cursor")
 		}
@@ -866,11 +869,11 @@ func (s *Service) UpdateSettings(ctx context.Context, p SettingsPatch) (api.Plat
 func (s *Service) AuditLogs(ctx context.Context, tenantID *uuid.UUID, cursor *api.Cursor, lim *api.Limit) ([]api.PlatformAuditLog, string, error) {
 	limit := int32(50)
 	if lim != nil {
-		limit = int32(*lim)
+		limit = pageLimit(*lim)
 	}
 	var after *uuid.UUID
 	if cursor != nil && *cursor != "" {
-		id, err := uuid.Parse(string(*cursor))
+		id, err := uuid.Parse(*cursor)
 		if err != nil {
 			return nil, "", apperr.Validation("cursor", "Invalid cursor")
 		}
