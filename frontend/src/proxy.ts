@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { isSignupPage, SDK_CSP } from '@/lib/embedded-signup';
 
 /** Routes reachable without a session. */
 const PUBLIC = [
@@ -53,13 +54,17 @@ export function proxy(req: NextRequest) {
     const socket = /^[a-z0-9.\-:[\]]+$/i.test(host)
         ? `${https ? 'wss' : 'ws'}://${host}`
         : '';
+    // Meta's JavaScript SDK (Embedded Signup) runs only on its settings
+    // page: its script, frames and calls are allowed there and nowhere else.
+    const meta = isSignupPage(pathname);
     const csp = [
         `default-src 'self'`,
-        `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
+        `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${meta ? ' ' + SDK_CSP.script : ''}${dev ? " 'unsafe-eval'" : ''}`,
         `style-src 'self' 'unsafe-inline'`,
-        `img-src 'self' data: blob:`,
+        `img-src 'self' data: blob:${meta ? ' ' + SDK_CSP.img : ''}`,
         `font-src 'self'`,
-        `connect-src 'self'${socket ? ' ' + socket : ''}${dev ? ' ws: wss:' : ''}`,
+        `connect-src 'self'${socket ? ' ' + socket : ''}${meta ? ' ' + SDK_CSP.connect : ''}${dev ? ' ws: wss:' : ''}`,
+        `frame-src 'self'${meta ? ' ' + SDK_CSP.frame : ''}`,
         `object-src 'none'`,
         `base-uri 'self'`,
         `form-action 'self'`,

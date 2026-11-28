@@ -20,6 +20,7 @@ const channels: Messages['channels'] = {
             error: 'Hata',
             disabled: 'Devre dışı',
         },
+        viaMessora: "Messora'nın Meta uygulamasıyla",
         noAppSecret: 'Uygulama gizli anahtarı yok',
         wabaId: 'WABA ID',
         appId: 'Uygulama ID',
@@ -170,6 +171,8 @@ const channels: Messages['channels'] = {
             soon: 'Yakında',
             techProviderHint:
                 'Uygulama oluşturmadan, birkaç tıklamayla "Meta ile bağla". Meta, Messora\'yı Tech Provider olarak onayladığında açılacak.',
+            techProviderHintOn:
+                "Uygulama oluşturmadan, Messora'nın Meta uygulamasıyla birkaç tıklamada bağlanın.",
         },
         steps: {
             title: 'Kendi Meta uygulamanızı bağlayın',
@@ -285,6 +288,89 @@ const channels: Messages['channels'] = {
                 webhook_signature:
                     "Webhook'lar geliyor ama sonuncusunun ({at}) imzası hatalıydı. App secret'ı kontrol edin.",
                 webhook_ok: 'Son webhook {at} geldi.',
+            },
+        },
+        tp: {
+            title: 'Meta ile bağlan',
+            description:
+                "WhatsApp Business hesabınızı ve numaranızı Messora'nın Meta uygulaması üzerinden bağlayın. Meta'nın kendi penceresi açılır: Facebook ile giriş yapar, işletmenizi, WhatsApp Business hesabınızı ve numaranızı seçer ya da oluşturur, numarayı doğrularsınız. Meta uygulaması, App ID ya da token gerekmez.",
+            permissionsTitle: "Messora'ya verdiğiniz izinler",
+            scopes: {
+                whatsapp_business_management:
+                    'seçtiğiniz WhatsApp Business hesabını yönetmek: numaralar, şablonlar, ayarlar ve webhook’lar',
+                whatsapp_business_messaging:
+                    'numaralarından mesaj gönderip almak',
+                business_management:
+                    'pencerede seçtiğiniz işletme portföyünü, yalnızca paylaştığınız varlıklarla sınırlı olarak okumak',
+            },
+            revoke: "Messora'nın erişimini istediğiniz zaman kaldırabilirsiniz: burada Bağlantıyı kes ile ya da Meta İşletme Ayarları → Entegrasyonlar'dan.",
+            pinTitle: 'İki adımlı doğrulama PIN’i',
+            pinHint:
+                'Meta numarayı 6 haneli bir PIN ile kaydeder. Numaranın zaten bir PIN’i varsa onu girin.',
+            pinAuto: 'Messora seçsin (sonrasında bir kez gösterilir)',
+            pinOwn: 'Kendi PIN’imi kullanayım',
+            pinLabel: '6 haneli PIN',
+            pinInvalid: 'PIN 6 hanedir.',
+            pinShown:
+                'Messora bu numara için {pin} PIN’ini belirledi. Güvenli bir yere kaydedin; yalnızca şimdi gösteriliyor.',
+            pinCopy: 'PIN’i kopyala',
+            pinCopied: 'PIN kopyalandı',
+            connect: 'Meta ile bağlan',
+            sdkLoading: 'Meta penceresi yükleniyor…',
+            sdkFailed:
+                "Meta penceresi yüklenemedi. Tarayıcının facebook.com'u engellemediğinden emin olup tekrar deneyin.",
+            popupOpen: 'Meta penceresindeki adımları tamamlayın…',
+            cancelledByUser:
+                'Meta penceresi sona ermeden kapatıldı ({step} adımında). Hiçbir şey bağlanmadı.',
+            metaError: 'Meta bir hata bildirdi: {message}',
+            coexistence:
+                'WhatsApp Business uygulamasında kalan numaralar (coexistence) henüz desteklenmiyor; Cloud API için bir numara seçin.',
+            running: 'Bağlanıyor…',
+            steps: {
+                exchange: "Meta'nın verdiği izinleri kontrol et",
+                claim: 'Hesabı bu çalışma alanına ayır',
+                subscribe: 'Hesabın webhook’larını almaya başla',
+                register: 'Numarayı kaydet',
+                finish: 'Hesabı etkinleştir',
+            },
+            success: '{name} bağlandı.',
+            failed: 'Bağlantı "{step}" adımında durdu.',
+            retry: 'Tekrar dene',
+            retryWithMeta: 'Meta ile yeniden bağlan',
+            cancel: 'Vazgeç',
+            cancelled: 'Yarım kalan bağlantıdan vazgeçildi.',
+            unfinished: 'Yarım kalan bağlantılar',
+            accountsTitle: "Messora'nın Meta uygulamasıyla bağlı hesaplar",
+            disconnect: 'Bağlantıyı kes',
+            disconnectTitle: "{name} Messora'dan ayrılsın mı?",
+            disconnectBody:
+                "Messora'nın uygulaması bu hesabın olaylarını almayı bırakır ve hesaptan artık gönderim yapılmaz. Konuşmalar ve geçmiş kalır. Hesabı yeniden Meta ile ya da kendi uygulamanızla bağlayabilirsiniz.",
+            disconnected: "Messora'nın Meta uygulamasıyla bağlantı kesildi.",
+            errors: {
+                code_required:
+                    'Meta penceresinden gelen kod kullanılmış ya da süresi dolmuş (beş dakika geçerli). Meta ile yeniden bağlanın.',
+                code_invalid:
+                    'Meta, penceresinden gelen kodu kabul etmedi. Meta ile yeniden bağlanın.',
+                token_check_failed:
+                    'Meta verilen izinleri doğrulayamadı. Biraz sonra tekrar deneyin.',
+                token_invalid:
+                    'Meta, verdiği erişimin artık geçerli olmadığını söylüyor. Meta ile yeniden bağlanın.',
+                token_other_app: 'Erişim başka bir Meta uygulamasına ait.',
+                waba_not_granted:
+                    'Meta penceresinde bu WhatsApp Business hesabı Messora ile paylaşılmadı. Yeniden bağlanıp hesabı seçin.',
+                phone_not_in_waba:
+                    'Numara seçilen WhatsApp Business hesabına ait değil.',
+                waba_in_use:
+                    'Bu WhatsApp Business hesabı başka bir Messora çalışma alanına bağlı.',
+                waba_connected_own_app:
+                    'Bu WhatsApp Business hesabı kendi Meta uygulamanızla bağlı. Kanallar’da o hesabı devre dışı bırakın (geçmişi korunur), sonra tekrar deneyin.',
+                subscribe_failed:
+                    "Messora'nın uygulaması hesabın webhook’larına abone olamadı. Tekrar deneyin.",
+                register_failed:
+                    'Meta numarayı kaydetmedi. Numaranın zaten bir iki adımlı doğrulama PIN’i varsa o PIN’i girip tekrar deneyin.',
+                finish_failed: "Hesap Meta'dan okunamadı. Tekrar deneyin.",
+                number_in_use: 'Bu numara bağlı başka bir hesaba ait.',
+                internal: 'Messora bu adımı tamamlayamadı. Tekrar deneyin.',
             },
         },
     },

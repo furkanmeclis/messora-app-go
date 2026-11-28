@@ -88,5 +88,18 @@ const errors: Messages['errors'] = {
     AI_INVALID_OUTPUT: 'Modelin yanıtı beklenen biçime uymadı.',
     AI_PROVIDER_ERROR: 'Yapay zekâ sağlayıcısı isteği başarısız: {detail}',
     NETWORK: 'Sunucuya ulaşılamadı. Bağlantınızı kontrol edin.',
+    TECH_PROVIDER_DISABLED:
+        "Messora'nın Meta uygulaması üzerinden bağlanma kullanılamıyor.",
+    ONBOARDING_RUNNING: 'Bu hesap zaten bağlanıyor; biraz bekleyin.',
+    ONBOARDING_FINISHED: 'Bu bağlantı tamamlandı; yeni bir bağlantı başlatın.',
+    MANAGED_BY_MESSORA:
+        "Bu hesap Messora'nın Meta uygulamasıyla bağlı; bilgilerini Messora yönetir.",
+    TECH_PROVIDER_DISCONNECTED:
+        'Bu hesabın Messora bağlantısı kesildi; Meta ile yeniden bağlayın.',
+    WABA_CONNECTED_TECH_PROVIDER:
+        "Bu WhatsApp Business hesabı Messora'nın Meta uygulamasıyla bağlı; önce oradan bağlantıyı kesin.",
+    NOT_TECH_PROVIDER: 'Bu hesap kendi Meta uygulamanızla bağlı.',
+    PLATFORM_WRITE_DENIED:
+        "Messora'nın Tech Provider ayarlarını yalnızca platform yöneticisi değiştirebilir.",
 };
 export default errors;

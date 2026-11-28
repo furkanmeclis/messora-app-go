@@ -1237,6 +1237,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/channels/tech-provider': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Connecting through Messora's Meta app (Embedded Signup)
+         * @description What the panel needs to open Meta's Embedded Signup popup (Messora's App ID, the configuration ID, the Graph API version) and this workspace's unfinished and recent onboardings. 404 TECH_PROVIDER_DISABLED while the platform has not turned the method on.
+         */
+        get: operations['getTechProvider'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/tech-provider/onboardings': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect the WABA and number chosen in Meta's popup
+         * @description Runs the onboarding after Meta's popup finished: the code is traded for a business token that must grant the WABA, the WABA is routed to this workspace, Messora's app subscribes to its webhooks, the number is registered with the PIN (generated when none is given) and the account becomes active. A failing step is stored (status failed, an error code) and can be retried; the response is the onboarding either way. Continuing an unfinished onboarding of the same WABA retries it.
+         */
+        post: operations['startTechProviderOnboarding'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/tech-provider/onboardings/{onboardingId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Abandon an unfinished onboarding
+         * @description Messora's app leaves the WABA, the route is removed and an account created by the onboarding without history is deleted.
+         */
+        delete: operations['cancelTechProviderOnboarding'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/tech-provider/onboardings/{onboardingId}/retry': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry a failed onboarding from its failed step
+         * @description A new code (Meta's popup again) is needed when the exchange failed; a new PIN when the registration refused the previous one.
+         */
+        post: operations['retryTechProviderOnboarding'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/accounts/{accountId}/tech-provider/disconnect': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disconnect an account from Messora's Meta app
+         * @description Messora's app leaves the WABA's webhooks, the route is removed and the account is disabled; its history is kept. It can be connected again with Meta, or with the company's own app.
+         */
+        post: operations['disconnectTechProviderAccount'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/templates': {
         parameters: {
             query?: never;
@@ -3160,6 +3260,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/platform/meta/tech-provider': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Messora's Tech Provider set-up
+         * @description The switch, Messora's Meta app, the Embedded Signup configuration, the Graph API version, which secrets are stored (never their values) and the platform webhook address with its verify token.
+         */
+        get: operations['getPlatformTechProvider'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change Messora's Tech Provider set-up
+         * @description Secrets are write-only and stored sealed. Turning the method on needs the App ID, the App secret and the configuration ID.
+         */
+        patch: operations['updatePlatformTechProvider'];
+        trace?: never;
+    };
+    '/platform/meta/tech-provider/test': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test the set-up with Meta
+         * @description debug_token of the system user token with the app token (proves the App secret), the configuration ID, and the app's webhook subscription (GET /{app-id}/subscriptions), which must point at the platform webhook address.
+         */
+        post: operations['testPlatformTechProvider'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4010,6 +4154,11 @@ export interface components {
             id: string;
             name: string;
             waba_id: string;
+            /**
+             * @description own_app: the company's own Meta app; tech_provider: connected through Messora's Meta app (Embedded Signup).
+             * @enum {string}
+             */
+            connection_method: 'own_app' | 'tech_provider';
             app_id?: string | null;
             /** @enum {string} */
             status: 'active' | 'error' | 'disabled';
@@ -4179,6 +4328,130 @@ export interface components {
             /** @description Messora subscribed the app to the account's webhooks during this test. */
             subscribed_now: boolean;
             account: components['schemas']['WhatsAppAccount'];
+        };
+        TechProvider: {
+            /** @description Messora's Meta app (FB.init appId). */
+            app_id: string;
+            /** @description The Embedded Signup configuration (FB.login config_id). */
+            configuration_id: string;
+            /** @description The Graph API version for the JavaScript SDK (FB.init version). */
+            graph_api_version: string;
+            /** @description The permissions the company grants Messora's app. */
+            scopes: string[];
+            onboardings: components['schemas']['TechProviderOnboarding'][];
+        };
+        TechProviderOnboarding: {
+            /** Format: uuid */
+            id: string;
+            waba_id: string;
+            phone_number_id: string;
+            business_id: string | null;
+            name: string;
+            /** @enum {string} */
+            status: 'running' | 'failed' | 'completed' | 'cancelled';
+            /**
+             * @description The step that runs next (or failed).
+             * @enum {string}
+             */
+            step:
+                | 'exchange'
+                | 'claim'
+                | 'subscribe'
+                | 'register'
+                | 'finish'
+                | 'done';
+            /** Format: uuid */
+            account_id: string | null;
+            attempts: number;
+            /** @description code_required, code_invalid, token_check_failed, token_invalid, token_other_app, waba_not_granted, phone_not_in_waba, waba_in_use, waba_connected_own_app, subscribe_failed, register_failed, finish_failed, number_in_use or internal. */
+            error_code: string | null;
+            error_message: string | null;
+            /** @description Messora chose the number's two-step verification PIN. */
+            pin_generated: boolean;
+            /** @description The generated PIN, only in the response of the request that completed the onboarding. */
+            pin: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
+        StartTechProviderOnboardingRequest: {
+            /** @description The code FB.login returned (valid five minutes */
+            code: string;
+            /** @description From the WA_EMBEDDED_SIGNUP FINISH message. */
+            waba_id: string;
+            phone_number_id: string;
+            business_id?: string;
+            /** @description The account's name in Messora (default the number's verified name). */
+            name?: string;
+            /** @description The number's two-step verification PIN; generated when omitted. */
+            pin?: string;
+        };
+        RetryTechProviderOnboardingRequest: {
+            /** @description A new code from Meta's popup (needed when the exchange failed). */
+            code?: string;
+            pin?: string;
+        };
+        TechProviderDisconnect: {
+            account: components['schemas']['WhatsAppAccount'];
+            /** @description Meta did not confirm that Messora's app left the WABA. */
+            warning: string | null;
+        };
+        PlatformTechProvider: {
+            /** @description The switch; companies see "Connect with Meta" only when on. */
+            enabled: boolean;
+            /** @description App ID */
+            ready: boolean;
+            app_id: string | null;
+            configuration_id: string | null;
+            /** @description Null uses the platform default. */
+            graph_api_version: string | null;
+            default_graph_api_version: string;
+            app_secret_configured: boolean;
+            system_user_token_configured: boolean;
+            /** @description Enter it in the app's WhatsApp webhook configuration. */
+            verify_token: string | null;
+            /** @description The platform webhook address (https://hooks.<domain>/meta/tp). */
+            callback_url: string;
+            /** @description The permissions App Review must grant. */
+            scopes: string[];
+            /**
+             * Format: int64
+             * @description Entries for an unknown WABA dropped since this API process started.
+             */
+            unrouted_entries: number;
+            last_unrouted_waba_id: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        UpdatePlatformTechProviderRequest: {
+            enabled?: boolean;
+            /** @description Empty removes it. */
+            app_id?: string;
+            configuration_id?: string;
+            /** @description Like v26.0; empty uses the platform default. */
+            graph_api_version?: string;
+            app_secret?: string;
+            /** @description Empty removes it. */
+            system_user_token?: string;
+            rotate_verify_token?: boolean;
+        };
+        PlatformTechProviderCheck: {
+            /** @enum {string} */
+            key: 'app' | 'configuration' | 'system_user_token' | 'webhook';
+            /** @enum {string} */
+            status: 'ok' | 'warning' | 'error';
+            code: string;
+            params: {
+                [key: string]: string;
+            };
+            message: string;
+        };
+        PlatformTechProviderTest: {
+            ok: boolean;
+            checks: components['schemas']['PlatformTechProviderCheck'][];
         };
         /**
          * @example {
@@ -4972,6 +5245,26 @@ export interface components {
         };
         MetaConnectionTestResponse: {
             data: components['schemas']['MetaConnectionTest'];
+            meta: components['schemas']['Meta'];
+        };
+        TechProviderResponse: {
+            data: components['schemas']['TechProvider'];
+            meta: components['schemas']['Meta'];
+        };
+        TechProviderOnboardingResponse: {
+            data: components['schemas']['TechProviderOnboarding'];
+            meta: components['schemas']['Meta'];
+        };
+        TechProviderDisconnectResponse: {
+            data: components['schemas']['TechProviderDisconnect'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformTechProviderResponse: {
+            data: components['schemas']['PlatformTechProvider'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformTechProviderTestResponse: {
+            data: components['schemas']['PlatformTechProviderTest'];
             meta: components['schemas']['Meta'];
         };
         TemplateResponse: {
@@ -8914,6 +9207,7 @@ export interface components {
         InvitationId: string;
         ApiKeyId: string;
         AccountId: string;
+        OnboardingId: string;
         ProviderId: string;
         PriceId: string;
         ProfileId: string;
@@ -10895,6 +11189,125 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['MetaConnectionResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getTechProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Tech Provider set-up and the onboardings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TechProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    startTechProviderOnboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['StartTechProviderOnboardingRequest'];
+            };
+        };
+        responses: {
+            /** @description The onboarding (completed or failed at a step) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TechProviderOnboardingResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    cancelTechProviderOnboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                onboardingId: components['parameters']['OnboardingId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cancelled onboarding */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TechProviderOnboardingResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    retryTechProviderOnboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                onboardingId: components['parameters']['OnboardingId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['RetryTechProviderOnboardingRequest'];
+            };
+        };
+        responses: {
+            /** @description The onboarding (completed or failed at a step) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TechProviderOnboardingResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    disconnectTechProviderAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components['parameters']['AccountId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The disabled account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TechProviderDisconnectResponse'];
                 };
             };
             default: components['responses']['Error'];
@@ -14465,6 +14878,73 @@ export interface operations {
             409: components['responses']['Conflict'];
             422: components['responses']['ValidationFailed'];
             429: components['responses']['RateLimited'];
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformTechProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The set-up */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTechProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updatePlatformTechProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdatePlatformTechProviderRequest'];
+            };
+        };
+        responses: {
+            /** @description The changed set-up */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTechProviderResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    testPlatformTechProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The checks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTechProviderTestResponse'];
+                };
+            };
             default: components['responses']['Error'];
         };
     };
