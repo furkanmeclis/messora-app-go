@@ -53,6 +53,20 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  go-load:
+    name: Go · campaign load criterion (100,000 recipients)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: 100,000 recipients against the mock, no duplicate and no loss
+        run: make load-test
+
   go-static:
     name: Go · lint, generated code, vulnerabilities, licenses
     runs-on: ubuntu-latest

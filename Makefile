@@ -38,11 +38,19 @@ test-integration: ## Run unit + integration tests against real PostgreSQL/Redis 
 	go test -race -count=1 -tags=integration -timeout 30m $(GO_PKGS)
 
 .PHONY: cover
+# The race/coverage run sends the campaign load test a smaller audience; the
+# full 100,000-recipient criterion runs without -race in `make load-test`.
+COVER_LOAD_RECIPIENTS ?= 10000
+
 cover: ## Integration tests with race detector + coverage gate (COVERAGE_MIN)
-	go test -race -count=1 -tags=integration -timeout 30m -coverpkg=./internal/... -coverprofile=coverage.out $(GO_PKGS)
+	MESSORA_LOAD_RECIPIENTS=$(COVER_LOAD_RECIPIENTS) go test -race -count=1 -tags=integration -timeout 30m -coverpkg=./internal/... -coverprofile=coverage.out $(GO_PKGS)
 	@total=$$(go tool cover -func=coverage.out | awk '/^total:/{sub("%","",$$3); print $$3}'); \
 	echo "total coverage: $$total% (minimum $(COVERAGE_MIN)%)"; \
 	awk -v t="$$total" -v m="$(COVERAGE_MIN)" 'BEGIN{exit (t+0 < m+0)}' || { echo "coverage below minimum"; exit 1; }
+
+.PHONY: load-test
+load-test: ## Campaign load criterion: 100,000 recipients, no duplicate, no loss (no race detector)
+	go test -count=1 -tags=integration -timeout 20m -run '^TestCampaignLoadHundredThousand$$' ./internal/app/
 
 .PHONY: tidy-check
 tidy-check: ## Fail if go.mod/go.sum are not tidy
