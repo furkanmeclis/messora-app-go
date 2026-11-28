@@ -83,14 +83,20 @@ func TestTenantLimiterLimitsPerTenant(t *testing.T) {
 		<-block
 		return nil
 	}))
+	// Share 5 of 10 slots, headroom 3: alone, A may use 7 slots (a quiet
+	// worker never slows a tenant down); the eighth would leave fewer than
+	// three idle and is deferred.
+	if hr := l.Headroom(5); hr != 3 {
+		t.Fatalf("headroom %d", hr)
+	}
 	done := make(chan error, 20)
-	for range 5 {
+	for range 7 {
 		go func() { done <- h.ProcessTask(context.Background(), taskOf(a, "whatsapp:send")) }()
 	}
-	for range 5 {
+	for range 7 {
 		<-started
 	}
-	// A's sixth task is deferred, not failed; B and platform tasks run.
+	// A's eighth task is deferred, not failed; B and platform tasks run.
 	err := h.ProcessTask(context.Background(), taskOf(a, "whatsapp:send"))
 	var ra *RetryAfterError
 	if !errors.As(err, &ra) || IsFailure(err) || ra.After < 500*time.Millisecond || ra.After > 1500*time.Millisecond {
@@ -100,11 +106,11 @@ func TestTenantLimiterLimitsPerTenant(t *testing.T) {
 	go func() { done <- h.ProcessTask(context.Background(), taskOf(uuid.Nil, TypeOutboxCleanup)) }()
 	<-started
 	<-started
-	if l.Running(a) != 5 || l.Running(b) != 1 {
+	if l.Running(a) != 7 || l.Running(b) != 1 {
 		t.Fatalf("running a=%d b=%d", l.Running(a), l.Running(b))
 	}
 	close(block)
-	for range 7 {
+	for range 9 {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
@@ -112,12 +118,19 @@ func TestTenantLimiterLimitsPerTenant(t *testing.T) {
 	if l.Running(a) != 0 || l.Running(b) != 0 {
 		t.Fatal("slots not released")
 	}
-	// The last attempt is never deferred (asynq would archive it).
-	for range 5 {
-		l.Acquire(a, 5, false)
+	// Below its share a tenant is never deferred, however busy the worker.
+	for range 8 {
+		l.Acquire(a, 5, true)
+	}
+	if !l.Acquire(b, 5, false) || !l.Acquire(b, 5, false) {
+		t.Fatal("a tenant under its share was refused on a full worker")
 	}
 	if l.Acquire(a, 5, false) || !l.Acquire(a, 5, true) {
-		t.Fatal("force must take a slot over the limit")
+		t.Fatal("over the share on a busy worker: deferred unless it is the last attempt")
+	}
+	// A share of the whole worker is no limit.
+	if !NewTenantLimiter(2, nil).Acquire(a, 2, false) {
+		t.Fatal("no limit refused")
 	}
 }
 
