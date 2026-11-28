@@ -158,6 +158,11 @@ func TestSignupVerifyAndLogin(t *testing.T) {
 	if status != "active" || sub != "trial" || trialEnds == nil || time.Until(*trialEnds) < 13*24*time.Hour || time.Until(*trialEnds) > 15*24*time.Hour {
 		t.Fatalf("tenant %s %s %v", status, sub, trialEnds)
 	}
+	// Its Meta connection (webhook address, verify token) exists at once.
+	var conns int
+	if err := h.owner.QueryRow(context.Background(), `SELECT count(*) FROM meta_connections WHERE tenant_id = $1`, tid).Scan(&conns); err != nil || conns != 1 {
+		t.Fatalf("meta connection of the new workspace: %d %v", conns, err)
+	}
 	msg, tok := h.mailTo("kurucu@example.com")
 	if !strings.Contains(msg.Body, "https://"+host+"/verify-email?token=msv_") || msg.HTML == "" || !strings.HasPrefix(tok, "msv_") {
 		t.Fatalf("verification e-mail: %q", msg.Body)
