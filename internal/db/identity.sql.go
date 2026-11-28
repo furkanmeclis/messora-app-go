@@ -26,21 +26,6 @@ func (q *Queries) AcceptInvitation(ctx context.Context, id uuid.UUID) (int64, er
 	return result.RowsAffected(), nil
 }
 
-const assignRole = `-- name: AssignRole :exec
-INSERT INTO user_roles (user_id, role_id)
-SELECT $1, r.id FROM roles r WHERE r.key = $2
-`
-
-type AssignRoleParams struct {
-	UserID  uuid.UUID
-	RoleKey string
-}
-
-func (q *Queries) AssignRole(ctx context.Context, arg AssignRoleParams) error {
-	_, err := q.db.Exec(ctx, assignRole, arg.UserID, arg.RoleKey)
-	return err
-}
-
 const claimIdempotencyKey = `-- name: ClaimIdempotencyKey :one
 
 WITH ins AS (
@@ -120,10 +105,10 @@ func (q *Queries) ConsumePasswordReset(ctx context.Context, tokenHash []byte) (u
 }
 
 const countActiveOwners = `-- name: CountActiveOwners :one
-SELECT count(*) FROM users u
-JOIN user_roles ur ON ur.user_id = u.id
-JOIN roles r ON r.id = ur.role_id
-WHERE r.key = 'owner' AND u.status = 'active'
+SELECT count(*) FROM tenant_memberships m
+JOIN users u ON u.id = m.user_id
+JOIN roles r ON r.id = m.role_id
+WHERE r.key = 'owner' AND m.status = 'active' AND u.status = 'active'
 `
 
 func (q *Queries) CountActiveOwners(ctx context.Context) (int64, error) {
@@ -144,17 +129,28 @@ func (q *Queries) CountRecentPasswordResets(ctx context.Context, userID uuid.UUI
 	return count, err
 }
 
-const countUsers = `-- name: CountUsers :one
-
-SELECT count(*) FROM users
+const countSessionsFrom = `-- name: CountSessionsFrom :one
+SELECT count(*) AS total, count(*) FILTER (WHERE ip = $1::inet) AS from_ip
+FROM user_sessions WHERE user_id = $2 AND support_grant_id IS NULL
 `
 
-// ── Users ───────────────────────────────────────────────────────────────────
-func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsers)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+type CountSessionsFromParams struct {
+	Ip     *netip.Addr
+	UserID uuid.UUID
+}
+
+type CountSessionsFromRow struct {
+	Total  int64
+	FromIp int64
+}
+
+// Earlier sessions of the user in this tenant, and those from ip, for the
+// "new sign-in" e-mail.
+func (q *Queries) CountSessionsFrom(ctx context.Context, arg CountSessionsFromParams) (CountSessionsFromRow, error) {
+	row := q.db.QueryRow(ctx, countSessionsFrom, arg.Ip, arg.UserID)
+	var i CountSessionsFromRow
+	err := row.Scan(&i.Total, &i.FromIp)
+	return i, err
 }
 
 const createApiKey = `-- name: CreateApiKey :one
@@ -241,6 +237,46 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 	return i, err
 }
 
+const createMembership = `-- name: CreateMembership :exec
+INSERT INTO tenant_memberships (user_id, role_id, invited_by)
+SELECT $1, r.id, $2 FROM roles r WHERE r.key = $3
+`
+
+type CreateMembershipParams struct {
+	UserID    uuid.UUID
+	InvitedBy *uuid.UUID
+	RoleKey   string
+}
+
+// Adds the user to the connection's tenant with role_key.
+func (q *Queries) CreateMembership(ctx context.Context, arg CreateMembershipParams) error {
+	_, err := q.db.Exec(ctx, createMembership, arg.UserID, arg.InvitedBy, arg.RoleKey)
+	return err
+}
+
+const createMembershipIn = `-- name: CreateMembershipIn :exec
+INSERT INTO tenant_memberships (tenant_id, user_id, role_id, invited_by)
+SELECT $1, $2, r.id, $3 FROM roles r WHERE r.key = $4
+`
+
+type CreateMembershipInParams struct {
+	TenantID  uuid.UUID
+	UserID    uuid.UUID
+	InvitedBy *uuid.UUID
+	RoleKey   string
+}
+
+// Adds the user to tenant_id (platform role: sign-up and tenant creation).
+func (q *Queries) CreateMembershipIn(ctx context.Context, arg CreateMembershipInParams) error {
+	_, err := q.db.Exec(ctx, createMembershipIn,
+		arg.TenantID,
+		arg.UserID,
+		arg.InvitedBy,
+		arg.RoleKey,
+	)
+	return err
+}
+
 const createPasswordReset = `-- name: CreatePasswordReset :exec
 
 INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)
@@ -260,17 +296,19 @@ func (q *Queries) CreatePasswordReset(ctx context.Context, arg CreatePasswordRes
 
 const createSession = `-- name: CreateSession :one
 
-INSERT INTO user_sessions (user_id, token_hash, ip, user_agent, reauth_at, expires_at)
-VALUES ($1, $2, $3, $4, now(), $5)
-RETURNING id, user_id, token_hash, ip, user_agent, reauth_at, created_at, last_seen_at, expires_at, revoked_at, tenant_id
+INSERT INTO user_sessions (user_id, token_hash, ip, user_agent, reauth_at, expires_at, support_grant_id, read_only)
+VALUES ($1, $2, $3, $4, now(), $5, $6, $7)
+RETURNING id, user_id, token_hash, ip, user_agent, reauth_at, created_at, last_seen_at, expires_at, revoked_at, tenant_id, support_grant_id, read_only
 `
 
 type CreateSessionParams struct {
-	UserID    uuid.UUID
-	TokenHash []byte
-	Ip        *netip.Addr
-	UserAgent *string
-	ExpiresAt time.Time
+	UserID         uuid.UUID
+	TokenHash      []byte
+	Ip             *netip.Addr
+	UserAgent      *string
+	ExpiresAt      time.Time
+	SupportGrantID *uuid.UUID
+	ReadOnly       bool
 }
 
 // ── Sessions ────────────────────────────────────────────────────────────────
@@ -281,6 +319,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (U
 		arg.Ip,
 		arg.UserAgent,
 		arg.ExpiresAt,
+		arg.SupportGrantID,
+		arg.ReadOnly,
 	)
 	var i UserSession
 	err := row.Scan(
@@ -295,24 +335,29 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (U
 		&i.ExpiresAt,
 		&i.RevokedAt,
 		&i.TenantID,
+		&i.SupportGrantID,
+		&i.ReadOnly,
 	)
 	return i, err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, locale, timezone)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id
+
+INSERT INTO users (email, name, password_hash, locale, timezone, email_verified_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, email_verified_at, is_platform_admin, password_reset_required
 `
 
 type CreateUserParams struct {
-	Email        string
-	Name         string
-	PasswordHash string
-	Locale       string
-	Timezone     string
+	Email           string
+	Name            string
+	PasswordHash    string
+	Locale          string
+	Timezone        string
+	EmailVerifiedAt *time.Time
 }
 
+// ── Users (global) and memberships (per tenant) ─────────────────────────────
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createUser,
 		arg.Email,
@@ -320,6 +365,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.PasswordHash,
 		arg.Locale,
 		arg.Timezone,
+		arg.EmailVerifiedAt,
 	)
 	var i User
 	err := row.Scan(
@@ -337,7 +383,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
+		&i.EmailVerifiedAt,
+		&i.IsPlatformAdmin,
+		&i.PasswordResetRequired,
 	)
 	return i, err
 }
@@ -413,26 +461,33 @@ func (q *Queries) GetActiveApiKeyByHash(ctx context.Context, keyHash []byte) (Ap
 }
 
 const getActiveSessionByTokenHash = `-- name: GetActiveSessionByTokenHash :one
-SELECT s.id, s.user_id, s.token_hash, s.ip, s.user_agent, s.reauth_at, s.created_at, s.last_seen_at, s.expires_at, s.revoked_at, s.tenant_id, u.status AS user_status
-FROM user_sessions s JOIN users u ON u.id = s.user_id
+SELECT s.id, s.user_id, s.token_hash, s.ip, s.user_agent, s.reauth_at, s.created_at, s.last_seen_at, s.expires_at, s.revoked_at, s.tenant_id, s.support_grant_id, s.read_only, u.status AS user_status, m.status AS membership_status
+FROM user_sessions s
+JOIN users u ON u.id = s.user_id
+LEFT JOIN tenant_memberships m ON m.tenant_id = s.tenant_id AND m.user_id = s.user_id
 WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()
 `
 
 type GetActiveSessionByTokenHashRow struct {
-	ID         uuid.UUID
-	UserID     uuid.UUID
-	TokenHash  []byte
-	Ip         *netip.Addr
-	UserAgent  *string
-	ReauthAt   *time.Time
-	CreatedAt  time.Time
-	LastSeenAt time.Time
-	ExpiresAt  time.Time
-	RevokedAt  *time.Time
-	TenantID   uuid.UUID
-	UserStatus string
+	ID               uuid.UUID
+	UserID           uuid.UUID
+	TokenHash        []byte
+	Ip               *netip.Addr
+	UserAgent        *string
+	ReauthAt         *time.Time
+	CreatedAt        time.Time
+	LastSeenAt       time.Time
+	ExpiresAt        time.Time
+	RevokedAt        *time.Time
+	TenantID         uuid.UUID
+	SupportGrantID   *uuid.UUID
+	ReadOnly         bool
+	UserStatus       string
+	MembershipStatus *string
 }
 
+// A member's session needs an active account and an active membership; a
+// support session (support_grant_id) has no membership.
 func (q *Queries) GetActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetActiveSessionByTokenHashRow, error) {
 	row := q.db.QueryRow(ctx, getActiveSessionByTokenHash, tokenHash)
 	var i GetActiveSessionByTokenHashRow
@@ -448,23 +503,49 @@ func (q *Queries) GetActiveSessionByTokenHash(ctx context.Context, tokenHash []b
 		&i.ExpiresAt,
 		&i.RevokedAt,
 		&i.TenantID,
+		&i.SupportGrantID,
+		&i.ReadOnly,
 		&i.UserStatus,
+		&i.MembershipStatus,
 	)
 	return i, err
 }
 
+const getMembershipForUpdate = `-- name: GetMembershipForUpdate :one
+SELECT m.status, r.key AS role_key, r.rank AS role_rank
+FROM tenant_memberships m JOIN roles r ON r.id = m.role_id
+WHERE m.user_id = $1
+FOR UPDATE OF m
+`
+
+type GetMembershipForUpdateRow struct {
+	Status   string
+	RoleKey  string
+	RoleRank int16
+}
+
+func (q *Queries) GetMembershipForUpdate(ctx context.Context, userID uuid.UUID) (GetMembershipForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getMembershipForUpdate, userID)
+	var i GetMembershipForUpdateRow
+	err := row.Scan(&i.Status, &i.RoleKey, &i.RoleRank)
+	return i, err
+}
+
 const getOpenInvitationByTokenHash = `-- name: GetOpenInvitationByTokenHash :one
-SELECT i.id, i.email, i.expires_at, r.key AS role_key, r.name AS role_name
+SELECT i.id, i.email, i.expires_at, i.invited_by, r.key AS role_key, r.name AS role_name, inviter.name AS invited_by_name
 FROM user_invitations i JOIN roles r ON r.id = i.role_id
+LEFT JOIN users inviter ON inviter.id = i.invited_by
 WHERE i.token_hash = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
 `
 
 type GetOpenInvitationByTokenHashRow struct {
-	ID        uuid.UUID
-	Email     string
-	ExpiresAt time.Time
-	RoleKey   string
-	RoleName  string
+	ID            uuid.UUID
+	Email         string
+	ExpiresAt     time.Time
+	InvitedBy     *uuid.UUID
+	RoleKey       string
+	RoleName      string
+	InvitedByName *string
 }
 
 func (q *Queries) GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []byte) (GetOpenInvitationByTokenHashRow, error) {
@@ -474,8 +555,10 @@ func (q *Queries) GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []
 		&i.ID,
 		&i.Email,
 		&i.ExpiresAt,
+		&i.InvitedBy,
 		&i.RoleKey,
 		&i.RoleName,
+		&i.InvitedByName,
 	)
 	return i, err
 }
@@ -499,7 +582,7 @@ func (q *Queries) GetRoleByKey(ctx context.Context, key string) (Role, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id FROM users WHERE email = $1
+SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, email_verified_at, is_platform_admin, password_reset_required FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -520,13 +603,15 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
+		&i.EmailVerifiedAt,
+		&i.IsPlatformAdmin,
+		&i.PasswordResetRequired,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id FROM users WHERE id = $1
+SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, email_verified_at, is_platform_admin, password_reset_required FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -547,13 +632,15 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
+		&i.EmailVerifiedAt,
+		&i.IsPlatformAdmin,
+		&i.PasswordResetRequired,
 	)
 	return i, err
 }
 
 const getUserForUpdate = `-- name: GetUserForUpdate :one
-SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id FROM users WHERE id = $1 FOR UPDATE
+SELECT id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, email_verified_at, is_platform_admin, password_reset_required FROM users WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error) {
@@ -574,29 +661,36 @@ func (q *Queries) GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, err
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
+		&i.EmailVerifiedAt,
+		&i.IsPlatformAdmin,
+		&i.PasswordResetRequired,
 	)
 	return i, err
 }
 
 const getUserRole = `-- name: GetUserRole :one
-SELECT r.key AS role_key, r.name AS role_name, r.rank AS role_rank
-FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-WHERE ur.user_id = $1
-ORDER BY r.rank
-LIMIT 1
+SELECT r.key AS role_key, r.name AS role_name, r.rank AS role_rank, m.status AS membership_status
+FROM tenant_memberships m JOIN roles r ON r.id = m.role_id
+WHERE m.user_id = $1
 `
 
 type GetUserRoleRow struct {
-	RoleKey  string
-	RoleName string
-	RoleRank int16
+	RoleKey          string
+	RoleName         string
+	RoleRank         int16
+	MembershipStatus string
 }
 
+// The user's membership in the connection's tenant.
 func (q *Queries) GetUserRole(ctx context.Context, userID uuid.UUID) (GetUserRoleRow, error) {
 	row := q.db.QueryRow(ctx, getUserRole, userID)
 	var i GetUserRoleRow
-	err := row.Scan(&i.RoleKey, &i.RoleName, &i.RoleRank)
+	err := row.Scan(
+		&i.RoleKey,
+		&i.RoleName,
+		&i.RoleRank,
+		&i.MembershipStatus,
+	)
 	return i, err
 }
 
@@ -814,7 +908,7 @@ func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
 }
 
 const listUserSessions = `-- name: ListUserSessions :many
-SELECT id, user_id, token_hash, ip, user_agent, reauth_at, created_at, last_seen_at, expires_at, revoked_at, tenant_id FROM user_sessions
+SELECT id, user_id, token_hash, ip, user_agent, reauth_at, created_at, last_seen_at, expires_at, revoked_at, tenant_id, support_grant_id, read_only FROM user_sessions
 WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
 ORDER BY last_seen_at DESC
 `
@@ -840,6 +934,8 @@ func (q *Queries) ListUserSessions(ctx context.Context, userID uuid.UUID) ([]Use
 			&i.ExpiresAt,
 			&i.RevokedAt,
 			&i.TenantID,
+			&i.SupportGrantID,
+			&i.ReadOnly,
 		); err != nil {
 			return nil, err
 		}
@@ -852,34 +948,32 @@ func (q *Queries) ListUserSessions(ctx context.Context, userID uuid.UUID) ([]Use
 }
 
 const listUsersWithRole = `-- name: ListUsersWithRole :many
-SELECT u.id, u.email, u.name, u.password_hash, u.status, u.totp_secret_enc, u.totp_confirmed_at, u.locale, u.timezone, u.failed_logins, u.locked_until, u.last_login_at, u.created_at, u.updated_at, u.tenant_id, r.key AS role_key, r.name AS role_name, r.rank AS role_rank
-FROM users u
-JOIN user_roles ur ON ur.user_id = u.id
-JOIN roles r ON r.id = ur.role_id
-ORDER BY u.created_at
+SELECT u.id, u.email, u.name, u.totp_confirmed_at, u.locale, u.timezone, u.last_login_at, m.created_at,
+       CASE WHEN u.status = 'active' THEN m.status ELSE 'disabled' END::text AS status,
+       r.key AS role_key, r.name AS role_name, r.rank AS role_rank
+FROM tenant_memberships m
+JOIN users u ON u.id = m.user_id
+JOIN roles r ON r.id = m.role_id
+ORDER BY m.created_at
 `
 
 type ListUsersWithRoleRow struct {
 	ID              uuid.UUID
 	Email           string
 	Name            string
-	PasswordHash    string
-	Status          string
-	TotpSecretEnc   []byte
 	TotpConfirmedAt *time.Time
 	Locale          string
 	Timezone        string
-	FailedLogins    int32
-	LockedUntil     *time.Time
 	LastLoginAt     *time.Time
 	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	TenantID        uuid.UUID
+	Status          string
 	RoleKey         string
 	RoleName        string
 	RoleRank        int16
 }
 
+// The members of the connection's tenant. status is the membership's,
+// or disabled when the account itself is.
 func (q *Queries) ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error) {
 	rows, err := q.db.Query(ctx, listUsersWithRole)
 	if err != nil {
@@ -893,18 +987,12 @@ func (q *Queries) ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow
 			&i.ID,
 			&i.Email,
 			&i.Name,
-			&i.PasswordHash,
-			&i.Status,
-			&i.TotpSecretEnc,
 			&i.TotpConfirmedAt,
 			&i.Locale,
 			&i.Timezone,
-			&i.FailedLogins,
-			&i.LockedUntil,
 			&i.LastLoginAt,
 			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.TenantID,
+			&i.Status,
 			&i.RoleKey,
 			&i.RoleName,
 			&i.RoleRank,
@@ -928,6 +1016,18 @@ SELECT pg_advisory_xact_lock(hashtextextended(concat('messora.owner_changes:', a
 func (q *Queries) LockOwnerChanges(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, lockOwnerChanges)
 	return err
+}
+
+const markEmailVerified = `-- name: MarkEmailVerified :execrows
+UPDATE users SET email_verified_at = now(), updated_at = now() WHERE id = $1 AND email_verified_at IS NULL
+`
+
+func (q *Queries) MarkEmailVerified(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, markEmailVerified, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const markSessionReauthenticated = `-- name: MarkSessionReauthenticated :one
@@ -1002,18 +1102,17 @@ func (q *Queries) ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempote
 }
 
 const replaceRole = `-- name: ReplaceRole :exec
-WITH removed AS (DELETE FROM user_roles WHERE user_id = $1)
-INSERT INTO user_roles (user_id, role_id)
-SELECT $1, r.id FROM roles r WHERE r.key = $2
+UPDATE tenant_memberships SET role_id = (SELECT r.id FROM roles r WHERE r.key = $1), updated_at = now()
+WHERE user_id = $2
 `
 
 type ReplaceRoleParams struct {
-	UserID  uuid.UUID
 	RoleKey string
+	UserID  uuid.UUID
 }
 
 func (q *Queries) ReplaceRole(ctx context.Context, arg ReplaceRoleParams) error {
-	_, err := q.db.Exec(ctx, replaceRole, arg.UserID, arg.RoleKey)
+	_, err := q.db.Exec(ctx, replaceRole, arg.RoleKey, arg.UserID)
 	return err
 }
 
@@ -1077,6 +1176,45 @@ func (q *Queries) RevokeUserSessions(ctx context.Context, arg RevokeUserSessions
 	return result.RowsAffected(), nil
 }
 
+const rolePermissionKeys = `-- name: RolePermissionKeys :many
+SELECT rp.permission_key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id
+WHERE r.key = $1 ORDER BY rp.permission_key
+`
+
+func (q *Queries) RolePermissionKeys(ctx context.Context, roleKey string) ([]string, error) {
+	rows, err := q.db.Query(ctx, rolePermissionKeys, roleKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var permission_key string
+		if err := rows.Scan(&permission_key); err != nil {
+			return nil, err
+		}
+		items = append(items, permission_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setMembershipStatus = `-- name: SetMembershipStatus :exec
+UPDATE tenant_memberships SET status = $1, updated_at = now() WHERE user_id = $2
+`
+
+type SetMembershipStatusParams struct {
+	Status string
+	UserID uuid.UUID
+}
+
+func (q *Queries) SetMembershipStatus(ctx context.Context, arg SetMembershipStatusParams) error {
+	_, err := q.db.Exec(ctx, setMembershipStatus, arg.Status, arg.UserID)
+	return err
+}
+
 const setTotpSecret = `-- name: SetTotpSecret :exec
 UPDATE users SET totp_secret_enc = $1, totp_confirmed_at = $2, updated_at = now()
 WHERE id = $3
@@ -1090,20 +1228,6 @@ type SetTotpSecretParams struct {
 
 func (q *Queries) SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error {
 	_, err := q.db.Exec(ctx, setTotpSecret, arg.TotpSecretEnc, arg.TotpConfirmedAt, arg.ID)
-	return err
-}
-
-const setUserStatus = `-- name: SetUserStatus :exec
-UPDATE users SET status = $1, updated_at = now() WHERE id = $2
-`
-
-type SetUserStatusParams struct {
-	Status string
-	ID     uuid.UUID
-}
-
-func (q *Queries) SetUserStatus(ctx context.Context, arg SetUserStatusParams) error {
-	_, err := q.db.Exec(ctx, setUserStatus, arg.Status, arg.ID)
 	return err
 }
 
@@ -1128,7 +1252,7 @@ func (q *Queries) TouchSession(ctx context.Context, id uuid.UUID) error {
 }
 
 const updatePasswordHash = `-- name: UpdatePasswordHash :exec
-UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2
+UPDATE users SET password_hash = $1, password_reset_required = false, updated_at = now() WHERE id = $2
 `
 
 type UpdatePasswordHashParams struct {
@@ -1148,7 +1272,7 @@ UPDATE users SET
     timezone = coalesce($3, timezone),
     updated_at = now()
 WHERE id = $4
-RETURNING id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, tenant_id
+RETURNING id, email, name, password_hash, status, totp_secret_enc, totp_confirmed_at, locale, timezone, failed_logins, locked_until, last_login_at, created_at, updated_at, email_verified_at, is_platform_admin, password_reset_required
 `
 
 type UpdateProfileParams struct {
@@ -1181,9 +1305,25 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (U
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
+		&i.EmailVerifiedAt,
+		&i.IsPlatformAdmin,
+		&i.PasswordResetRequired,
 	)
 	return i, err
+}
+
+const updateUserEmail = `-- name: UpdateUserEmail :exec
+UPDATE users SET email = $1, email_verified_at = now(), updated_at = now() WHERE id = $2
+`
+
+type UpdateUserEmailParams struct {
+	Email string
+	ID    uuid.UUID
+}
+
+func (q *Queries) UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) error {
+	_, err := q.db.Exec(ctx, updateUserEmail, arg.Email, arg.ID)
+	return err
 }
 
 const useRecoveryCode = `-- name: UseRecoveryCode :execrows
@@ -1206,8 +1346,8 @@ func (q *Queries) UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams
 
 const userPermissions = `-- name: UserPermissions :many
 SELECT DISTINCT rp.permission_key
-FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
-WHERE ur.user_id = $1
+FROM tenant_memberships m JOIN role_permissions rp ON rp.role_id = m.role_id
+WHERE m.user_id = $1 AND m.status = 'active'
 ORDER BY rp.permission_key
 `
 

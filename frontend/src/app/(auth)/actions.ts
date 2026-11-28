@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/server/api';
 import { errorMessage, field, runAction, safeNext } from '@/lib/server/actions';
 import {
     clearMfaToken,
+    clearSession,
     getMfaToken,
     setMfaToken,
     setRememberChoice,
@@ -35,13 +36,6 @@ type LoginResult = Schemas['LoginResult'];
 async function startSession(s: SessionCreated, persistent = true) {
     await setSessionToken(s.session_token, s.expires_at, persistent);
     await clearMfaToken();
-}
-
-/** An endpoint the API does not have yet (phase 17 WP2). */
-function missing(err: unknown): boolean {
-    return (
-        err instanceof ApiError && (err.status === 404 || err.status === 405)
-    );
 }
 
 export async function loginAction(
@@ -110,32 +104,6 @@ export async function verifyMfaAction(
     redirect(safeNext(field(form, 'next')));
 }
 
-export async function setupAction(
-    _prev: ActionResult | null,
-    form: FormData,
-): Promise<ActionResult> {
-    const res = await runAction(
-        async () =>
-            (
-                await api<SessionCreated>('/setup', {
-                    method: 'POST',
-                    auth: 'none',
-                    body: {
-                        token: field(form, 'token'),
-                        name: field(form, 'name'),
-                        email: field(form, 'email'),
-                        password: String(form.get('password') ?? ''),
-                        organization_name:
-                            field(form, 'organization_name') || undefined,
-                    },
-                })
-            ).data,
-    );
-    if (!res.ok) return res;
-    await startSession(res.data);
-    redirect('/welcome');
-}
-
 export async function acceptInvitationAction(
     _prev: ActionResult | null,
     form: FormData,
@@ -148,7 +116,7 @@ export async function acceptInvitationAction(
                     auth: 'none',
                     body: {
                         token: field(form, 'token'),
-                        name: field(form, 'name'),
+                        name: field(form, 'name') || undefined,
                         password: String(form.get('password') ?? ''),
                     },
                 })
@@ -242,13 +210,6 @@ export async function signupAction(
             })
         ).data;
     } catch (err) {
-        if (missing(err)) {
-            return {
-                ok: false,
-                code: AUTH_ERROR_CODES.signupUnavailable,
-                message: '',
-            };
-        }
         const res = await runAction(() => Promise.reject(err));
         if (res.ok) throw err;
         if (res.code === AUTH_ERROR_CODES.slugTaken) {
@@ -278,7 +239,7 @@ export async function signupAction(
 
 /**
  * Whether a workspace address is free. `available: null` means the API
- * cannot tell (not there yet, or unreachable); the form then says nothing.
+ * cannot tell (unreachable); the form then says nothing.
  */
 export async function checkSlugAction(
     slug: string,
@@ -297,7 +258,7 @@ export async function checkSlugAction(
 }
 
 export type ResendState = {
-    status: 'sent' | 'error' | 'unavailable';
+    status: 'sent' | 'error';
     message?: string;
     /** Seconds until the button works again. */
     cooldown: number;
@@ -330,7 +291,6 @@ export async function resendVerificationAction(
         });
         return { status: 'sent', cooldown: RESEND_COOLDOWN, at };
     } catch (err) {
-        if (missing(err)) return { status: 'unavailable', cooldown: 0, at };
         if (!(err instanceof ApiError)) throw err;
         return {
             status: 'error',
@@ -345,7 +305,7 @@ export async function resendVerificationAction(
 export type VerifyEmailState =
     | { status: 'verified'; workspace: string | null; loginUrl: string }
     | {
-          status: 'expired' | 'invalid' | 'already' | 'unavailable' | 'error';
+          status: 'expired' | 'invalid' | 'already' | 'error';
           message?: string;
       };
 
@@ -367,7 +327,6 @@ export async function verifyEmailAction(
             loginUrl: safeLoginUrl(r.data.login_url),
         };
     } catch (err) {
-        if (missing(err)) return { status: 'unavailable' };
         if (!(err instanceof ApiError)) throw err;
         switch (err.code) {
             case AUTH_ERROR_CODES.verificationExpired:
@@ -393,21 +352,42 @@ function safeLoginUrl(raw: string | undefined): string {
     return safeNext(raw) === '/' ? '/login?verified=1' : safeNext(raw);
 }
 
+/**
+ * Hands the person over to another of their workspaces: sessions belong to
+ * one workspace, so the target address signs them in with a one-time
+ * token (`/auth/handoff`).
+ */
 export async function switchWorkspaceAction(form: FormData): Promise<void> {
-    const tenantId = field(form, 'tenant_id');
-    const fallback = field(form, 'url');
-    let target = '/';
+    const r = await api<SwitchWorkspaceResponse>('/auth/switch-workspace', {
+        method: 'POST',
+        body: { tenant_id: field(form, 'tenant_id') },
+    });
+    redirect(safeLoginUrl(r.data.redirect_url));
+}
+
+export type ConfirmEmailState =
+    { status: 'changed' } | { status: 'invalid'; message?: string };
+
+/** Confirms a new e-mail address from the link sent to it. */
+export async function confirmEmailChangeAction(
+    _prev: ConfirmEmailState | null,
+    form: FormData,
+): Promise<ConfirmEmailState> {
+    const token = field(form, 'token');
+    if (!token) return { status: 'invalid' };
     try {
-        const r = await api<SwitchWorkspaceResponse>('/auth/switch-workspace', {
+        await api('/auth/email-change/confirm', {
             method: 'POST',
-            body: { tenant_id: tenantId },
+            auth: 'none',
+            body: { token },
         });
-        target = safeLoginUrl(r.data.redirect_url);
     } catch (err) {
-        if (!missing(err)) throw err;
-        if (fallback) target = safeLoginUrl(fallback);
+        if (!(err instanceof ApiError)) throw err;
+        return { status: 'invalid', message: await errorMessage(err) };
     }
-    redirect(target);
+    // Every session of the account ended, this browser's too.
+    await clearSession();
+    return { status: 'changed' };
 }
 
 /** The language switch on the sign-in screens. */

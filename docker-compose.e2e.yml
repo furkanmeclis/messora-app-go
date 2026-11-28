@@ -1,3 +1,7 @@
+# End-to-end test additions (scripts/e2e.sh only, never production):
+# Mailpit catches every e-mail the stack sends, so the browser tests can
+# read verification and invitation links from its HTTP API on
+# 127.0.0.1:${MAILPIT_HTTP_PORT}.
 # E2E only (scripts/e2e.sh adds it): a fake Meta Graph API, so the browser
 # tests can drive Embedded Signup (Messora as Tech Provider) without
 # Facebook. `messora fake-meta` refuses to run with APP_ENV=production.
@@ -21,16 +25,38 @@ services:
       retries: 12
     networks: [internal]
 
-  messora-api:
+
+  mailpit:
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
     environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
+    # internal: the Messora services reach it; edge: the published port.
+    networks: [internal, edge]
+    read_only: true
+    tmpfs: [/tmp] # its message store
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  messora-api:
+    environment: &e2e-env
       META_GRAPH_BASE_URL: http://fake-meta:8080
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_TLS: none
+      SMTP_FROM: "Messora <no-reply@messora.test>"
     depends_on:
+      mailpit:
+        condition: service_started
       fake-meta:
         condition: service_healthy
 
   messora-worker:
-    environment:
-      META_GRAPH_BASE_URL: http://fake-meta:8080
+    environment: *e2e-env
     depends_on:
+      mailpit:
+        condition: service_started
       fake-meta:
         condition: service_healthy

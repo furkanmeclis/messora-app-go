@@ -13,6 +13,16 @@ const audit: Messages['audit'] = {
         action: 'İşlem',
         details: 'Ayrıntılar',
     },
+    support: {
+        title: 'Messora destek erişimi',
+        description:
+            'Messora destek ekibinin bu çalışma alanını açtığı zamanlar; her zaman sınırlı süreyle ve bir nedenle.',
+        when: 'Zaman',
+        who: 'Kim',
+        reason: 'Neden',
+        access: 'Erişim',
+        active: 'Şu an',
+    },
     empty: 'Kayıt yok.',
     system: 'Sistem',
     unknown: 'Bilinmiyor',

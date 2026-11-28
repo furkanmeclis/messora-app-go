@@ -11,6 +11,16 @@ const audit = {
         action: 'Action',
         details: 'Details',
     },
+    support: {
+        title: 'Messora support access',
+        description:
+            'Times Messora support opened this workspace, always for a limited time and with a reason.',
+        when: 'When',
+        who: 'Who',
+        reason: 'Reason',
+        access: 'Access',
+        active: 'Now',
+    },
     empty: 'No entries.',
     system: 'System',
     unknown: 'Unknown',

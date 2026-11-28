@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
 import { CheckCircle2, Clock } from 'lucide-react';
 import { getT } from '@/i18n/server';
 import { safeNext } from '@/lib/server/actions';
@@ -28,7 +27,6 @@ export default async function LoginPage({
         getAuthContext(),
         getT(),
     ]);
-    if (caps.setup_required) redirect('/setup');
 
     const notice = sp.reset
         ? { icon: CheckCircle2, text: t('auth.login.passwordChanged') }
@@ -54,7 +52,7 @@ export default async function LoginPage({
             footer={
                 // Workspaces invite their people; sign-up lives on the
                 // platform address.
-                tenant ? undefined : (
+                tenant || !caps.signup_enabled ? undefined : (
                     <>
                         {t('auth.login.noAccount')}{' '}
                         <AuthLink href="/signup">

@@ -80,8 +80,9 @@ type Connection struct {
 
 // Connection returns the request's tenant's connection, creating it (with
 // a fresh webhook key and verify token) the first time.
-// TODO(WP2): call this when the platform admin opens a tenant, so the
-// webhook address exists before anyone looks at Settings.
+// A new workspace (sign-up or the admin panel) calls it right away
+// (identity.Options.TenantOpened), so the webhook address exists before
+// anyone looks at Settings.
 func (s *Service) Connection(ctx context.Context) (Connection, error) {
 	t, ok := tenant.FromCtx(ctx)
 	if !ok {

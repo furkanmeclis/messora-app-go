@@ -96,12 +96,20 @@ func TenantHooks() (prepare func(context.Context, *pgx.Conn) (bool, error), rele
 		if _, err := c.Exec(ctx, "SELECT set_config('app.tenant_id', $1, false)", v); err != nil {
 			return false, fmt.Errorf("database: set tenant: %w", err)
 		}
+		// Platform work (sign-up, the admin panel) switches to the
+		// platform role for as long as the connection is held.
+		if role := tenant.Role(ctx); role != "" {
+			if _, err := c.Exec(ctx, "SET ROLE "+pgx.Identifier{role}.Sanitize()); err != nil {
+				return false, fmt.Errorf("database: set role: %w", err)
+			}
+		}
 		return true, nil
 	}
 	release = func(c *pgx.Conn) bool {
 		ctx, cancel := context.WithTimeout(context.Background(), resetTimeout)
 		defer cancel()
-		_, err := c.Exec(ctx, "RESET app.tenant_id")
+		// One round trip; a connection whose reset fails is destroyed.
+		_, err := c.Exec(ctx, "RESET ROLE; RESET app.tenant_id")
 		return err == nil
 	}
 	return prepare, release

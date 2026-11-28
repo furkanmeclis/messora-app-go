@@ -1,6 +1,14 @@
 import type { Messages } from '../en';
 
 const topbar: Messages['topbar'] = {
+    workspaces: 'Çalışma alanları',
+    support: {
+        title: 'Messora destek ekibi ({name}) bu çalışma alanını görüntülüyor',
+        readOnly: 'Salt okunur',
+        write: 'Değişiklik yapabilir',
+        reason: 'Neden: {reason}',
+        until: '{time} saatine kadar',
+    },
     search: 'Ara ya da bir sayfaya git…',
     searchHint: 'Sayfalar ve hızlı işlemler',
     goTo: 'Git',

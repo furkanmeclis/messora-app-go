@@ -2,7 +2,7 @@ import 'server-only';
 
 import { headers } from 'next/headers';
 import { serverConfig } from './config';
-import { getSessionToken } from './session';
+import { getPlatformToken, getSessionToken } from './session';
 import { forwardHost } from './tenant-host';
 import type { ApiErrorBody } from '@/lib/types';
 
@@ -49,8 +49,11 @@ export type ApiResult<T> = {
 type Options = {
     method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     body?: unknown;
-    /** Defaults to the signed-in user's session. */
-    auth?: 'session' | 'none';
+    /**
+     * Defaults to the signed-in user's session; 'platform' sends the
+     * platform admin's session (admin host only).
+     */
+    auth?: 'session' | 'none' | 'platform';
     /** A session token to use instead of the cookie (right after sign-in). */
     token?: string;
     idempotencyKey?: string;
@@ -82,7 +85,11 @@ export async function api<T>(
     const ua = incoming.get('user-agent');
     if (ua) h.set('User-Agent', ua.slice(0, 512));
     if (o.auth !== 'none') {
-        const token = o.token ?? (await getSessionToken());
+        const token =
+            o.token ??
+            (o.auth === 'platform'
+                ? await getPlatformToken()
+                : await getSessionToken());
         if (token) h.set('Authorization', `Bearer ${token}`);
     }
     if (o.body !== undefined) h.set('Content-Type', 'application/json');

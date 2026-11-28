@@ -28,7 +28,10 @@
 
 | Özellik | Phase | Durum |
 |---|---|---|
-| İlk kurulum (setup token + CLI) | 2 | Implemented |
+| İlk kurulum: platform yöneticisi açılış bağlantısı (`messora migrate`) + `messora admin create` (setup sihirbazı kaldırıldı) | 17 | Implemented |
+| Self sign-up (firma + alt alan adı), e-posta doğrulama | 17 | Implemented |
+| Global hesap + firma üyelikleri, firma değiştirme | 17 | Implemented |
+| Platform yönetici paneli (firmalar, alan adları, askıya alma, hesaplar, destek erişimi, fiyat kartı) | 17 | Implemented |
 | Login / logout, oturum yönetimi | 2 | Implemented |
 | Argon2id parola, brute-force kilidi | 2 | Implemented |
 | Şifre sıfırlama (SMTP) | 2 | Implemented |

@@ -4,40 +4,6 @@
  */
 
 export interface paths {
-    '/setup/status': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Whether the first owner account still has to be created */
-        get: operations['getSetupStatus'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    '/setup': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create the first owner account with the one-time setup token */
-        post: operations['completeSetup'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     '/auth/login': {
         parameters: {
             query?: never;
@@ -444,31 +410,11 @@ export interface paths {
         };
         /**
          * Imported Meta rate card
-         * @description Meta's per-message prices as imported from CSV, used to price each billable message. Meta publishes no pricing API; see docs/WHATSAPP.md ("Rate card") for the import format.
+         * @description Meta's per-message prices, used to price each billable message. The card is shared by every company and managed in the platform admin panel; see docs/WHATSAPP.md ("Rate card").
          */
         get: operations['listMetaRates'];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    '/settings/meta-rates/import': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Import Meta's rate card from CSV
-         * @description Multipart upload with a `file` field holding a CSV with the columns market, countries, category, price, currency, effective_from and optionally tier_lower, tier_upper and source (at most 2 MB). Rows add to or replace the stored rates of the same currency, market, category, tier and date; a rate stays valid until the next date of its market and category. The whole file is rejected when any row is invalid.
-         */
-        post: operations['importMetaRates'];
         delete?: never;
         options?: never;
         head?: never;
@@ -616,55 +562,11 @@ export interface paths {
         };
         /**
          * AI price table (per 1M tokens)
-         * @description No provider publishes prices through an API. Rows come from the shipped seed (unconfirmed), a LiteLLM import (unconfirmed) or an admin; `confirmed` rows were checked by an admin.
+         * @description No provider publishes prices through an API. Rows come from the shipped seed (unconfirmed), a LiteLLM import (unconfirmed) or a platform admin; `confirmed` rows were checked. The table is shared by every company and managed in the platform admin panel.
          */
         get: operations['listAIPrices'];
         put?: never;
-        /** Add a price row (counts as confirmed by the admin) */
-        post: operations['createAIPrice'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    '/ai/prices/{priceId}': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                priceId: components['parameters']['PriceId'];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
         post?: never;
-        /** Remove a price row */
-        delete: operations['deleteAIPrice'];
-        options?: never;
-        head?: never;
-        /**
-         * Edit or confirm a price row
-         * @description `confirm: true` records the admin as having checked the row against its source. Changing any figure without confirming clears an earlier confirmation. Costs already recorded never change.
-         */
-        patch: operations['updateAIPrice'];
-        trace?: never;
-    };
-    '/ai/prices/import': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Import prices from LiteLLM's price list
-         * @description Multipart upload with a `file` field holding LiteLLM's model_prices_and_context_window.json (MIT licensed, per-token prices; at most 16 MB) and an optional `effective_from` date (default today). OpenAI, Anthropic, Gemini and DeepSeek chat models are converted to per-1M prices, including long-context thresholds and cache prices. Imported rows replace rows of the same model and date and are unconfirmed. Messora never downloads the file itself.
-         */
-        post: operations['importAIPrices'];
         delete?: never;
         options?: never;
         head?: never;
@@ -3260,6 +3162,862 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/auth/signup': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a workspace and its owner account (self sign-up)
+         * @description Creates the company (tenant) at `<workspace_slug>.<base domain>`, its owner and a verification e-mail. No session yet: the address has to be verified first. Errors: 409 EMAIL_TAKEN, 409 SLUG_TAKEN, 422 SLUG_RESERVED, 403 SIGNUP_DISABLED, 429 RATE_LIMITED.
+         */
+        post: operations['signup'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/auth/signup/slug-availability': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether a workspace address is free */
+        get: operations['getSlugAvailability'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/auth/verify-email': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an e-mail address with the link from the sign-up e-mail
+         * @description Errors: 410 VERIFICATION_TOKEN_EXPIRED, 400 VERIFICATION_TOKEN_INVALID, 409 EMAIL_ALREADY_VERIFIED.
+         */
+        post: operations['verifyEmail'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/auth/resend-verification': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the verification e-mail again
+         * @description Answers 202 whether or not the address is known. At most one e-mail per address and minute: 429 RATE_LIMITED with Retry-After.
+         */
+        post: operations['resendVerification'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/auth/switch-workspace': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hand the signed-in person over to another of their workspaces
+         * @description Sessions belong to one workspace. The answer is a link to the other workspace's address with a one-time token (valid 60 seconds) that signs the person in there. Errors: 403 FORBIDDEN (no membership), 403 ACCOUNT_DISABLED.
+         */
+        post: operations['switchWorkspace'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/auth/handoff': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a one-time workspace hand-over token for a session
+         * @description The token only works once, within 60 seconds and only at the address of the workspace it was issued for (401 HANDOFF_INVALID otherwise).
+         */
+        post: operations['completeHandoff'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/auth/email-change/confirm': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm a new e-mail address with the link sent to it */
+        post: operations['confirmEmailChange'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/me/memberships': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspaces the signed-in person belongs to */
+        get: operations['listMyMemberships'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/me/email': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the e-mail address (confirmed from the new address)
+         * @description Requires recent re-authentication. The link sent to the new address is valid for 24 hours.
+         */
+        post: operations['requestEmailChange'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/support-access': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** When Messora support opened this workspace */
+        get: operations['listSupportAccess'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/auth/capabilities': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the platform still needs its first admin */
+        get: operations['getPlatformAuthCapabilities'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/auth/bootstrap': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create the first platform admin with the token `messora migrate` printed */
+        post: operations['bootstrapPlatformAdmin'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/auth/login': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in to the platform admin panel */
+        post: operations['platformLogin'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/auth/login/mfa': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete the platform sign-in with a TOTP or recovery code */
+        post: operations['platformLoginMfa'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/auth/logout': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End the platform session */
+        post: operations['platformLogout'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/me': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in platform admin */
+        get: operations['getPlatformMe'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/me/mfa/totp': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate a TOTP secret (platform admins must use two-factor authentication) */
+        post: operations['startPlatformTotpSetup'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/me/mfa/totp/confirm': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate TOTP; returns recovery codes once */
+        post: operations['confirmPlatformTotp'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/overview': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Platform counters */
+        get: operations['getPlatformOverview'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Companies, newest first */
+        get: operations['listPlatformTenants'];
+        put?: never;
+        /** Create a company at <slug>.<base domain>, optionally inviting its owner */
+        post: operations['createPlatformTenant'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        /** A company with its domains and owners */
+        get: operations['getPlatformTenant'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename a company or change its trial */
+        patch: operations['updatePlatformTenant'];
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/suspend': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspend a company (its addresses answer 403 TENANT_SUSPENDED) */
+        post: operations['suspendPlatformTenant'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/unsuspend': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Lift a suspension */
+        post: operations['unsuspendPlatformTenant'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/owner-invitations': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite an owner to a company
+         * @description The acceptance link is returned once and e-mailed.
+         */
+        post: operations['invitePlatformTenantOwner'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/domains': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a custom domain (answers once its TXT record is verified) */
+        post: operations['addPlatformTenantDomain'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/tenants/{tenantId}/support-sessions': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open the company's panel as support (time-boxed, audited, read-only by default) */
+        post: operations['startSupportSession'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/domains/{domainId}/verify': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domainId: components['parameters']['DomainId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Look up the domain's TXT record now */
+        post: operations['verifyPlatformDomain'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/domains/{domainId}/primary': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domainId: components['parameters']['DomainId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make a verified domain the company's main address (links in e-mails) */
+        post: operations['setPlatformPrimaryDomain'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/domains/{domainId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domainId: components['parameters']['DomainId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a custom domain */
+        delete: operations['deletePlatformDomain'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/users': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search accounts across every company */
+        get: operations['listPlatformUsers'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/users/{userId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components['parameters']['UserId'];
+            };
+            cookie?: never;
+        };
+        /** An account and its memberships */
+        get: operations['getPlatformUser'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/users/{userId}/disable': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components['parameters']['UserId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable an account everywhere (ends every session) */
+        post: operations['disablePlatformUser'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/users/{userId}/enable': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components['parameters']['UserId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable a disabled account */
+        post: operations['enablePlatformUser'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/users/{userId}/force-password-reset': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components['parameters']['UserId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End every session and require a new password (a reset link is e-mailed) */
+        post: operations['forcePlatformUserPasswordReset'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/support-sessions': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Support sessions, newest first */
+        get: operations['listSupportSessions'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/support-sessions/{grantId}/end': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grantId: components['parameters']['GrantId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End a support session now */
+        post: operations['endSupportSession'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/settings': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Platform settings */
+        get: operations['getPlatformSettings'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change platform settings */
+        patch: operations['updatePlatformSettings'];
+        trace?: never;
+    };
+    '/platform/audit-logs': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What platform admins did, newest first */
+        get: operations['listPlatformAuditLogs'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/failed-jobs': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Background jobs of every company that ran out of retries, newest first
+         * @description Like /system/failed-jobs, across companies; each job names the company it ran for.
+         */
+        get: operations['listPlatformFailedJobs'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/failed-jobs/{queue}/{jobId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Discard a failed job of any company */
+        delete: operations['deletePlatformFailedJob'];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/failed-jobs/{queue}/{jobId}/retry': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a failed job of any company again now */
+        post: operations['retryPlatformFailedJob'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/meta-rates': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The platform's Meta rate card */
+        get: operations['listPlatformMetaRates'];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/meta-rates/import': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Meta's rate card from CSV (every company reads it)
+         * @description Multipart upload with a `file` field holding a CSV with the columns market, countries, category, price, currency, effective_from and optionally tier_lower, tier_upper and source (at most 2 MB). Rows add to or replace the stored rates of the same currency, market, category, tier and date; a rate stays valid until the next date of its market and category. The whole file is rejected when any row is invalid.
+         */
+        post: operations['importMetaRates'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/ai-prices': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The platform's AI price table (per 1M tokens) */
+        get: operations['listPlatformAIPrices'];
+        put?: never;
+        /** Add a price row (counts as confirmed by the admin) */
+        post: operations['createAIPrice'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/platform/ai-prices/{priceId}': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                priceId: components['parameters']['PriceId'];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a price row */
+        delete: operations['deleteAIPrice'];
+        options?: never;
+        head?: never;
+        /**
+         * Edit or confirm a price row
+         * @description `confirm: true` records the admin as having checked the row against its source. Changing any figure without confirming clears an earlier confirmation. Costs already recorded never change.
+         */
+        patch: operations['updateAIPrice'];
+        trace?: never;
+    };
+    '/platform/ai-prices/import': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import prices from LiteLLM's price list
+         * @description Multipart upload with a `file` field holding LiteLLM's model_prices_and_context_window.json (MIT licensed, per-token prices; at most 16 MB) and an optional `effective_from` date (default today). OpenAI, Anthropic, Gemini and DeepSeek chat models are converted to per-1M prices, including long-context thresholds and cache prices. Imported rows replace rows of the same model and date and are unconfirmed. Messora never downloads the file itself.
+         */
+        post: operations['importAIPrices'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/platform/meta/tech-provider': {
         parameters: {
             query?: never;
@@ -3395,6 +4153,14 @@ export interface components {
             };
             /** @description The user's role requires two-factor authentication but it is not enabled yet. */
             mfa_required: boolean;
+            /** @description The workspace this session belongs to. */
+            tenant?: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: string;
+            };
+            support?: components['schemas']['SupportInfo'] | null;
         };
         SessionCreated: {
             /** @description Opaque token. The panel stores it in an HttpOnly cookie; never expose it to browsers. */
@@ -3402,16 +4168,6 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
             user: components['schemas']['User'];
-        };
-        SetupStatus: {
-            setup_required: boolean;
-        };
-        CompleteSetupRequest: {
-            token: string;
-            name: components['schemas']['PersonName'];
-            email: components['schemas']['Email'];
-            password: components['schemas']['Password'];
-            organization_name?: string;
         };
         LoginRequest: {
             email: components['schemas']['Email'];
@@ -3447,7 +4203,8 @@ export interface components {
         AuthCapabilities: {
             /** @description False when outgoing e-mail is not configured. */
             password_reset: boolean;
-            setup_required: boolean;
+            /** @description Self sign-up is open (platform setting). */
+            signup_enabled: boolean;
         };
         UpdateMeRequest: {
             name?: components['schemas']['PersonName'];
@@ -3504,11 +4261,22 @@ export interface components {
             role: components['schemas']['RoleRef'];
             /** Format: date-time */
             expires_at: string;
+            /** @description The address already has a Messora account; accepting asks for its password instead of creating one. */
+            account_exists: boolean;
+            invited_by?: {
+                name: string;
+            } | null;
+            tenant?: {
+                name: string;
+                logo_url: string | null;
+            } | null;
         };
         AcceptInvitationRequest: {
             token: string;
-            name: components['schemas']['PersonName'];
-            password: components['schemas']['Password'];
+            /** @description Required for a new account; ignored when the address already has one. */
+            name?: components['schemas']['PersonName'];
+            /** @description The new account's password (at least 12 characters), or the existing account's password. */
+            password: string;
         };
         Role: {
             key: components['schemas']['RoleKey'];
@@ -3794,10 +4562,6 @@ export interface components {
             refs: {
                 [key: string]: string;
             };
-        };
-        SetupStatusResponse: {
-            data: components['schemas']['SetupStatus'];
-            meta: components['schemas']['Meta'];
         };
         SessionCreatedResponse: {
             data: components['schemas']['SessionCreated'];
@@ -4378,7 +5142,7 @@ export interface components {
             completed_at: string | null;
         };
         StartTechProviderOnboardingRequest: {
-            /** @description The code FB.login returned (valid five minutes */
+            /** @description The code FB.login returned (valid five minutes, single use). */
             code: string;
             /** @description From the WA_EMBEDDED_SIGNUP FINISH message. */
             waba_id: string;
@@ -4402,7 +5166,7 @@ export interface components {
         PlatformTechProvider: {
             /** @description The switch; companies see "Connect with Meta" only when on. */
             enabled: boolean;
-            /** @description App ID */
+            /** @description App ID, App secret, configuration ID and verify token are set. */
             ready: boolean;
             app_id: string | null;
             configuration_id: string | null;
@@ -9052,6 +9816,440 @@ export interface components {
             data: components['schemas']['UploadedMedia'];
             meta: components['schemas']['Meta'];
         };
+        /** @description Sub-domain label; reserved labels are refused (SLUG_RESERVED). */
+        WorkspaceSlug: string;
+        SignupRequest: {
+            name: components['schemas']['PersonName'];
+            email: components['schemas']['Email'];
+            password: components['schemas']['Password'];
+            company_name: string;
+            workspace_slug: string;
+            locale: components['schemas']['Locale'];
+            /** @enum {boolean} */
+            accept_terms: true;
+        };
+        TenantRef: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+        };
+        Signup: {
+            email: string;
+            tenant: components['schemas']['TenantRef'];
+            verification_required: boolean;
+        };
+        SlugAvailability: {
+            slug: string;
+            available: boolean;
+            /** @enum {string} */
+            reason?: 'taken' | 'reserved';
+        };
+        VerifyEmailRequest: {
+            token: string;
+        };
+        VerifyEmailResult: {
+            email: string;
+            tenant: {
+                slug: string;
+                name: string;
+            };
+            /** @description https://<slug>.<base domain>/login */
+            login_url: string;
+        };
+        ResendVerificationRequest: {
+            email: components['schemas']['Email'];
+        };
+        Membership: {
+            tenant: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: string;
+                logo_url: string | null;
+            };
+            role: {
+                key: string;
+                name: string;
+            };
+            /** @description The workspace this session belongs to. */
+            current: boolean;
+            /** @description The workspace's address (https://<slug>.<base domain> or its custom domain). */
+            url: string;
+        };
+        SwitchWorkspaceRequest: {
+            /** Format: uuid */
+            tenant_id: string;
+        };
+        SwitchWorkspace: {
+            /** @description https://<slug>.<base domain>/auth/handoff?token=… */
+            redirect_url: string;
+        };
+        WorkspaceHandoffRequest: {
+            token: string;
+        };
+        EmailChangeRequest: {
+            email: components['schemas']['Email'];
+        };
+        /** @description Set while Messora support has this workspace open. */
+        SupportInfo: {
+            /** Format: uuid */
+            grant_id: string;
+            admin_name: string;
+            reason: string;
+            read_only: boolean;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        SupportGrant: {
+            /** Format: uuid */
+            id: string;
+            tenant: components['schemas']['TenantRef'];
+            admin: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+            };
+            reason: string;
+            read_only: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            ended_at: string | null;
+            active: boolean;
+        };
+        /** @enum {string} */
+        TenantStatus: 'active' | 'suspended' | 'deleted';
+        /** @enum {string} */
+        SubscriptionStatus: 'trial' | 'active' | 'past_due' | 'canceled';
+        PlatformAuthCapabilities: {
+            /** @description No platform admin exists yet; use the link `messora migrate` printed or `messora admin create`. */
+            bootstrap_required: boolean;
+        };
+        PlatformBootstrapRequest: {
+            token: string;
+            name: components['schemas']['PersonName'];
+            email: components['schemas']['Email'];
+            password: components['schemas']['Password'];
+        };
+        PlatformAdmin: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            name: string;
+            mfa_enabled: boolean;
+        };
+        PlatformSessionCreated: {
+            /** @description Opaque msp_ token; the panel keeps it in its own HttpOnly cookie. */
+            session_token: string;
+            /** Format: date-time */
+            expires_at: string;
+            admin: components['schemas']['PlatformAdmin'];
+        };
+        PlatformLoginResult: {
+            /** @enum {string} */
+            status: 'authenticated' | 'mfa_required';
+            session?: components['schemas']['PlatformSessionCreated'];
+            mfa_token?: string;
+        };
+        PlatformMe: {
+            admin: components['schemas']['PlatformAdmin'];
+            session: {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                expires_at: string;
+            };
+            /** @description Two-factor authentication is not set up yet; only enrolment works until it is. */
+            mfa_required: boolean;
+        };
+        PlatformOverview: {
+            /** Format: int64 */
+            tenants: number;
+            /** Format: int64 */
+            active_tenants: number;
+            /** Format: int64 */
+            suspended_tenants: number;
+            /** Format: int64 */
+            trial_tenants: number;
+            /** Format: int64 */
+            users: number;
+            /** Format: int64 */
+            signups_7d: number;
+            /** Format: int64 */
+            active_support_sessions: number;
+        };
+        PlatformTenant: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            status: components['schemas']['TenantStatus'];
+            subscription_status: components['schemas']['SubscriptionStatus'];
+            /** Format: date-time */
+            trial_ends_at: string | null;
+            /** Format: date-time */
+            suspended_at: string | null;
+            suspended_reason: string | null;
+            /** Format: int64 */
+            member_count: number;
+            primary_host: string | null;
+            url: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        PlatformDomain: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenant_id: string;
+            hostname: string;
+            /** @enum {string} */
+            kind: 'subdomain' | 'custom';
+            is_primary: boolean;
+            /** Format: date-time */
+            verified_at: string | null;
+            /** Format: date-time */
+            last_checked_at?: string | null;
+            last_check_error?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** @description The DNS record that proves ownership (custom domains). */
+            verification: {
+                /** @enum {string} */
+                type: 'TXT';
+                name: string;
+                value: string;
+            } | null;
+        };
+        PlatformTenantDetail: components['schemas']['PlatformTenant'] & {
+            domains: components['schemas']['PlatformDomain'][];
+            owners: {
+                /** Format: uuid */
+                id: string;
+                email: string;
+                name: string;
+            }[];
+        };
+        CreatePlatformTenantRequest: {
+            name: string;
+            slug: string;
+            owner_email?: components['schemas']['Email'];
+            locale?: components['schemas']['Locale'];
+            /** @description 0 starts the company without a trial (subscription active). */
+            trial_days?: number;
+        };
+        OwnerInvitation: {
+            email: string;
+            /** @description Shown once. */
+            accept_url: string;
+            email_sent: boolean;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        PlatformTenantCreated: {
+            tenant: components['schemas']['PlatformTenantDetail'];
+            owner_invitation?: components['schemas']['OwnerInvitation'];
+        };
+        UpdatePlatformTenantRequest: {
+            name?: string;
+            /** Format: date-time */
+            trial_ends_at?: string | null;
+            subscription_status?: components['schemas']['SubscriptionStatus'];
+        };
+        SuspendTenantRequest: {
+            reason: string;
+        };
+        InviteOwnerRequest: {
+            email: components['schemas']['Email'];
+            locale?: components['schemas']['Locale'];
+        };
+        AddDomainRequest: {
+            hostname: string;
+        };
+        StartSupportSessionRequest: {
+            reason: string;
+            /** @default 30 */
+            minutes: number;
+            /**
+             * @description Allow changes; the default is read-only.
+             * @default false
+             */
+            write: boolean;
+        };
+        SupportSessionStarted: {
+            grant: components['schemas']['SupportGrant'];
+            redirect_url: string;
+        };
+        PlatformUser: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            name: string;
+            /** @enum {string} */
+            status: 'active' | 'disabled';
+            is_platform_admin: boolean;
+            mfa_enabled: boolean;
+            email_verified: boolean;
+            password_reset_required: boolean;
+            /** Format: int64 */
+            membership_count: number;
+            /** Format: date-time */
+            locked_until?: string | null;
+            /** Format: date-time */
+            last_login_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        PlatformUserDetail: {
+            user: components['schemas']['PlatformUser'];
+            memberships: {
+                tenant: components['schemas']['TenantRef'];
+                role: string;
+                /** @enum {string} */
+                status: 'active' | 'disabled';
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
+        PlatformSettings: {
+            signup_enabled: boolean;
+            /** @description TENANT_BASE_DOMAIN (read-only). */
+            base_domain: string;
+            admin_url: string | null;
+            platform_url: string | null;
+            /** @description The platform sender (SMTP_* settings; Resend in production). */
+            email: {
+                configured: boolean;
+                from: string;
+                host: string;
+                reply_to: string | null;
+            };
+        };
+        UpdatePlatformSettingsRequest: {
+            signup_enabled?: boolean;
+            reply_to?: components['schemas']['Email'] | null;
+        };
+        PlatformAuditLog: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: uuid */
+            actor_id: string | null;
+            actor_email: string | null;
+            action: string;
+            entity_type: string | null;
+            /** Format: uuid */
+            entity_id: string | null;
+            tenant: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+            } | null;
+            ip?: string | null;
+            changes: {
+                [key: string]: unknown;
+            };
+        };
+        SignupResponse: {
+            data: components['schemas']['Signup'];
+            meta: components['schemas']['Meta'];
+        };
+        SlugAvailabilityResponse: {
+            data: components['schemas']['SlugAvailability'];
+            meta: components['schemas']['Meta'];
+        };
+        VerifyEmailResponse: {
+            data: components['schemas']['VerifyEmailResult'];
+            meta: components['schemas']['Meta'];
+        };
+        MembershipListResponse: {
+            data: components['schemas']['Membership'][];
+            meta: components['schemas']['Meta'];
+        };
+        SwitchWorkspaceResponse: {
+            data: components['schemas']['SwitchWorkspace'];
+            meta: components['schemas']['Meta'];
+        };
+        SupportGrantListResponse: {
+            data: components['schemas']['SupportGrant'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformAuthCapabilitiesResponse: {
+            data: components['schemas']['PlatformAuthCapabilities'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformSessionCreatedResponse: {
+            data: components['schemas']['PlatformSessionCreated'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformLoginResponse: {
+            data: components['schemas']['PlatformLoginResult'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformMeResponse: {
+            data: components['schemas']['PlatformMe'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformOverviewResponse: {
+            data: components['schemas']['PlatformOverview'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformTenantListResponse: {
+            data: components['schemas']['PlatformTenant'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformTenantDetailResponse: {
+            data: components['schemas']['PlatformTenantDetail'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformTenantCreatedResponse: {
+            data: components['schemas']['PlatformTenantCreated'];
+            meta: components['schemas']['Meta'];
+        };
+        OwnerInvitationResponse: {
+            data: components['schemas']['OwnerInvitation'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformDomainResponse: {
+            data: components['schemas']['PlatformDomain'];
+            meta: components['schemas']['Meta'];
+        };
+        SupportSessionStartedResponse: {
+            data: components['schemas']['SupportSessionStarted'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformUserListResponse: {
+            data: components['schemas']['PlatformUser'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformUserDetailResponse: {
+            data: components['schemas']['PlatformUserDetail'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformSettingsResponse: {
+            data: components['schemas']['PlatformSettings'];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformAuditLogListResponse: {
+            data: components['schemas']['PlatformAuditLog'][];
+            meta: components['schemas']['Meta'];
+        };
+        PlatformFailedJob: components['schemas']['FailedJob'] & {
+            /**
+             * Format: uuid
+             * @description The company the job ran for (null: a platform job).
+             */
+            tenant_id: string | null;
+        };
+        PlatformFailedJobListResponse: {
+            data: components['schemas']['PlatformFailedJob'][];
+            meta: components['schemas']['Meta'];
+        };
     };
     responses: {
         /** @description Error */
@@ -9202,6 +10400,9 @@ export interface components {
         };
     };
     parameters: {
+        TenantId: string;
+        DomainId: string;
+        GrantId: string;
         UserId: string;
         SessionId: string;
         InvitationId: string;
@@ -9254,52 +10455,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getSetupStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Setup status */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['SetupStatusResponse'];
-                };
-            };
-            default: components['responses']['Error'];
-        };
-    };
-    completeSetup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                'application/json': components['schemas']['CompleteSetupRequest'];
-            };
-        };
-        responses: {
-            /** @description Owner created and signed in */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['SessionCreatedResponse'];
-                };
-            };
-            default: components['responses']['Error'];
-        };
-    };
     login: {
         parameters: {
             query?: never;
@@ -9933,34 +11088,6 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
-    importMetaRates: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                'multipart/form-data': {
-                    /** Format: binary */
-                    file: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Imported */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['MetaRateImportResponse'];
-                };
-            };
-            default: components['responses']['Error'];
-        };
-    };
     getAISettings: {
         parameters: {
             query?: never;
@@ -10184,109 +11311,6 @@ export interface operations {
                 };
                 content: {
                     'application/json': components['schemas']['AIPriceListResponse'];
-                };
-            };
-            default: components['responses']['Error'];
-        };
-    };
-    createAIPrice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                'application/json': components['schemas']['CreateAIPriceRequest'];
-            };
-        };
-        responses: {
-            /** @description Added */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['AIPriceResponse'];
-                };
-            };
-            default: components['responses']['Error'];
-        };
-    };
-    deleteAIPrice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                priceId: components['parameters']['PriceId'];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Removed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            default: components['responses']['Error'];
-        };
-    };
-    updateAIPrice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                priceId: components['parameters']['PriceId'];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                'application/json': components['schemas']['UpdateAIPriceRequest'];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['AIPriceResponse'];
-                };
-            };
-            default: components['responses']['Error'];
-        };
-    };
-    importAIPrices: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                'multipart/form-data': {
-                    /** Format: binary */
-                    file: string;
-                    /** Format: date */
-                    effective_from?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Imported */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['AIPriceImportResponse'];
                 };
             };
             default: components['responses']['Error'];
@@ -14878,6 +15902,1219 @@ export interface operations {
             409: components['responses']['Conflict'];
             422: components['responses']['ValidationFailed'];
             429: components['responses']['RateLimited'];
+            default: components['responses']['Error'];
+        };
+    };
+    signup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SignupRequest'];
+            };
+        };
+        responses: {
+            /** @description Workspace created; verification e-mail sent */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SignupResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getSlugAvailability: {
+        parameters: {
+            query: {
+                slug: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Availability (422 for a malformed address) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SlugAvailabilityResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    verifyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['VerifyEmailRequest'];
+            };
+        };
+        responses: {
+            /** @description Verified */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['VerifyEmailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    resendVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['ResendVerificationRequest'];
+            };
+        };
+        responses: {
+            /** @description Sent if the address waits for verification */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    switchWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SwitchWorkspaceRequest'];
+            };
+        };
+        responses: {
+            /** @description Where to go */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SwitchWorkspaceResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    completeHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['WorkspaceHandoffRequest'];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SessionCreatedResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    confirmEmailChange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['VerifyEmailRequest'];
+            };
+        };
+        responses: {
+            /** @description The address was changed; other sessions were ended */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listMyMemberships: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Memberships */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MembershipListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    requestEmailChange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['EmailChangeRequest'];
+            };
+        };
+        responses: {
+            /** @description Confirmation e-mail sent to the new address */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listSupportAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Support sessions, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SupportGrantListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformAuthCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Capabilities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformAuthCapabilitiesResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    bootstrapPlatformAdmin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['PlatformBootstrapRequest'];
+            };
+        };
+        responses: {
+            /** @description Admin created and signed in (two-factor enrolment pending) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformSessionCreatedResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    platformLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['LoginRequest'];
+            };
+        };
+        responses: {
+            /** @description Signed in, or a second factor is required */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformLoginResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    platformLoginMfa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['LoginMfaRequest'];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformSessionCreatedResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    platformLogout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Admin */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformMeResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    startPlatformTotpSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Secret and otpauth URI (not active until confirmed) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['TotpSetupResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    confirmPlatformTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['TotpConfirmRequest'];
+            };
+        };
+        responses: {
+            /** @description Enabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['RecoveryCodesResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counters */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformOverviewResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformTenants: {
+        parameters: {
+            query?: {
+                q?: string;
+                status?: components['schemas']['TenantStatus'];
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createPlatformTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreatePlatformTenantRequest'];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantCreatedResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updatePlatformTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdatePlatformTenantRequest'];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    suspendPlatformTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['SuspendTenantRequest'];
+            };
+        };
+        responses: {
+            /** @description Suspended */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    unsuspendPlatformTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active again */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformTenantDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    invitePlatformTenantOwner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['InviteOwnerRequest'];
+            };
+        };
+        responses: {
+            /** @description Invitation created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['OwnerInvitationResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    addPlatformTenantDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['AddDomainRequest'];
+            };
+        };
+        responses: {
+            /** @description Added, waiting for verification */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformDomainResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    startSupportSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components['parameters']['TenantId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['StartSupportSessionRequest'];
+            };
+        };
+        responses: {
+            /** @description Grant created; open redirect_url within 60 seconds */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SupportSessionStartedResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    verifyPlatformDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domainId: components['parameters']['DomainId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Result of the check */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformDomainResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    setPlatformPrimaryDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domainId: components['parameters']['DomainId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformDomainResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deletePlatformDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domainId: components['parameters']['DomainId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformUsers: {
+        parameters: {
+            query?: {
+                q?: string;
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accounts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformUserListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components['parameters']['UserId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformUserDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    disablePlatformUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components['parameters']['UserId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformUserDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    enablePlatformUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components['parameters']['UserId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformUserDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    forcePlatformUserPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components['parameters']['UserId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformUserDetailResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listSupportSessions: {
+        parameters: {
+            query?: {
+                tenant_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Grants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['SupportGrantListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    endSupportSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grantId: components['parameters']['GrantId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ended */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    getPlatformSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updatePlatformSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdatePlatformSettingsRequest'];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformSettingsResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformAuditLogs: {
+        parameters: {
+            query?: {
+                tenant_id?: string;
+                /** @description Opaque cursor from `meta.next_cursor`. */
+                cursor?: components['parameters']['Cursor'];
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformAuditLogListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformFailedJobs: {
+        parameters: {
+            query?: {
+                queue?: components['schemas']['QueueName'];
+                page?: number;
+                limit?: components['parameters']['Limit'];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Failed jobs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['PlatformFailedJobListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deletePlatformFailedJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    retryPlatformFailedJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                queue: components['parameters']['QueuePath'];
+                jobId: components['parameters']['JobId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformMetaRates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MetaRateListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    importMetaRates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'multipart/form-data': {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MetaRateImportResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    listPlatformAIPrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Prices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPriceListResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    createAIPrice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['CreateAIPriceRequest'];
+            };
+        };
+        responses: {
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPriceResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    deleteAIPrice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                priceId: components['parameters']['PriceId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    updateAIPrice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                priceId: components['parameters']['PriceId'];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['UpdateAIPriceRequest'];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPriceResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    importAIPrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'multipart/form-data': {
+                    /** Format: binary */
+                    file: string;
+                    /** Format: date */
+                    effective_from?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['AIPriceImportResponse'];
+                };
+            };
             default: components['responses']['Error'];
         };
     };

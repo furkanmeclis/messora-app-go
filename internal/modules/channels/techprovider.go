@@ -14,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -179,8 +181,8 @@ type TechProviderPatch struct {
 var graphVersion = regexp.MustCompile(`^v[0-9]{1,3}\.[0-9]{1,2}$`)
 
 // Execer runs the platform write: a connection that may write
-// platform_settings (the owner in `messora tech-provider`, the platform
-// role on the admin host once WP2's platform sessions exist).
+// platform_settings (the owner in `messora tech-provider`; the application
+// pool in platform work, tenant.Platform, which switches to messora_platform).
 type Execer interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
@@ -191,9 +193,9 @@ var ErrPlatformWrite = apperr.Forbidden("PLATFORM_WRITE_DENIED", "Only the platf
 
 // UpdateTechProvider changes the platform configuration through w. The
 // verify token is created with the first change and replaced on request;
-// turning the method on needs a complete configuration.
-// TODO(WP2-admin): record the change in platform_audit_logs once platform
-// work has its audit context (audit.Record under tenant.Platform).
+// turning the method on needs a complete configuration. Platform work
+// (the admin panel) is recorded in platform_audit_logs; the command line
+// logs the change.
 func (s *Service) UpdateTechProvider(ctx context.Context, w Execer, p TechProviderPatch) (TechProviderConfig, []string, error) {
 	tx, err := w.Begin(ctx)
 	if err != nil {
@@ -291,6 +293,12 @@ func (s *Service) UpdateTechProvider(ctx context.Context, w Execer, p TechProvid
 	if _, err := tx.Exec(ctx, `INSERT INTO platform_settings (key, value, updated_at) VALUES ($1, $2, now())
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`, SettingTechProvider, out); err != nil {
 		return TechProviderConfig{}, nil, platformWriteErr(err)
+	}
+	if tenant.IsPlatform(ctx) {
+		if err := audit.Record(ctx, db.New(tx), audit.Entry{Action: "platform.tech_provider_update", EntityType: "platform_settings",
+			Changes: map[string]any{"fields": changed, "enabled": cfg.Enabled}}); err != nil {
+			return TechProviderConfig{}, nil, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return TechProviderConfig{}, nil, platformWriteErr(err)

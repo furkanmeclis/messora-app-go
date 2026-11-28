@@ -613,6 +613,16 @@ type ConversationNote struct {
 	TenantID       uuid.UUID
 }
 
+type EmailVerificationToken struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	TenantID  uuid.UUID
+	TokenHash []byte
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+}
+
 type IdempotencyKey struct {
 	Principal      string
 	Key            string
@@ -878,6 +888,34 @@ type PhoneNumber struct {
 	TenantID               uuid.UUID
 }
 
+type PlatformAuditLog struct {
+	ID         uuid.UUID
+	OccurredAt time.Time
+	ActorID    *uuid.UUID
+	ActorEmail *string
+	Action     string
+	EntityType *string
+	EntityID   *uuid.UUID
+	TenantID   *uuid.UUID
+	RequestID  *string
+	Ip         *netip.Addr
+	UserAgent  *string
+	Changes    []byte
+}
+
+type PlatformSession struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	TokenHash  []byte
+	Ip         *netip.Addr
+	UserAgent  *string
+	ReauthAt   *time.Time
+	CreatedAt  time.Time
+	LastSeenAt time.Time
+	ExpiresAt  time.Time
+	RevokedAt  *time.Time
+}
+
 type PlatformSetting struct {
 	Key       string
 	Value     []byte
@@ -924,6 +962,17 @@ type Setting struct {
 	TenantID  uuid.UUID
 }
 
+type SupportAccessGrant struct {
+	ID        uuid.UUID
+	TenantID  uuid.UUID
+	AdminID   uuid.UUID
+	Reason    string
+	ReadOnly  bool
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	EndedAt   *time.Time
+}
+
 type Tag struct {
 	ID        uuid.UUID
 	Name      string
@@ -933,42 +982,60 @@ type Tag struct {
 }
 
 type Tenant struct {
-	ID          uuid.UUID
-	Slug        string
-	Name        string
-	Status      string
-	SuspendedAt *time.Time
-	DeletedAt   *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                 uuid.UUID
+	Slug               string
+	Name               string
+	Status             string
+	SuspendedAt        *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	SubscriptionStatus string
+	TrialEndsAt        *time.Time
+	SuspendedReason    *string
 }
 
 type TenantDomain struct {
-	ID         uuid.UUID
-	TenantID   uuid.UUID
-	Hostname   string
-	Kind       string
-	VerifiedAt *time.Time
-	IsPrimary  bool
-	CreatedAt  time.Time
+	ID                uuid.UUID
+	TenantID          uuid.UUID
+	Hostname          string
+	Kind              string
+	VerifiedAt        *time.Time
+	IsPrimary         bool
+	CreatedAt         time.Time
+	VerificationToken *string
+	LastCheckedAt     *time.Time
+	LastCheckError    *string
+}
+
+type TenantMembership struct {
+	TenantID  uuid.UUID
+	UserID    uuid.UUID
+	RoleID    uuid.UUID
+	Status    string
+	InvitedBy *uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type User struct {
-	ID              uuid.UUID
-	Email           string
-	Name            string
-	PasswordHash    string
-	Status          string
-	TotpSecretEnc   []byte
-	TotpConfirmedAt *time.Time
-	Locale          string
-	Timezone        string
-	FailedLogins    int32
-	LockedUntil     *time.Time
-	LastLoginAt     *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	TenantID        uuid.UUID
+	ID                    uuid.UUID
+	Email                 string
+	Name                  string
+	PasswordHash          string
+	Status                string
+	TotpSecretEnc         []byte
+	TotpConfirmedAt       *time.Time
+	Locale                string
+	Timezone              string
+	FailedLogins          int32
+	LockedUntil           *time.Time
+	LastLoginAt           *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	EmailVerifiedAt       *time.Time
+	IsPlatformAdmin       bool
+	PasswordResetRequired bool
 }
 
 type UserInvitation struct {
@@ -989,27 +1056,22 @@ type UserRecoveryCode struct {
 	UserID   uuid.UUID
 	CodeHash []byte
 	UsedAt   *time.Time
-	TenantID uuid.UUID
-}
-
-type UserRole struct {
-	UserID   uuid.UUID
-	RoleID   uuid.UUID
-	TenantID uuid.UUID
 }
 
 type UserSession struct {
-	ID         uuid.UUID
-	UserID     uuid.UUID
-	TokenHash  []byte
-	Ip         *netip.Addr
-	UserAgent  *string
-	ReauthAt   *time.Time
-	CreatedAt  time.Time
-	LastSeenAt time.Time
-	ExpiresAt  time.Time
-	RevokedAt  *time.Time
-	TenantID   uuid.UUID
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	TokenHash      []byte
+	Ip             *netip.Addr
+	UserAgent      *string
+	ReauthAt       *time.Time
+	CreatedAt      time.Time
+	LastSeenAt     time.Time
+	ExpiresAt      time.Time
+	RevokedAt      *time.Time
+	TenantID       uuid.UUID
+	SupportGrantID *uuid.UUID
+	ReadOnly       bool
 }
 
 type WebhookDelivery struct {

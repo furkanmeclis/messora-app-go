@@ -326,8 +326,8 @@ func (q *Queries) LatestCampaignSend(ctx context.Context, arg LatestCampaignSend
 
 const listAIManagers = `-- name: ListAIManagers :many
 SELECT DISTINCT u.id FROM users u
-JOIN user_roles ur ON ur.user_id = u.id
-JOIN role_permissions rp ON rp.role_id = ur.role_id
+JOIN tenant_memberships m ON m.user_id = u.id AND m.status = 'active'
+JOIN role_permissions rp ON rp.role_id = m.role_id
 WHERE u.status = 'active' AND rp.permission_key = 'ai.manage'
 `
 

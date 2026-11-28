@@ -5,6 +5,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
 
@@ -115,11 +116,10 @@ func (h *Handler) platformTechProviderToAPI(c TechProviderConfig) api.PlatformTe
 	return out
 }
 
-// GetPlatformTechProvider implements api.ServerInterface.
-// TODO(WP2-admin): the platform panel's "Meta / Tech Provider" form reads
-// this (admin host, platform session).
+// GetPlatformTechProvider implements api.ServerInterface (admin host,
+// platform session; the admin panel's Meta / Tech Provider page).
 func (h *Handler) GetPlatformTechProvider(w http.ResponseWriter, r *http.Request) {
-	c, err := h.svc.TechProvider(r.Context())
+	c, err := h.svc.TechProvider(tenant.Platform(r.Context()))
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return
@@ -127,23 +127,19 @@ func (h *Handler) GetPlatformTechProvider(w http.ResponseWriter, r *http.Request
 	httpx.JSON(w, r, http.StatusOK, h.platformTechProviderToAPI(c))
 }
 
-// UpdatePlatformTechProvider implements api.ServerInterface.
-// TODO(WP2-admin): the platform panel's form writes this; WP2 runs platform
-// work as messora_platform (tenant.Platform), which may write
-// platform_settings. HandlerOptions.PlatformDB is that connection.
+// UpdatePlatformTechProvider implements api.ServerInterface. Platform work
+// runs as messora_platform (tenant.Platform), which may write
+// platform_settings, and is audited in platform_audit_logs.
 func (h *Handler) UpdatePlatformTechProvider(w http.ResponseWriter, r *http.Request) {
 	var req api.UpdatePlatformTechProviderRequest
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return
 	}
-	writer := h.opts.PlatformDB
-	if writer == nil {
-		writer = h.svc.pool
-	}
+	ctx := tenant.Platform(r.Context())
 	p := TechProviderPatch{Enabled: req.Enabled, AppID: req.AppId, ConfigurationID: req.ConfigurationId, GraphAPIVersion: req.GraphApiVersion,
 		AppSecret: req.AppSecret, SystemUserToken: req.SystemUserToken, RotateVerifyToken: req.RotateVerifyToken != nil && *req.RotateVerifyToken}
-	c, _, err := h.svc.UpdateTechProvider(r.Context(), writer, p)
+	c, _, err := h.svc.UpdateTechProvider(ctx, h.svc.pool, p)
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return
@@ -153,7 +149,7 @@ func (h *Handler) UpdatePlatformTechProvider(w http.ResponseWriter, r *http.Requ
 
 // TestPlatformTechProvider implements api.ServerInterface.
 func (h *Handler) TestPlatformTechProvider(w http.ResponseWriter, r *http.Request) {
-	checks, err := h.svc.TestTechProvider(r.Context(), h.tpCallbackURL())
+	checks, err := h.svc.TestTechProvider(tenant.Platform(r.Context()), h.tpCallbackURL())
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return

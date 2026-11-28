@@ -18,7 +18,12 @@ export const tryMe = cache(async (): Promise<MeResult> => {
     try {
         return { me: (await api<Me>('/me')).data };
     } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
+        if (
+            err instanceof ApiError &&
+            (err.status === 401 || err.code === 'TENANT_SUSPENDED')
+        ) {
+            // A suspended workspace signs everyone out; its sign-in page
+            // says why.
             return { me: null, reason: 'invalid' };
         }
         return { me: null, reason: 'error', error: err };

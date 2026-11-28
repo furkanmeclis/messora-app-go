@@ -31,9 +31,6 @@ const HostWebhookPath = "/webhooks/whatsapp"
 type HandlerOptions struct {
 	PublicURL      string // PUBLIC_APP_URL, for the scheme of host addresses
 	WebhookBaseURL string // config.MetaConfig.WebhookBaseURL
-	// PlatformDB writes the platform settings (UpdatePlatformTechProvider);
-	// nil uses the application pool. TODO(WP2-admin): platform work context.
-	PlatformDB Execer
 }
 
 // Handler serves the channel and template operations.

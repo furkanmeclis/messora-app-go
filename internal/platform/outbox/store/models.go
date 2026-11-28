@@ -611,6 +611,16 @@ type ConversationNote struct {
 	TenantID       pgtype.UUID
 }
 
+type EmailVerificationToken struct {
+	ID        pgtype.UUID
+	UserID    pgtype.UUID
+	TenantID  pgtype.UUID
+	TokenHash []byte
+	CreatedAt pgtype.Timestamptz
+	ExpiresAt pgtype.Timestamptz
+	UsedAt    pgtype.Timestamptz
+}
+
 type IdempotencyKey struct {
 	Principal      string
 	Key            string
@@ -876,6 +886,34 @@ type PhoneNumber struct {
 	TenantID               pgtype.UUID
 }
 
+type PlatformAuditLog struct {
+	ID         pgtype.UUID
+	OccurredAt pgtype.Timestamptz
+	ActorID    pgtype.UUID
+	ActorEmail *string
+	Action     string
+	EntityType *string
+	EntityID   pgtype.UUID
+	TenantID   pgtype.UUID
+	RequestID  *string
+	Ip         *netip.Addr
+	UserAgent  *string
+	Changes    []byte
+}
+
+type PlatformSession struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	TokenHash  []byte
+	Ip         *netip.Addr
+	UserAgent  *string
+	ReauthAt   pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	LastSeenAt pgtype.Timestamptz
+	ExpiresAt  pgtype.Timestamptz
+	RevokedAt  pgtype.Timestamptz
+}
+
 type PlatformSetting struct {
 	Key       string
 	Value     []byte
@@ -922,6 +960,17 @@ type Setting struct {
 	TenantID  pgtype.UUID
 }
 
+type SupportAccessGrant struct {
+	ID        pgtype.UUID
+	TenantID  pgtype.UUID
+	AdminID   pgtype.UUID
+	Reason    string
+	ReadOnly  bool
+	CreatedAt pgtype.Timestamptz
+	ExpiresAt pgtype.Timestamptz
+	EndedAt   pgtype.Timestamptz
+}
+
 type Tag struct {
 	ID        pgtype.UUID
 	Name      string
@@ -931,42 +980,60 @@ type Tag struct {
 }
 
 type Tenant struct {
-	ID          pgtype.UUID
-	Slug        string
-	Name        string
-	Status      string
-	SuspendedAt pgtype.Timestamptz
-	DeletedAt   pgtype.Timestamptz
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
+	ID                 pgtype.UUID
+	Slug               string
+	Name               string
+	Status             string
+	SuspendedAt        pgtype.Timestamptz
+	DeletedAt          pgtype.Timestamptz
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	SubscriptionStatus string
+	TrialEndsAt        pgtype.Timestamptz
+	SuspendedReason    *string
 }
 
 type TenantDomain struct {
-	ID         pgtype.UUID
-	TenantID   pgtype.UUID
-	Hostname   string
-	Kind       string
-	VerifiedAt pgtype.Timestamptz
-	IsPrimary  bool
-	CreatedAt  pgtype.Timestamptz
+	ID                pgtype.UUID
+	TenantID          pgtype.UUID
+	Hostname          string
+	Kind              string
+	VerifiedAt        pgtype.Timestamptz
+	IsPrimary         bool
+	CreatedAt         pgtype.Timestamptz
+	VerificationToken *string
+	LastCheckedAt     pgtype.Timestamptz
+	LastCheckError    *string
+}
+
+type TenantMembership struct {
+	TenantID  pgtype.UUID
+	UserID    pgtype.UUID
+	RoleID    pgtype.UUID
+	Status    string
+	InvitedBy pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
 }
 
 type User struct {
-	ID              pgtype.UUID
-	Email           string
-	Name            string
-	PasswordHash    string
-	Status          string
-	TotpSecretEnc   []byte
-	TotpConfirmedAt pgtype.Timestamptz
-	Locale          string
-	Timezone        string
-	FailedLogins    int32
-	LockedUntil     pgtype.Timestamptz
-	LastLoginAt     pgtype.Timestamptz
-	CreatedAt       pgtype.Timestamptz
-	UpdatedAt       pgtype.Timestamptz
-	TenantID        pgtype.UUID
+	ID                    pgtype.UUID
+	Email                 string
+	Name                  string
+	PasswordHash          string
+	Status                string
+	TotpSecretEnc         []byte
+	TotpConfirmedAt       pgtype.Timestamptz
+	Locale                string
+	Timezone              string
+	FailedLogins          int32
+	LockedUntil           pgtype.Timestamptz
+	LastLoginAt           pgtype.Timestamptz
+	CreatedAt             pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+	EmailVerifiedAt       pgtype.Timestamptz
+	IsPlatformAdmin       bool
+	PasswordResetRequired bool
 }
 
 type UserInvitation struct {
@@ -987,27 +1054,22 @@ type UserRecoveryCode struct {
 	UserID   pgtype.UUID
 	CodeHash []byte
 	UsedAt   pgtype.Timestamptz
-	TenantID pgtype.UUID
-}
-
-type UserRole struct {
-	UserID   pgtype.UUID
-	RoleID   pgtype.UUID
-	TenantID pgtype.UUID
 }
 
 type UserSession struct {
-	ID         pgtype.UUID
-	UserID     pgtype.UUID
-	TokenHash  []byte
-	Ip         *netip.Addr
-	UserAgent  *string
-	ReauthAt   pgtype.Timestamptz
-	CreatedAt  pgtype.Timestamptz
-	LastSeenAt pgtype.Timestamptz
-	ExpiresAt  pgtype.Timestamptz
-	RevokedAt  pgtype.Timestamptz
-	TenantID   pgtype.UUID
+	ID             pgtype.UUID
+	UserID         pgtype.UUID
+	TokenHash      []byte
+	Ip             *netip.Addr
+	UserAgent      *string
+	ReauthAt       pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	LastSeenAt     pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	TenantID       pgtype.UUID
+	SupportGrantID pgtype.UUID
+	ReadOnly       bool
 }
 
 type WebhookDelivery struct {

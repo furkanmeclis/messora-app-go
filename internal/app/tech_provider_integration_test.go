@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +19,6 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp/whatsapptest"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
-	"github.com/furkanmeclis/messora-app-go/internal/testutil"
 )
 
 // Messora's own Meta app (Tech Provider) in the tests.
@@ -48,7 +47,7 @@ func (h *harness) enableTechProvider() channels.TechProviderConfig {
 }
 
 // signup provisions an Embedded Signup at the fake Meta and returns its code.
-func (h *harness) signup(waba, phone string) string {
+func (h *harness) esSignup(waba, phone string) string {
 	code, _ := h.meta.AddSignup(whatsapptest.Signup{AppID: tpAppID, WABA: waba, PhoneNumberID: phone, Display: "+90 555 " + phone, VerifiedName: "İşletme " + waba})
 	return code
 }
@@ -160,7 +159,7 @@ func TestTechProviderIsOffByDefault(t *testing.T) {
 		{method: "POST", path: "/api/v1/platform/meta/tech-provider/test"},
 	} {
 		c.token = owner
-		if r := h.do(c); r.status != 401 && r.status != 403 {
+		if r := h.do(c); r.status < 400 || r.status == 500 {
 			t.Errorf("%s %s with a workspace session: %d %s", c.method, c.path, r.status, r.raw)
 		}
 	}
@@ -195,72 +194,70 @@ func TestTechProviderPlatformSettings(t *testing.T) {
 	if !cfg.Ready() || len(cfg.VerifyToken) != channels.WebhookKeyLength {
 		t.Fatalf("config: %+v", cfg)
 	}
-	// The application role cannot change it.
-	writable := channels.NewHandler(h.svc.channels, channels.HandlerOptions{WebhookBaseURL: "https://hooks.messora.test", PlatformDB: h.owner}, testutil.DiscardLogger())
-	readOnly := channels.NewHandler(h.svc.channels, channels.HandlerOptions{WebhookBaseURL: "https://hooks.messora.test"}, testutil.DiscardLogger())
-	serve := func(hd *channels.Handler, method string, body string) (int, map[string]any) {
-		req := httptest.NewRequest(method, "/api/v1/platform/meta/tech-provider", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(tenant.System(context.Background()))
-		rec := httptest.NewRecorder()
-		switch method {
-		case http.MethodGet:
-			hd.GetPlatformTechProvider(rec, req)
-		case http.MethodPatch:
-			hd.UpdatePlatformTechProvider(rec, req)
-		default:
-			hd.TestPlatformTechProvider(rec, req)
-		}
-		var out map[string]any
-		_ = json.Unmarshal(rec.Body.Bytes(), &out)
-		if s := rec.Body.String(); strings.Contains(s, tpAppSecret) || strings.Contains(s, tpSystemToken) {
-			t.Fatalf("the platform API shows a secret: %s", s)
-		}
-		return rec.Code, out
+	// The application role cannot change it outside platform work.
+	conf := "123"
+	if _, _, err := h.svc.channels.UpdateTechProvider(tenant.System(context.Background()), h.pool,
+		channels.TechProviderPatch{ConfigurationID: &conf}); !errors.Is(err, channels.ErrPlatformWrite) {
+		t.Fatalf("app role wrote platform settings: %v", err)
 	}
-	code, out := serve(readOnly, http.MethodPatch, `{"configuration_id": "123"}`)
-	if code != 403 || out["error"].(map[string]any)["code"] != "PLATFORM_WRITE_DENIED" {
-		t.Fatalf("app role wrote platform settings: %d %v", code, out)
+	// The platform admin panel's API (admin host, platform session).
+	admin := func(method, path string, body any) map[string]any {
+		t.Helper()
+		r := h.adminDo(call{method: method, path: "/meta/tech-provider" + path, body: body})
+		if strings.Contains(string(r.raw), tpAppSecret) || strings.Contains(string(r.raw), tpSystemToken) {
+			t.Fatalf("the platform API shows a secret: %s", r.raw)
+		}
+		if r.status != 200 {
+			return map[string]any{"status": float64(r.status), "code": r.errCode()}
+		}
+		return r.data()
 	}
-	code, out = serve(writable, http.MethodGet, "")
-	d, _ := out["data"].(map[string]any)
-	if code != 200 || d["enabled"] != true || d["app_secret_configured"] != true || d["system_user_token_configured"] != true ||
+	d := admin("GET", "", nil)
+	if d["enabled"] != true || d["app_secret_configured"] != true || d["system_user_token_configured"] != true ||
 		d["verify_token"] != cfg.VerifyToken || d["callback_url"] != tpCallback {
-		t.Fatalf("GET: %d %v", code, out)
+		t.Fatalf("GET: %v", d)
 	}
-	code, out = serve(writable, http.MethodPatch, `{"graph_api_version": "v99"}`)
-	if code != 422 {
-		t.Fatalf("bad version accepted: %d %v", code, out)
+	if d = admin("PATCH", "", map[string]any{"graph_api_version": "v99"}); d["status"] != float64(422) {
+		t.Fatalf("bad version accepted: %v", d)
 	}
-	code, out = serve(writable, http.MethodPatch, `{"graph_api_version": "v27.0", "rotate_verify_token": true}`)
-	d, _ = out["data"].(map[string]any)
-	if code != 200 || d["graph_api_version"] != "v27.0" || d["verify_token"] == cfg.VerifyToken {
-		t.Fatalf("PATCH: %d %v", code, out)
+	d = admin("PATCH", "", map[string]any{"graph_api_version": "v27.0", "rotate_verify_token": true})
+	if d["graph_api_version"] != "v27.0" || d["verify_token"] == cfg.VerifyToken {
+		t.Fatalf("PATCH: %v", d)
+	}
+	var audited int
+	if err := h.owner.QueryRow(context.Background(), `SELECT count(*) FROM platform_audit_logs WHERE action = 'platform.tech_provider_update'`).Scan(&audited); err != nil || audited != 1 {
+		t.Fatalf("platform audit entries: %d %v", audited, err)
+	}
+	// Nowhere but on the admin host.
+	owner, _ := h.setupOwner()
+	for _, c := range []call{
+		{method: "GET", path: "/api/v1/platform/meta/tech-provider", token: owner},
+		{method: "GET", path: "/api/v1/platform/meta/tech-provider", token: h.platformSession()},
+	} {
+		if r := h.do(c); r.status < 400 || r.status == 500 {
+			t.Errorf("platform API at a workspace host: %d %s", r.status, r.raw)
+		}
 	}
 
 	// Test configuration: the webhook subscription is missing, then right.
-	code, out = serve(writable, http.MethodPost, "")
-	d, _ = out["data"].(map[string]any)
-	if code != 200 || d["ok"] != false || !strings.Contains((mustJSON(d)), "tp_subscription_missing") {
-		t.Fatalf("test without subscription: %d %v", code, out)
+	d = admin("POST", "/test", nil)
+	if d["ok"] != false || !strings.Contains(mustJSON(d), "tp_subscription_missing") {
+		t.Fatalf("test without subscription: %v", d)
 	}
 	h.meta.SetAppSubscription(tpAppID, whatsapp.AppSubscription{Object: "whatsapp_business_account", CallbackURL: "https://elsewhere.test/hook", Active: true, Fields: []string{"messages"}})
-	if _, out = serve(writable, http.MethodPost, ""); !strings.Contains((mustJSON(out)), "tp_subscription_url") {
-		t.Fatalf("test with a wrong callback: %v", out)
+	if d = admin("POST", "/test", nil); !strings.Contains(mustJSON(d), "tp_subscription_url") {
+		t.Fatalf("test with a wrong callback: %v", d)
 	}
 	h.meta.SetAppSubscription(tpAppID, whatsapp.AppSubscription{Object: "whatsapp_business_account", CallbackURL: tpCallback, Active: true, Fields: []string{"messages"}})
-	code, out = serve(writable, http.MethodPost, "")
-	d, _ = out["data"].(map[string]any)
-	if code != 200 || d["ok"] != true {
-		t.Fatalf("test of a complete set-up: %d %v", code, out)
+	if d = admin("POST", "/test", nil); d["ok"] != true {
+		t.Fatalf("test of a complete set-up: %v", d)
 	}
 	// A wrong app secret is caught by debug_token.
-	wrong := "a-wrong-app-secret-of-the-app"
-	if _, _, err := h.svc.channels.UpdateTechProvider(context.Background(), h.owner, channels.TechProviderPatch{AppSecret: &wrong}); err != nil {
-		t.Fatal(err)
+	if d = admin("PATCH", "", map[string]any{"app_secret": "a-wrong-app-secret-of-the-app"}); d["app_secret_configured"] != true {
+		t.Fatalf("PATCH secret: %v", d)
 	}
-	if _, out = serve(writable, http.MethodPost, ""); !strings.Contains((mustJSON(out)), "tp_app_invalid") {
-		t.Fatalf("test with a wrong app secret: %v", out)
+	if d = admin("POST", "/test", nil); !strings.Contains(mustJSON(d), "tp_app_invalid") {
+		t.Fatalf("test with a wrong app secret: %v", d)
 	}
 }
 
@@ -286,7 +283,7 @@ func TestTechProviderOnboardingAndRouting(t *testing.T) {
 	}
 
 	// ── A: a failure at every Meta step, each resumed where it stopped ──
-	code := h.signup(tpWABA1, tpPhone1)
+	code := h.esSignup(tpWABA1, tpPhone1)
 	h.meta.FailOnce("GET", "oauth", 100, "temporarily unavailable")
 	o := h.onboard(ownerA, map[string]any{"code": code, "waba_id": tpWABA1, "phone_number_id": tpPhone1})
 	wantOnboarding(t, o, "failed", "exchange", "code_invalid")
@@ -378,7 +375,7 @@ func TestTechProviderOnboardingAndRouting(t *testing.T) {
 
 	// ── B: own-app account plus a Tech Provider WABA ─────────────────────
 	hb, ownerB := h.betaTenant()
-	code2 := hb.signup(tpWABA2, tpPhone2)
+	code2 := hb.esSignup(tpWABA2, tpPhone2)
 	o = hb.onboard(ownerB, map[string]any{"code": code2, "waba_id": tpWABA2, "phone_number_id": tpPhone2, "name": "Beta TP"})
 	wantOnboarding(t, o, "completed", "done", "")
 	if pin, _ := o["pin"].(string); len(pin) != 6 || o["pin_generated"] != true || h.meta.Registered(tpPhone2) != pin {
@@ -422,26 +419,26 @@ func TestTechProviderOnboardingAndRouting(t *testing.T) {
 
 	// ── One WABA, one workspace, one method ──────────────────────────────
 	// B claims A's Tech Provider WABA.
-	o = hb.onboard(ownerB, map[string]any{"code": hb.signup(tpWABA1, tpPhone1), "waba_id": tpWABA1, "phone_number_id": tpPhone1})
+	o = hb.onboard(ownerB, map[string]any{"code": hb.esSignup(tpWABA1, tpPhone1), "waba_id": tpWABA1, "phone_number_id": tpPhone1})
 	wantOnboarding(t, o, "failed", "claim", "waba_in_use")
 	if tid, _ := h.route(tpWABA1); tid != h.tenantID {
 		t.Fatal("B took A's route")
 	}
 	// A claims B's own-app WABA.
-	o = h.onboard(ownerA, map[string]any{"code": h.signup(betaWABA, betaPNID), "waba_id": betaWABA, "phone_number_id": betaPNID})
+	o = h.onboard(ownerA, map[string]any{"code": h.esSignup(betaWABA, betaPNID), "waba_id": betaWABA, "phone_number_id": betaPNID})
 	wantOnboarding(t, o, "failed", "claim", "waba_in_use")
 	if _, ok := h.route(betaWABA); ok {
 		t.Fatal("a route was left behind by a refused claim")
 	}
 	// B onboards its own own-app WABA: refused until that account is disabled.
-	o = hb.onboard(ownerB, map[string]any{"code": hb.signup(betaWABA, betaPNID), "waba_id": betaWABA, "phone_number_id": betaPNID})
+	o = hb.onboard(ownerB, map[string]any{"code": hb.esSignup(betaWABA, betaPNID), "waba_id": betaWABA, "phone_number_id": betaPNID})
 	wantOnboarding(t, o, "failed", "claim", "waba_connected_own_app")
 	hb.expect(hb.do(call{method: "DELETE", path: "/api/v1/channels/tech-provider/onboardings/" + o["id"].(string), token: ownerB}), 200, "")
 	// B connects its Tech Provider WABA with its own app: refused.
 	hb.expect(hb.do(call{method: "POST", path: "/api/v1/channels/accounts", token: ownerB, body: map[string]any{
 		"name": "Beta own", "waba_id": tpWABA2, "app_id": betaAppID, "app_secret": betaAppSecret, "access_token": betaToken}}), 409, "WABA_CONNECTED_TECH_PROVIDER")
 	// The token must grant the WABA the browser claims.
-	o = hb.onboard(ownerB, map[string]any{"code": hb.signup(tpWABA3, tpPhone3), "waba_id": tpWABA2, "phone_number_id": tpPhone2})
+	o = hb.onboard(ownerB, map[string]any{"code": hb.esSignup(tpWABA3, tpPhone3), "waba_id": tpWABA2, "phone_number_id": tpPhone2})
 	wantOnboarding(t, o, "failed", "exchange", "waba_not_granted")
 	hb.expect(hb.do(call{method: "DELETE", path: "/api/v1/channels/tech-provider/onboardings/" + o["id"].(string), token: ownerB}), 200, "")
 
@@ -514,7 +511,7 @@ func TestTechProviderOnboardingAndRouting(t *testing.T) {
 		t.Fatalf("own-app event stored %d times", n)
 	}
 	// And back to the Tech Provider once the own-app account is disabled.
-	o = h.onboard(ownerA, map[string]any{"code": h.signup(tpWABA1, tpPhone1), "waba_id": tpWABA1, "phone_number_id": tpPhone1})
+	o = h.onboard(ownerA, map[string]any{"code": h.esSignup(tpWABA1, tpPhone1), "waba_id": tpWABA1, "phone_number_id": tpPhone1})
 	wantOnboarding(t, o, "failed", "claim", "waba_connected_own_app")
 	h.expect(h.do(call{method: "PATCH", path: "/api/v1/channels/accounts/" + accA, token: ownerA, body: map[string]any{"status": "disabled"}}), 200, "")
 	o = h.retryOnboarding(ownerA, o["id"].(string), map[string]any{})
@@ -528,7 +525,7 @@ func TestTechProviderOnboardingAndRouting(t *testing.T) {
 
 	// ── Cancel an unfinished onboarding ──────────────────────────────────
 	h.meta.FailOnce("POST", "register", 100, "temporarily unavailable")
-	o = h.onboard(ownerA, map[string]any{"code": h.signup(tpWABA3, tpPhone3), "waba_id": tpWABA3, "phone_number_id": tpPhone3})
+	o = h.onboard(ownerA, map[string]any{"code": h.esSignup(tpWABA3, tpPhone3), "waba_id": tpWABA3, "phone_number_id": tpPhone3})
 	wantOnboarding(t, o, "failed", "register", "register_failed")
 	if _, ok := h.route(tpWABA3); !ok {
 		t.Fatal("no route before cancel")
@@ -543,7 +540,7 @@ func TestTechProviderOnboardingAndRouting(t *testing.T) {
 	}
 
 	// Deleting a Tech Provider account (no history) removes its route.
-	o = hb.onboard(ownerB, map[string]any{"code": hb.signup(tpWABA3, tpPhone3), "waba_id": tpWABA3, "phone_number_id": tpPhone3})
+	o = hb.onboard(ownerB, map[string]any{"code": hb.esSignup(tpWABA3, tpPhone3), "waba_id": tpWABA3, "phone_number_id": tpPhone3})
 	wantOnboarding(t, o, "completed", "done", "")
 	if tid, _ := h.route(tpWABA3); tid != hb.tenantID {
 		t.Fatal("B's new WABA is not routed to B")

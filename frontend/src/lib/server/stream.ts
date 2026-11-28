@@ -2,7 +2,7 @@ import 'server-only';
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { serverConfig } from './config';
-import { getSessionToken } from './session';
+import { getPlatformToken, getSessionToken } from './session';
 import { forwardHost } from './tenant-host';
 
 /** Headers of a file download that the browser may see. */
@@ -23,8 +23,14 @@ function crossSite(req: NextRequest): boolean {
     return !!site && site !== 'same-origin' && site !== 'none';
 }
 
-async function apiHeaders(req: NextRequest): Promise<Headers | null> {
-    const token = await getSessionToken();
+async function apiHeaders(
+    req: NextRequest,
+    auth: 'session' | 'platform' = 'session',
+): Promise<Headers | null> {
+    const token =
+        auth === 'platform'
+            ? await getPlatformToken()
+            : await getSessionToken();
     if (!token) return null;
     const { bffSharedSecret } = serverConfig();
     const h = new Headers({
@@ -106,6 +112,7 @@ export async function streamUpload(
     path: string,
     maxBytes: number,
     method: 'POST' | 'PUT' = 'POST',
+    auth: 'session' | 'platform' = 'session',
 ): Promise<NextResponse> {
     const fail = (status: number, code: string, message: string) =>
         NextResponse.json(
@@ -113,7 +120,7 @@ export async function streamUpload(
             { status },
         );
     if (crossSite(req)) return fail(403, 'FORBIDDEN', 'Forbidden');
-    const h = await apiHeaders(req);
+    const h = await apiHeaders(req, auth);
     if (!h) {
         return fail(401, 'UNAUTHORIZED', 'Your session has ended.');
     }

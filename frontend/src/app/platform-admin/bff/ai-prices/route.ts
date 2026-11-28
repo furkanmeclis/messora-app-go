@@ -5,9 +5,15 @@ import { streamUpload } from '@/lib/server/stream';
 const MAX_BYTES = 16 * 1024 * 1024;
 
 /**
- * Imports LiteLLM's price list: the multipart body (the JSON in "file",
- * optionally "effective_from") goes to the API unchanged.
+ * Imports LiteLLM's price list (admin host only): the multipart body goes
+ * to the API unchanged with the platform session.
  */
 export async function POST(req: NextRequest) {
-    return streamUpload(req, '/ai/prices/import', MAX_BYTES);
+    return streamUpload(
+        req,
+        '/platform/ai-prices/import',
+        MAX_BYTES,
+        'POST',
+        'platform',
+    );
 }

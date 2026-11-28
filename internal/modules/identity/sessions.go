@@ -13,22 +13,15 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer/templates"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
 
 var errInvalidSession = apperr.Unauthorized("SESSION_INVALID", "Your session has ended. Sign in again.")
 
-// createSession issues a session token for u within q's transaction.
-func (s *Service) createSession(ctx context.Context, q *db.Queries, u db.User) (api.SessionCreated, error) {
-	st, err := s.settings.Get(ctx)
-	if err != nil {
-		return api.SessionCreated{}, err
-	}
-	token, err := crypto.NewToken(SessionTokenPrefix)
-	if err != nil {
-		return api.SessionCreated{}, err
-	}
+func requestOrigin(ctx context.Context) (*netip.Addr, *string) {
 	m := principal.Meta(ctx)
 	var ip *netip.Addr
 	if m.IP.IsValid() {
@@ -39,32 +32,104 @@ func (s *Service) createSession(ctx context.Context, q *db.Queries, u db.User) (
 	if m.UserAgent != "" {
 		ua = &m.UserAgent
 	}
+	return ip, ua
+}
+
+// newSignIn is set by createSession when the sign-in came from an address
+// the user never used in this workspace; the caller e-mails a notice after
+// the transaction commits.
+type newSignIn struct {
+	user db.User
+	at   time.Time
+	ip   string
+	ua   string
+}
+
+// createSession issues a session token for u in the connection's tenant
+// within q's transaction. The user must be an active member.
+func (s *Service) createSession(ctx context.Context, q *db.Queries, u db.User) (api.SessionCreated, *newSignIn, error) {
+	st, err := s.settings.Get(ctx)
+	if err != nil {
+		return api.SessionCreated{}, nil, err
+	}
+	token, err := crypto.NewToken(SessionTokenPrefix)
+	if err != nil {
+		return api.SessionCreated{}, nil, err
+	}
+	ip, ua := requestOrigin(ctx)
+	// A sign-in from an address this user never signed in from here gets
+	// an e-mail (not the very first sign-in).
+	var alert *newSignIn
+	if ip != nil {
+		seen, err := q.CountSessionsFrom(ctx, db.CountSessionsFromParams{UserID: u.ID, Ip: ip})
+		if err != nil {
+			return api.SessionCreated{}, nil, err
+		}
+		if seen.Total > 0 && seen.FromIp == 0 {
+			alert = &newSignIn{user: u, at: s.now(), ip: ip.String()}
+			if ua != nil {
+				alert.ua = *ua
+			}
+		}
+	}
 	expires := s.now().Add(time.Duration(st.SessionLifetimeDays) * 24 * time.Hour)
 	sess, err := q.CreateSession(ctx, db.CreateSessionParams{
 		UserID: u.ID, TokenHash: crypto.HashToken(token), Ip: ip, UserAgent: ua, ExpiresAt: expires,
 	})
 	if err != nil {
-		return api.SessionCreated{}, err
+		return api.SessionCreated{}, nil, err
 	}
 	if err := q.RecordLoginSuccess(ctx, u.ID); err != nil {
-		return api.SessionCreated{}, err
+		return api.SessionCreated{}, nil, err
 	}
 	view, err := s.userView(ctx, q, u)
 	if err != nil {
-		return api.SessionCreated{}, err
+		return api.SessionCreated{}, nil, err
 	}
 	actor := &principal.Principal{Kind: principal.KindUser, ID: u.ID, Name: u.Name}
 	if err := audit.Record(ctx, q, audit.Entry{
 		Action: "user.login", EntityType: "user", EntityID: uuidPtr(u.ID), Actor: actor,
 		Changes: map[string]any{"session_id": sess.ID},
 	}); err != nil {
-		return api.SessionCreated{}, err
+		return api.SessionCreated{}, nil, err
 	}
-	return api.SessionCreated{SessionToken: token, ExpiresAt: sess.ExpiresAt, User: view}, nil
+	return api.SessionCreated{SessionToken: token, ExpiresAt: sess.ExpiresAt, User: view}, alert, nil
 }
 
-// AuthenticateSession resolves a session token into a principal. Idle and
-// absolute timeouts are enforced here; disabled users are rejected.
+// alertNewSignIn e-mails the "new sign-in" notice (login_alert).
+func (s *Service) alertNewSignIn(ctx context.Context, a *newSignIn) {
+	if a == nil {
+		return
+	}
+	id := tenant.ID(ctx)
+	s.sendToUser(ctx, id, a.user, templates.LoginAlert, func(w workspace) templates.Data {
+		return templates.LoginAlertData{Common: w.common(a.user.Name), At: a.at, IP: a.ip, Device: deviceOf(a.ua),
+			SecureURL: w.link("/forgot-password")}
+	})
+}
+
+// memberSession creates a session in a transaction and sends the new
+// sign-in notice afterwards.
+func (s *Service) memberSession(ctx context.Context, u db.User) (api.SessionCreated, error) {
+	var (
+		sess  api.SessionCreated
+		alert *newSignIn
+	)
+	err := s.tx(ctx, func(q *db.Queries) error {
+		var err error
+		sess, alert, err = s.createSession(ctx, q, u)
+		return err
+	})
+	if err == nil {
+		s.alertNewSignIn(ctx, alert)
+	}
+	return sess, err
+}
+
+// AuthenticateSession resolves a session token into a principal of the
+// request's tenant. Idle and absolute timeouts are enforced here; disabled
+// accounts and memberships are rejected. Support sessions of platform
+// admins carry their grant.
 func (s *Service) AuthenticateSession(ctx context.Context, token string) (*principal.Principal, error) {
 	if !strings.HasPrefix(token, SessionTokenPrefix) {
 		return nil, errInvalidSession
@@ -77,6 +142,10 @@ func (s *Service) AuthenticateSession(ctx context.Context, token string) (*princ
 		return nil, err
 	}
 	if row.UserStatus != "active" {
+		return nil, errInvalidSession
+	}
+	support := row.SupportGrantID != nil
+	if !support && (row.MembershipStatus == nil || *row.MembershipStatus != "active") {
 		return nil, errInvalidSession
 	}
 	st, err := s.settings.Get(ctx)
@@ -97,6 +166,13 @@ func (s *Service) AuthenticateSession(ctx context.Context, token string) (*princ
 	if err != nil {
 		return nil, err
 	}
+	p := &principal.Principal{
+		Kind: principal.KindUser, TenantID: row.TenantID, ID: u.ID, Name: u.Name, Email: u.Email, SessionID: row.ID,
+		ReauthAt: row.ReauthAt, ExpiresAt: row.ExpiresAt,
+	}
+	if support {
+		return s.supportPrincipal(ctx, p, *row.SupportGrantID, row.ReadOnly)
+	}
 	role, err := s.q.GetUserRole(ctx, row.UserID)
 	if err != nil {
 		return nil, err
@@ -106,12 +182,37 @@ func (s *Service) AuthenticateSession(ctx context.Context, token string) (*princ
 		return nil, err
 	}
 	slices.Sort(perms)
-	return &principal.Principal{
-		Kind: principal.KindUser, TenantID: row.TenantID, ID: u.ID, Name: u.Name, SessionID: row.ID,
-		RoleKey: role.RoleKey, RoleRank: int(role.RoleRank), Permissions: perms,
-		ReauthAt: row.ReauthAt, ExpiresAt: row.ExpiresAt,
-		MFAPending: st.MFARequired(role.RoleKey) && u.TotpConfirmedAt == nil,
-	}, nil
+	p.RoleKey, p.RoleRank, p.Permissions = role.RoleKey, int(role.RoleRank), perms
+	p.MFAPending = st.MFARequired(role.RoleKey) && u.TotpConfirmedAt == nil
+	return p, nil
+}
+
+// supportPrincipal completes the principal of a support session: the
+// grant must still be open; it gets an admin's permissions, and a
+// read-only one is kept from changing anything by the API guard.
+func (s *Service) supportPrincipal(ctx context.Context, p *principal.Principal, grantID uuid.UUID, readOnly bool) (*principal.Principal, error) {
+	g, err := s.q.GetSupportGrantForSession(ctx, grantID)
+	if isNoRows(err) {
+		return nil, errInvalidSession
+	}
+	if err != nil {
+		return nil, err
+	}
+	if g.EndedAt != nil || !s.now().Before(g.ExpiresAt) {
+		return nil, errInvalidSession
+	}
+	perms, err := s.q.RolePermissionKeys(ctx, "admin")
+	if err != nil {
+		return nil, err
+	}
+	// A read-only session sees what an admin sees; the API guard refuses
+	// every change it attempts (SUPPORT_READ_ONLY), whatever the method.
+	slices.Sort(perms)
+	p.RoleKey, p.RoleRank, p.Permissions = "admin", roleRank["admin"], perms
+	// Support never re-authenticates: sensitive actions stay closed.
+	p.ReauthAt = nil
+	p.Support = &principal.Support{GrantID: g.ID, ReadOnly: readOnly, Reason: g.Reason, AdminName: g.AdminName, ExpiresAt: g.ExpiresAt}
+	return p, nil
 }
 
 var errInvalidAPIKey = apperr.Unauthorized("API_KEY_INVALID", "The API key is invalid, expired or revoked")
@@ -151,7 +252,7 @@ func (s *Service) Logout(ctx context.Context, p *principal.Principal) error {
 	})
 }
 
-// ListSessions returns the user's active sessions.
+// ListSessions returns the user's active sessions in this workspace.
 func (s *Service) ListSessions(ctx context.Context, p *principal.Principal) ([]api.SessionInfo, error) {
 	rows, err := s.q.ListUserSessions(ctx, p.ID)
 	if err != nil {
@@ -159,6 +260,9 @@ func (s *Service) ListSessions(ctx context.Context, p *principal.Principal) ([]a
 	}
 	out := make([]api.SessionInfo, 0, len(rows))
 	for _, r := range rows {
+		if r.SupportGrantID != nil && r.ID != p.SessionID {
+			continue // a platform admin's support sessions are not the member's
+		}
 		var ip *string
 		if r.Ip != nil {
 			v := r.Ip.String()
@@ -186,7 +290,8 @@ func (s *Service) RevokeSession(ctx context.Context, p *principal.Principal, id 
 	})
 }
 
-// RevokeOtherSessions ends every session but the current one.
+// RevokeOtherSessions ends every session of the user in this workspace but
+// the current one.
 func (s *Service) RevokeOtherSessions(ctx context.Context, p *principal.Principal) error {
 	return s.tx(ctx, func(q *db.Queries) error {
 		n, err := q.RevokeUserSessions(ctx, db.RevokeUserSessionsParams{UserID: p.ID, ExceptID: uuidPtr(p.SessionID)})
@@ -195,6 +300,24 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p *principal.Principa
 		}
 		return audit.Record(ctx, q, audit.Entry{Action: "user.session_revoke_others", EntityType: "user", EntityID: uuidPtr(p.ID), Changes: map[string]any{"revoked": n}})
 	})
+}
+
+// revokeEverywhere ends the user's sessions in every workspace (and the
+// admin panel), except one: after a password change or reset, or when an
+// account is disabled.
+func (s *Service) revokeEverywhere(ctx context.Context, userID uuid.UUID, except *uuid.UUID) error {
+	return s.platformTx(ctx, func(q *db.Queries) error {
+		if _, err := q.RevokeUserSessionsEverywhere(ctx, db.RevokeUserSessionsEverywhereParams{UserID: userID, ExceptID: except}); err != nil {
+			return err
+		}
+		_, err := q.RevokePlatformSessionsOf(ctx, db.RevokePlatformSessionsOfParams{UserID: userID, ExceptID: except})
+		return err
+	})
+}
+
+// RevokeEverywhere is revokeEverywhere for the platform admin panel.
+func (s *Service) RevokeEverywhere(ctx context.Context, userID uuid.UUID) error {
+	return s.revokeEverywhere(ctx, userID, nil)
 }
 
 // requireReauth fails unless the user confirmed their identity recently.

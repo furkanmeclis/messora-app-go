@@ -16,6 +16,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai/aitest"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/testutil"
 )
 
@@ -248,7 +249,7 @@ func TestAIProfilesSettingsAndTestConsole(t *testing.T) {
 
 	// A price for the fake models makes the cost appear.
 	today := time.Now().UTC().Format(time.DateOnly)
-	r = h.do(call{method: "POST", path: "/api/v1/ai/prices", token: owner, body: map[string]any{"provider_kind": "fake", "model_pattern": "fake-*",
+	r = h.adminDo(call{method: "POST", path: "/ai-prices", body: map[string]any{"provider_kind": "fake", "model_pattern": "fake-*",
 		"input": "1", "output": "2", "effective_from": today}})
 	h.expect(r, 201, "")
 	if r.data()["confirmed"] != true {
@@ -261,7 +262,7 @@ func TestAIProfilesSettingsAndTestConsole(t *testing.T) {
 		t.Fatalf("cost: %s", r.raw)
 	}
 	// Editing the price never changes recorded costs.
-	h.expect(h.do(call{method: "PATCH", path: "/api/v1/ai/prices/" + fakePrice, token: owner, body: map[string]any{"input": "100"}}), 200, "")
+	h.expect(h.adminDo(call{method: "PATCH", path: "/ai-prices/" + fakePrice, body: map[string]any{"input": "100"}}), 200, "")
 	if n := h.count(`SELECT count(*) FROM ai_usage WHERE cost = 0.002`); n != 1 {
 		t.Fatalf("recorded cost changed (%d)", n)
 	}
@@ -303,8 +304,13 @@ func TestAIProfilesSettingsAndTestConsole(t *testing.T) {
 		"default_model": "", "disclosure": map[string]any{"tr": "x", "en": ""}, "data_sharing_notice": map[string]any{"tr": "", "en": ""}}})
 	h.expect(r, 200, "")
 	h.expect(h.do(call{method: "POST", path: "/api/v1/ai/profiles/" + pid + "/test", token: owner, body: map[string]any{"messages": msgs}}), 409, "AI_DISABLED")
-	if n := h.count(`SELECT count(*) FROM audit_logs WHERE action IN ('ai.settings.update', 'ai.profile.create', 'ai.profile.update', 'ai.price.create', 'ai.price.update')`); n < 7 {
+	if n := h.count(`SELECT count(*) FROM audit_logs WHERE action IN ('ai.settings.update', 'ai.profile.create', 'ai.profile.update')`); n < 5 {
 		t.Fatalf("audit rows = %d", n)
+	}
+	// Prices are platform data: the platform's audit trail has them.
+	var platformRows int
+	if err := h.owner.QueryRow(context.Background(), `SELECT count(*) FROM platform_audit_logs WHERE action IN ('ai.price.create', 'ai.price.update')`).Scan(&platformRows); err != nil || platformRows < 2 {
+		t.Fatalf("platform audit rows = %d %v", platformRows, err)
 	}
 
 	r = h.do(call{method: "GET", path: "/api/v1/ai/profiles", token: owner})
@@ -343,22 +349,22 @@ func TestAIPricesConfirmImportAndSeedOnce(t *testing.T) {
 		t.Fatalf("deepseek peak windows: %v", deepseek)
 	}
 	id := deepseek["id"].(string)
-	r = h.do(call{method: "PATCH", path: "/api/v1/ai/prices/" + id, token: owner, body: map[string]any{"confirm": true}})
+	r = h.adminDo(call{method: "PATCH", path: "/ai-prices/" + id, body: map[string]any{"confirm": true}})
 	h.expect(r, 200, "")
 	if r.data()["confirmed"] != true || r.data()["cached_input"] != "0.003" || len(r.data()["rules"].(map[string]any)["windows"].([]any)) != 2 {
 		t.Fatalf("confirm keeps the figures: %s", r.raw)
 	}
-	r = h.do(call{method: "PATCH", path: "/api/v1/ai/prices/" + id, token: owner, body: map[string]any{"notes": "checked"}})
+	r = h.adminDo(call{method: "PATCH", path: "/ai-prices/" + id, body: map[string]any{"notes": "checked"}})
 	h.expect(r, 200, "")
 	if r.data()["confirmed"] != true {
 		t.Fatal("a note does not clear the confirmation")
 	}
-	r = h.do(call{method: "PATCH", path: "/api/v1/ai/prices/" + id, token: owner, body: map[string]any{"output": "0.70", "cached_input": nil}})
+	r = h.adminDo(call{method: "PATCH", path: "/ai-prices/" + id, body: map[string]any{"output": "0.70", "cached_input": nil}})
 	h.expect(r, 200, "")
 	if r.data()["confirmed"] != false || r.data()["output"] != "0.7" || r.data()["cached_input"] != nil {
 		t.Fatalf("changed figures need a new confirmation: %s", r.raw)
 	}
-	h.expect(h.do(call{method: "PATCH", path: "/api/v1/ai/prices/" + id, token: owner, body: map[string]any{
+	h.expect(h.adminDo(call{method: "PATCH", path: "/ai-prices/" + id, body: map[string]any{
 		"rules": map[string]any{"windows": []any{map[string]any{"start": "01:00", "end": "01:00", "multiplier": "2"}}}}}), 422, "VALIDATION_ERROR")
 
 	// LiteLLM import (uploaded, never fetched).
@@ -371,10 +377,12 @@ func TestAIPricesConfirmImportAndSeedOnce(t *testing.T) {
 	fw, _ := mw.CreateFormFile("file", "model_prices_and_context_window.json")
 	_, _ = io.WriteString(fw, doc)
 	_ = mw.Close()
-	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/api/v1/ai/prices/import", &buf)
+	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/api/v1/platform/ai-prices/import", &buf)
+	req.Host = adminHost
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set(httpx.BFFHeader, bffSecret)
-	req.Header.Set("Authorization", "Bearer "+owner)
+	req.Header.Set(tenant.HostHeader, adminHost)
+	req.Header.Set("Authorization", "Bearer "+h.platformSession())
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -389,7 +397,7 @@ func TestAIPricesConfirmImportAndSeedOnce(t *testing.T) {
 	}
 
 	// The seed is stored once: a deleted seed row does not come back.
-	h.expect(h.do(call{method: "DELETE", path: "/api/v1/ai/prices/" + id, token: owner}), 204, "")
+	h.expect(h.adminDo(call{method: "DELETE", path: "/ai-prices/" + id}), 204, "")
 	if err := ai.EnsureSeed(ctx, h.owner); err != nil {
 		t.Fatal(err)
 	}
@@ -420,7 +428,6 @@ func TestAIPermissionMatrix(t *testing.T) {
 		{method: "POST", path: "/api/v1/ai/providers", body: map[string]any{"kind": "fake", "name": "Other", "api_key": "fake-key-2-for-tests"}},
 		{method: "PATCH", path: "/api/v1/ai/providers/" + p["id"].(string), body: map[string]any{"name": "Renamed"}},
 		{method: "POST", path: "/api/v1/ai/providers/" + p["id"].(string) + "/check"},
-		{method: "POST", path: "/api/v1/ai/prices", body: map[string]any{"provider_kind": "fake", "model_pattern": "m", "input": "1", "output": "1", "effective_from": "2026-11-25"}},
 		{method: "POST", path: "/api/v1/ai/profiles", body: map[string]any{"name": "Q"}},
 		{method: "POST", path: "/api/v1/ai/profiles/" + prof + "/test", body: map[string]any{"messages": []any{map[string]any{"role": "user", "text": "hi"}}}},
 	}

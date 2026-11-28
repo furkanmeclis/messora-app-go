@@ -1,6 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { expect, test, type Page } from '@playwright/test';
+import { PLATFORM, platformSecret } from './platform';
+import { totp } from './totp';
 
 /**
  * Settings → WhatsApp / Meta → "Connect with Meta" (phase 17 WP6): Messora
@@ -14,9 +16,10 @@ import { expect, test, type Page } from '@playwright/test';
  * Meta's does. So the page's CSP, its origin check, the code exchange and
  * every server step run for real.
  *
- * The platform switch is flipped with `messora tech-provider` (the platform
- * admin's command until WP2's admin panel has its form) and switched off
- * again at the end, so the other specs see the method off.
+ * The platform admin turns the switch on in the admin panel
+ * (admin.<base> → Meta Tech Provider); `messora tech-provider` reads it
+ * back and switches it off again at the end, so the other specs see the
+ * method off.
  */
 
 const PROJECT = process.env.E2E_PROJECT ?? 'messora-e2e';
@@ -135,10 +138,10 @@ test.beforeAll(() => {
                    ON CONFLICT (key) DO UPDATE SET name = EXCLUDED.name RETURNING id),
              p AS (INSERT INTO role_permissions (role_id, permission_key)
                    SELECT r.id, k FROM r, unnest(ARRAY['${PERMISSIONS.join("','")}']) k ON CONFLICT DO NOTHING),
-             u AS (INSERT INTO users (email, name, password_hash)
-                   SELECT '${USER.email}', 'Tess Provider', password_hash FROM users WHERE email = 'ari@example.com'
+             u AS (INSERT INTO users (email, name, password_hash, email_verified_at)
+                   SELECT '${USER.email}', 'Tess Provider', password_hash, now() FROM users WHERE email = 'ari@example.com'
                    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id)
-        INSERT INTO user_roles (user_id, role_id) SELECT u.id, r.id FROM u, r ON CONFLICT DO NOTHING;`);
+        INSERT INTO tenant_memberships (user_id, role_id) SELECT u.id, r.id FROM u, r ON CONFLICT DO NOTHING;`);
 });
 
 test.afterAll(() => {
@@ -170,19 +173,54 @@ test('with the switch off the Tech Provider card stays disabled', async ({
     );
 });
 
+test('the platform admin sets the Tech Provider up and turns it on', async ({
+    browser,
+}) => {
+    // Its own context: the platform session lives on the admin host.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(PLATFORM.adminUrl + '/login');
+    await page.getByLabel('E-mail').fill(PLATFORM.email);
+    await page.getByLabel('Password', { exact: true }).fill(PLATFORM.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/login\/verify$/);
+    await page
+        .getByLabel('Digit 1 of 6')
+        .fill(totp(platformSecret().secret, Date.now() + 60_000));
+    await page.getByRole('button', { name: 'Verify' }).click();
+    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Meta Tech Provider' }).click();
+    await expect(
+        page.getByRole('heading', { name: 'Meta Tech Provider' }),
+    ).toBeVisible();
+    await expect(page.getByTestId('tp-enabled')).not.toBeChecked();
+    await page.getByLabel('App ID').fill(APP_ID);
+    await page.getByLabel('Embedded Signup configuration ID').fill('555000111');
+    await page.getByLabel(/^App secret/).fill(APP_SECRET);
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('Tech Provider settings saved.')).toBeVisible();
+    await expect(page.getByTestId('tp-callback')).toHaveValue(/\/meta\/tp$/);
+    await expect(page.getByTestId('tp-verify-token')).toHaveValue(
+        /^[a-z2-7]{52}$/,
+    );
+    await page.getByTestId('tp-enabled').click();
+    await expect(page.getByTestId('tp-enabled')).toBeChecked();
+    // The test asks the fake Meta: the app and its webhook are set up.
+    await page.getByTestId('tp-test').click();
+    await expect(page.getByTestId('tp-checks')).toContainText(
+        'Meta accepted the App ID and App secret.',
+    );
+    await ctx.close();
+    expect(techProvider('show')).toContain(
+        'Enabled:            true (ready: true)',
+    );
+});
+
 test('Embedded Signup with the switch on connects the channel', async ({
     page,
     request,
 }) => {
-    const out = techProvider(
-        'set',
-        '-enable',
-        '-app-id',
-        APP_ID,
-        '-configuration-id',
-        '555000111',
-    );
-    expect(out).toContain('Enabled:            true (ready: true)');
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     const blocked: string[] = [];

@@ -46,6 +46,65 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
 - Self-hosting documentation (docs/LICENSING.md; docs/INSTALL.md now
   describes running the hosted service).
 
+### Added (WP2 — identity and the platform admin panel)
+
+- **Global accounts:** one account per person (e-mail unique across the
+  platform) with a membership and role in each company
+  (`tenant_memberships`); existing users become members of tenant #1
+  (migration 00031). Sessions and API keys stay bound to one workspace; a
+  password change or reset ends the sessions in every workspace.
+- **Self sign-up** (`POST /auth/signup`, slug availability, e-mail
+  verification, resend with a one-per-minute limit): creates the company at
+  `<slug>.<TENANT_BASE_DOMAIN>`, its owner and a 14-day trial
+  (`subscription_status`, `trial_ends_at`). Platform setting
+  `signup_enabled`.
+- **Workspace switcher:** `GET /me/memberships`, `POST /auth/switch-workspace`
+  and `POST /auth/handoff` (one-time, 60-second token valid only at the
+  target workspace).
+- **Invitations of existing accounts:** the preview says whether the address
+  has an account, who invited and to which workspace; accepting asks for the
+  existing password instead of creating an account.
+- **E-mail address change** (`POST /me/email`, `POST /auth/email-change/confirm`).
+- **Platform admin panel API** on `admin.<TENANT_BASE_DOMAIN>`
+  (`/api/v1/platform/*`, never in the public API): its own sessions and
+  cookie, mandatory TOTP, companies (create with owner invitation, rename,
+  trial end, suspend/unsuspend with reason), custom domains with TXT
+  verification, accounts (search, memberships, disable, forced password
+  reset), time-boxed **support access** (read-only by default, recorded in
+  the company's audit log, visible to the company at `GET /support-access`,
+  banner in its panel), every company's failed jobs, platform settings and
+  the platform audit log.
+- **Platform bootstrap:** `messora migrate` prints a one-time admin link while
+  no platform admin exists; `messora admin create --email …` creates or
+  promotes one.
+- Branded identity e-mails for verification, welcome, password reset and
+  change, invitations, new sign-in alerts and address changes.
+- Database role `messora_platform` (no login, no BYPASSRLS) that the API
+  switches to for platform work only.
+
+### Changed (WP2)
+
+- The Meta rate card and the AI price table are managed in the platform
+  panel (`/platform/meta-rates/import`, `/platform/ai-prices*`); workspaces
+  read them only.
+- Disabling a user in a workspace disables the membership, not the account.
+- `GET /auth/capabilities` reports `signup_enabled` instead of
+  `setup_required`; `GET /me` includes the workspace and, during support
+  access, `support`.
+- `APP_*` workspace variables apply to tenant #1 only.
+- Reserved workspace addresses are the sign-up form's list; new slugs are
+  3–30 characters.
+- Rate-limit budgets of sessions and API keys are kept per workspace; MFA
+  sign-in challenges are bound to the workspace (or the admin panel) they
+  started on.
+
+### Removed (WP2)
+
+- The first-run setup flow: `GET /setup/status`, `POST /setup` and
+  `messora setup token`.
+- `POST /settings/meta-rates/import` and the write operations of
+  `/ai/prices` in the workspace API (moved to the platform panel).
+
 ### Added (WP1 — tenant foundation)
 
 - **Tenants:** `tenants`, `tenant_domains` and `platform_settings`. Every
@@ -154,7 +213,7 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
   progress, success and failure states, retry and abandon. TR/EN. Meta's
   SDK is allowed by the CSP only on that page.
 - **Server-side onboarding** as a persisted, resumable state machine per
-  WABA (`meta_onboardings`, migration 00031): the code is traded for the
+  WABA (`meta_onboardings`, migration 00032): the code is traded for the
   business token (no `redirect_uri`), which must grant the WABA the browser
   names and whose number must belong to it; the WABA is routed to the
   workspace and its account stored; Messora's app subscribes to the WABA
@@ -185,9 +244,10 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
   App ID, sealed App secret, Embedded Signup configuration ID, sealed
   system user token, Graph API version, sealed platform verify token;
   test against Meta (`debug_token` with the app token, the app's webhook
-  subscription). API `GET/PATCH /platform/meta/tech-provider`,
-  `POST /platform/meta/tech-provider/test` (admin host, platform session —
-  wired with WP2; never in the public API document) and the
+  subscription). Admin panel page Catalogue → Meta Tech Provider (audited in the platform
+  audit log), API `GET/PATCH /platform/meta/tech-provider`,
+  `POST /platform/meta/tech-provider/test` (admin host, platform session;
+  never in the public API document) and the
   `messora tech-provider show|set|test` command. Ops guide:
   docs/TECH_PROVIDER.md.
 - Company API: `GET /channels/tech-provider`,

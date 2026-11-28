@@ -22,6 +22,8 @@ x-messora-app: &messora-app
   environment: &messora-env
     MESSORA_SECRETS_FILE: /run/messora-secrets/secrets.env
     PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
+    # Workspaces at <slug>.TENANT_BASE_DOMAIN, the admin panel at admin.<it>.
+    TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
     POSTGRES_HOST: postgres
     REDIS_ADDR: redis:6379
     CENTRIFUGO_API_URL: http://centrifugo:8000/api
@@ -260,6 +262,8 @@ services:
       MESSORA_API_INTERNAL_URL: http://messora-api:8080
       MESSORA_SECRETS_FILE: /run/messora-secrets/secrets.env
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
+      # The admin host (admin.<base>) and the workspace addresses.
+      MESSORA_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
     volumes:
       - type: volume
         source: messora-secrets

@@ -52,7 +52,9 @@ Messora'nın kendi işletmesinde: Business Settings → System users → **Add**
 
 ## 6. Messora'ya girme ve açma
 
-Platform yönetici paneli (admin.<domain>, WP2) bu ayarların formunu alacak (`GET/PATCH /api/v1/platform/meta/tech-provider`, `POST …/test`). O gelene kadar komut satırı kullanılır; komut `messora migrate` gibi veritabanı sahibi olarak yazar. Sırlar ortamdan okunur, komut satırına yazılmaz:
+**Yönetici paneli:** admin.<domain> → Katalog → **Meta Tech Provider**. App ID, configuration ID, App secret ve system user token'ı girip **Kaydet** (sırlar bir daha gösterilmez; boş bırakılan sır değişmez). Callback URL ile doğrulama belirtecini kopyalayıp Meta'ya girin (4. adım), **Test et** ile kontrol edin, sonra anahtarı açın. Her değişiklik platform denetim kaydına yazılır.
+
+**Komut satırı** (aynı ayarlar; panele erişim yoksa): komut `messora migrate` gibi veritabanı sahibi olarak yazar, denetim kaydı yerine loglar. Sırlar ortamdan okunur, komut satırına yazılmaz:
 
 ```sh
 # Değerleri girin (henüz kapalı):
