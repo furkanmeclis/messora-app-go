@@ -5,6 +5,10 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import {
     Building2,
+    Gem,
+    Inbox,
+    KeyRound,
+    Mail,
     Coins,
     Cpu,
     Gauge,
@@ -40,12 +44,20 @@ type Item = { href: string; label: MessageKey; icon: LucideIcon };
 const OPERATIONS: Item[] = [
     { href: '/', label: 'platform.nav.overview', icon: Gauge },
     { href: '/tenants', label: 'platform.nav.tenants', icon: Building2 },
+    {
+        href: '/plan-requests',
+        label: 'plans.admin.nav.planRequests',
+        icon: Inbox,
+    },
     { href: '/users', label: 'platform.nav.users', icon: Users },
     { href: '/support', label: 'platform.nav.support', icon: LifeBuoy },
     { href: '/audit', label: 'platform.nav.audit', icon: ScrollText },
     { href: '/settings', label: 'platform.nav.settings', icon: Settings },
+    { href: '/email', label: 'plans.admin.nav.email', icon: Mail },
 ];
 const CATALOGUE: Item[] = [
+    { href: '/plans', label: 'plans.admin.nav.plans', icon: Gem },
+    { href: '/ai-keys', label: 'plans.admin.nav.aiKeys', icon: KeyRound },
     { href: '/meta-rates', label: 'platform.nav.metaRates', icon: Coins },
     { href: '/ai-prices', label: 'platform.nav.aiPrices', icon: Cpu },
     {

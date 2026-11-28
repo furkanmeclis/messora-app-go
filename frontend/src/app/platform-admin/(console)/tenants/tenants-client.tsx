@@ -149,6 +149,9 @@ export function TenantList({
                             <TableHead>
                                 {t('platform.tenants.columns.subscription')}
                             </TableHead>
+                            <TableHead>
+                                {t('plans.admin.tenants.plan')}
+                            </TableHead>
                             <TableHead className="text-right">
                                 {t('platform.tenants.columns.members')}
                             </TableHead>
@@ -161,7 +164,7 @@ export function TenantList({
                         {rows.length === 0 && (
                             <TableRow>
                                 <TableCell
-                                    colSpan={6}
+                                    colSpan={7}
                                     className="py-10 text-center text-muted-foreground"
                                 >
                                     {t('platform.tenants.empty')}
@@ -198,6 +201,12 @@ export function TenantList({
                                             })}
                                         </div>
                                     )}
+                                </TableCell>
+                                <TableCell
+                                    className="font-mono text-xs"
+                                    data-testid="tenant-plan"
+                                >
+                                    {r.plan_key ?? '—'}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
                                     {r.member_count}
