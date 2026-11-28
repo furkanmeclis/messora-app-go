@@ -41,6 +41,11 @@ export default async function SettingsLayout({
             label: t('settings.tabs.metaRates'),
             icon: 'metaRates',
         },
+        has('channels.manage') && {
+            href: '/settings/meta',
+            label: t('channels.meta.tab'),
+            icon: 'meta',
+        },
         has('ai.read') && {
             href: '/settings/ai',
             label: t('ai.tab'),

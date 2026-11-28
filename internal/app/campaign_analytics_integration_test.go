@@ -26,7 +26,7 @@ import (
 // inboundButton builds a notification with a tapped template quick reply.
 func inboundButton(from, wamid, payload, text string, at time.Time) []byte {
 	b, _ := json.Marshal(map[string]any{"object": "whatsapp_business_account", "entry": []any{map[string]any{
-		"id": "waba", "changes": []any{map[string]any{"field": "messages", "value": map[string]any{
+		"id": testWABA, "changes": []any{map[string]any{"field": "messages", "value": map[string]any{
 			"messaging_product": "whatsapp",
 			"metadata":          map[string]string{"display_phone_number": "15550000000", "phone_number_id": testPNID},
 			"contacts":          []any{map[string]any{"wa_id": from, "profile": map[string]string{"name": ""}}},

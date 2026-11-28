@@ -53,7 +53,9 @@ export type ContactImport = Schemas['ContactImport'];
 // ── Channels, templates and campaigns ──────────────────────────────────────
 export type WhatsAppAccount = Schemas['WhatsAppAccount'];
 export type PhoneNumber = Schemas['PhoneNumber'];
-export type WebhookSetup = Schemas['WebhookSetup'];
+export type MetaConnection = Schemas['MetaConnection'];
+export type MetaConnectionTest = Schemas['MetaConnectionTest'];
+export type MetaConnectionCheck = Schemas['MetaConnectionCheck'];
 export type SyncResult = Schemas['SyncResult'];
 export type Campaign = Schemas['Campaign'];
 export type CampaignStatus = Schemas['CampaignStatus'];

@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +19,9 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/metacost"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/logger"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 )
 
 // maxWebhookBody is above Meta's documented 3 MB payload limit.
@@ -27,13 +31,22 @@ const maxWebhookBody = 4 << 20
 // (the send response may still be in flight when the webhook arrives).
 const statusGrace = 15 * time.Minute
 
-// WebhookHandler serves GET (subscription handshake) and POST (events) on
-// /webhooks/whatsapp. Events are stored before the 200 is sent and
-// processed asynchronously.
-func (s *Service) WebhookHandler(verifyToken string) http.Handler {
+// WebhookHandler serves Meta's webhooks for a tenant already in the
+// request context: GET (subscription handshake against the tenant's verify
+// token) and POST (events signed with one of the tenant's app secrets).
+// Events are stored before the 200 is sent and processed asynchronously.
+// It serves the host-resolved paths (/webhooks/whatsapp, /webhooks/meta on
+// a tenant's own address) and, through KeyedWebhookHandler, the keyed one.
+func (s *Service) WebhookHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
+			verifyToken, err := s.ch.VerifyToken(r.Context())
+			if err != nil {
+				s.log.ErrorContext(r.Context(), "webhook verification: read the verify token", "error", err)
+				http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+				return
+			}
 			q := r.URL.Query()
 			c, ok := whatsapp.VerifyChallenge(q.Get("hub.mode"), q.Get("hub.verify_token"), q.Get("hub.challenge"), verifyToken)
 			if !ok {
@@ -54,6 +67,39 @@ func (s *Service) WebhookHandler(verifyToken string) http.Handler {
 	})
 }
 
+// KeyedWebhookHandler serves https://hooks.<base domain>/meta/<key>: the
+// webhook key (keyOf reads it from the path) names the tenant, which is
+// resolved before anything is read under it. Unknown and expired keys get
+// a plain 404, suspended tenants 403.
+func (s *Service) KeyedWebhookHandler(keyOf func(*http.Request) string) http.Handler {
+	inner := s.WebhookHandler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		route, found, err := s.ch.WebhookKeyTenant(r.Context(), keyOf(r))
+		switch {
+		case err != nil:
+			s.log.ErrorContext(r.Context(), "resolve webhook key", "error", err)
+			http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		case !found || route.Status == tenant.StatusDeleted:
+			http.NotFound(w, r)
+			return
+		case route.Status != tenant.StatusActive:
+			http.Error(w, "workspace suspended", http.StatusForbidden)
+			return
+		}
+		ctx := tenant.WithID(r.Context(), route.TenantID)
+		ctx = logger.WithAttrs(ctx, slog.String("tenant_id", route.TenantID.String()))
+		inner.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// envelope is a webhook body with its entries left raw, so the ones that
+// are kept are stored exactly as Meta sent them.
+type envelope struct {
+	Object string            `json:"object"`
+	Entry  []json.RawMessage `json:"entry"`
+}
+
 func (s *Service) ingest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBody))
@@ -68,26 +114,40 @@ func (s *Service) ingest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(secrets) == 0 {
-		s.log.ErrorContext(ctx, "webhook rejected: no Meta app secret configured (META_APP_SECRET or account app secret)")
+		s.log.WarnContext(ctx, "webhook rejected: no account of this tenant has an app secret")
+		s.ch.RecordSignatureFailure(ctx)
 		http.Error(w, "signature verification unavailable", http.StatusUnauthorized)
 		return
 	}
 	if !whatsapp.VerifySignature(body, r.Header.Get("X-Hub-Signature-256"), secrets...) {
 		s.log.WarnContext(ctx, "webhook rejected: invalid signature")
+		s.ch.RecordSignatureFailure(ctx)
 		http.Error(w, "invalid signature", http.StatusUnauthorized)
 		return
 	}
-	var probe whatsapp.Notification
-	if err := json.Unmarshal(body, &probe); err != nil {
+	var env envelope
+	if err := json.Unmarshal(body, &env); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
-	if probe.Object != "whatsapp_business_account" {
+	if env.Object != "whatsapp_business_account" {
 		w.WriteHeader(http.StatusOK) // not ours; acknowledge so Meta stops retrying
 		return
 	}
-	sum := sha256.Sum256(body)
+	body, err = s.ownEntries(ctx, body, env)
+	if err != nil {
+		s.log.ErrorContext(ctx, "webhook: read the tenant's accounts", "error", err)
+		http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	err = s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		if err := q.TouchMetaWebhook(ctx); err != nil {
+			return err
+		}
+		if body == nil {
+			return nil // nothing for this tenant's accounts
+		}
+		sum := sha256.Sum256(body)
 		id, err := q.InsertWebhookEvent(ctx, db.InsertWebhookEventParams{PayloadSha256: sum[:], Body: body})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil // Meta retried an event we already have
@@ -104,6 +164,43 @@ func (s *Service) ingest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// ownEntries keeps the entries of body whose WhatsApp Business Account
+// (entry[].id) is connected in the tenant; the others are dropped, logged
+// and counted, so a tenant's app cannot inject events for an account it
+// has not connected (or that belongs to another tenant). It returns body
+// unchanged when every entry is the tenant's, nil when none is.
+func (s *Service) ownEntries(ctx context.Context, body []byte, env envelope) ([]byte, error) {
+	ids, err := s.q.ListWABAIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	kept := make([]json.RawMessage, 0, len(env.Entry))
+	var foreign []string
+	for _, raw := range env.Entry {
+		var e struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(raw, &e) == nil && slices.Contains(ids, e.ID) {
+			kept = append(kept, raw)
+			continue
+		}
+		foreign = append(foreign, e.ID)
+	}
+	if len(foreign) == 0 {
+		return body, nil
+	}
+	s.log.WarnContext(ctx, "webhook entries for WhatsApp Business Accounts this tenant has not connected were dropped",
+		"waba_ids", foreign, "kept", len(kept))
+	waba := truncate(foreign[0], 64)
+	if err := s.q.RecordMetaWABAMismatch(ctx, &waba); err != nil {
+		s.log.WarnContext(ctx, "record webhook WABA mismatch", "error", err)
+	}
+	if len(kept) == 0 {
+		return nil, nil
+	}
+	return json.Marshal(envelope{Object: env.Object, Entry: kept})
 }
 
 var statusRank = map[string]int16{"sent": 3, "delivered": 4, "read": 5, "played": 5, "failed": 6}

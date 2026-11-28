@@ -134,8 +134,9 @@ revoked token), and disk usage of the Docker data directory.
 | Symptom | Cause and fix |
 |---|---|
 | `read-only file system` from Docker | The disk holding Docker's data (or Docker Desktop's virtual disk) is full. Free space, then restart Docker. `docker builder prune` removes build cache only. |
-| Webhooks rejected with 401 | No app secret configured, or the wrong one: set `META_APP_SECRET` or the account's app secret (Channels). |
-| Meta webhook verification fails | `PUBLIC_APP_URL` is not public HTTPS, or the verify token in the Meta dashboard differs from Channels → Webhook. |
+| Webhooks rejected with 401 | The workspace has no account with an app secret, or the app secret belongs to another app: replace it on the account (Channels → Edit). Settings → WhatsApp / Meta counts rejected signatures. |
+| Webhooks answered 404 | The webhook key in the callback URL is unknown or its grace period after a rotation is over: copy the current callback URL from Settings → WhatsApp / Meta. |
+| Meta webhook verification fails | The callback URL is not public HTTPS (`hooks.<TENANT_BASE_DOMAIN>` needs DNS and TLS, or set `HOOKS_PUBLIC_URL`), or the verify token in the Meta dashboard differs from Settings → WhatsApp / Meta. |
 | Account shows `error` | Meta refused the token (expired, revoked or missing permission). Rotate the token in Channels; a successful sync clears the error. |
 | Messages stay `unknown` | The send outcome was ambiguous (timeout, dropped connection). They are never re-sent; Meta's status webhook reconciles them. Check that webhooks arrive. |
 | Campaign slower than expected | Meta's throughput error (130429) halves the per-number rate; it recovers automatically. |

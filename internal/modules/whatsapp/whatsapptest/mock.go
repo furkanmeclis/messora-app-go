@@ -51,20 +51,69 @@ type Sent struct {
 // Server is the mock.
 type Server struct {
 	*httptest.Server
-	mu        sync.Mutex
-	script    []Behavior
-	sent      []Sent
-	numbers   map[string][]whatsapp.PhoneNumber // waba → numbers
-	templates map[string][]whatsapp.TemplateInfo
-	media     map[string][]byte
-	mediaType map[string]string
-	tokens    map[string]bool // accepted access tokens; empty = accept all
-	tokenInfo map[string]TokenInfo
-	exchanged map[string]string // short-lived token → long-lived token
-	currency  map[string]string // waba → currency
-	pricing   map[string][]whatsapp.PricingDataPoint
-	pricingQ  []string          // pricing_analytics field expansions requested
-	created   []json.RawMessage // template creation bodies, as received
+	mu         sync.Mutex
+	script     []Behavior
+	sent       []Sent
+	numbers    map[string][]whatsapp.PhoneNumber // waba → numbers
+	templates  map[string][]whatsapp.TemplateInfo
+	media      map[string][]byte
+	mediaType  map[string]string
+	tokens     map[string]bool // accepted access tokens; empty = accept all
+	tokenInfo  map[string]TokenInfo
+	exchanged  map[string]string // short-lived token → long-lived token
+	currency   map[string]string // waba → currency
+	pricing    map[string][]whatsapp.PricingDataPoint
+	pricingQ   []string            // pricing_analytics field expansions requested
+	created    []json.RawMessage   // template creation bodies, as received
+	subscribed map[string][]string // waba → subscribed app IDs
+}
+
+// DefaultAppID is the app debug_token reports for a token whose info is not
+// scripted, and the app POST /{waba}/subscribed_apps subscribes.
+const DefaultAppID = "1234"
+
+// DefaultWABA is the WhatsApp Business Account the "messages" notification
+// builders put in entry[].id (Meta sends the WABA that owns the number).
+// Use ForWABA for another account.
+const DefaultWABA = "102030405060"
+
+// Subscribed returns the apps subscribed to waba's webhooks.
+func (s *Server) Subscribed(waba string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.subscribed[waba]...)
+}
+
+// SetSubscribed scripts the apps subscribed to waba (none to clear).
+func (s *Server) SetSubscribed(waba string, appIDs ...string) {
+	s.mu.Lock()
+	s.subscribed[waba] = appIDs
+	s.mu.Unlock()
+}
+
+func (s *Server) subscribedApps(w http.ResponseWriter, r *http.Request, waba, token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if r.Method == http.MethodPost {
+		app := DefaultAppID
+		if info, ok := s.tokenInfo[token]; ok && info.AppID != "" {
+			app = info.AppID
+		}
+		for _, a := range s.subscribed[waba] {
+			if a == app {
+				writeJSON(w, http.StatusOK, map[string]any{"success": true})
+				return
+			}
+		}
+		s.subscribed[waba] = append(s.subscribed[waba], app)
+		writeJSON(w, http.StatusOK, map[string]any{"success": true})
+		return
+	}
+	data := []any{}
+	for _, a := range s.subscribed[waba] {
+		data = append(data, map[string]any{"whatsapp_business_api_data": map[string]string{"id": a, "name": "App " + a}})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": data})
 }
 
 // SetCurrency scripts GET /{waba}?fields=currency.
@@ -141,6 +190,7 @@ func (s *Server) wabaFields(w http.ResponseWriter, r *http.Request, waba string)
 type TokenInfo struct {
 	Invalid   bool
 	Error     string
+	AppID     string // DefaultAppID when empty
 	Type      string
 	ExpiresAt int64 // unix seconds, 0 = never
 	Scopes    []string
@@ -179,11 +229,14 @@ func (s *Server) debugToken(w http.ResponseWriter, r *http.Request) {
 	if info.Scopes == nil {
 		info.Scopes = []string{"whatsapp_business_management", "whatsapp_business_messaging"}
 	}
+	if info.AppID == "" {
+		info.AppID = DefaultAppID
+	}
 	granular := []map[string]any{}
 	for scope, ids := range info.Targets {
 		granular = append(granular, map[string]any{"scope": scope, "target_ids": ids})
 	}
-	data := map[string]any{"app_id": "1234", "type": info.Type, "is_valid": !info.Invalid,
+	data := map[string]any{"app_id": info.AppID, "type": info.Type, "is_valid": !info.Invalid,
 		"expires_at": info.ExpiresAt, "data_access_expires_at": 0, "scopes": info.Scopes, "granular_scopes": granular}
 	if info.Invalid {
 		data["error"] = map[string]any{"code": 190, "subcode": 463, "message": info.Error}
@@ -220,7 +273,7 @@ func newServer() *Server {
 	return &Server{numbers: map[string][]whatsapp.PhoneNumber{}, templates: map[string][]whatsapp.TemplateInfo{},
 		media: map[string][]byte{}, mediaType: map[string]string{}, tokens: map[string]bool{},
 		tokenInfo: map[string]TokenInfo{}, exchanged: map[string]string{}, currency: map[string]string{},
-		pricing: map[string][]whatsapp.PricingDataPoint{}}
+		pricing: map[string][]whatsapp.PricingDataPoint{}, subscribed: map[string][]string{}}
 }
 
 // Script queues behaviors for the next send requests (FIFO); once exhausted
@@ -348,7 +401,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		graphError(w, http.StatusBadRequest, 100, "Unsupported get request")
-	case r.Method == http.MethodPost && (edge == "register" || edge == "subscribed_apps"):
+	case edge == "subscribed_apps" && (r.Method == http.MethodGet || r.Method == http.MethodPost):
+		s.subscribedApps(w, r, id, token)
+	case r.Method == http.MethodPost && edge == "register":
 		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	case edge == "message_templates":
 		s.templatesHandler(w, r, id)
@@ -659,7 +714,28 @@ func notification(phoneNumberID string, value map[string]any) []byte {
 	value["messaging_product"] = "whatsapp"
 	value["metadata"] = map[string]string{"display_phone_number": "15550000000", "phone_number_id": phoneNumberID}
 	b, _ := json.Marshal(map[string]any{"object": "whatsapp_business_account", "entry": []any{map[string]any{
-		"id": "waba", "changes": []any{map[string]any{"field": "messages", "value": value}}}}})
+		"id": DefaultWABA, "changes": []any{map[string]any{"field": "messages", "value": value}}}}})
+	return b
+}
+
+// ForWABA returns body with every entry[].id set to waba.
+func ForWABA(waba string, body []byte) []byte {
+	var n map[string]any
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber() // ids stay exact
+	if dec.Decode(&n) != nil {
+		return body
+	}
+	entries, _ := n["entry"].([]any)
+	for _, e := range entries {
+		if m, ok := e.(map[string]any); ok {
+			m["id"] = waba
+		}
+	}
+	b, err := json.Marshal(n)
+	if err != nil {
+		return body
+	}
 	return b
 }
 

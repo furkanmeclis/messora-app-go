@@ -68,14 +68,14 @@ func RunAPI(ctx context.Context) error {
 		return reportFatal(log, err)
 	}
 
-	// Start-up work of tenant #1: its setup link and the WhatsApp account
-	// from META_* settings. TODO(WP2): the platform admin opens tenants and
-	// connects their accounts.
+	// Start-up work of tenant #1: its setup link. TODO(WP2): the platform
+	// admin opens tenants. WhatsApp accounts are connected by each company
+	// in Settings; META_* credentials in the environment are not used.
 	first := tenant.WithID(ctx, tenant.DefaultID)
 	announceSetup(first, svc, log)
-	if err := svc.channels.EnsureFromEnv(first, cfg.Meta.WABAID, cfg.Meta.AccessToken.Reveal(), cfg.Meta.AppID, cfg.Meta.AppSecret.Reveal()); err != nil {
-		// Not fatal: the account can be connected from the panel.
-		log.Error("could not connect the WhatsApp account from META_* settings", "err", err)
+	if len(cfg.ObsoleteEnv) > 0 {
+		log.Warn("ignored: Meta credentials are per company now (Settings → WhatsApp / Meta connection); remove these variables",
+			"variables", cfg.ObsoleteEnv)
 	}
 
 	internal := internalServer(cfg.InternalAddr, reg, ready)

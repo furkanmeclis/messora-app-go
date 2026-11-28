@@ -47,10 +47,11 @@ const channels: Messages['channels'] = {
             'Yalnızca rakam; Meta Business Suite → WhatsApp hesapları bölümünde bulunur.',
         accessToken: 'Erişim belirteci',
         accessTokenHint: 'Şifrelenerek saklanır; bir daha gösterilmez.',
-        appId: 'Uygulama ID (isteğe bağlı)',
-        appSecret: 'Uygulama gizli anahtarı (önerilir)',
+        appId: 'Uygulama ID (App ID)',
+        appIdHint: 'Meta uygulamanız: App settings → Basic.',
+        appSecret: 'Uygulama gizli anahtarı (App secret)',
         appSecretHint:
-            "Webhook imzalarını doğrulamak için gerekir. Girilmezse Meta'dan gelen tüm webhook'lar reddedilir.",
+            "App ID ile aynı sayfada. Uygulamanızın gönderdiği her webhook'un imzasını doğrular; şifrelenerek saklanır, bir daha gösterilmez.",
         submit: 'Bağla',
         done: 'Hesap bağlandı. Telefon numaraları ve şablonlar içe aktarıldı.',
     },
@@ -143,7 +144,7 @@ const channels: Messages['channels'] = {
             'Bu değerleri Meta App panelinde WhatsApp → Configuration bölümüne girin. Geri çağırma adresine herkese açık HTTPS üzerinden erişilebilmelidir.',
         signatureOff: 'İmza doğrulaması kapalı',
         signatureOffHint:
-            "Uygulama gizli anahtarı tanımlı olmadığından Meta'dan gelen tüm webhook'lar reddediliyor: gelen mesaj ve teslim bilgisi alınmaz. Bir hesaba uygulama gizli anahtarını ekleyin (Düzenle / yenile) ya da META_APP_SECRET değişkenini ayarlayın.",
+            "Hiçbir hesapta uygulama gizli anahtarı olmadığından Meta'dan gelen tüm webhook'lar reddediliyor: gelen mesaj ve teslim bilgisi alınmaz. Bir hesaba uygulama gizli anahtarını ekleyin (Düzenle / token değiştir).",
         callbackUrl: 'Geri çağırma adresi (Callback URL)',
         verifyToken: 'Doğrulama belirteci (Verify token)',
         copyCallbackUrl: 'Geri çağırma adresini kopyala',
@@ -152,6 +153,140 @@ const channels: Messages['channels'] = {
         copyFailed:
             'Burada kopyalamaya izin verilmiyor; metni seçip kopyalayın.',
         fields: 'Abone olunacak alanlar',
+        moved: 'Geri çağırma adresiniz, doğrulama belirteciniz, bağlantı testi ve webhook durumu Ayarlar → WhatsApp / Meta altında.',
+        open: 'Meta bağlantısını aç',
+    },
+    meta: {
+        tab: 'WhatsApp / Meta',
+        title: 'WhatsApp / Meta bağlantısı',
+        description:
+            "Firmanızın kendi Meta uygulamasını bağlayın. Messora yalnızca sizin bilgilerinizi kullanır: Meta'nın webhook'ları size özel adrese gelir ve uygulama gizli anahtarınızla doğrulanır.",
+        method: {
+            title: 'Bağlantı yöntemi',
+            ownApp: 'Kendi Meta uygulamanız',
+            ownAppHint:
+                "Bir Meta uygulaması oluşturup WhatsApp ürününü eklersiniz; App ID, App secret ve System User token'ını buraya girersiniz. Tam kontrol; şimdi kullanılabilir.",
+            techProvider: 'Messora Tech Provider',
+            soon: 'Yakında',
+            techProviderHint:
+                'Uygulama oluşturmadan, birkaç tıklamayla "Meta ile bağla". Meta, Messora\'yı Tech Provider olarak onayladığında açılacak.',
+        },
+        steps: {
+            title: 'Kendi Meta uygulamanızı bağlayın',
+            description: 'Adımları sırayla izleyin.',
+            app: {
+                title: 'Meta uygulaması oluşturun',
+                body: 'Meta for Developers → My Apps → Create app ile Business türünde bir uygulama oluşturun ve WhatsApp ürününü ekleyin. App ID ve App secret, App settings → Basic sayfasındadır.',
+                link: "Meta for Developers'ı aç",
+            },
+            token: {
+                title: "System User token'ı oluşturun",
+                body: 'Business Settings → System users bölümünde Admin rolünde bir sistem kullanıcısı ekleyin, ona uygulamanızı ve WhatsApp hesabınızı atayın; whatsapp_business_messaging ve whatsapp_business_management izinleriyle süresi dolmayan bir token üretin.',
+            },
+            account: {
+                title: 'Bilgileri girin',
+                body: "App ID, App secret, System User token'ı ve WhatsApp Business Hesap ID'niz. Messora bunları kaydetmeden önce Meta ile doğrular; gizli bilgiler şifrelenerek saklanır ve bir daha gösterilmez.",
+                connect: 'Hesap bağla',
+                another: 'Başka bir hesap bağla',
+                manage: 'Bilgileri değiştirmek ve numaraları yönetmek için Kanallar sayfasına gidin.',
+            },
+            webhook: {
+                title: "Uygulamanızda webhook'u ayarlayın",
+                body: 'Uygulamanızda WhatsApp → Configuration → Webhook → Edit\'i açın, aşağıdaki geri çağırma adresini ve doğrulama belirtecini yapıştırıp "Verify and save"e tıklayın. Ardından şu alanlara abone olun:',
+            },
+            test: {
+                title: 'Bağlantıyı test edin',
+                body: "Messora token'ı, telefon numaralarını ve uygulamanızın WhatsApp hesabındaki webhook aboneliğini kontrol eder (eksikse abone eder), ardından webhook gelip gelmediğini gösterir.",
+            },
+        },
+        hostUrl: 'Alternatif adres',
+        hostUrlHint:
+            "Çalışma alanınızın kendi adresi de aynı webhook'ları kabul eder (mevcut kurulumlar için). Yukarıdaki geri çağırma adresini tercih edin: alan adınız değişse de değişmez.",
+        rotate: {
+            open: 'Yeni adres',
+            title: 'Yeni webhook adresi oluşturulsun mu?',
+            description:
+                'Adres sızdıysa kullanın. Yeni geri çağırma adresini Meta uygulamanıza girin; eski adres seçtiğiniz süre boyunca çalışmaya devam eder.',
+            grace: 'Eski adres',
+            graceNone: 'hemen kapansın',
+            graceDay: '24 saat çalışsın',
+            grace3: '3 gün çalışsın',
+            graceWeek: '7 gün çalışsın',
+            confirm: 'Yeni adres oluştur',
+            done: 'Yeni webhook adresi oluşturuldu. Meta uygulamanıza girin.',
+            previousUntil: 'Önceki adres {date} tarihine kadar çalışır.',
+        },
+        verify: {
+            open: 'Yeni doğrulama belirteci',
+            title: 'Doğrulama belirteci yenilensin mi?',
+            description:
+                'Meta bunu yalnızca geri çağırma adresi doğrulanırken ister. Eski belirteç hemen geçersiz olur; yeniden doğrularken yenisini girin.',
+            confirm: 'Yenile',
+            done: 'Doğrulama belirteci yenilendi.',
+        },
+        health: {
+            title: 'Bağlantı durumu',
+            description:
+                "Uygulamanızın gönderdiği webhook'lardan Messora'nın gördükleri.",
+            lastWebhook: 'Son webhook',
+            never: 'Henüz yok',
+            signatureFailures: 'Reddedilen imzalar',
+            lastAt: 'son: {date}',
+            mismatches: 'Bağlı olmayan hesaplara gelen olaylar',
+            noSecret:
+                "Henüz hiçbir hesapta uygulama gizli anahtarı yok; Meta'dan gelen tüm webhook'lar reddediliyor.",
+            signatureHint:
+                "Son webhook'ların imzası hatalıydı. App secret'ın, webhook'u buraya yönlendiren uygulamaya ait olduğunu kontrol edin.",
+            mismatchHint:
+                'Uygulamanız burada bağlı olmayan {waba} WhatsApp hesabı için olay gönderdi; bunlar işlenmedi. O hesabı bağlayın ya da uygulamanızda aboneliğini kaldırın.',
+            tokens: "Erişim token'ları",
+        },
+        test: {
+            button: 'Bağlantıyı test et',
+            ok: 'Bağlantı çalışıyor.',
+            failed: 'Test bir sorun buldu.',
+            none: 'Önce bir hesap bağlayın; test hesap başına çalışır.',
+            keys: {
+                app_secret: 'Uygulama bilgileri',
+                token: 'Erişim token’ı',
+                phone_numbers: 'Telefon numaraları',
+                subscription: 'Webhook aboneliği',
+                webhook: "Gelen webhook'lar",
+            },
+            codes: {
+                app_secret_missing:
+                    "Uygulama gizli anahtarı kayıtlı değil; bu hesabın webhook'ları reddediliyor. Düzenle / token değiştir ile ekleyin.",
+                app_id_missing:
+                    'App ID kayıtlı değil; token uygulamanızla doğrulanamaz ve medyalı şablon oluşturulamaz.',
+                app_ok: 'App ID ve App secret kayıtlı.',
+                token_invalid: "Meta token'ı reddetti: {detail}",
+                token_unchecked:
+                    "Meta token'ın bitiş tarihini bildirmedi. App ID ile App secret'ın aynı uygulamaya ait olduğunu kontrol edin ya da System User token'ı kullanın.",
+                token_other_app:
+                    "Token {token_app} uygulamasına ait, {app_id} App ID'sine değil. Aynı uygulamanın System User token'ını kullanın.",
+                token_expires:
+                    "Token'ın süresi {expires_at} tarihinde doluyor. Süresi dolmayan bir System User token'ıyla değiştirin.",
+                token_ok: 'Geçerli ve süresi dolmuyor.',
+                numbers_error:
+                    'Meta telefon numaralarını listelemeyi reddetti: {detail}',
+                numbers_none:
+                    'WhatsApp hesabında henüz telefon numarası yok; WhatsApp Manager’dan ekleyin.',
+                numbers_ok: '{count} telefon numarası bulundu.',
+                subscription_error:
+                    'Webhook aboneliği okunamadı ya da oluşturulamadı: {detail}',
+                subscribed_now:
+                    "Uygulamanız hesabın webhook'larına abone değildi; Messora şimdi abone etti.",
+                subscribed: "Uygulamanız hesabın webhook'larına abone.",
+                not_subscribed:
+                    "Uygulamanız hâlâ hesabın webhook'larına abone değil.",
+                webhook_none:
+                    'Henüz webhook gelmedi. Uygulamanızdaki geri çağırma adresini, doğrulama belirtecini ve abone olunan alanları kontrol edin; ilk olay bir sonraki mesaj ya da durum bildirimiyle gelir.',
+                webhook_unknown: 'Webhook durumu okunamadı.',
+                webhook_signature:
+                    "Webhook'lar geliyor ama sonuncusunun ({at}) imzası hatalıydı. App secret'ı kontrol edin.",
+                webhook_ok: 'Son webhook {at} geldi.',
+            },
+        },
     },
 };
 export default channels;

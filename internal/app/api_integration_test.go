@@ -77,8 +77,8 @@ type harness struct {
 }
 
 const (
-	testAppSecret   = "meta-app-secret-for-tests"   // gitleaks:allow (test fixture)
-	testVerifyToken = "meta-verify-token-for-tests" // gitleaks:allow (test fixture)
+	testAppSecret = "meta-app-secret-for-tests" // gitleaks:allow (test fixture)
+	testAppID     = whatsapptest.DefaultAppID
 )
 
 func newHarness(t *testing.T) *harness {
@@ -90,7 +90,7 @@ func newHarness(t *testing.T) *harness {
 	t.Cleanup(meta.Close)
 	cfg := &config.Config{PublicAppURL: "https://messora.test", EncryptionKey: bytes.Repeat([]byte{7}, 32),
 		Storage: config.StorageConfig{Driver: config.StorageLocal, LocalDir: t.TempDir(), SigningKey: bytes.Repeat([]byte{9}, 32)},
-		Meta:    config.MetaConfig{GraphBaseURL: meta.URL, GraphVersion: "v26.0", AppSecret: testAppSecret, VerifyToken: testVerifyToken}}
+		Meta:    config.MetaConfig{GraphBaseURL: meta.URL, GraphVersion: "v26.0", WebhookBaseURL: "https://hooks.messora.test"}}
 	cfg.Centrifugo.HMACSecret = testHMACSecret // see realtime_integration_test.go
 	// Tenant A is tenant #1, reached at the PUBLIC_APP_URL host.
 	if _, err := tenant.BootstrapDomains(context.Background(), tdb.Owner, cfg.PublicAppURL, ""); err != nil {
