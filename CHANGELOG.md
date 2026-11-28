@@ -253,7 +253,6 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
 
 - The flaky "right-click opens the panel menu" E2E (React error #441: a
   prefetch render failing on a 429 from `/me`).
-- The Meta connection E2E seeded its user into the removed `user_roles`.
 
 ### Added (WP7 — deployment)
 

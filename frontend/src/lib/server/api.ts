@@ -107,13 +107,32 @@ export async function api<T>(
 
     let res: Response;
     try {
-        res = await fetch(`${apiInternalUrl}/api/v1${path}`, {
-            method: o.method ?? 'GET',
-            headers: h,
-            body: o.body === undefined ? undefined : JSON.stringify(o.body),
-            cache: 'no-store',
-            signal: AbortSignal.timeout(o.timeoutMs ?? 15_000),
-        });
+        const send = () =>
+            fetch(`${apiInternalUrl}/api/v1${path}`, {
+                method: o.method ?? 'GET',
+                headers: h,
+                body: o.body === undefined ? undefined : JSON.stringify(o.body),
+                cache: 'no-store',
+                signal: AbortSignal.timeout(o.timeoutMs ?? 15_000),
+            });
+        res = await send();
+        // A server render must not fail (React #441 in production: "An
+        // error occurred in the Server Components render") because a
+        // burst of renders briefly used up the session's request budget.
+        // A read that would be allowed again within two seconds is retried
+        // once; anything longer (or any write) reaches the caller as 429.
+        const wait = Number(res.headers.get('retry-after'));
+        if (
+            res.status === 429 &&
+            (o.method ?? 'GET') === 'GET' &&
+            Number.isFinite(wait) &&
+            wait > 0 &&
+            wait <= 2
+        ) {
+            await res.body?.cancel();
+            await new Promise((r) => setTimeout(r, wait * 1000));
+            res = await send();
+        }
     } catch {
         if (staleMe) meCache.invalidate(staleMe);
         throw new ApiError(
