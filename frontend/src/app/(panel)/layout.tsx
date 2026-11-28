@@ -15,7 +15,7 @@ import type { Campaign, Conversation } from '@/lib/types';
 import { Topbar, type RunningCampaign } from './topbar';
 import { SetupBanner } from './setup-banner';
 import { SupportBanner } from './support-banner';
-import type { Membership } from '@/lib/auth/contracts';
+import { myMemberships } from '@/lib/server/memberships';
 
 export default async function PanelLayout({
     children,
@@ -61,11 +61,7 @@ export default async function PanelLayout({
           ]);
     // The person's other workspaces (the switcher); support sessions have none.
     const workspaces =
-        me.support || me.mfa_required
-            ? []
-            : await api<Membership[]>('/me/memberships')
-                  .then((r) => r.data)
-                  .catch(() => [] as Membership[]);
+        me.support || me.mfa_required ? [] : await myMemberships();
     // Channels the role may read; the API checks the same rules again when
     // it issues each subscription token.
     const channels: string[] = [];
