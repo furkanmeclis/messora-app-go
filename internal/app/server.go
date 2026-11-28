@@ -177,7 +177,10 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	if err != nil {
 		return nil, err
 	}
-	ch := channels.New(pool, sealer, wa, cfg.Meta.AppSecret.Reveal(), log)
+	ch := channels.New(pool, sealer, wa, log)
+	// A new workspace gets its Meta connection (webhook address and verify
+	// token) at once.
+	idsvc.SetTenantOpened(func(ctx context.Context) error { _, err := ch.Connection(ctx); return err })
 	// Token problems reach the owners and admins by e-mail (when SMTP is
 	// set up); the panel shows them regardless.
 	ch.SetNotifier(func(ctx context.Context, subject, body string) {
@@ -269,7 +272,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		return err
 	}
 	sh := settings.NewHandler(pool, svc.settings, svc.mail, svc.stores, log)
-	ch := channels.NewHandler(svc.channels, svc.cfg.PublicAppURL, svc.cfg.Meta.VerifyToken.Reveal(), log)
+	ch := channels.NewHandler(svc.channels, channels.HandlerOptions{PublicURL: svc.cfg.PublicAppURL, WebhookBaseURL: svc.cfg.Meta.WebhookBaseURL}, log)
 	aih := ai.NewHandler(svc.ai, log)
 	srv := apiServer{
 		identityHandler:   identity.NewHandler(svc.identity, log),
@@ -312,8 +315,15 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	// (logos) stay reachable from any host, e.g. in e-mails.
 	r.Handle(storage.PublicPrefix+"*", svc.stores.Handler())
 	r.With(byHost).Handle(storage.SignedPrefix+"*", svc.stores.Handler())
-	// Meta's webhooks: authenticated by signature, not by the API guard.
-	r.With(byHost).Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler(svc.cfg.Meta.VerifyToken.Reveal()))
+	// Meta's webhooks: authenticated by the tenant's verify token and app
+	// secrets, not by the API guard (docs/SECURITY.md "Meta webhook'ları").
+	// The keyed address names its tenant by the key, whatever the host;
+	// the host paths serve the tenant of the address.
+	keyed := svc.messaging.KeyedWebhookHandler(func(r *http.Request) string { return chi.URLParam(r, "webhookKey") })
+	r.Handle(channels.WebhookKeyPath+"{webhookKey}", keyed)
+	r.Handle("/webhooks"+channels.WebhookKeyPath+"{webhookKey}", keyed)
+	r.With(byHost).Handle("/webhooks/whatsapp", svc.messaging.WebhookHandler())
+	r.With(byHost).Handle("/webhooks/meta", svc.messaging.WebhookHandler())
 	r.Group(func(g chi.Router) {
 		g.Use(byHost, httpx.ClientMeta, guard.Middleware) // the guard applies per-operation body limits
 		api.HandlerWithOptions(srv, api.ChiServerOptions{

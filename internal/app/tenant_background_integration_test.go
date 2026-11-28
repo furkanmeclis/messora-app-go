@@ -19,12 +19,25 @@ import (
 )
 
 // Phase 17 WP3: background work, realtime, Redis and media of two tenants.
+// One harness (two containers, migrations) serves every check: each
+// harness costs several seconds under -race, and the checks only need two
+// tenants.
+func TestTenantBackgroundWork(t *testing.T) {
+	h := newHarness(t)
+	ownerA, _ := h.setupOwner()
+	hb := h.tenant("beta")
+	ownerB := hb.setupOwnerAs("owner@beta.test")
+	// Realtime first: the failed-jobs check writes ops hints to the outbox.
+	t.Run("realtime events stay in their tenant's channels", func(t *testing.T) { checkRealtimeChannels(t, h, hb) })
+	t.Run("signed media link is bound to the tenant host", func(t *testing.T) { checkSignedMediaLink(t, h, hb) })
+	t.Run("API rate limit keys are tenant-scoped", func(t *testing.T) { checkRateLimitKeys(t, h, ownerA) })
+	t.Run("import retention is per tenant", func(t *testing.T) { checkImportRetention(t, h, hb) })
+	t.Run("failed jobs are tenant-scoped", func(t *testing.T) { checkFailedJobsScope(t, h, hb, ownerA, ownerB) })
+}
 
 // A presigned local media link of tenant A works only at A's addresses:
 // at tenant B's host it is refused although its signature is valid.
-func TestSignedMediaLinkIsBoundToTheTenantHost(t *testing.T) {
-	h := newHarness(t)
-	hb := h.tenant("beta")
+func checkSignedMediaLink(t *testing.T, h, hb *harness) {
 	ctxA := h.ctx()
 	key, err := storage.Key(storage.TenantKey(ctxA), "media", "txt")
 	if err != nil {
@@ -69,9 +82,7 @@ func TestSignedMediaLinkIsBoundToTheTenantHost(t *testing.T) {
 
 // Realtime events of two tenants, relayed by the system pool, reach each
 // tenant's own wire channels only.
-func TestRealtimeEventsStayInTheirTenantsChannels(t *testing.T) {
-	h := newHarness(t)
-	hb := h.tenant("beta")
+func checkRealtimeChannels(t *testing.T, h, hb *harness) {
 	for _, x := range []*harness{h, hb} {
 		ev := realtime.NewNotificationEvent("test.notice")
 		if err := realtime.Publish(x.ctx(), x.pool, realtime.InboxChannel, ev); err != nil {
@@ -94,7 +105,12 @@ func TestRealtimeEventsStayInTheirTenantsChannels(t *testing.T) {
 	}
 	got := map[string]int{}
 	for _, e := range rec.events {
-		got[e.Topic]++
+		if !strings.HasPrefix(e.Topic, realtime.ChannelPrefix(h.tenantID)) && !strings.HasPrefix(e.Topic, realtime.ChannelPrefix(hb.tenantID)) {
+			t.Fatalf("published outside both tenants: %q", e.Topic)
+		}
+		if strings.Contains(string(e.Payload), "test.notice") {
+			got[e.Topic]++
+		}
 	}
 	if got[h.wire(realtime.InboxChannel)] != 1 || got[hb.wire(realtime.InboxChannel)] != 1 || len(got) != 2 {
 		t.Fatalf("published on %v, want each tenant's inbox:all once", got)
@@ -103,9 +119,7 @@ func TestRealtimeEventsStayInTheirTenantsChannels(t *testing.T) {
 
 // API rate limits of sessions count per tenant, under the tenant's Redis
 // prefix; nothing of a session is kept under a global key.
-func TestAPIRateLimitKeysAreTenantScoped(t *testing.T) {
-	h := newHarness(t)
-	owner, _ := h.setupOwner()
+func checkRateLimitKeys(t *testing.T, h *harness, owner string) {
 	r := h.do(call{method: "GET", path: "/api/v1/me", token: owner})
 	h.expect(r, 200, "")
 	userID := r.data()["user"].(map[string]any)["id"].(string)
@@ -122,9 +136,7 @@ func TestAPIRateLimitKeysAreTenantScoped(t *testing.T) {
 
 // The import retention job removes a tenant's old imports and their files,
 // and nothing of another tenant's.
-func TestImportRetentionIsPerTenant(t *testing.T) {
-	h := newHarness(t)
-	hb := h.tenant("beta")
+func checkImportRetention(t *testing.T, h, hb *harness) {
 	old := time.Now().Add(-contacts.ImportRetention - time.Hour)
 	type imp struct {
 		x        *harness

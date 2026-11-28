@@ -75,7 +75,7 @@ func IsSystem(ctx context.Context) bool {
 	return ok
 }
 
-// PlatformRole is the database role of platform work (migration 00030):
+// PlatformRole is the database role of platform work (migration 00031):
 // it writes the tenant registry and the catalogue and sees memberships and
 // sessions of every tenant, but cannot bypass row-level security otherwise.
 const PlatformRole = "messora_platform"

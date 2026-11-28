@@ -44,7 +44,8 @@ const wizard = {
         appId: 'App ID',
         accessToken: 'Permanent access token',
         appSecret: 'App secret',
-        appSecretHint: 'Used to verify incoming webhooks. Recommended.',
+        appSecretHint:
+            'Verifies the signature of every webhook your app sends. Required.',
         connect: 'Connect',
         connecting: 'Connecting…',
         guide: 'Where do I find these?',

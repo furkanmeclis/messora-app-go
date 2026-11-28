@@ -14,7 +14,7 @@ const (
 )
 
 // ReservedSlugs are sub-domain labels the platform keeps for itself. Keep
-// in sync with tenant_reserved_slugs() (migration 00030) and RESERVED_SLUGS
+// in sync with tenant_reserved_slugs() (migration 00031) and RESERVED_SLUGS
 // in frontend/src/lib/auth/slug.ts; tests compare all three.
 var ReservedSlugs = []string{
 	"www", "admin", "api", "app", "hooks", "dokploy", "cdn", "mail", "docs", "status", "help", "support",

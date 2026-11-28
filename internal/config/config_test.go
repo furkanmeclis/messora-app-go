@@ -198,8 +198,7 @@ func TestMetaSettings(t *testing.T) {
 	}
 	for _, env := range []map[string]string{
 		{"POSTGRES_PASSWORD": "pw", "META_GRAPH_API_VERSION": "26.0"},
-		{"POSTGRES_PASSWORD": "pw", "META_WABA_ID": "123"},
-		{"POSTGRES_PASSWORD": "pw", "META_ACCESS_TOKEN": "EAAG-token"},
+		{"POSTGRES_PASSWORD": "pw", "HOOKS_PUBLIC_URL": "hooks.example.com"},
 	} {
 		c, err := loadFrom(envFrom(env), nil)
 		if err != nil {
@@ -208,6 +207,35 @@ func TestMetaSettings(t *testing.T) {
 		if err := c.Validate(RoleMigrate); err == nil {
 			t.Errorf("%v accepted", env)
 		}
+	}
+}
+
+func TestMetaWebhookBaseAndObsoleteEnv(t *testing.T) {
+	for _, c := range []struct {
+		env  map[string]string
+		want string
+	}{
+		{map[string]string{"PUBLIC_APP_URL": "https://acme.example.com/"}, "https://acme.example.com/webhooks"},
+		{map[string]string{"PUBLIC_APP_URL": "https://app.messora.tech", "TENANT_BASE_DOMAIN": "Messora.tech."}, "https://hooks.messora.tech"},
+		{map[string]string{"PUBLIC_APP_URL": "http://localhost:8090", "TENANT_BASE_DOMAIN": "localtest.me"}, "http://hooks.localtest.me"},
+		{map[string]string{"TENANT_BASE_DOMAIN": "messora.tech", "HOOKS_PUBLIC_URL": "https://in.example.net/"}, "https://in.example.net"},
+	} {
+		cfg, err := loadFrom(envFrom(c.env), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Meta.WebhookBaseURL != c.want {
+			t.Errorf("%v: webhook base %q, want %q", c.env, cfg.Meta.WebhookBaseURL, c.want)
+		}
+	}
+	// The old platform-wide Meta credentials are ignored and reported;
+	// a verify token left in an old secrets file is not.
+	cfg, err := loadFrom(envFrom(map[string]string{"META_APP_SECRET": "s3cret", "META_WABA_ID": "1"}), map[string]string{"META_VERIFY_TOKEN": "old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.ObsoleteEnv, ",") != "META_APP_SECRET,META_WABA_ID" {
+		t.Fatalf("obsolete: %v", cfg.ObsoleteEnv)
 	}
 }
 

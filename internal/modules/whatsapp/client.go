@@ -286,6 +286,29 @@ func (c *Client) SubscribeApp(ctx context.Context, wabaID, token string) error {
 	return err
 }
 
+// SubscribedApp is an app that receives the WABA's webhooks.
+type SubscribedApp struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// SubscribedApps lists the apps subscribed to the WABA's webhooks.
+func (c *Client) SubscribedApps(ctx context.Context, wabaID, token string) ([]SubscribedApp, error) {
+	var out struct {
+		Data []struct {
+			App SubscribedApp `json:"whatsapp_business_api_data"`
+		} `json:"data"`
+	}
+	if _, err := c.do(ctx, http.MethodGet, c.endpoint(url.PathEscape(wabaID)+"/subscribed_apps", nil), token, nil, "", &out); err != nil {
+		return nil, err
+	}
+	apps := make([]SubscribedApp, 0, len(out.Data))
+	for _, d := range out.Data {
+		apps = append(apps, d.App)
+	}
+	return apps, nil
+}
+
 // ── Templates ──────────────────────────────────────────────────────────────
 
 // ListTemplates returns every template of the WABA, following pagination.

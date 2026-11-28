@@ -167,6 +167,18 @@ func (s *Service) createTenant(ctx context.Context, q *db.Queries, nt NewTenant,
 	return t, nil
 }
 
+// opened finishes a new workspace after its transaction committed.
+func (s *Service) opened(ctx context.Context, t db.Tenant) {
+	if s.o.InvalidateHosts != nil {
+		s.o.InvalidateHosts(s.o.Hosts.TenantHost(t.Slug))
+	}
+	if s.o.TenantOpened != nil {
+		if err := s.o.TenantOpened(tenant.WithID(ctx, t.ID)); err != nil {
+			s.o.Logger.ErrorContext(ctx, "prepare new workspace", "tenant_id", t.ID, "err", err)
+		}
+	}
+}
+
 // CreateTenant opens a workspace from the platform admin panel.
 func (s *Service) CreateTenant(ctx context.Context, nt NewTenant, admin *principal.Principal) (db.Tenant, error) {
 	nt.Slug = strings.ToLower(strings.TrimSpace(nt.Slug))
@@ -185,6 +197,9 @@ func (s *Service) CreateTenant(ctx context.Context, nt NewTenant, admin *princip
 		return audit.Record(pctx, q, audit.Entry{Action: "tenant.create", EntityType: "tenant", EntityID: &t.ID, Tenant: &t.ID,
 			Changes: map[string]any{"slug": t.Slug, "name": t.Name, "subscription_status": t.SubscriptionStatus}})
 	})
+	if err == nil {
+		s.opened(ctx, t)
+	}
 	return t, err
 }
 
@@ -286,9 +301,7 @@ func (s *Service) Signup(ctx context.Context, req api.SignupRequest) (api.Signup
 	if err != nil {
 		return api.Signup{}, err
 	}
-	if s.o.InvalidateHosts != nil {
-		s.o.InvalidateHosts(s.o.Hosts.TenantHost(t.Slug))
-	}
+	s.opened(ctx, t)
 	s.sendVerification(ctx, t.ID, u, token)
 	return api.Signup{Email: email, Tenant: api.TenantRef{Id: t.ID, Slug: t.Slug, Name: t.Name}, VerificationRequired: true}, nil
 }

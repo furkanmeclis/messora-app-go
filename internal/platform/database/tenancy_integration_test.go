@@ -30,7 +30,7 @@ import (
 var platformTables = []string{
 	"goose_db_version", "tenants", "tenant_domains", "platform_settings",
 	"permissions", "roles", "role_permissions",
-	"meta_rates", "meta_rate_markets", "ai_model_prices",
+	"meta_rates", "meta_rate_markets", "ai_model_prices", "meta_webhook_keys",
 	// Global accounts (WP2): a person, their password and second factor
 	// belong to no company; memberships and sessions do.
 	"users", "user_recovery_codes",
@@ -38,9 +38,10 @@ var platformTables = []string{
 	"platform_sessions", "email_verification_tokens", "platform_audit_logs",
 }
 
-// platformTenantRef are platform tables whose tenant_id names the company
-// a row is about (routing, the sign-up to verify, the audit subject).
-var platformTenantRef = []string{"tenant_domains", "email_verification_tokens", "platform_audit_logs"}
+// routingTables are platform tables whose tenant_id names the tenant a
+// row is about: routing (read before any tenant is known), the sign-up to
+// verify, the audit subject.
+var routingTables = []string{"tenant_domains", "meta_webhook_keys", "email_verification_tokens", "platform_audit_logs"}
 
 // nullableTenant may hold rows without a tenant (platform events).
 var nullableTenant = []string{"outbox_events"}
@@ -76,7 +77,7 @@ func TestEveryTableIsTenantScoped(t *testing.T) {
 		if slices.Contains(platformTables, name) {
 			// tenant_domains belongs to the registry: its tenant_id names
 			// the tenant a host routes to, read before any tenant is known.
-			if hasCol && !slices.Contains(platformTenantRef, name) {
+			if hasCol && !slices.Contains(routingTables, name) {
 				t.Errorf("platform table %s has a tenant_id: scope it or drop it from the allowlist", name)
 			}
 			continue
@@ -389,7 +390,7 @@ func TestMigrationMovesUsersIntoMemberships(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.UpTo(ctx, 29); err != nil {
+	if _, err := p.UpTo(ctx, 30); err != nil {
 		t.Fatal(err)
 	}
 	seed := `

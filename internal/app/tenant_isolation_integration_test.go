@@ -116,12 +116,15 @@ func TestTenantIsolationMatrix(t *testing.T) {
 	accountA := h.accountID(ownerA)
 	r = h.do(call{method: "GET", path: "/api/v1/me", token: ownerA})
 	userA := r.data()["user"].(map[string]any)["id"].(string)
+	connA := h.metaConnection(ownerA)
+	hookKeyA, verifyA := keyOf(connA), connA["verify_token"].(string)
 
 	secretsA := map[string]string{
 		"contact": contactA, "conversation": convA, "message": msgA, "tag": tagA, "group": groupA, "segment": segA,
 		"campaign": campA, "automation": autoA, "webhook endpoint": hookA, "api key": keyAID, "ai provider": provA,
 		"offer": offerA, "invitation": inviteA, "template": templateA, "account": accountA, "phone number": phoneA,
 		"user": userA, "organisation name": "Acme Alpha", "message body": "merhaba from alpha", "invitee": "agent@alpha.test",
+		"webhook key": hookKeyA, "verify token": verifyA, "waba": testWABA,
 	}
 
 	// ── Tenant B on its own host, with overlapping names ────────────────
@@ -169,7 +172,7 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		"/api/v1/ai/providers", "/api/v1/ai/profiles", "/api/v1/ai/usage/summary?from=" + time.Now().Add(-24*time.Hour).UTC().Format(time.RFC3339) + "&to=" + time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "/api/v1/offers", "/api/v1/users",
 		"/api/v1/invitations", "/api/v1/channels/accounts", "/api/v1/channels/phone-numbers", "/api/v1/contact-imports",
 		"/api/v1/ops/overview", "/api/v1/me", "/api/v1/me/sessions", "/api/v1/contacts/attribute-keys",
-		"/api/v1/system/failed-jobs", "/api/v1/system/status",
+		"/api/v1/system/failed-jobs", "/api/v1/system/status", "/api/v1/channels/meta-connection",
 		// WP2: memberships, support access, the shared catalogue.
 		"/api/v1/me/memberships", "/api/v1/support-access", "/api/v1/settings/meta-rates", "/api/v1/ai/prices",
 	}
@@ -221,6 +224,9 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		{method: "PATCH", path: "/api/v1/users/" + userA, body: map[string]any{"status": "disabled"}},
 		{method: "POST", path: "/api/v1/conversations/" + convA + "/close"},
 		{method: "POST", path: "/api/v1/contacts/" + contactA + "/notes", body: map[string]any{"body": "from beta"}},
+		{method: "POST", path: "/api/v1/channels/accounts/" + accountA + "/test"},
+		{method: "POST", path: "/api/v1/channels/accounts/" + accountA + "/check"},
+		{method: "PATCH", path: "/api/v1/channels/accounts/" + accountA, body: map[string]any{"app_secret": "pwned-secret"}},
 	} {
 		c.token = ownerB
 		if r := hb.do(c); r.status < 400 || r.status == 500 {
@@ -230,6 +236,19 @@ func TestTenantIsolationMatrix(t *testing.T) {
 	// A's rows are untouched.
 	if got := h.contactOf(ownerA, testCustomer); got["name"] == "pwned" {
 		t.Fatal("B renamed A's contact")
+	}
+	// B rotating its own webhook values leaves A's alone, and A's webhook
+	// address keeps answering only to A's verify token.
+	hb.expect(hb.do(call{method: "POST", path: "/api/v1/channels/meta-connection/webhook-key", token: ownerB, body: map[string]any{"grace_hours": 0}}), 200, "")
+	hb.expect(hb.do(call{method: "POST", path: "/api/v1/channels/meta-connection/verify-token", token: ownerB}), 200, "")
+	if again := h.metaConnection(ownerA); keyOf(again) != hookKeyA || again["verify_token"] != verifyA {
+		t.Fatal("B's rotation changed A's webhook values")
+	}
+	if code, _ := handshake(t, h.hookURL(hookKeyA), verifyA, ""); code != 200 {
+		t.Fatalf("A's webhook address after B's rotation: %d", code)
+	}
+	if code, _ := handshake(t, h.hookURL(hookKeyA), hb.metaConnection(ownerB)["verify_token"].(string), ""); code != 403 {
+		t.Fatalf("B's verify token at A's address: %d", code)
 	}
 	h.expect(h.do(call{method: "GET", path: "/api/v1/api-keys/whoami", token: keyA, noBFF: true}), 200, "")
 	h.expect(h.do(call{method: "GET", path: "/api/v1/me", token: ownerA}), 200, "")

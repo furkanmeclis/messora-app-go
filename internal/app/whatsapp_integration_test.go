@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	testWABA     = "102030405060"
+	testWABA     = whatsapptest.DefaultWABA
 	testPNID     = "109876543210"
 	testCustomer = "905551112233"
 	testToken    = "EAAG-test-access-token-0123456789" // gitleaks:allow (test fixture)
@@ -38,9 +38,9 @@ func (h *harness) connect() (token string, phoneID string) {
 	h.meta.AddTemplate(testWABA, whatsapp.TemplateInfo{ID: "778", Name: "promo", Language: "en", Category: "MARKETING", Status: "PENDING"})
 	token, _ = h.setupOwner()
 	r := h.do(call{method: "POST", path: "/api/v1/channels/accounts", token: token, body: map[string]any{
-		"name": "Acme WhatsApp", "waba_id": testWABA, "access_token": testToken}})
+		"name": "Acme WhatsApp", "waba_id": testWABA, "app_id": testAppID, "app_secret": testAppSecret, "access_token": testToken}})
 	h.expect(r, 201, "")
-	if r.data()["app_secret_configured"] != false || r.data()["status"] != "active" {
+	if r.data()["app_secret_configured"] != true || r.data()["status"] != "active" {
 		h.t.Fatalf("account: %s", r.raw)
 	}
 	if _, ok := r.data()["access_token"]; ok {
@@ -58,6 +58,14 @@ func (h *harness) connect() (token string, phoneID string) {
 		h.t.Fatalf("numbers: %s", r.raw)
 	}
 	return token, n["id"].(string)
+}
+
+// metaConnection returns the workspace's Meta connection settings.
+func (h *harness) metaConnection(token string) map[string]any {
+	h.t.Helper()
+	r := h.do(call{method: "GET", path: "/api/v1/channels/meta-connection", token: token})
+	h.expect(r, 200, "")
+	return r.data()
 }
 
 // webhook delivers a signed body and processes every pending event.
@@ -128,14 +136,24 @@ func TestWebhookVerificationAndSignature(t *testing.T) {
 		b, _ := io.ReadAll(res.Body)
 		return res.StatusCode, string(b)
 	}
-	if code, body := get(url.Values{"hub.mode": {"subscribe"}, "hub.verify_token": {testVerifyToken}, "hub.challenge": {"1158201444"}}); code != 200 || body != "1158201444" {
+	body := whatsapptest.InboundText(testPNID, testCustomer, "wamid.in1", "hi", "Ali", time.Now())
+	// Before the workspace has an account with an app secret nothing is
+	// accepted, and before its connection exists no verify token matches.
+	if code, _ := whatsapptest.Deliver(h.ctx(), h.srv.URL+"/webhooks/whatsapp", testAppSecret, body); code != 401 {
+		t.Fatalf("webhook without any app secret: %d", code)
+	}
+	if code, _ := get(url.Values{"hub.mode": {"subscribe"}, "hub.verify_token": {""}, "hub.challenge": {"1"}}); code != 403 {
+		t.Fatalf("handshake without a connection: %d", code)
+	}
+	token, _ := h.connect()
+	verify := h.metaConnection(token)["verify_token"].(string)
+	if code, body := get(url.Values{"hub.mode": {"subscribe"}, "hub.verify_token": {verify}, "hub.challenge": {"1158201444"}}); code != 200 || body != "1158201444" {
 		t.Fatalf("handshake: %d %q", code, body)
 	}
 	if code, _ := get(url.Values{"hub.mode": {"subscribe"}, "hub.verify_token": {"wrong"}, "hub.challenge": {"1"}}); code != 403 {
 		t.Fatalf("wrong verify token accepted: %d", code)
 	}
 
-	body := whatsapptest.InboundText(testPNID, testCustomer, "wamid.in1", "hi", "Ali", time.Now())
 	if code, _ := whatsapptest.Deliver(h.ctx(), h.srv.URL+"/webhooks/whatsapp", "not-the-secret", body); code != 401 {
 		t.Fatalf("bad signature: %d", code)
 	}
@@ -148,6 +166,9 @@ func TestWebhookVerificationAndSignature(t *testing.T) {
 	if n := h.count("SELECT count(*) FROM webhook_events"); n != 0 {
 		t.Fatalf("rejected webhooks must not be stored, got %d", n)
 	}
+	if h := h.metaConnection(token)["health"].(map[string]any); h["signature_failures"] != float64(2) || h["last_signature_failure_at"] == nil {
+		t.Fatalf("signature failures not counted: %v", h)
+	}
 	// Replays of an identical delivery are stored once.
 	for range 3 {
 		if code, _ := whatsapptest.Deliver(h.ctx(), h.srv.URL+"/webhooks/whatsapp", testAppSecret, body); code != 200 {
@@ -159,6 +180,9 @@ func TestWebhookVerificationAndSignature(t *testing.T) {
 	}
 	if n := h.count("SELECT count(*) FROM outbox_events WHERE topic = 'task:whatsapp:webhook'"); n != 1 {
 		t.Fatalf("processing scheduled %d times", n)
+	}
+	if h.metaConnection(token)["health"].(map[string]any)["last_webhook_at"] == nil {
+		t.Fatal("last webhook time not recorded")
 	}
 }
 
@@ -441,17 +465,17 @@ func TestChannelPermissionsAndAPIKeySend(t *testing.T) {
 	h.expect(h.do(call{method: "GET", path: "/api/v1/channels/accounts", token: key, noBFF: true}), 403, "")
 	h.expect(h.do(call{method: "GET", path: "/api/v1/templates", token: key, noBFF: true}), 403, "")
 
-	r = h.do(call{method: "GET", path: "/api/v1/channels/webhook", token: token})
-	h.expect(r, 200, "")
-	if r.data()["callback_url"] != "https://messora.test/webhooks/whatsapp" || r.data()["verify_token"] != testVerifyToken || r.data()["signature_verification"] != true {
-		t.Fatalf("webhook setup: %s", r.raw)
+	c := h.metaConnection(token)
+	if !strings.HasPrefix(c["callback_url"].(string), "https://hooks.messora.test/meta/") || c["host_callback_url"] != "https://messora.test/webhooks/whatsapp" ||
+		len(c["verify_token"].(string)) != 52 || c["signature_verification"] != true || c["method"] != "own_app" || c["tech_provider_enabled"] != false {
+		t.Fatalf("meta connection: %v", c)
 	}
 	// Accounts with history cannot be removed; disabling works.
 	acc := h.do(call{method: "GET", path: "/api/v1/channels/accounts", token: token}).list()[0].(map[string]any)["id"].(string)
 	h.expect(h.do(call{method: "DELETE", path: "/api/v1/channels/accounts/" + acc, token: token}), 409, "ACCOUNT_HAS_MESSAGES")
 	r = h.do(call{method: "PATCH", path: "/api/v1/channels/accounts/" + acc, token: token, body: map[string]any{"status": "disabled"}})
 	h.expect(r, 200, "")
-	h.expect(h.do(call{method: "POST", path: "/api/v1/channels/accounts", token: token, body: map[string]any{"name": "dup", "waba_id": testWABA, "access_token": testToken}}), 409, "ACCOUNT_EXISTS")
+	h.expect(h.do(call{method: "POST", path: "/api/v1/channels/accounts", token: token, body: map[string]any{"name": "dup", "waba_id": testWABA, "app_id": testAppID, "app_secret": testAppSecret, "access_token": testToken}}), 409, "ACCOUNT_EXISTS")
 	if h.count("SELECT count(*) FROM audit_logs WHERE action LIKE 'channel.%'") < 2 {
 		t.Fatal("channel changes not audited")
 	}

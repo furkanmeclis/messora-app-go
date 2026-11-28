@@ -83,6 +83,10 @@ type Options struct {
 	// InvalidateHosts drops cached host resolutions after a workspace
 	// was opened (tenant.Resolver.Invalidate).
 	InvalidateHosts func(hosts ...string)
+	// TenantOpened runs after a workspace was created (sign-up or the admin
+	// panel) with ctx scoped to it, e.g. to create its Meta connection so
+	// its webhook address exists from the start. Errors are logged.
+	TenantOpened func(ctx context.Context) error
 }
 
 // Service implements identity use cases.
@@ -125,6 +129,10 @@ func New(pool *pgxpool.Pool, rdb goredis.UniversalClient, sealer *crypto.Sealer,
 		limiter: ratelimit.New(rdb, "messora:rl"), o: o, now: time.Now,
 	}
 }
+
+// SetTenantOpened installs Options.TenantOpened (wired after the modules
+// it calls exist).
+func (s *Service) SetTenantOpened(fn func(ctx context.Context) error) { s.o.TenantOpened = fn }
 
 // Hosts returns the platform addresses the service builds links with.
 func (s *Service) Hosts() tenant.Hosts { return s.o.Hosts }

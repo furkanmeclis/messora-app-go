@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/furkanmeclis/messora-app-go/internal/api"
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/storage"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/principal"
 )
 
@@ -15,17 +18,31 @@ import (
 var WebhookFields = []string{"messages", "message_template_status_update", "message_template_quality_update",
 	"phone_number_quality_update", "account_update", "business_capability_update", "user_preferences"}
 
+// WebhookKeyPath is the path of a tenant's keyed webhook address below the
+// webhook base URL: <base>/meta/<key>. The API also serves it under
+// /webhooks, so <PUBLIC_APP_URL>/webhooks/meta/<key> works through the
+// edge proxy's /webhooks route.
+const WebhookKeyPath = "/meta/"
+
+// HostWebhookPath is the webhook at a tenant's own address.
+const HostWebhookPath = "/webhooks/whatsapp"
+
+// HandlerOptions are the public addresses the handler shows.
+type HandlerOptions struct {
+	PublicURL      string // PUBLIC_APP_URL, for the scheme of host addresses
+	WebhookBaseURL string // config.MetaConfig.WebhookBaseURL
+}
+
 // Handler serves the channel and template operations.
 type Handler struct {
-	svc         *Service
-	log         *slog.Logger
-	callbackURL string
-	verifyToken string
+	svc  *Service
+	log  *slog.Logger
+	opts HandlerOptions
 }
 
 // NewHandler returns the handler.
-func NewHandler(svc *Service, publicURL, verifyToken string, log *slog.Logger) *Handler {
-	return &Handler{svc: svc, log: log, callbackURL: publicURL + "/webhooks/whatsapp", verifyToken: verifyToken}
+func NewHandler(svc *Service, opts HandlerOptions, log *slog.Logger) *Handler {
+	return &Handler{svc: svc, log: log, opts: opts}
 }
 
 func accountToAPI(a db.WhatsappAccount) api.WhatsAppAccount {
@@ -89,7 +106,7 @@ func (h *Handler) ConnectWhatsAppAccount(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	actor := principal.From(r.Context())
-	in := AccountInput{Name: req.Name, WABAID: req.WabaId, AccessToken: deref(req.AccessToken), AppID: deref(req.AppId), AppSecret: deref(req.AppSecret)}
+	in := AccountInput{Name: req.Name, WABAID: req.WabaId, AccessToken: deref(req.AccessToken), AppID: req.AppId, AppSecret: deref(req.AppSecret)}
 	acc, err := h.svc.Connect(r.Context(), in, &actor.ID)
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
@@ -167,16 +184,101 @@ func (h *Handler) SetDefaultPhoneNumber(w http.ResponseWriter, r *http.Request, 
 	httpx.NoContent(w)
 }
 
-// GetWebhookSetup implements api.ServerInterface.
-func (h *Handler) GetWebhookSetup(w http.ResponseWriter, r *http.Request) {
+// hostCallbackURL is the webhook at the address of the request (the
+// tenant's own host), with PUBLIC_APP_URL's scheme.
+func (h *Handler) hostCallbackURL(r *http.Request) string {
+	host := storage.RequestHost(r.Context())
+	u, err := url.Parse(h.opts.PublicURL)
+	if host == "" || err != nil || u.Scheme == "" {
+		return h.opts.PublicURL + HostWebhookPath
+	}
+	return u.Scheme + "://" + host + HostWebhookPath
+}
+
+func (h *Handler) connectionToAPI(r *http.Request, c Connection) (api.MetaConnection, error) {
 	secrets, err := h.svc.AppSecrets(r.Context())
+	if err != nil {
+		return api.MetaConnection{}, err
+	}
+	row := c.Row
+	return api.MetaConnection{
+		Method:                api.MetaConnectionMethod(row.Method),
+		CallbackUrl:           h.opts.WebhookBaseURL + WebhookKeyPath + c.WebhookKey,
+		HostCallbackUrl:       h.hostCallbackURL(r),
+		VerifyToken:           c.VerifyToken,
+		Fields:                append([]string(nil), WebhookFields...),
+		SignatureVerification: len(secrets) > 0,
+		TechProviderEnabled:   h.svc.TechProviderEnabled(r.Context()),
+		WebhookKeyRotatedAt:   row.WebhookKeyRotatedAt,
+		PreviousKeyExpiresAt:  futureOrNil(row.PreviousKeyExpiresAt),
+		VerifyTokenRotatedAt:  row.VerifyTokenRotatedAt,
+		Health: api.MetaWebhookHealth{LastWebhookAt: row.LastWebhookAt, SignatureFailures: row.SignatureFailures,
+			LastSignatureFailureAt: row.LastSignatureFailureAt, WabaMismatches: row.WabaMismatches,
+			LastWabaMismatchAt: row.LastWabaMismatchAt, LastMismatchWabaId: row.LastMismatchWabaID},
+	}, nil
+}
+
+func futureOrNil(t *time.Time) *time.Time {
+	if t == nil || !t.After(time.Now()) {
+		return nil
+	}
+	return t
+}
+
+func (h *Handler) writeConnection(w http.ResponseWriter, r *http.Request, c Connection, err error) {
 	if err != nil {
 		httpx.WriteError(w, r, err, h.log)
 		return
 	}
-	fields := append([]string(nil), WebhookFields...)
-	httpx.JSON(w, r, http.StatusOK, api.WebhookSetup{CallbackUrl: h.callbackURL, VerifyToken: h.verifyToken,
-		SignatureVerification: len(secrets) > 0, Fields: &fields})
+	out, err := h.connectionToAPI(r, c)
+	if err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// GetMetaConnection implements api.ServerInterface.
+func (h *Handler) GetMetaConnection(w http.ResponseWriter, r *http.Request) {
+	c, err := h.svc.Connection(r.Context())
+	h.writeConnection(w, r, c, err)
+}
+
+// RotateMetaWebhookKey implements api.ServerInterface.
+func (h *Handler) RotateMetaWebhookKey(w http.ResponseWriter, r *http.Request) {
+	var req api.RotateMetaWebhookKeyRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	c, err := h.svc.RotateWebhookKey(r.Context(), time.Duration(req.GraceHours)*time.Hour)
+	h.writeConnection(w, r, c, err)
+}
+
+// RotateMetaVerifyToken implements api.ServerInterface.
+func (h *Handler) RotateMetaVerifyToken(w http.ResponseWriter, r *http.Request) {
+	c, err := h.svc.RotateVerifyToken(r.Context())
+	h.writeConnection(w, r, c, err)
+}
+
+// TestWhatsAppAccount implements api.ServerInterface.
+func (h *Handler) TestWhatsAppAccount(w http.ResponseWriter, r *http.Request, id api.AccountId) {
+	res, err := h.svc.TestConnection(r.Context(), id)
+	if err != nil {
+		httpx.WriteError(w, r, err, h.log)
+		return
+	}
+	checks := make([]api.MetaConnectionCheck, len(res.Checks))
+	for i, c := range res.Checks {
+		params := c.Params
+		if params == nil {
+			params = map[string]string{}
+		}
+		checks[i] = api.MetaConnectionCheck{Key: api.MetaConnectionCheckKey(c.Key), Status: api.MetaConnectionCheckStatus(c.Status),
+			Code: c.Code, Params: params, Message: c.Message}
+	}
+	httpx.JSON(w, r, http.StatusOK, api.MetaConnectionTest{Ok: res.OK(), Checks: checks, PhoneNumbers: res.PhoneNumbers,
+		Subscribed: res.Subscribed, SubscribedNow: res.SubscribedNow, Account: accountToAPI(res.Account)})
 }
 
 // ListTemplates implements api.ServerInterface.

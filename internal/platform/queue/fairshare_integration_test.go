@@ -95,8 +95,9 @@ func TestFairShareOnARealWorker(t *testing.T) {
 	mu.Lock()
 	peak := peakA
 	mu.Unlock()
-	if peak > concurrency/2 {
-		t.Fatalf("tenant A held %d of %d slots, share 0.5", peak, concurrency)
+	// Its share (2) plus the slots it may borrow while the headroom (1) stays idle.
+	if peak > concurrency-limiter.Headroom(concurrency/2) {
+		t.Fatalf("tenant A held %d of %d slots, share 0.5, headroom %d", peak, concurrency, limiter.Headroom(concurrency/2))
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {

@@ -36,7 +36,6 @@ const (
 	KeyBFFSecret              = "BFF_SHARED_SECRET"
 	KeyCentrifugoAPIKey       = "CENTRIFUGO_API_KEY"
 	KeyCentrifugoHMAC         = "CENTRIFUGO_HMAC_SECRET"
-	KeyMetaVerifyToken        = "META_VERIFY_TOKEN"
 )
 
 type generator func() (string, error)
@@ -50,7 +49,6 @@ var managed = map[string]generator{
 	KeyBFFSecret:              urlToken(32),
 	KeyCentrifugoAPIKey:       urlToken(32),
 	KeyCentrifugoHMAC:         urlToken(48),
-	KeyMetaVerifyToken:        urlToken(24),
 }
 
 // ManagedKeys lists the keys in a stable order.
@@ -156,7 +154,7 @@ func validate(v map[string]string) error {
 	if len(v[KeyBFFSecret]) < 32 {
 		return errors.New("provision: BFF_SHARED_SECRET must be at least 32 characters")
 	}
-	for _, k := range []string{KeyPostgresPassword, KeyPostgresAppPassword, KeyPostgresSystemPassword, KeyRedisPassword, KeyCentrifugoAPIKey, KeyCentrifugoHMAC, KeyMetaVerifyToken} {
+	for _, k := range []string{KeyPostgresPassword, KeyPostgresAppPassword, KeyPostgresSystemPassword, KeyRedisPassword, KeyCentrifugoAPIKey, KeyCentrifugoHMAC} {
 		if len(v[k]) < 16 {
 			return fmt.Errorf("provision: %s must be at least 16 characters", k)
 		}

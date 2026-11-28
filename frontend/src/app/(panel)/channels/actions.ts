@@ -34,8 +34,8 @@ export async function connectAccountAction(
                         access_token: String(
                             form.get('access_token') ?? '',
                         ).trim(),
-                        app_id: appId || undefined,
-                        app_secret: appSecret || undefined,
+                        app_id: appId,
+                        app_secret: appSecret,
                     },
                 })
             ).data,

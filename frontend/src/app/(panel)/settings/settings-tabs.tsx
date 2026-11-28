@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
     Mail,
+    MessageCircle,
     MessageSquareOff,
     ReceiptText,
     ShieldAlert,
@@ -22,6 +23,7 @@ const ICONS = {
     security: ShieldCheck,
     webhooks: Webhook,
     metaRates: ReceiptText,
+    meta: MessageCircle,
     ai: Sparkles,
 } as const;
 

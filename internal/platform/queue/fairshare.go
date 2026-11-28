@@ -13,18 +13,22 @@ import (
 )
 
 // TenantLimiter keeps one tenant from holding every handler slot of a worker
-// process (docs/ARCHITECTURE.md §10.1). A task
-// whose tenant already runs its share of the process's concurrency is not
-// run: it is deferred (RetryAfterError, which costs no retry budget) for
-// about a second and goes back to the queue, freeing the slot for the next
-// task — usually another tenant's. Tenant A's ten-thousand-message campaign
-// therefore delays tenant B's message by the time it takes to skip A's
-// waiting tasks, not by the time it takes to send them.
+// process (docs/ARCHITECTURE.md §10.1). A tenant may always run up to its
+// share of the process's concurrency. Beyond it, a task still runs while
+// the worker has idle slots to spare (half of the slots outside the share,
+// the headroom), so a tenant alone on a quiet worker is never slowed down.
+// Only when the worker is that busy is a task over its tenant's share
+// deferred (RetryAfterError, which costs no retry budget) for about a
+// second and sent back to the queue, freeing the slot for the next task —
+// usually another tenant's. Tenant A's ten-thousand-message campaign
+// therefore delays tenant B's message by the time it takes the headroom
+// slots to skip A's waiting tasks, not by the time it takes to send them,
+// and B finds an idle slot at once when it arrives behind nothing.
 //
-// The limit is per process: each worker replica keeps at least
-// (1 − share) of its slots for the other tenants. Counting in memory needs
-// no Redis round trip per task and cannot leak a slot when a process dies.
-// Platform tasks (no tenant) are not limited.
+// The limit is per process: each worker replica keeps the headroom free for
+// the other tenants. Counting in memory needs no Redis round trip per task
+// and cannot leak a slot when a process dies. Platform tasks (no tenant)
+// are not limited.
 type TenantLimiter struct {
 	concurrency int
 	share       func(context.Context) float64
@@ -32,6 +36,7 @@ type TenantLimiter struct {
 
 	mu      sync.Mutex
 	running map[uuid.UUID]int
+	total   int // tenant tasks running in this process
 
 	deferred prometheus.Counter
 }
@@ -73,17 +78,24 @@ func (l *TenantLimiter) Limit(ctx context.Context) int {
 	return max(1, int(math.Ceil(float64(l.concurrency)*s)))
 }
 
-// Acquire takes a slot for tenant id unless it already holds limit of them.
-// force takes it regardless (a task on its last attempt: deferring it would
-// archive it, since asynq archives a task whose retries are spent whatever
-// the error).
+// Headroom is the number of slots a tenant over its share must leave idle:
+// half of the slots outside the share (at least one).
+func (l *TenantLimiter) Headroom(limit int) int {
+	return max(1, (l.concurrency-limit+1)/2)
+}
+
+// Acquire takes a slot for tenant id while it holds fewer than limit, or,
+// beyond that, while taking it leaves the headroom idle. force takes it
+// regardless (a task on its last attempt: deferring it would archive it,
+// since asynq archives a task whose retries are spent whatever the error).
 func (l *TenantLimiter) Acquire(id uuid.UUID, limit int, force bool) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if !force && l.running[id] >= limit {
+	if !force && limit < l.concurrency && l.running[id] >= limit && l.concurrency-l.total-1 < l.Headroom(limit) {
 		return false
 	}
 	l.running[id]++
+	l.total++
 	return true
 }
 
@@ -91,7 +103,11 @@ func (l *TenantLimiter) Acquire(id uuid.UUID, limit int, force bool) bool {
 func (l *TenantLimiter) Release(id uuid.UUID) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.running[id] <= 1 {
+	if l.running[id] == 0 {
+		return
+	}
+	l.total--
+	if l.running[id] == 1 {
 		delete(l.running, id)
 		return
 	}

@@ -268,6 +268,8 @@ type Querier interface {
 	GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 	GetMessageByWAMID(ctx context.Context, wamid *string) (Message, error)
 	GetMessageCost(ctx context.Context, id uuid.UUID) (GetMessageCostRow, error)
+	// ── Meta connection (Phase 17 WP5) ─────────────────────────────────────────
+	GetMetaConnection(ctx context.Context) (MetaConnection, error)
 	GetMetaRateMarket(ctx context.Context, country string) (string, error)
 	GetOffer(ctx context.Context, id uuid.UUID) (Offer, error)
 	GetOpenInvitationByTokenHash(ctx context.Context, tokenHash []byte) (GetOpenInvitationByTokenHashRow, error)
@@ -347,6 +349,8 @@ type Querier interface {
 	InsertInboundMessage(ctx context.Context, arg InsertInboundMessageParams) (Message, error)
 	// ── Media ───────────────────────────────────────────────────────────────────
 	InsertMediaFile(ctx context.Context, arg InsertMediaFileParams) (MediaFile, error)
+	// Returns no row when another request created the tenant's row first.
+	InsertMetaConnection(ctx context.Context, arg InsertMetaConnectionParams) (MetaConnection, error)
 	// ── User preferences ────────────────────────────────────────────────────────
 	InsertMetaUserPreference(ctx context.Context, arg InsertMetaUserPreferenceParams) (MetaUserPreference, error)
 	// ── Offers (Phase 16C P4) ───────────────────────────────────────────────────
@@ -476,6 +480,7 @@ type Querier interface {
 	// The members of the connection's tenant. status is the membership's,
 	// or disabled when the account itself is.
 	ListUsersWithRole(ctx context.Context) ([]ListUsersWithRoleRow, error)
+	ListWABAIDs(ctx context.Context) ([]string, error)
 	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]ListWebhookDeliveriesRow, error)
 	ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, error)
 	ListWhatsAppAccounts(ctx context.Context) ([]WhatsappAccount, error)
@@ -599,6 +604,8 @@ type Querier interface {
 	// max_failures is reached. An expired lock starts a fresh count.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (RecordLoginFailureRow, error)
 	RecordLoginSuccess(ctx context.Context, id uuid.UUID) error
+	RecordMetaSignatureFailure(ctx context.Context) error
+	RecordMetaWABAMismatch(ctx context.Context, wabaID *string) error
 	// A template reached a customer outside their service window: they count
 	// against the portfolio's messaging limit for 24 hours.
 	RecordPortfolioReach(ctx context.Context, arg RecordPortfolioReachParams) error
@@ -675,6 +682,8 @@ type Querier interface {
 	SetMessagePricing(ctx context.Context, arg SetMessagePricingParams) error
 	// Only an actual change touches the row (and returns 1).
 	SetMetaMarketingStopped(ctx context.Context, arg SetMetaMarketingStoppedParams) (int64, error)
+	SetMetaVerifyToken(ctx context.Context, verifyTokenEnc []byte) (MetaConnection, error)
+	SetMetaWebhookKey(ctx context.Context, arg SetMetaWebhookKeyParams) (MetaConnection, error)
 	// Values from a webhook; NULL keeps what is stored.
 	SetPhoneNumberSignals(ctx context.Context, arg SetPhoneNumberSignalsParams) error
 	SetPlatformAdmin(ctx context.Context, arg SetPlatformAdminParams) error
@@ -729,6 +738,8 @@ type Querier interface {
 	// the recency backwards.
 	TouchConversation(ctx context.Context, arg TouchConversationParams) (Conversation, error)
 	TouchMessage(ctx context.Context, id uuid.UUID) error
+	// At most one write a minute however many webhooks arrive.
+	TouchMetaWebhook(ctx context.Context) error
 	TouchPlatformSession(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	UnsuspendTenant(ctx context.Context, id uuid.UUID) (Tenant, error)

@@ -51,7 +51,7 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
 - **Global accounts:** one account per person (e-mail unique across the
   platform) with a membership and role in each company
   (`tenant_memberships`); existing users become members of tenant #1
-  (migration 00030). Sessions and API keys stay bound to one workspace; a
+  (migration 00031). Sessions and API keys stay bound to one workspace; a
   password change or reset ends the sessions in every workspace.
 - **Self sign-up** (`POST /auth/signup`, slug availability, e-mail
   verification, resend with a one-per-minute limit): creates the company at
@@ -166,6 +166,42 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
 - **Import retention:** contact imports that finished more than 30 days
   ago are removed with their uploaded file and error report
   (`contacts:import_retention`, every 6 hours, per tenant).
+
+### Added (WP5 — each company's own Meta app)
+
+- **Per-company webhook address:** `https://hooks.<TENANT_BASE_DOMAIN>/meta/<key>`
+  (also `/webhooks/meta/<key>`), an unguessable key per workspace, stored
+  encrypted and routed by its SHA-256 (`meta_webhook_keys`, migration
+  00030). Rotation keeps the previous address working for 0–168 hours.
+  `HOOKS_PUBLIC_URL` overrides the base. The workspace's own
+  `/webhooks/whatsapp` (and `/webhooks/meta`) keeps working.
+- **Per-company verify token** (generated, rotatable) and signatures checked
+  only with that company's app secrets; events for WhatsApp Business
+  Accounts the company has not connected are dropped and counted.
+- **Settings → WhatsApp / Meta:** connection method (own app; Messora Tech
+  Provider shown as coming soon), a guided set-up, copyable callback URL and
+  verify token, **Test connection** per account (`debug_token`, phone
+  numbers, `subscribed_apps` with automatic subscription, webhooks
+  received) and connection health (last webhook, rejected signatures,
+  unconnected accounts, token expiry). TR/EN. Guide: docs/META_SETUP.md.
+- API: `GET /channels/meta-connection`,
+  `POST /channels/meta-connection/webhook-key`,
+  `POST /channels/meta-connection/verify-token`,
+  `POST /channels/accounts/{id}/test`.
+- Platform setting `tech_provider` (`enabled: false`) for WP6.
+
+### Changed (WP5)
+
+- Connecting an account requires the App ID and the App secret.
+- `GET /channels/webhook` is replaced by `GET /channels/meta-connection`;
+  the Channels page links to the new settings page.
+
+### Removed (WP5)
+
+- Platform-wide Meta credentials: `META_APP_ID`, `META_APP_SECRET`,
+  `META_VERIFY_TOKEN`, `META_ACCESS_TOKEN`, `META_WABA_ID` (ignored, with a
+  start-up warning) and the account connected from them at start-up.
+  `messora init` no longer generates a verify token.
 
 ### Fixed
 

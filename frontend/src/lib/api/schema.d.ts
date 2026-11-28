@@ -1005,6 +1005,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    '/channels/accounts/{accountId}/test': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test the account's connection end to end
+         * @description Checks with Meta: the token (debug_token with the account's app), the WhatsApp Business Account's phone numbers, the app's webhook subscription on the account (subscribes the app when it is missing), and whether webhooks have arrived. What Meta reports about the token and numbers is saved.
+         */
+        post: operations['testWhatsAppAccount'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     '/channels/accounts/{accountId}/sync': {
         parameters: {
             query?: never;
@@ -1059,17 +1079,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    '/channels/webhook': {
+    '/channels/meta-connection': {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Values to enter in the Meta App dashboard */
-        get: operations['getWebhookSetup'];
+        /**
+         * This workspace's Meta connection (webhook address, verify token, health)
+         * @description The values to enter in the company's own Meta app (callback URL and verify token, both unique to this workspace) and the webhook health. Created on first read.
+         */
+        get: operations['getMetaConnection'];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/meta-connection/webhook-key': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give the workspace a new webhook address
+         * @description The previous callback URL keeps working for grace_hours (0 ends it at once), long enough to enter the new one in the Meta app.
+         */
+        post: operations['rotateMetaWebhookKey'];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    '/channels/meta-connection/verify-token': {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the workspace's webhook verify token
+         * @description Meta asks for the verify token only when the callback URL is verified; the old token stops working at once.
+         */
+        post: operations['rotateMetaVerifyToken'];
         delete?: never;
         options?: never;
         head?: never;
@@ -4740,12 +4803,13 @@ export interface components {
             checked_at: string | null;
             warning: string | null;
         };
+        /** @description The company's own Meta app (App ID and App secret, which signs its webhooks) and a System User token. */
         ConnectWhatsAppAccountRequest: {
             name: string;
             waba_id: string;
-            app_id?: string;
+            app_id: string;
             access_token: string;
-            app_secret?: string;
+            app_secret: string;
         };
         UpdateWhatsAppAccountRequest: {
             name?: string;
@@ -4798,12 +4862,87 @@ export interface components {
             readonly signals_checked_at?: string | null;
             is_default: boolean;
         };
-        WebhookSetup: {
+        MetaConnection: {
+            /**
+             * @description own_app: the company's own Meta app.
+             * @enum {string}
+             */
+            method: 'own_app' | 'tech_provider';
+            /** @description The workspace's own webhook address (https://hooks.<domain>/meta/<key>); enter it in the Meta app. */
             callback_url: string;
+            /** @description The same webhook at the workspace's own address (/webhooks/whatsapp), kept for existing set-ups. */
+            host_callback_url: string;
+            /** @description Enter it in the Meta app next to the callback URL. */
             verify_token: string;
-            /** @description False until an app secret is configured; webhooks are rejected until then. */
+            /** @description Webhook fields to subscribe in the Meta app. */
+            fields: string[];
+            /** @description False until an account has an app secret; webhooks are rejected until then. */
             signature_verification: boolean;
-            fields?: string[];
+            /** @description Whether "Connect with Meta" (Messora as Tech Provider) is offered; off until it is approved. */
+            tech_provider_enabled: boolean;
+            /** Format: date-time */
+            webhook_key_rotated_at: string | null;
+            /**
+             * Format: date-time
+             * @description Until then the previous callback URL still works.
+             */
+            previous_key_expires_at: string | null;
+            /** Format: date-time */
+            verify_token_rotated_at: string | null;
+            health: components['schemas']['MetaWebhookHealth'];
+        };
+        MetaWebhookHealth: {
+            /**
+             * Format: date-time
+             * @description When Meta's last correctly signed webhook arrived (minute precision).
+             */
+            last_webhook_at: string | null;
+            /**
+             * Format: int64
+             * @description Webhooks rejected for a missing or wrong signature.
+             */
+            signature_failures: number;
+            /** Format: date-time */
+            last_signature_failure_at: string | null;
+            /**
+             * Format: int64
+             * @description Signed events for a WhatsApp Business Account this workspace has not connected; they are dropped.
+             */
+            waba_mismatches: number;
+            /** Format: date-time */
+            last_waba_mismatch_at: string | null;
+            last_mismatch_waba_id: string | null;
+        };
+        RotateMetaWebhookKeyRequest: {
+            /** @description How long the previous callback URL keeps working. */
+            grace_hours: number;
+        };
+        MetaConnectionCheck: {
+            /** @enum {string} */
+            key:
+                | 'app_secret'
+                | 'token'
+                | 'phone_numbers'
+                | 'subscription'
+                | 'webhook';
+            /** @enum {string} */
+            status: 'ok' | 'warning' | 'error';
+            /** @description Names the outcome (for translations). */
+            code: string;
+            params: {
+                [key: string]: string;
+            };
+            message: string;
+        };
+        MetaConnectionTest: {
+            /** @description No check failed. */
+            ok: boolean;
+            checks: components['schemas']['MetaConnectionCheck'][];
+            phone_numbers: number;
+            subscribed: boolean;
+            /** @description Messora subscribed the app to the account's webhooks during this test. */
+            subscribed_now: boolean;
+            account: components['schemas']['WhatsAppAccount'];
         };
         /**
          * @example {
@@ -5591,8 +5730,12 @@ export interface components {
             data: components['schemas']['PhoneNumber'][];
             meta: components['schemas']['Meta'];
         };
-        WebhookSetupResponse: {
-            data: components['schemas']['WebhookSetup'];
+        MetaConnectionResponse: {
+            data: components['schemas']['MetaConnection'];
+            meta: components['schemas']['Meta'];
+        };
+        MetaConnectionTestResponse: {
+            data: components['schemas']['MetaConnectionTest'];
             meta: components['schemas']['Meta'];
         };
         TemplateResponse: {
@@ -11623,6 +11766,29 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
+    testWhatsAppAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components['parameters']['AccountId'];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The test result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MetaConnectionTestResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
     syncWhatsAppAccount: {
         parameters: {
             query?: never;
@@ -11691,7 +11857,7 @@ export interface operations {
             default: components['responses']['Error'];
         };
     };
-    getWebhookSetup: {
+    getMetaConnection: {
         parameters: {
             query?: never;
             header?: never;
@@ -11700,13 +11866,59 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Webhook configuration */
+            /** @description The connection */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    'application/json': components['schemas']['WebhookSetupResponse'];
+                    'application/json': components['schemas']['MetaConnectionResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    rotateMetaWebhookKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                'application/json': components['schemas']['RotateMetaWebhookKeyRequest'];
+            };
+        };
+        responses: {
+            /** @description The connection with its new address */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MetaConnectionResponse'];
+                };
+            };
+            default: components['responses']['Error'];
+        };
+    };
+    rotateMetaVerifyToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The connection with its new verify token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    'application/json': components['schemas']['MetaConnectionResponse'];
                 };
             };
             default: components['responses']['Error'];

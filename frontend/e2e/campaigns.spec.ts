@@ -109,16 +109,10 @@ test('channels: the connect form validates input and shows why Meta refused', as
         ).toBeVisible();
     }
 
-    // Webhook values for the Meta App dashboard, ready to copy.
+    // The webhook values moved to Settings → WhatsApp / Meta.
     await expect(
-        page.getByRole('textbox', { name: 'Callback URL' }),
-    ).toHaveValue(/\/webhooks\/whatsapp$/);
-    await expect(
-        page.getByRole('textbox', { name: 'Verify token' }),
-    ).not.toHaveValue('');
-    await expect(
-        page.getByRole('button', { name: 'Copy verify token' }),
-    ).toBeVisible();
+        page.getByRole('link', { name: 'Open the Meta connection' }),
+    ).toHaveAttribute('href', '/settings/meta');
 
     await page.getByRole('button', { name: 'Connect account' }).click();
     const dialog = page.getByRole('dialog');
@@ -148,8 +142,13 @@ test('channels: the connect form validates input and shows why Meta refused', as
         .toBe(true);
 
     // A well-formed but made-up token: Meta (or the network) refuses it and
-    // the API's message is shown in the dialog; nothing is stored.
+    // the API's message is shown in the dialog; nothing is stored. The App
+    // ID and App secret are required too.
     await waba.fill(`9009${TAG}`);
+    await dialog.getByLabel('App ID', { exact: true }).fill('1234567890');
+    await dialog
+        .getByLabel('App secret', { exact: true })
+        .fill('made-up-app-secret');
     await submit.click();
     await expect(
         dialog.getByRole('alert').filter({ hasText: /Meta/ }),

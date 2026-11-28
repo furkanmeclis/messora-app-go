@@ -139,7 +139,11 @@ func TestTemplateSampleUpload(t *testing.T) {
 	png := []byte("\x89PNG\r\n\x1a\nfake image bytes")
 	path := "/api/v1/templates/samples?account_id=" + acc + "&filename=ornek.png"
 
-	// The account needs an App ID (resumable uploads are per app).
+	// The account needs an App ID (resumable uploads are per app); one
+	// connected before App IDs were required has none.
+	if _, err := h.pool.Exec(h.ctx(), "UPDATE whatsapp_accounts SET app_id = NULL"); err != nil {
+		t.Fatal(err)
+	}
 	h.expect(h.rawUpload("POST", path, owner, "image/png", png), 422, "VALIDATION_ERROR")
 	h.expect(h.do(call{method: "PATCH", path: "/api/v1/channels/accounts/" + acc, token: owner, body: map[string]any{"app_id": "1234"}}), 200, "")
 	h.expect(h.rawUpload("POST", path, owner, "text/plain", []byte("x")), 422, "VALIDATION_ERROR")

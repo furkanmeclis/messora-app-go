@@ -695,10 +695,8 @@ function WhatsAppStep({
                 name: v.name.trim(),
                 waba_id: v.waba_id.trim(),
                 access_token: v.access_token.trim(),
-                ...(v.app_id.trim() ? { app_id: v.app_id.trim() } : {}),
-                ...(v.app_secret.trim()
-                    ? { app_secret: v.app_secret.trim() }
-                    : {}),
+                app_id: v.app_id.trim(),
+                app_secret: v.app_secret.trim(),
             });
             if (notify(r)) {
                 setAccounts((a) => [...a, r.data]);
@@ -753,11 +751,9 @@ function WhatsAppStep({
                     {field('waba_id', t('wizard.whatsapp.wabaId'), {
                         inputMode: 'numeric',
                     })}
-                    {field(
-                        'app_id',
-                        `${t('wizard.whatsapp.appId')} (${t('common.optional')})`,
-                        { inputMode: 'numeric' },
-                    )}
+                    {field('app_id', t('wizard.whatsapp.appId'), {
+                        inputMode: 'numeric',
+                    })}
                     {field('app_secret', t('wizard.whatsapp.appSecret'), {
                         type: 'password',
                     })}
@@ -777,6 +773,8 @@ function WhatsAppStep({
                             connecting ||
                             !v.name ||
                             !v.waba_id ||
+                            !v.app_id ||
+                            v.app_secret.length < 8 ||
                             v.access_token.length < 20
                         }
                     >

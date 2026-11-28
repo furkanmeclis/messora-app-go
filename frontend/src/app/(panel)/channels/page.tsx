@@ -8,14 +8,16 @@ import {
 } from '@/components/ui/card';
 import { api } from '@/lib/server/api';
 import { can, requirePermission } from '@/lib/server/auth';
-import type { PhoneNumber, WebhookSetup, WhatsAppAccount } from '@/lib/types';
+import Link from 'next/link';
+import { ArrowRight, Webhook } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import type { PhoneNumber, WhatsAppAccount } from '@/lib/types';
 import { getT } from '@/i18n/server';
 import { PageHeading } from '../panel-header';
 import {
     AccountList,
     ConnectAccountDialog,
     PhoneNumberTable,
-    WebhookCard,
 } from './channels-client';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -27,12 +29,9 @@ export default async function ChannelsPage() {
     const me = await requirePermission('channels.read');
     const manage = can(me, 'channels.manage');
     const t = await getT();
-    const [accounts, numbers, webhook] = await Promise.all([
+    const [accounts, numbers] = await Promise.all([
         api<WhatsAppAccount[]>('/channels/accounts').then((r) => r.data),
         api<PhoneNumber[]>('/channels/phone-numbers').then((r) => r.data),
-        manage
-            ? api<WebhookSetup>('/channels/webhook').then((r) => r.data)
-            : Promise.resolve(null),
     ]);
 
     return (
@@ -65,7 +64,26 @@ export default async function ChannelsPage() {
                         <PhoneNumberTable numbers={numbers} manage={manage} />
                     </CardContent>
                 </Card>
-                {webhook && <WebhookCard setup={webhook} />}
+                {manage && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Webhook className="size-4" />
+                                {t('channels.webhook.title')}
+                            </CardTitle>
+                            <CardDescription>
+                                {t('channels.webhook.moved')}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button asChild variant="outline">
+                                <Link href="/settings/meta">
+                                    {t('channels.webhook.open')} <ArrowRight />
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </>
     );
