@@ -36,6 +36,8 @@ var platformTables = []string{
 	"users", "user_recovery_codes",
 	// The platform admin panel.
 	"platform_sessions", "email_verification_tokens", "platform_audit_logs",
+	// Plans and Messora's own AI keys (WP8).
+	"plans", "platform_ai_providers", "platform_ai_models",
 }
 
 // routingTables are platform tables whose tenant_id names the tenant a

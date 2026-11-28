@@ -521,7 +521,7 @@ type PlatformSMTPView struct {
 	SMTPView
 	ReplyTo string
 	// The environment's sender (SMTP_*).
-	EnvConfigured  bool
+	EnvConfigured    bool
 	EnvHost, EnvFrom string
 }
 

@@ -86,8 +86,11 @@ ALTER TABLE tenants
     ADD COLUMN plan_changed_at timestamptz;
 -- squawk-ignore adding-foreign-key-constraint
 ALTER TABLE tenants ADD CONSTRAINT tenants_plan_key_fkey FOREIGN KEY (plan_key) REFERENCES plans (key) ON UPDATE CASCADE NOT VALID;
+-- The tenant registry is small: validated at once.
+-- squawk-ignore constraint-missing-not-valid
 ALTER TABLE tenants VALIDATE CONSTRAINT tenants_plan_key_fkey;
 ALTER TABLE tenants ADD CONSTRAINT tenants_plan_overrides_object CHECK (jsonb_typeof(plan_overrides) = 'object') NOT VALID;
+-- squawk-ignore constraint-missing-not-valid
 ALTER TABLE tenants VALIDATE CONSTRAINT tenants_plan_overrides_object;
 
 -- Existing companies: a trial gets the growth plan (the trial plan of new
@@ -169,6 +172,10 @@ ALTER TABLE ai_credit_lots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_credit_lots FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON ai_credit_lots USING (tenant_id = app_tenant_id()) WITH CHECK (tenant_id = app_tenant_id());
 
+-- The checks below hold for every new row at once (NOT VALID); they are
+-- not validated here because ai_usage, ai_profiles and
+-- conversation_handoffs may be large and the existing rows cannot break
+-- them (new columns are NULL, the reason list only grows).
 -- Which key paid for an AI call: the company's own (tenant, no credits) or
 -- the platform's (platform, credits = millicredits charged). Rows before
 -- WP8 have neither.
@@ -177,15 +184,12 @@ ALTER TABLE ai_usage
     ADD COLUMN platform_provider_id uuid,
     ADD COLUMN credits              bigint;
 ALTER TABLE ai_usage ADD CONSTRAINT ai_usage_key_source_check CHECK (key_source IN ('tenant', 'platform')) NOT VALID;
-ALTER TABLE ai_usage VALIDATE CONSTRAINT ai_usage_key_source_check;
 ALTER TABLE ai_usage ADD CONSTRAINT ai_usage_credits_check CHECK (credits >= 0) NOT VALID;
-ALTER TABLE ai_usage VALIDATE CONSTRAINT ai_usage_credits_check;
 
 -- An AI profile may name one of the platform's keys instead of one of the
 -- company's own (provider_id); at most one of the two is set.
 ALTER TABLE ai_profiles ADD COLUMN platform_provider_id uuid;
 ALTER TABLE ai_profiles ADD CONSTRAINT ai_profiles_one_provider CHECK (provider_id IS NULL OR platform_provider_id IS NULL) NOT VALID;
-ALTER TABLE ai_profiles VALIDATE CONSTRAINT ai_profiles_one_provider;
 
 -- A conversation the AI could not answer because the company's AI credits
 -- are used up goes to a person with its own reason.
@@ -194,7 +198,6 @@ ALTER TABLE conversation_handoffs DROP CONSTRAINT conversation_handoffs_reason_c
 ALTER TABLE conversation_handoffs ADD CONSTRAINT conversation_handoffs_reason_check CHECK (reason IN (
     'customer_request', 'no_answer', 'low_confidence', 'critical_intent', 'unauthorized_action', 'window_closed',
     'ai_error', 'manual', 'ai_budget', 'ai_credits', 'profile_complete', 'automation')) NOT VALID;
-ALTER TABLE conversation_handoffs VALIDATE CONSTRAINT conversation_handoffs_reason_check;
 
 -- ── Plan change requests ───────────────────────────────────────────────────
 -- "Change plan" in a workspace until self-service billing (WP9): a request

@@ -15,6 +15,8 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai/aitest"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/plans"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/testutil"
@@ -34,6 +36,12 @@ func (h *harness) useAIEmulator() *aitest.Server {
 		bases[ai.Kind(k)] = v
 	}
 	h.svc.ai = ai.New(h.pool, h.sealer(), ai.Options{AllowFake: true, HTTP: emu.Client(), BaseURLs: bases}, testutil.DiscardLogger())
+	h.svc.ai.SetPlans(h.svc.planOf())
+	h.svc.ai.SetMeter(h.svc.credits)
+	h.svc.plansSvc = plans.New(h.pool, plans.Options{Plans: func() entitlements.Provider { return h.svc.plans },
+		Invalidate: h.svc.planDB.Invalidate, InvalidateAll: h.svc.planDB.InvalidateAll, Credits: h.svc.credits, AI: h.svc.ai,
+		Identity: h.svc.identity, Redis: h.rdb, Logger: testutil.DiscardLogger()})
+	h.svc.identity.SetMePlan(h.svc.plansSvc.MePlan)
 	h.svc.inbox.SetAI(h.svc.ai)
 	wireCampaignAI(h.svc.ai, h.svc.campaigns, h.svc.inbox, h.svc.queries)
 	h.svc.automation.SetAI(h.svc.ai)

@@ -475,7 +475,7 @@ func (s *Service) CreatePlan(ctx context.Context, in api.PlatformPlanInput) (api
 			}
 			return err
 		}
-		return audit.Record(pctx(ctx), q, audit.Entry{Action: "platform.plan_create", EntityType: "plan",
+		return audit.Record(pctx(ctx), q, audit.Entry{Action: "plan.create", EntityType: "plan",
 			Changes: map[string]any{"key": p.Key, "limits": json.RawMessage(limits), "features": json.RawMessage(features)}})
 	})
 	if err != nil {
@@ -548,7 +548,7 @@ func (s *Service) UpdatePlan(ctx context.Context, key string, in api.PlatformPla
 		var changes map[string]any
 		_ = json.Unmarshal(b, &changes)
 		changes["key"] = key
-		return audit.Record(pctx(ctx), q, audit.Entry{Action: "platform.plan_update", EntityType: "plan", Changes: changes})
+		return audit.Record(pctx(ctx), q, audit.Entry{Action: "plan.update", EntityType: "plan", Changes: changes})
 	})
 	if err != nil {
 		return api.PlatformPlan{}, err

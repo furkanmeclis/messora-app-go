@@ -175,6 +175,9 @@ func TestTenantIsolationMatrix(t *testing.T) {
 		"/api/v1/system/failed-jobs", "/api/v1/system/status", "/api/v1/channels/meta-connection",
 		// WP2: memberships, support access, the shared catalogue.
 		"/api/v1/me/memberships", "/api/v1/support-access", "/api/v1/settings/meta-rates", "/api/v1/ai/prices",
+		// WP8: the plan, its usage and AI credits, the e-mail settings,
+		// Messora's AI keys and the model catalogue.
+		"/api/v1/plan", "/api/v1/plans", "/api/v1/settings/email", "/api/v1/ai/platform-providers", "/api/v1/ai/models",
 	}
 	for _, p := range lists {
 		leaks(hb, ownerB, p, secretsA)

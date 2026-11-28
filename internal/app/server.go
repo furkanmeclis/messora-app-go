@@ -500,9 +500,18 @@ func publicMetaRates(list http.HandlerFunc, lim *ratelimit.Limiter, log *slog.Lo
 				return
 			}
 		}
-		h := w.Header()
-		h.Set("Cache-Control", "public, max-age=300")
-		h.Set("Access-Control-Allow-Origin", "*")
-		list(w, r.WithContext(tenant.System(r.Context())))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		list(cacheable{w}, r.WithContext(tenant.System(r.Context())))
 	})
+}
+
+// cacheable marks a successful response as cacheable by anyone for five
+// minutes (the JSON writer marks every response no-store first).
+type cacheable struct{ http.ResponseWriter }
+
+func (c cacheable) WriteHeader(status int) {
+	if status == http.StatusOK {
+		c.Header().Set("Cache-Control", "public, max-age=300")
+	}
+	c.ResponseWriter.WriteHeader(status)
 }
