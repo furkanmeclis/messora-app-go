@@ -33,4 +33,11 @@ regexes = [
   # Made-up AI provider keys of the AI module tests.
   '''sk-test-0123456789abcdef''',
   '''sk-proj-AbCdEf0123456789xyz''',
+  # Sign-up E2E password (test only).
+  '''Sunny-meadow-lantern-58''',
+  # Custom-domain TXT verification prefix: the random part is generated at
+  # run time, the literal is just the record's label.
+  '''messora-verify=''',
+  # Internal service address of the API (host:port), not a credential.
+  '''9100/internal/(tls/allow|edge/traefik)''',
 ]

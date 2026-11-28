@@ -154,13 +154,20 @@ jobs:
         run: |
           make secrets-scan
           docker run --rm -v "$PWD":/repo -w /repo zricethezav/gitleaks:v8.30.1 git . --no-banner --redact -c /repo/.gitleaks.toml
-      - name: Compose file is valid
-        run: docker compose config --quiet
-      - name: Caddyfile is valid (HTTP and HTTPS modes)
+      - name: Compose files are valid (standalone, behind a proxy, Dokploy, with backups)
         run: |
-          for addr in ":80" "messora.example.com"; do
-            docker run --rm -e SITE_ADDRESS="$addr" -v "$PWD/deployments/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
-              caddy:2.11.9 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          docker compose config --quiet
+          docker compose --profile backup config --quiet
+          TENANT_BASE_DOMAIN=messora.example.com docker compose -f docker-compose.yml -f docker-compose.proxy.yml config --quiet
+          docker compose -f docker-compose.dokploy.yml --env-file deployments/dokploy/messora.env.example config --quiet
+      - name: Caddyfile is valid (every edge mode, in the edge image)
+        run: |
+          docker build -q -t messora/messora-caddy:ci deployments/caddy
+          for env in "EDGE_MODE=proxy SITE_ADDRESS=:80" "EDGE_MODE=proxy SITE_ADDRESS=messora.example.com" \
+                     "EDGE_MODE=caddy TENANT_BASE_DOMAIN=messora.example.com NAMECOM_USERNAME=ci NAMECOM_API_TOKEN=ci"; do
+            args=(); for kv in $env; do args+=(-e "$kv"); done
+            docker run --rm "${args[@]}" -v "$PWD/deployments/caddy:/etc/caddy:ro" \
+              messora/messora-caddy:ci caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
           done
       - name: Dockerfile / Compose misconfiguration scan
         run: make config-scan

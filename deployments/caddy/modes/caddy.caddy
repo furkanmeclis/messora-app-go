@@ -1,0 +1,46 @@
+# EDGE_MODE=caddy: Caddy owns ports 80 and 443 and gets every certificate.
+# Required: TENANT_BASE_DOMAIN, NAMECOM_USERNAME, NAMECOM_API_TOKEN.
+{
+	admin off
+	# Custom domains get a certificate at their first TLS handshake, but
+	# only when the API says the host is a verified domain of an active
+	# company or a platform host (internal listener, never routed).
+	on_demand_tls {
+		ask http://messora-api:9100/internal/tls/allow
+	}
+	servers {
+		# Nothing in front by default. With a TCP load balancer that adds
+		# X-Forwarded-For, set TRUSTED_PROXIES to its addresses.
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+import ../routes.caddy
+
+# The platform domain and every company sub-domain: one wildcard
+# certificate by ACME DNS-01 through the name.com API, so a new company
+# needs no certificate of its own.
+{$TENANT_BASE_DOMAIN}, *.{$TENANT_BASE_DOMAIN} {
+	tls {
+		dns namedotcom {
+			token {$NAMECOM_API_TOKEN}
+			user {$NAMECOM_USERNAME}
+			server {$NAMECOM_SERVER:https://api.name.com}
+		}
+		# Check propagation against public resolvers, not the host's.
+		resolvers 1.1.1.1 8.8.8.8
+	}
+	import messora_routes
+}
+
+# Everything else: custom domains (CNAME to custom.<TENANT_BASE_DOMAIN> or
+# an A record to this server), on demand. EDGE_ON_DEMAND_ISSUER=internal
+# uses Caddy's local CA instead of Let's Encrypt (tests only).
+https:// {
+	tls {
+		on_demand
+		issuer {$EDGE_ON_DEMAND_ISSUER:acme}
+	}
+	import messora_routes
+}

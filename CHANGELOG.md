@@ -255,6 +255,56 @@ Phase 17 WP0: Messora becomes a hosted, multi-tenant SaaS only
   prefetch render failing on a 429 from `/me`).
 - The Meta connection E2E seeded its user into the removed `user_roles`.
 
+### Added (WP7 — deployment)
+
+- **Edge modes** (`EDGE_MODE`, docs/INSTALL.md §2): `proxy` (default; plain
+  HTTP, TLS at Traefik/Dokploy or a load balancer) and `caddy` (Caddy owns
+  80/443: one wildcard certificate for `TENANT_BASE_DOMAIN` and its
+  sub-domains by DNS-01 through name.com, on-demand certificates for
+  verified custom domains). The Caddyfile is split into
+  `Caddyfile` → `modes/<mode>.caddy` → `routes.caddy`.
+- **Edge image** `messora-caddy` (`deployments/caddy/Dockerfile`): Caddy
+  2.11.9 with `caddy-dns/namedotcom`, non-root; published by the release
+  workflow with the new `messora-backup` image.
+- **Internal edge endpoints** on the API's internal listener: the on-demand
+  TLS ask endpoint `GET /internal/tls/allow?domain=` (platform hosts and
+  verified domains of active companies only, rate limited) and
+  `GET /internal/edge/traefik`, a Traefik HTTP-provider document with one
+  HTTP-01 router per verified custom domain.
+- **Dokploy:** `docker-compose.dokploy.yml` (includes the base and proxy
+  files) and the environment template
+  `deployments/dokploy/messora.env.example`; staging runbook
+  docs/STAGING_AWS.md.
+- **Nightly database backup to S3:** the `backup` service (Compose profile
+  `backup`): `pg_dump`, archive check, SSE upload, healthcheck after 26 h
+  without success (`BACKUP_*`).
+- PostgreSQL memory settings from the environment (`PG_SHARED_BUFFERS`,
+  `PG_EFFECTIVE_CACHE_SIZE`, `PG_WORK_MEM`, `PG_MAX_CONNECTIONS`) and a
+  sizing table for an 8 GB / 2 vCPU host (docs/OPERATIONS.md).
+- End-to-end tests on sub-domains (`*.e2e.localhost`):
+  `tenant-hosts.spec.ts` checks that a session and credentials stay on
+  their company's host, unknown hosts reach no company, the edge's
+  forwarded host cannot be forged and cross-origin realtime is refused.
+
+### Changed (WP7)
+
+- `docker-compose.proxy.yml` routes the base domain and every sub-domain
+  (wildcard certificate from a DNS-01 resolver, `PROXY_DNS_CERTRESOLVER`)
+  instead of one `PUBLIC_HOST`; Caddy joins the proxy network as
+  `<PROXY_ROUTER>-edge`. `PUBLIC_HOST` and `PROXY_CERTRESOLVER` are no
+  longer used.
+- Caddy always sets `X-Forwarded-Host` from the `Host` it received and strips
+  `X-Messora-Tenant-Host`; the panel uses the forwarded host. Caddy refuses
+  realtime WebSockets whose `Origin` is not the page's own host.
+- Centrifugo's `allowed_origins` also lists `https://<base>` and
+  `https://*.<base>` (written by `messora init` from `TENANT_BASE_DOMAIN`).
+- Caddy runs as UID 1000. Existing installations where Caddy terminates
+  TLS (`SITE_ADDRESS` set to a domain) must give the `caddy-data` and
+  `caddy-config` volumes to it once before upgrading
+  (`docker run --rm -v <project>_caddy-data:/d alpine chown -R 1000:1000 /d`,
+  the same for `caddy-config`); new volumes get the right owner by
+  themselves.
+
 ### Fixed
 
 - The panel's right-click menu no longer closes at once when the browser

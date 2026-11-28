@@ -46,7 +46,7 @@ const (
 // `messora init` generates.
 func startCentrifugo(t *testing.T) (addr string, logs func() string) {
 	t.Helper()
-	cfg, err := provision.CentrifugoConfig(cfAPIKey, cfHMAC, origin)
+	cfg, err := provision.CentrifugoConfig(cfAPIKey, cfHMAC, provision.AllowedOrigins(origin, "messora.test"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +116,49 @@ func dial(t *testing.T, addr string) *ws {
 		t.Fatalf("websocket handshake: %s", res.Status)
 	}
 	return &ws{t: t, conn: conn, r: r}
+}
+
+// handshakeStatus opens a WebSocket from origin ("" sends none) and
+// returns the status of the upgrade response.
+func handshakeStatus(t *testing.T, addr, from string) int {
+	t.Helper()
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	header := ""
+	if from != "" {
+		header = "Origin: " + from + "\r\n"
+	}
+	_, _ = fmt.Fprintf(conn, "GET /connection/websocket HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"+
+		"Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n%s\r\n", addr, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef")), header)
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	res, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	return res.StatusCode
+}
+
+// TestCentrifugoOrigins: the tenants' sub-domains are accepted by pattern,
+// other sites are refused, and a missing Origin (the edge drops it for
+// custom domains after checking it) is accepted.
+func TestCentrifugoOrigins(t *testing.T) {
+	addr, _ := startCentrifugo(t)
+	for from, want := range map[string]int{
+		origin:                      http.StatusSwitchingProtocols,
+		"https://acme.messora.test": http.StatusSwitchingProtocols,
+		"https://evil.example":      http.StatusForbidden,
+		"http://acme.messora.test":  http.StatusForbidden, // wrong scheme
+		"https://messora.test.evil": http.StatusForbidden,
+		"":                          http.StatusSwitchingProtocols,
+	} {
+		if got := handshakeStatus(t, addr, from); got != want {
+			t.Errorf("Origin %q: %d, want %d", from, got, want)
+		}
+	}
 }
 
 func (w *ws) writeFrame(payload []byte) {
