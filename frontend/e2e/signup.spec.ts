@@ -12,7 +12,7 @@ const RUN = Date.now().toString(36);
 const PERSON = {
     name: 'Sam Signup',
     email: `sam+${RUN}@example.com`,
-    password: 'Sunny-meadow-lantern-58',
+    password: 'Sunny-meadow-lantern-58', // gitleaks:allow (test fixture)
 };
 const COMPANY = { name: `Sunny ${RUN}`, slug: `sunny-${RUN}` };
 
