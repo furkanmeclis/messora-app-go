@@ -1,8 +1,6 @@
 {{define "content"}}
-{{template "h1" "Plan değişikliği talebi"}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}"><strong>{{.D.Workspace}}</strong> çalışma alanı {{datetime .D.RequestedAt}} tarihinde plan değişikliği istedi.</p>
-{{template "rows" (rows "Çalışma alanı" .D.Workspace "Adres" .D.WorkspaceURL "Mevcut plan" .D.CurrentPlan "İstenen plan" .D.RequestedPlan "Ödeme" (index (dict "yearly" "Yıllık" "monthly" "Aylık") .D.BillingCycle) "Talep eden" .D.RequestedBy "Mesaj" .D.Message)}}
-<p class="m-text" style="{{css "p"}}">Planı platform yönetici panelinden atayın ve talebi kapatın.</p>
-{{template "button" (dict "URL" .D.InboxURL "Label" "Plan taleplerini aç" "L" .L)}}
+<p {{ui "p"}}><strong>{{.D.Workspace}}</strong> firması {{datetime .D.RequestedAt}} tarihinde plan değişikliği istedi.</p>
+{{template "rows" (rows "Firma" .D.Workspace "Adres" (mono .D.WorkspaceURL) "Mevcut plan" .D.CurrentPlan "İstenen plan" .D.RequestedPlan "Ödeme" (index (dict "yearly" "Yıllık" "monthly" "Aylık") .D.BillingCycle) "Talep eden" .D.RequestedBy "Mesaj" .D.Message)}}
+<p {{ui "p"}}>Planı platform yönetici panelinden atayın ve talebi kapatın.</p>
+{{template "button" (dict "URL" .D.InboxURL "Label" "Plan taleplerini aç")}}
 {{end}}

@@ -1,8 +1,6 @@
 {{define "content"}}
-{{template "h1" "Plan change request"}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}">The <strong>{{.D.Workspace}}</strong> workspace asked for another plan on {{datetime .D.RequestedAt}}.</p>
-{{template "rows" (rows "Workspace" .D.Workspace "Address" .D.WorkspaceURL "Current plan" .D.CurrentPlan "Requested plan" .D.RequestedPlan "Billing" (index (dict "yearly" "Yearly" "monthly" "Monthly") .D.BillingCycle) "Requested by" .D.RequestedBy "Message" .D.Message)}}
-<p class="m-text" style="{{css "p"}}">Assign the plan in the platform admin panel and close the request.</p>
-{{template "button" (dict "URL" .D.InboxURL "Label" "Open plan requests" "L" .L)}}
+<p {{ui "p"}}>The <strong>{{.D.Workspace}}</strong> workspace asked for another plan on {{datetime .D.RequestedAt}}.</p>
+{{template "rows" (rows "Workspace" .D.Workspace "Address" (mono .D.WorkspaceURL) "Current plan" .D.CurrentPlan "Requested plan" .D.RequestedPlan "Billing" (index (dict "yearly" "Yearly" "monthly" "Monthly") .D.BillingCycle) "Requested by" .D.RequestedBy "Message" .D.Message)}}
+<p {{ui "p"}}>Assign the plan in the platform admin panel and close the request.</p>
+{{template "button" (dict "URL" .D.InboxURL "Label" "Open plan requests")}}
 {{end}}

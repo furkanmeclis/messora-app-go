@@ -1,9 +1,8 @@
 {{define "subject"}}Ödemeniz alındı: {{.D.InvoiceNo}}{{end}}
 {{define "preheader"}}{{money .D.Amount}} tutarındaki ödemeniz için teşekkür ederiz.{{end}}
+{{define "title"}}Ödemeniz alındı{{end}}
 {{define "reason"}}Bu e-postayı, Messora aboneliğinizin fatura bildirimleri bu adrese gönderildiği için aldınız.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Ödemeniz bize ulaştı, teşekkür ederiz.
+{{define "content"}}Ödemeniz bize ulaştı, teşekkür ederiz.
 {{template "rows" (rows "Fatura no" .D.InvoiceNo "Tutar" (money .D.Amount) "Ödeme tarihi" (date .D.PaidAt) "Yöntem" .D.Method)}}
 Faturanızı ve makbuzunuzu buradan görüntüleyebilirsiniz:
 {{.D.InvoiceURL}}

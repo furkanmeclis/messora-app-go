@@ -1,9 +1,8 @@
 {{define "subject"}}{{if eq .D.CreditType "ai"}}AI kredisi{{else}}Mesaj kredisi{{end}} bakiyeniz azaldı{{end}}
 {{define "preheader"}}Kalan bakiye {{num .D.Balance}}, uyarı eşiğiniz {{num .D.Threshold}}.{{end}}
+{{define "title"}}{{if eq .D.CreditType "ai"}}AI kredisi{{else}}Mesaj kredisi{{end}} bakiyeniz azaldı{{end}}
 {{define "reason"}}Bu e-postayı, {{with .C.TenantName}}{{.}} için {{end}}kredi uyarıları açık olduğu için aldınız. Bu bildirimleri istediğiniz zaman kapatabilirsiniz.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-{{with .C.TenantName}}{{.}} çalışma alanındaki{{else}}Çalışma alanınızdaki{{end}} {{credit .D.CreditType}} bakiyesi belirlediğiniz eşiğin altına düştü.
+{{define "content"}}{{with .C.TenantName}}{{.}} çalışma alanındaki{{else}}Çalışma alanınızdaki{{end}} {{credit .D.CreditType}} bakiyesi belirlediğiniz eşiğin altına düştü.
 {{template "rows" (rows "Kalan bakiye" (num .D.Balance) "Uyarı eşiği" (num .D.Threshold))}}
 Bakiye bittiğinde {{if eq .D.CreditType "ai"}}AI yanıtları ve önerileri{{else}}kampanya ve mesaj gönderimi{{end}} duraklar. Kesinti yaşamamak için şimdiden yükleme yapabilirsiniz:
 {{.D.TopUpURL}}

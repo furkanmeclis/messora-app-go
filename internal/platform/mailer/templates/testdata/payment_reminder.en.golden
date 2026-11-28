@@ -1,8 +1,10 @@
 Subject: Overdue invoice: MSR-2026-0142
 Preheader: To avoid any interruption, please pay by 1 December 2026.
 
-Acme Gıda · with Messora
+Messora · Acme Gıda
 ========================================
+
+An invoice is overdue
 
 Hi Ayşe,
 
@@ -18,7 +20,7 @@ Bank transfer details
   Account holder: Messora Yazılım A.Ş.
   IBAN: TR33 0006 1005 1978 6457 8413 26
   Reference: MSR-2026-0142
-Please put the reference above in the transfer description so we can match your payment quickly.
+Put this reference in the transfer description so we can match your payment quickly.
 
 Pay here:
 https://acme.messora.tech/billing/invoices/MSR-2026-0142

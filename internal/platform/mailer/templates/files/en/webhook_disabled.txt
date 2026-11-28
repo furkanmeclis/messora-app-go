@@ -1,9 +1,8 @@
 {{define "subject"}}A webhook endpoint was switched off{{end}}
 {{define "preheader"}}{{if .D.Failures}}{{num .D.Failures}} delivery attempts in a row failed.{{else}}The receiver answered 410 Gone.{{end}} Events are no longer sent to it.{{end}}
+{{define "title"}}A webhook endpoint was switched off{{end}}
 {{define "reason"}}You're receiving this because you are an owner or admin{{with .C.TenantName}} of {{.}}{{end}} on Messora.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Messora switched off a webhook endpoint {{with .C.TenantName}}of the {{.}} workspace{{else}}of your workspace{{end}} on {{datetime .D.DisabledAt}}, because {{if .D.Failures}}its delivery attempts kept failing{{else}}the receiver answered 410 Gone{{end}}.
+{{define "content"}}Messora switched off a webhook endpoint {{with .C.TenantName}}of the {{.}} workspace{{else}}of your workspace{{end}} on {{datetime .D.DisabledAt}}, because {{if .D.Failures}}its delivery attempts kept failing{{else}}the receiver answered 410 Gone{{end}}.
 {{template "rows" (rows "Endpoint" .D.EndpointURL "Description" .D.Description "Failed attempts in a row" (opt (gt .D.Failures 0) (num .D.Failures)) "Failing since" (opt (not .D.FailingSince.IsZero) (datetime .D.FailingSince)) "Last error" .D.LastError)}}
 No new events are sent to this endpoint until it is switched back on. Events already recorded stay in the delivery log for 30 days and can be redelivered.
 

@@ -1,9 +1,7 @@
 {{define "content"}}
-{{template "h1" "Faturanız hazır"}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}">{{with .D.Period}}<strong>{{.}}</strong> dönemine ait faturanız{{else}}Yeni faturanız{{end}} hazır.</p>
+<p {{ui "p"}}>{{with .D.Period}}<strong>{{.}}</strong> dönemine ait faturanız{{else}}Yeni faturanız{{end}} hazır. Ödemeyi son ödeme tarihine kadar yapabilirsiniz.</p>
 {{template "rows" (rows "Fatura no" .D.InvoiceNo "Dönem" .D.Period "Tutar" (money .D.Amount) "Son ödeme tarihi" (date .D.DueDate))}}
 {{with .D.Bank}}{{template "bank" (dict "B" . "L" $.L)}}{{end}}
-{{template "button" (dict "URL" .D.InvoiceURL "Label" "Faturayı görüntüle" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">Ödemeniz ulaştığında size ayrıca haber vereceğiz.</p>
+{{template "button" (dict "URL" .D.InvoiceURL "Label" "Faturayı görüntüle")}}
+<p {{ui "small"}}>Ödemeniz ulaştığında size ayrıca haber vereceğiz.</p>
 {{end}}

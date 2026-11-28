@@ -1,9 +1,8 @@
 {{define "subject"}}E-posta adresinizi doğrulayın{{end}}
 {{define "preheader"}}{{if .D.Code}}Doğrulama kodunuz {{.D.Code}}. {{dur .D.ExpiresIn}} boyunca geçerli.{{else}}Hesabınızı etkinleştirmek için adresinizi {{dur .D.ExpiresIn}} içinde doğrulayın.{{end}}{{end}}
+{{define "title"}}E-posta adresinizi doğrulayın{{end}}
 {{define "reason"}}Bu e-postayı, bu adresle bir Messora hesabı oluşturulduğu için aldınız.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Messora'ya hoş geldiniz. Hesabınızı etkinleştirmek için e-posta adresinizi doğrulamanız yeterli.
+{{define "content"}}Messora'ya hoş geldiniz. Hesabınızı etkinleştirmek için e-posta adresinizi doğrulamanız yeterli.
 
 {{if .D.Code}}Doğrulama kodunuz:
 

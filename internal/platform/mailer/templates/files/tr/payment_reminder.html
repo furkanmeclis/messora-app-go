@@ -1,14 +1,8 @@
 {{define "content"}}
-{{if .D.Overdue}}{{template "h1" "Ödemesi geciken bir faturanız var"}}{{else}}{{template "h1" "Yaklaşan ödeme hatırlatması"}}{{end}}
-{{template "greeting" .}}
-{{if .D.Overdue}}
-<p class="m-text" style="{{css "p"}}"><strong>{{.D.InvoiceNo}}</strong> numaralı faturanızın son ödeme tarihi {{date .D.DueDate}} idi ve ödemesini henüz göremedik.</p>
-{{template "note" (printf "Hesabınız şu an normal çalışıyor. %s tarihine kadar ödeme ulaşmazsa çalışma alanınız salt okunur moda geçer." (date .D.GraceEndsAt))}}
-{{else}}
-<p class="m-text" style="{{css "p"}}">Küçük bir hatırlatma: <strong>{{.D.InvoiceNo}}</strong> numaralı faturanızın son ödeme tarihi <strong>{{date .D.DueDate}}</strong>.</p>
-{{end}}
+{{if .D.Overdue}}<p {{ui "p"}}><strong>{{.D.InvoiceNo}}</strong> numaralı faturanızın son ödeme tarihi {{date .D.DueDate}} idi ve ödemesini henüz göremedik.</p>
+{{template "notice" (notice "warning" "Çalışma alanınız şu an normal çalışıyor." (printf "%s tarihine kadar ödeme ulaşmazsa salt okunur moda geçer." (date .D.GraceEndsAt)))}}{{else}}<p {{ui "p"}}>Küçük bir hatırlatma: <strong>{{.D.InvoiceNo}}</strong> numaralı faturanızın son ödeme tarihi <strong>{{date .D.DueDate}}</strong>.</p>{{end}}
 {{template "rows" (rows "Fatura no" .D.InvoiceNo "Tutar" (money .D.Amount) "Son ödeme tarihi" (date .D.DueDate) "Ek süre sonu" (opt .D.Overdue (date .D.GraceEndsAt)))}}
 {{with .D.Bank}}{{template "bank" (dict "B" . "L" $.L)}}{{end}}
-{{template "button" (dict "URL" .D.PayURL "Label" "Ödemeyi yap" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">Ödemeyi zaten yaptıysanız teşekkür ederiz; havalelerin eşleşmesi bir iş günü sürebilir, bu e-postayı görmezden gelebilirsiniz.</p>
+{{template "button" (dict "URL" .D.PayURL "Label" "Ödemeyi yap")}}
+<p {{ui "small"}}>Ödemeyi zaten yaptıysanız teşekkür ederiz; havalelerin eşleşmesi bir iş günü sürebilir.</p>
 {{end}}

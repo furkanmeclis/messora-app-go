@@ -1,9 +1,8 @@
 {{define "subject"}}Your invoice is ready: {{.D.InvoiceNo}}{{end}}
 {{define "preheader"}}{{money .D.Amount}} · due {{date .D.DueDate}}{{end}}
+{{define "title"}}Your invoice is ready{{end}}
 {{define "reason"}}You're receiving this because billing notices for your Messora subscription are sent to this address.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-{{with .D.Period}}Your invoice for {{.}}{{else}}Your new invoice{{end}} is ready.
+{{define "content"}}{{with .D.Period}}Your invoice for {{.}}{{else}}Your new invoice{{end}} is ready.
 {{template "rows" (rows "Invoice no." .D.InvoiceNo "Period" .D.Period "Amount" (money .D.Amount) "Due date" (date .D.DueDate))}}
 {{- with .D.Bank}}
 {{template "bank" (dict "B" . "L" $.L)}}{{end}}

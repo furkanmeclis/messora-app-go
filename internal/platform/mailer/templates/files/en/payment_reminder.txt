@@ -1,9 +1,8 @@
 {{define "subject"}}{{if .D.Overdue}}Overdue invoice: {{.D.InvoiceNo}}{{else}}Upcoming payment: {{.D.InvoiceNo}}, due {{date .D.DueDate}}{{end}}{{end}}
 {{define "preheader"}}{{if .D.Overdue}}To avoid any interruption, please pay by {{date .D.GraceEndsAt}}.{{else}}{{money .D.Amount}} · due {{date .D.DueDate}}{{end}}{{end}}
+{{define "title"}}{{if .D.Overdue}}An invoice is overdue{{else}}Upcoming payment reminder{{end}}{{end}}
 {{define "reason"}}You're receiving this because billing notices for your Messora subscription are sent to this address.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-{{if .D.Overdue -}}
+{{define "content"}}{{if .D.Overdue -}}
 Invoice {{.D.InvoiceNo}} was due on {{date .D.DueDate}} and we haven't seen the payment yet. Your account is working normally for now; if the payment doesn't arrive by {{date .D.GraceEndsAt}}, your workspace will switch to read-only mode.
 {{- else -}}
 A friendly reminder: invoice {{.D.InvoiceNo}} is due on {{date .D.DueDate}}.

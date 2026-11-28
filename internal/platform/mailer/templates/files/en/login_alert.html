@@ -1,10 +1,7 @@
 {{define "content"}}
-{{template "h1" "New sign-in to your account"}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}">Someone just signed in to your Messora account.</p>
+<p {{ui "p"}}>Your Messora account was just signed in to from a new device or place. If this was you, there's nothing to do.</p>
 {{template "rows" (rows "Time" (datetime .D.At) "IP address" .D.IP "Approximate location" .D.Location "Device" .D.Device)}}
-<p class="m-text" style="{{css "p"}}">If this was you, there's nothing to do.</p>
-{{template "note" "Wasn't you? Change your password now and sign out of open sessions."}}
-{{template "button" (dict "URL" .D.SecureURL "Label" "This wasn't me" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">The location is estimated from the IP address.</p>
+{{template "notice" (notice "warning" "Wasn't you?" "Secure your account now: change your password and sign out of open sessions.")}}
+{{template "button" (dict "URL" .D.SecureURL "Label" "Secure my account")}}
+<p {{ui "small"}}>The location is estimated from the IP address.</p>
 {{end}}

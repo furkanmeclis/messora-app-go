@@ -1,21 +1,8 @@
 {{define "content"}}
-{{template "h1" "Welcome to Messora"}}
-{{template "greeting" .}}
-<p class="m-text" style="{{css "p"}}">Your account is ready. Three steps are all it takes to get going:</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 8px 0;">
-<tr>
-<td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="m-mint" style="{{css "badge"}}">1</td></tr></table></td>
-<td style="{{css "stepText"}}"><p class="m-text" style="{{css "h2"}}">Connect your WhatsApp number</p><p class="m-muted" style="{{css "muted"}}">It takes a few minutes with your Meta account; your messages are sent from this number. <a class="m-link" href="{{.D.ConnectWhatsAppURL}}" target="_blank" rel="noopener" style="{{css "link"}}">Connect a number</a></p></td>
-</tr>
-<tr>
-<td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="m-mint" style="{{css "badge"}}">2</td></tr></table></td>
-<td style="{{css "stepText"}}"><p class="m-text" style="{{css "h2"}}">Import your contacts</p><p class="m-muted" style="{{css "muted"}}">Upload a CSV or Excel file and bring their consent status along. <a class="m-link" href="{{.D.ImportContactsURL}}" target="_blank" rel="noopener" style="{{css "link"}}">Import contacts</a></p></td>
-</tr>
-<tr>
-<td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="m-mint" style="{{css "badge"}}">3</td></tr></table></td>
-<td style="{{css "stepText"}}"><p class="m-text" style="{{css "h2"}}">Create your first campaign</p><p class="m-muted" style="{{css "muted"}}">Pick an approved template, choose your audience, then send now or schedule it. <a class="m-link" href="{{.D.NewCampaignURL}}" target="_blank" rel="noopener" style="{{css "link"}}">Create a campaign</a></p></td>
-</tr>
-</table>
-{{template "button" (dict "URL" .D.DashboardURL "Label" "Go to dashboard" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">If you get stuck anywhere, our support team is happy to help.</p>
+<p {{ui "p"}}>Your account is ready. Three steps are all it takes to get going:</p>
+{{template "step" (dict "N" "1" "Title" "Connect your WhatsApp number" "Text" "It takes a few minutes with your Meta account; your messages are sent from this number." "URL" .D.ConnectWhatsAppURL "Label" "Connect a number")}}
+{{template "step" (dict "N" "2" "Title" "Import your contacts" "Text" "Upload a CSV or Excel file and bring their consent status along." "URL" .D.ImportContactsURL "Label" "Import contacts")}}
+{{template "step" (dict "N" "3" "Title" "Create your first campaign" "Text" "Pick an approved template, choose your audience, then send now or schedule it." "URL" .D.NewCampaignURL "Label" "Create a campaign")}}
+{{template "button" (dict "URL" .D.DashboardURL "Label" "Go to dashboard")}}
+<p {{ui "small"}}>If you get stuck anywhere, our support team is happy to help.</p>
 {{end}}

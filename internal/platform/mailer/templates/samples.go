@@ -50,7 +50,7 @@ func Sample(kind Kind, locale string) Data {
 		return EmailChangeConfirmData{Common: Common{Name: "Ayşe"}, NewEmail: "ayse.yilmaz@acmegida.com.tr",
 			ConfirmURL: app + "/account/email/confirm?token=5d1f0e", ExpiresIn: 24 * time.Hour}
 	case InvoiceIssued:
-		return InvoiceIssuedData{Common: tenant, InvoiceNo: "MSR-2026-0142", Period: pick("Kasım 2026", "November 2026"),
+		return InvoiceIssuedData{Common: tenant, InvoiceNo: "MSR-2026-0142", Period: pick("1 Aralık 2026 – 31 Aralık 2026", "1 December 2026 – 31 December 2026"),
 			Amount: amount, DueDate: at.AddDate(0, 0, 10), Bank: bank, InvoiceURL: app + "/billing/invoices/MSR-2026-0142"}
 	case PaymentReminder:
 		return PaymentReminderData{Common: tenant, InvoiceNo: "MSR-2026-0142", Amount: amount,

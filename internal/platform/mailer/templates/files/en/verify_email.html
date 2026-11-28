@@ -1,9 +1,8 @@
 {{define "content"}}
-{{template "h1" "Confirm your e-mail address"}}
-{{template "greeting" .}}
-{{if .D.Code}}<p class="m-text" style="{{css "p"}}">Welcome to Messora. To activate your account, enter the code below or use the button.</p>
-{{template "code" .D.Code}}{{else}}<p class="m-text" style="{{css "p"}}">Welcome to Messora. To activate your account, confirm your e-mail address with the button below.</p>{{end}}
-{{template "button" (dict "URL" .D.VerifyURL "Label" "Confirm my e-mail" "L" .L)}}
-<p class="m-muted" style="{{css "muted"}}">{{if .D.Code}}The code and the link are{{else}}The link is{{end}} valid for <strong>{{dur .D.ExpiresIn}}</strong>.</p>
-{{template "note" "If you didn't create this account, you can ignore this e-mail; the account stays inactive until the address is confirmed."}}
+{{if .D.Code}}<p {{ui "p"}}>Welcome to Messora. To activate your account, enter this code or use the button below.</p>
+{{template "code" .D.Code}}{{else}}<p {{ui "p"}}>Welcome to Messora. To activate your account, confirm your e-mail address.</p>{{end}}
+{{template "button" (dict "URL" .D.VerifyURL "Label" "Confirm my e-mail")}}
+{{template "fallback" (dict "URL" .D.VerifyURL "L" .L)}}
+<p {{ui "small"}}>{{if .D.Code}}The code and the link are{{else}}The link is{{end}} valid for <strong>{{dur .D.ExpiresIn}}</strong>.</p>
+{{template "notice" (notice "info" "Didn't sign up?" "You can ignore this e-mail; the account stays inactive until the address is confirmed.")}}
 {{end}}

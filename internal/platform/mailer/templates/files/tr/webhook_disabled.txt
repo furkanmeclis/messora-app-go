@@ -1,9 +1,8 @@
 {{define "subject"}}Bir webhook uç noktası kapatıldı{{end}}
 {{define "preheader"}}{{if .D.Failures}}Art arda {{num .D.Failures}} teslim denemesi başarısız oldu.{{else}}Alıcı 410 Gone yanıtı verdi.{{end}} Bu adrese artık olay gönderilmiyor.{{end}}
+{{define "title"}}Bir webhook uç noktası kapatıldı{{end}}
 {{define "reason"}}Bu e-postayı, Messora'da {{with .C.TenantName}}{{.}} çalışma alanının {{end}}sahibi ya da yöneticisi olduğunuz için aldınız.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Messora, {{with .C.TenantName}}{{.}} çalışma alanındaki{{else}}çalışma alanınızdaki{{end}} bir webhook uç noktasını {{datetime .D.DisabledAt}} itibarıyla kapattı; çünkü {{if .D.Failures}}teslim denemeleri sürekli başarısız oluyordu{{else}}alıcı 410 Gone yanıtı verdi{{end}}.
+{{define "content"}}Messora, {{with .C.TenantName}}{{.}} çalışma alanındaki{{else}}çalışma alanınızdaki{{end}} bir webhook uç noktasını {{datetime .D.DisabledAt}} itibarıyla kapattı; çünkü {{if .D.Failures}}teslim denemeleri sürekli başarısız oluyordu{{else}}alıcı 410 Gone yanıtı verdi{{end}}.
 {{template "rows" (rows "Uç nokta" .D.EndpointURL "Açıklama" .D.Description "Art arda başarısız deneme" (opt (gt .D.Failures 0) (num .D.Failures)) "Başarısızlık başlangıcı" (opt (not .D.FailingSince.IsZero) (datetime .D.FailingSince)) "Son hata" .D.LastError)}}
 Uç nokta yeniden açılana kadar ona yeni olay gönderilmez. Kaydedilmiş olaylar teslim kaydında 30 gün kalır ve yeniden gönderilebilir.
 

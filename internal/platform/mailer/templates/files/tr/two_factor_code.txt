@@ -1,9 +1,8 @@
 {{define "subject"}}Messora giriş kodunuz{{end}}
 {{define "preheader"}}Tek kullanımlık kodunuz {{dur .D.ExpiresIn}} boyunca geçerli.{{end}}
+{{define "title"}}Giriş kodunuz{{end}}
 {{define "reason"}}Bu e-postayı, hesabınıza giriş yapılırken iki adımlı doğrulama kodu istendiği için aldınız.{{end}}
-{{define "content"}}{{template "greeting" .}}
-
-Girişinizi tamamlamak için bu tek kullanımlık kodu girin:
+{{define "content"}}Girişinizi tamamlamak için bu tek kullanımlık kodu girin:
 
     {{.D.Code}}
 
