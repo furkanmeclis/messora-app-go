@@ -113,7 +113,9 @@ test('a session belongs to the company address that issued it', async ({
     await page.getByLabel('E-mail').fill(AGENT.email);
     await page.getByLabel('Password', { exact: true }).fill(AGENT.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(
+        page.getByText('E-mail or password is incorrect'),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/login/);
 
     // And A's own address still has its session.
