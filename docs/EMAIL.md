@@ -60,12 +60,33 @@ production every link must be https.
 ### Delivery: Resend
 
 The platform sends through **Resend** over SMTP: host `smtp.resend.com`, port
-`465`, `SMTP_TLS=tls`, user `resend`, password = the Resend API key, and a
-`SMTP_FROM` on a domain verified in Resend (SPF/DKIM). Enterprise tenants may
-send through their own SMTP server (entitlement `custom_smtp`); that per-tenant
-sender is wired in Phase 17 WP8 (`settings.Mail.customSMTP`, a `TODO(WP8)`
-hook; until then `SMTP_HOST` wins for every company when it is set). The
-templates do not depend on the transport.
+`465`, TLS `tls`, user `resend`, password = the Resend API key, and a From
+address on a domain verified in Resend (SPF/DKIM). The templates do not depend
+on the transport. `settings.Mail` decides per message (Phase 17 WP8):
+
+- **The platform sender** is the one set in the platform admin panel
+  (E-mail sender page, `GET/PUT /platform/email`, password sealed, test send,
+  `platform.email_update` in the platform audit log), else `SMTP_*` of the
+  environment, else e-mail is off. A panel change applies within 15 seconds
+  on every replica; an empty host returns to the environment's sender.
+- **Mail about a company** through the platform sender carries the
+  company's name as the display name (the address stays the platform's,
+  e.g. `"Acme Gıda" <no-reply@messora.tech>`) and the company's reply-to
+  address (Settings → E-mail, `PATCH /settings/email`), else the platform's
+  reply-to. Non-enterprise companies never see SMTP settings.
+- **Enterprise companies** (`custom_smtp`) may send through their own SMTP
+  server (`PUT /settings/smtp`, `POST /settings/smtp/test`; other plans get
+  `403 FEATURE_NOT_IN_PLAN`). When a send through it fails, the message is
+  sent through the platform sender instead (never lost) and the failure is
+  kept (`settings.smtp_failure`): the E-mail page shows it as a warning until
+  a send or test through the company's server works again. A test send never
+  falls back. A downgraded company's stored server is kept but unused.
+- Platform mail (plan change requests to the platform admins) always goes
+  through the platform sender.
+
+| Kind | Sent by | Link |
+| --- | --- | --- |
+| `plan_change_request` | a workspace asks for another plan; to every active platform admin, in their language | `https://admin.<base>/plan-requests` |
 
 ## Templates
 
@@ -84,6 +105,7 @@ templates do not depend on the transport.
 | `payment_received` | Payment confirmation | no |
 | `subscription_suspended` | Workspace switched to read-only, how to fix it | no |
 | `credit_low` | Message or AI credit balance below the alert threshold | yes |
+| `plan_change_request` | Platform admins: a workspace's plan change request (current and requested plan, billing, who, message) | no |
 
 Every kind has a typed data struct (`VerifyEmailData`, …) that embeds
 `Common` (`Name`, `TenantName`, `TenantLogoURL`, `UnsubscribeURL`). Rendering

@@ -157,6 +157,87 @@ Where prices come from:
    Confirming records who checked the row against its source; changing a
    figure without confirming clears the confirmation.
 
+## Messora's keys and AI credits (Phase 17 WP8)
+
+Messora holds **its own key per provider kind** (`platform_ai_providers`,
+sealed with associated data `platform_ai_provider.key:<id>`), managed in
+the platform admin panel (AI keys: add, rotate, switch off, test — the test
+checks the key and refreshes the model list `platform_ai_models`). The
+platform also sets a default provider and model (`platform_settings.ai_platform`)
+for companies that chose none.
+
+**Which key a call uses** (`ai.Service.resolve`):
+
+1. The call's provider, else the profile's, else the company default — each
+   may be one of the company's own connections (`ai_providers`) or one of
+   Messora's keys (`platform_ai_providers`; profiles store it in
+   `ai_profiles.platform_provider_id`). Nothing chosen → the platform default.
+2. A company's own key is used only when its plan includes **`byo_ai_keys`**
+   (enterprise) and the key is enabled. Such calls are recorded with
+   `key_source = tenant` and **consume no credits** (the company's monthly
+   USD budget applies to them only).
+3. Otherwise — another plan, or an enterprise company without an (enabled)
+   own key for that kind — the call goes to **Messora's key of the same
+   kind** (`key_source = platform`) and is paid with **AI credits**. Without
+   a Messora key for the kind: `AI_NOT_CONFIGURED`.
+4. A plan without `ai_agents`: every call fails `not_in_plan` (403
+   `FEATURE_NOT_IN_PLAN` in the API).
+
+Non-enterprise companies cannot add, change, check or sync own keys (403
+`FEATURE_NOT_IN_PLAN` `byo_ai_keys`; the panel hides the page section).
+Keys stored before a downgrade stay stored, listed and deletable, but are
+never used. `GET /ai/models` lists own-key models only with `byo_ai_keys`,
+plus Messora's models (`key_source`); `GET /ai/platform-providers` lists
+Messora's keys (never the key).
+
+**Credits.** A company's credits are lots in `ai_credit_lots` (millicredits;
+1 credit = 1000): the plan's monthly allowance (`ai_credits_per_month`, one
+lot per calendar month UTC, created by the first consumption and expiring at
+the month's end — WP9 aligns it to billing periods; the lot always follows
+the plan in effect, so a plan change applies to the current month at once),
+grants of the platform admin (`credits.Service.Grant`, source `grant`,
+optional expiry, both audit logs) and, in WP9, purchased top-ups (source
+`purchase`, `reference`). A call with Messora's key:
+
+- **before** the call: `credits.Available` — no credits left → the call is
+  refused (`credits_exhausted`, recorded as a refused usage row) without
+  reaching the provider;
+- **after** the call, in the transaction that records the usage row:
+  `credits.Consume` books the charge on the usable lots, the month's plan lot
+  first, then the lots that expire first. Every usable lot is locked
+  `FOR UPDATE` in that fixed order, so concurrent calls queue and no update
+  is lost; what no lot covers is booked on the plan lot (a call that started
+  with credits never fails afterwards; the next one is refused). The overrun
+  is at most the calls in flight.
+
+**Credit math** (`credits.Settings`, `platform_settings.ai_credits`, edited
+on the platform AI keys page):
+
+```
+credits = cost × markup ÷ usd_per_credit      (rounded up to 0.001 credit)
+```
+
+`cost` is the call's USD cost at the platform price table (`ai_model_prices`,
+the same prices as the usage page). Defaults: `usd_per_credit = 0.001`
+(1 credit = 0.1 US cent of provider cost), `markup = 1`. A successful call
+whose model has **no price** costs `unpriced_call_credits` (default 5); a
+failed call costs only the tokens it reported (usually nothing). Example: a
+reply with 100 input and 20 output tokens at 1 / 2 USD per 1M tokens costs
+0.00014 USD = 0.14 credits; with `markup = 2`, 0.28.
+
+**When credits run out** (`GET /plan` → `ai_credits.exhausted`, `/me` →
+`tenant.plan.ai_credits_exhausted`, a banner on every page):
+
+- AI reply loop: the conversation goes to a person with the handoff reason
+  `ai_credits`; the people with `ai.manage` get the `ai.credits_exhausted`
+  notification once per month (audit `ai.credits_exhausted`);
+- automation AI steps stop **without retries** with the run's error code
+  `ai_credits_exhausted` and a clear message (nothing is dead-lettered);
+- the test console and other API calls answer `409 AI_CREDITS_EXHAUSTED`.
+
+AI resumes at the monthly reset or after a grant/top-up. Usage rows keep
+`key_source`, `platform_provider_id` and `credits`.
+
 ## Company AI settings
 
 `GET/PUT /api/v1/ai/settings`: the master switch (off by default), the
@@ -463,7 +544,9 @@ this month).
 
 Settings → AI → **Aylık AI bütçesi** (`monthly_budget`, USD, optional).
 Spend is the USD cost recorded since the first day of the month (UTC).
-Once it reaches the budget, AI turns stop before calling the provider:
+Only calls with the company's own keys count (calls with Messora's keys
+are paid with AI credits, above). Once it reaches the budget, AI turns stop
+before calling the provider:
 a conversation the AI owns goes to a person (escalation `ai_budget`), a
 suggestion turn shows the error, and reply classification is skipped.
 The people with `ai.manage` get a notification (`ai.budget_exceeded`)
