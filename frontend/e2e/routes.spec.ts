@@ -196,6 +196,45 @@ test('failed jobs page is reachable and lists the dead letter', async () => {
     ).toBeVisible();
 });
 
+// Regression for a flaky failure of the right-click test below: React
+// error #441 ("An error occurred in the Server Components render…") was a
+// server render that threw because /me answered 429. Every sidebar link in
+// view was prefetched, each prefetch rendered the panel layout again (/me
+// plus the top bar's calls), so one page view cost ~14 /me calls and this
+// spec's walk through every route exhausted the session's 600/min budget;
+// whichever test ran next saw the failed prefetch as a console error. The
+// sidebar now prefetches on intent and /me is shared per session for a few
+// seconds, so a page view no longer fans out into background renders.
+test('a page view does not prefetch the whole sidebar', async () => {
+    const prefetches: string[] = [];
+    const onRequest = (r: {
+        headers(): Record<string, string>;
+        url(): string;
+    }) => {
+        if (r.headers()['next-router-prefetch']) prefetches.push(r.url());
+    };
+    page.on('request', onRequest);
+    await page.goto('/contacts');
+    await expect(page.locator('main h1').first()).toBeVisible();
+    await page.waitForTimeout(1_500);
+    page.off('request', onRequest);
+    // Links of the page itself (its tabs, the inbox badge) may prefetch;
+    // routes reachable only from the sidebar must not.
+    const sidebarOnly = [
+        '/campaigns',
+        '/automations',
+        '/templates',
+        '/users',
+        '/api-keys',
+        '/audit',
+        '/settings',
+    ];
+    const hit = prefetches.filter((u) =>
+        sidebarOnly.includes(new URL(u).pathname),
+    );
+    expect(hit, 'sidebar links prefetched on sight').toEqual([]);
+});
+
 test('right-click opens the panel menu; shift keeps the browser menu', async () => {
     await page.goto('/contacts');
     await page.locator('main h1').first().click({ button: 'right' });
