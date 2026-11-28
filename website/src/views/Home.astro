@@ -1,0 +1,260 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import Mock from '../components/Mock.astro';
+import CtaBand from '../components/CtaBand.astro';
+import FaqList from '../components/FaqList.astro';
+import type { Lang, Faq } from '../data/types';
+import { meta } from '../data/meta';
+import { appUrls } from '../data/routes';
+import { plans, tl } from '../data/plans';
+import { t } from '../i18n/ui';
+import { features, solutions, fPath, sPath, r, readingMinutes } from '../lib/site';
+import { faqLd, softwareLd } from '../lib/schema';
+import { getCollection } from 'astro:content';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
+const u = t(lang);
+const m = meta.home[lang];
+const fs = features(lang);
+const f = (k: string) => fs.find((x) => x.key === k)!;
+const posts = (await getCollection('blog', (e) => e.data.lang === lang)).sort((a, b) => +b.data.date - +a.data.date).slice(0, 3);
+const blogBase = tr ? '/blog/' : '/en/blog/';
+
+const rows = [
+  { k: 'inbox', mock: 'team', eyebrow: T('Ekip gelen kutusu', 'Team inbox'),
+    h: T('Her konuşmanın bir sahibi olsun.', 'Every conversation has an owner.'),
+    p: T('Tüm WhatsApp numaralarınızın mesajları tek gelen kutusunda. Konuşmayı birine atayın, ekibe not bırakın, gerektiğinde devredin. Kimin ilgilendiği, müşterinin izin durumu ve 24 saatlik pencerenin ne zaman kapanacağı hep görünür.',
+      'Messages from all your WhatsApp numbers in one inbox. Assign a conversation, leave a note for the team, hand it over when needed. Who is on it, the customer’s consent and when the 24-hour window closes are always visible.'),
+    pts: [T('Atama, sahiplik ve devir geçmişi', 'Assignment, ownership and handover history'), T('Ekibe özel notlar', 'Internal notes for the team'), T('Owner, Admin, Manager ve Agent rolleri', 'Owner, Admin, Manager and Agent roles')] },
+  { k: 'campaigns', mock: 'campaigns', eyebrow: T('Kampanyalar', 'Campaigns'),
+    h: T('Göndermeden önce kime, ne kadara ve ne zaman bitecek, bilin.', 'Know who, how much and when it ends — before you send.'),
+    p: T('Kitleyi segment, grup ya da etiketle seçin. Mesaj almak istemeyenler otomatik çıkarılır ve size kaç kişi olduğu söylenir. Meta’nın ülke ve kategori bazlı ücreti, tahmini bitiş saati ve aynı numarada süren diğer kampanyalarla adil paylaşım gönderimden önce ekranda.',
+      'Pick the audience by segment, group or tag. People who don’t want messages are left out automatically, and you are told how many. Meta’s fee by country and category, the estimated finish and fair sharing with other campaigns on the same number are on screen before you send.'),
+    pts: [T('İzin ve ret kategoriye göre kayıtlı; DUR yazan çıkar', 'Consent per category; replying STOP opts out'), T('Duraklat, devam et, iptal et', 'Pause, resume, cancel'), T('Kalite uyarısında kampanya kendiliğinden durur', 'Stops by itself on a quality warning')] },
+  { k: 'ai', mock: 'ai', eyebrow: T('Yapay zekâ ajanları', 'AI agents'), ai: true,
+    h: T('Sen bakarken AI cevapladı; emin olmadığında sana devretti.', 'The AI answered while you were busy — and handed over when it wasn’t sure.'),
+    p: T('OpenAI, Anthropic veya Gemini ile çalışan ajanlar sık soruları yanıtlar, adı, e-postayı ve şehri konuşmadan çıkarıp kişi kartına yazar. Müşteri “temsilci” dediğinde ya da ajan emin olmadığında konuşma ekibe geçer.',
+      'Agents powered by OpenAI, Anthropic or Gemini answer common questions and pull the name, e-mail and city from the chat into the contact card. When the customer asks for a person, or the agent isn’t sure, the conversation goes to your team.'),
+    pts: [T('Her WhatsApp numarasına ayrı AI profili', 'A separate AI profile per WhatsApp number'), T('Konuşmalar model eğitiminde kullanılmaz', 'Conversations aren’t used to train models'), T('Kullanım aylık AI kredisiyle şeffaf', 'Usage is clear, in monthly AI credits')] },
+  { k: 'automations', mock: 'automations', eyebrow: T('Otomasyonlar', 'Automations'),
+    h: T('Tekrarlayan işi tuvale çizin, gerisini Messora yapsın.', 'Draw the repetitive work on a canvas and let Messora do it.'),
+    p: T('Tetikleyiciyi seçin, adımları sürükleyip bağlayın, koşulla dallandırın. Karşılama, abonelikten çıkma, cevapsız müşteriyi takip, temsilciye devir gibi 11 hazır şablonla başlayın; her çalışmanın izlediği yolu tuvalde görün.',
+      'Pick a trigger, drag and connect the steps, branch with conditions. Start from 11 ready presets such as welcome, unsubscribe, follow-up and hand-over, and see the path each run took on the canvas.'),
+    pts: [T('Döngü ve çift tetiklenme koruması', 'Loop and duplicate protection'), T('Geri al / yinele, otomatik yerleşim', 'Undo / redo, automatic layout'), T('Hazır şablonlar her pakette', 'Presets in every plan')] },
+] as const;
+
+const rest = ['templates', 'analytics', 'api'].map(f);
+
+const faqs: Faq[] = tr ? [
+  { q: 'Messora resmi WhatsApp API’si mi kullanıyor?', a: 'Evet. Messora yalnızca Meta’nın resmi WhatsApp Business Cloud API’si ile çalışır. QR kodla bağlanan, WhatsApp Web’i taklit eden yöntemler kullanmayız; bu yüzden numaranız kapanma riskiyle karşılaşmaz ve şablonlarınız Meta onayından geçer.' },
+  { q: 'Meta’nın mesaj ücretleri pakete dahil mi?', a: 'Hayır. Meta, iletilen her şablon mesajı için kategoriye ve ülkeye göre ayrıca ücret alır. Messora bu ücreti kampanyayı göndermeden önce gösterir. Ayrıntılar için [fiyatlar sayfasındaki Meta ücretleri bölümüne](/fiyatlar#meta-ucretleri) bakın.' },
+  { q: 'Deneme süresinde neler açık?', a: 'Panelin tamamını 14 gün boyunca ücretsiz kullanırsınız; kart bilgisi istemeyiz. Süre bitince size uyan paketi seçip kaldığınız yerden devam edersiniz. Meta’nın mesaj ücretleri denemede de Meta tarafından ayrıca uygulanır.' },
+  { q: 'Mevcut WhatsApp numaramı kullanabilir miyim?', a: 'Kullanabilirsiniz. Numara WhatsApp Business uygulamasında kayıtlıysa önce oradan kaldırılması ya da Meta’nın taşıma adımlarının izlenmesi gerekir. Kurulum sihirbazı ve [rehberimiz](/blog/whatsapp-business-api-nedir-nasil-basvurulur) adım adım anlatır.' },
+  { q: 'Verilerimiz nerede tutuluyor?', a: 'AWS’nin Frankfurt (eu-central-1) bölgesinde, Avrupa Birliği’nde. Her firmanın verisi veritabanında satır bazlı güvenlikle ayrılır ve her gece şifreli yedek alınır. Ayrıntılar [güvenlik sayfasında](/guvenlik).' },
+] : [
+  { q: 'Does Messora use the official WhatsApp API?', a: 'Yes. Messora works only with Meta’s official WhatsApp Business Cloud API. We don’t use QR-code tools that imitate WhatsApp Web, so your number isn’t put at risk and your templates go through Meta’s approval.' },
+  { q: 'Are Meta’s message fees included?', a: 'No. Meta charges for each delivered template message, by category and country. Messora shows that fee before you send a campaign. See the [Meta fees section of the pricing page](/en/pricing#meta-fees).' },
+  { q: 'What is included in the trial?', a: 'You can use the whole panel free for 14 days, and we don’t ask for a card. When it ends, choose the plan that fits and carry on where you left off. Meta’s message fees still apply during the trial.' },
+  { q: 'Can I use my existing WhatsApp number?', a: 'Yes. If the number is registered in the WhatsApp Business app, it has to be removed from there first or moved following Meta’s steps. The setup wizard and [our guide](/en/blog/what-is-whatsapp-business-api-how-to-apply) walk you through it.' },
+  { q: 'Where is our data stored?', a: 'In AWS’s Frankfurt region (eu-central-1), in the European Union. Each company’s data is separated in the database with row-level security, and encrypted backups are taken every night. More on the [security page](/en/security).' },
+];
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'home')} alt={{ tr: '/', en: '/en' }} jsonLd={[softwareLd(lang), faqLd(faqs)]}>
+  <section class="hero dark">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">{m.eyebrow}</p>
+        <h1>{T('WhatsApp’ta satış, destek ve kampanya.', 'Sales, support and campaigns on WhatsApp.')} <em>{T('Tek panelde.', 'In one place.')}</em></h1>
+        <p class="lead">{T('Messora, ekibinizin WhatsApp konuşmalarını tek gelen kutusunda toplar, izin veren müşterilerinize kampanya gönderir ve yapay zekâyı ekibin yanında çalıştırır. Meta’nın ücretini göndermeden önce görürsünüz.',
+          'Messora brings your team’s WhatsApp conversations into one inbox, sends campaigns to customers who said yes, and puts AI to work next to your team. You see Meta’s fee before you send.')}</p>
+        <div class="actions">
+          <a class="btn btn-lg" href={appUrls.signup} data-signup>{u.trialLong}<Icon name="arrow-right" /></a>
+          <a class="btn btn-ghost btn-lg" href={r(lang, 'demo')}>{u.demo}</a>
+        </div>
+        <ul class="hero-points">
+          <li><Icon name="check-circle" />{T('Meta’nın resmi Cloud API’si', 'Meta’s official Cloud API')}</li>
+          <li><Icon name="check-circle" />{T('Veriler AB’de, Frankfurt’ta', 'Data in the EU, in Frankfurt')}</li>
+          <li><Icon name="check-circle" />{T('Kart gerekmez', 'No card needed')}</li>
+        </ul>
+      </div>
+      <div class="hero-vis">
+        <Mock kind="inbox" lang={lang} />
+        <div class="float-card" aria-hidden="true">
+          <span class="chip">{T('Kampanya', 'Campaign')}</span>
+          <p>{T('1.200 kişiye ulaşılacak. 85’i mesaj almak istemiyor; onlara gönderilmeyecek.', 'Reaching 1,200 people. 85 don’t want messages; they won’t get one.')}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec-sm fog">
+    <div class="wrap">
+      <div class="grid g3 why">
+        <div class="rv"><Icon name="shield" /><h2 class="h3">{T('Resmi API, kapanma korkusu yok', 'Official API, no ban roulette')}</h2><p>{T('Gönderimler Meta’nın onayladığı şablonlarla ve kalite kurallarına göre yapılır.', 'Messages go out with Meta-approved templates and within the quality rules.')}</p></div>
+        <div class="rv"><Icon name="coin" /><h2 class="h3">{T('Ücret sürpriz değil', 'No surprise fees')}</h2><p>{T('Meta’nın ücreti, kampanyayı başlatmadan önce ülke ve kategoriye göre hesaplanır.', 'Meta’s fee is calculated by country and category before the campaign starts.')}</p></div>
+        <div class="rv"><Icon name="check-circle" /><h2 class="h3">{T('İzin kayıt altında', 'Consent on record')}</h2><p>{T('Kim, ne zaman, hangi kategori için izin verdi ya da çıktı — geçmişiyle saklanır.', 'Who opted in or out, when and for which category — stored with its history.')}</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      {rows.map((row, i) => (
+        <div class:list={['split', { rev: i % 2 === 1 }]}>
+          <div class="rv">
+            <p class:list={['eyebrow', { ai: 'ai' in row && row.ai }]}>{row.eyebrow}</p>
+            <h2>{row.h}</h2>
+            <p class="lead">{row.p}</p>
+            <ul class="checks">{row.pts.map((p) => <li><Icon name="check" />{p}</li>)}</ul>
+            <a class="more" href={fPath(lang, row.k)}>{f(row.k).nav}: {u.learnMore.toLowerCase()}<Icon name="arrow-right" /></a>
+          </div>
+          <div class="rv"><Mock kind={row.mock} lang={lang} /></div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="sec fog">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">{T('Ve daha fazlası', 'And more')}</p>
+        <h2>{T('Şablondan rapora, panelden API’ye.', 'From templates to reports, from the panel to the API.')}</h2>
+      </div>
+      <div class="grid g3">
+        {rest.map((x) => (
+          <a class="card rv" href={fPath(lang, x.key)}>
+            <span class="ibox"><Icon name={x.icon} /></span>
+            <h3>{x.nav}</h3>
+            <p>{x.summary}</p>
+            <span class="more">{u.learnMore}<Icon name="arrow-right" /></span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">{T('Sektörünüze göre', 'For your industry')}</p>
+        <h2>{T('Aynı WhatsApp, farklı işler.', 'Same WhatsApp, different jobs.')}</h2>
+        <p class="lead">{T('Kargo bildiriminden randevu hatırlatmasına, her sektör için gerçekçi akışlar ve onaya uygun şablon örnekleri.', 'From shipping updates to appointment reminders: realistic flows and approval-ready template examples for each industry.')}</p>
+      </div>
+      <div class="grid g4 sectors">
+        {solutions(lang).map((s) => (
+          <a class="card rv" href={sPath(lang, s.key)}>
+            <span class="ibox"><Icon name={s.icon} /></span>
+            <h3>{s.nav}</h3>
+            <p>{s.summary}</p>
+          </a>
+        ))}
+        <a class="card rv all" href={r(lang, 'solutions')}><h3>{u.nav.allSolutions}</h3><span class="more">{u.learnMore}<Icon name="arrow-right" /></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec dark">
+    <div class="wrap split">
+      <div class="rv">
+        <p class="eyebrow ai">{T('Güvenlik ve veri', 'Security and data')}</p>
+        <h2>{T('Verileriniz AB’de, firmanıza ayrık ve şifreli.', 'Your data in the EU, isolated and encrypted.')}</h2>
+        <p class="lead">{T('Messora AWS’nin Frankfurt bölgesinde çalışır. Her kayıt firmanızla etiketlenir ve veritabanı başka firmanın satırını göstermez. Meta token’ları ve API anahtarları şifreli saklanır.', 'Messora runs in AWS’s Frankfurt region. Every record carries your company, and the database won’t show another company’s rows. Meta tokens and API keys are stored encrypted.')}</p>
+        <ul class="checks">
+          <li><Icon name="check" />{T('İki adımlı doğrulama, roller ve denetim kaydı', 'Two-factor sign-in, roles and an audit log')}</li>
+          <li><Icon name="check" />{T('Her gece şifreli yedek', 'Encrypted backups every night')}</li>
+          <li><Icon name="check" />{T('KVKK ve GDPR’a uygun veri işleme sözleşmesi', 'A data processing agreement for KVKK and GDPR')}</li>
+        </ul>
+        <a class="more" href={r(lang, 'security')}>{u.nav.security}: {u.learnMore.toLowerCase()}<Icon name="arrow-right" /></a>
+      </div>
+      <div class="rv"><Mock kind="security" lang={lang} /></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">{T('Başlamak', 'Getting started')}</p>
+        <h2>{T('Bir öğleden sonra kurulur.', 'Set up in an afternoon.')}</h2>
+        <p class="lead">{T('Meta’nın işletme doğrulaması ve şablon onayı birkaç gün sürebilir; Messora’daki kurulumunuz ise kısa.', 'Meta’s business verification and template approval can take a few days; your setup in Messora is short.')}</p>
+      </div>
+      <ol class="steps">
+        <li class="rv"><h3>{T('Hesabınızı açın', 'Create your account')}</h3><p>{T('Firmanıza ait adres hazır: firma.messora.tech. İsterseniz kendi alan adınızı bağlayın.', 'Your company address is ready: company.messora.tech. Connect your own domain if you like.')}</p></li>
+        <li class="rv"><h3>{T('Meta hesabınızı bağlayın', 'Connect your Meta account')}</h3><p>{T('Kendi Meta uygulamanızla, sihirbazın gösterdiği adımlarla. Tek tıkla bağlantı (Embedded Signup) yakında.', 'With your own Meta app, following the wizard. One-click connection (Embedded Signup) is coming soon.')}</p></li>
+        <li class="rv"><h3>{T('Şablonlarınızı onaya gönderin', 'Submit your templates')}</h3><p>{T('Şablon oluşturucuda hazırlayın, Meta’ya gönderin; onay durumu panelde güncellenir.', 'Build them in the template builder and send them to Meta; the approval status updates in the panel.')}</p></li>
+        <li class="rv"><h3>{T('Ekibinizi davet edin', 'Invite your team')}</h3><p>{T('Rolleri verin, hazır otomasyonları açın, ilk kampanyanızın maliyetini görün.', 'Give out roles, switch on presets and see what your first campaign will cost.')}</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec fog">
+    <div class="wrap">
+      <div class="sec-head center">
+        <p class="eyebrow">{u.nav.pricing}</p>
+        <h2>{T('Taahhüt yok. Meta ücreti ayrı ve görünür.', 'No lock-in. Meta fees separate and visible.')}</h2>
+        <p class="lead">{T('Fiyatlar TL + KDV, aylık. Yıllık ödemede 12 ay, 10 ay fiyatına.', 'Prices in TL + VAT per month. Pay yearly: 12 months for the price of 10.')}</p>
+      </div>
+      <div class="grid g4 plans-mini">
+        {plans.map((p) => (
+          <div class:list={['card', 'rv', { pop: p.popular }]}>
+            <h3>{p.name[lang]}</h3>
+            <p class="price">{p.from && <small>{T('başlangıç', 'from')} </small>}{tl(p.monthly, lang)} <small>TL</small></p>
+            <p class="per">{T('+ KDV / ay', '+ VAT / month')}</p>
+            <p>{p.blurb[lang]}</p>
+          </div>
+        ))}
+      </div>
+      <p class="center" style="margin-top:28px"><a class="btn btn-ghost" href={r(lang, 'pricing')}>{T('Paketleri karşılaştırın', 'Compare plans')}<Icon name="arrow-right" /></a></p>
+    </div>
+  </section>
+
+  {posts.length > 0 && (
+    <section class="sec">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow">{u.nav.resources}</p>
+          <h2>{T('WhatsApp Business API’yi doğru kullanmak için.', 'Using the WhatsApp Business API the right way.')}</h2>
+        </div>
+        <div class="grid g3">
+          {posts.map((p) => (
+            <a class="card rv" href={blogBase + p.data.slug}>
+              <p class="small muted">{p.data.tags[0]} · {readingMinutes(p.data.words)} {u.minRead}</p>
+              <h3 style="margin-top:10px">{p.data.title}</h3>
+              <p>{p.data.description}</p>
+              <span class="more">{u.readMore}<Icon name="arrow-right" /></span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="sec fog">
+    <div class="wrap narrow">
+      <div class="sec-head center"><h2>{u.nav.faq}</h2></div>
+      <FaqList items={faqs} />
+      <p class="center note"><a href={r(lang, 'faq')}>{T('Tüm sorular', 'All questions')}</a></p>
+    </div>
+  </section>
+
+  <CtaBand lang={lang} />
+</Base>
+
+<style>
+  .hero-vis { position: relative; }
+  .float-card { position: absolute; left: -36px; bottom: -78px; width: min(290px, 80%); background: #fff; color: var(--ink); border-radius: 18px 18px 18px 6px; padding: 14px 16px; box-shadow: var(--shadow-lg); font-size: .9rem; line-height: 1.45; animation: floaty 6s ease-in-out infinite; }
+  .float-card p { margin-top: 8px; color: var(--ink-2); }
+  @keyframes floaty { 50% { transform: translateY(-6px); } }
+  @media (max-width: 920px) { .float-card { position: relative; left: auto; bottom: auto; margin: 16px 0 0 16px; } }
+  .why > div { display: grid; gap: 8px; }
+  .why :global(.ic) { color: var(--indigo); width: 26px; height: 26px; }
+  .why .h3 { font-size: 1.15rem; font-weight: 700; }
+  .why p { color: var(--muted); font-size: .98rem; }
+  .sectors .all { display: flex; flex-direction: column; justify-content: center; background: var(--fog); border-color: transparent; }
+  .plans-mini .price { font: 800 2rem/1.1 var(--f-head); color: var(--ink); margin-top: 10px; letter-spacing: -.02em; }
+  .plans-mini .price small { font-size: .9rem; font-weight: 700; color: var(--muted); }
+  .plans-mini .per { font-size: .85rem; margin: 2px 0 12px; }
+  .plans-mini .pop { outline: 2px solid var(--indigo); outline-offset: -2px; }
+</style>

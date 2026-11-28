@@ -1,0 +1,37 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import type { Lang } from '../data/types';
+import { legalRoutes, type LegalKey } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r, fmtDate } from '../lib/site';
+import { getEntry, render } from 'astro:content';
+interface Props { lang: Lang; k: LegalKey }
+const { lang, k } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const entry = (await getEntry('legal', `${lang}/${k}`))!;
+const { Content, headings } = await render(entry);
+const h2 = headings.filter((h) => h.depth === 2);
+const path = legalRoutes[k][lang];
+const crumbs = [{ name: u.footer.legal, path: r(lang, 'legal') }, { name: entry.data.title, path }];
+---
+<Base lang={lang} title={entry.data.title} description={entry.data.description} path={path} alt={legalRoutes[k]} crumbs={crumbs}>
+  <PageHero lang={lang} eyebrow={u.footer.legal} title={entry.data.title} crumbs={crumbs}>
+    <p class="docmeta"><span>{u.updated}: {fmtDate(entry.data.updated, lang)}</span>{entry.data.version && <span>{u.version} {entry.data.version}</span>}</p>
+  </PageHero>
+  <section class="sec">
+    <div class="wrap doc">
+      <aside class="toc" aria-label={tr ? 'İçindekiler' : 'Contents'}>
+        {h2.length > 2 && (<Fragment><strong>{tr ? 'İçindekiler' : 'Contents'}</strong><ol>{h2.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}</ol></Fragment>)}
+      </aside>
+      <article class="prose">
+        <Content />
+        {k === 'cookies' && (
+          <p><button type="button" class="btn" data-cc-open><Icon name="list" />{u.footer.cookiePrefs}</button></p>
+        )}
+      </article>
+    </div>
+  </section>
+</Base>

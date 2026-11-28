@@ -1,0 +1,118 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import CtaBand from '../components/CtaBand.astro';
+import FaqList from '../components/FaqList.astro';
+import type { Lang, SolutionKey } from '../data/types';
+import { solutionPaths, appUrls } from '../data/routes';
+import { t } from '../i18n/ui';
+import { solution, feature, fPath, sPath, r } from '../lib/site';
+import { faqLd } from '../lib/schema';
+interface Props { lang: Lang; k: SolutionKey }
+const { lang, k } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
+const u = t(lang);
+const s = solution(lang, k);
+const path = sPath(lang, k);
+const crumbs = [{ name: u.nav.solutions, path: r(lang, 'solutions') }, { name: s.nav, path }];
+const cat = { marketing: T('Pazarlama', 'Marketing'), utility: T('Hizmet bildirimi (utility)', 'Utility'), authentication: T('Kimlik doğrulama', 'Authentication') };
+const catCls = { marketing: 'coral', utility: '', authentication: 'gray' } as const;
+const fill = (b: string) => b.replace(/\{\{(\d+)\}\}/g, '<mark>{{$1}}</mark>');
+---
+<Base lang={lang} title={s.seoTitle} description={s.seoDescription} path={path} alt={solutionPaths[k]} crumbs={crumbs} jsonLd={[faqLd(s.faq)]}>
+  <PageHero lang={lang} eyebrow={s.eyebrow} title={s.h1} lead={s.lead} crumbs={crumbs}>
+    <div class="actions">
+      <a class="btn btn-lg" href={appUrls.signup} data-signup>{u.trialLong}<Icon name="arrow-right" /></a>
+      <a class="btn btn-ghost btn-lg" href={r(lang, 'demo')}>{u.demo}</a>
+    </div>
+  </PageHero>
+
+  <section class="sec">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow">{T('Tanıdık sorunlar', 'Familiar problems')}</p><h2>{T('Bugün nerede tıkanıyor?', 'Where does it get stuck today?')}</h2></div>
+      <div class="grid g3">
+        {s.pains.map((p) => (
+          <div class="card rv"><h3>{p.title}</h3><p>{p.body}</p>{p.points && <ul class="checks" style="margin-top:14px">{p.points.map((x) => <li><Icon name="check" />{x}</li>)}</ul>}</div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="sec fog">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow">{T('Örnek akışlar', 'Example flows')}</p><h2>{T('Messora ile nasıl işler?', 'How it works with Messora')}</h2></div>
+      <div class="flows">
+        {s.flows.map((fl) => (
+          <article class="flow card rv">
+            <div class="fl-h">
+              <h3>{fl.title}</h3>
+              <p class="trg"><Icon name="bolt" size={16} />{fl.trigger}</p>
+            </div>
+            <ol class="fl-steps">{fl.steps.map((st) => <li>{st}</li>)}</ol>
+            <p class="out"><Icon name="check-circle" size={18} />{fl.outcome}</p>
+            <p class="uses">{fl.features.map((fk) => <a class:list={['chip', { ai: fk === 'ai' }]} href={fPath(lang, fk)}>{feature(lang, fk).nav}</a>)}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow">{T('Şablon örnekleri', 'Template examples')}</p><h2>{T('Onaya gönderilebilir mesaj örnekleri', 'Messages ready to submit for approval')}</h2>
+        <p class="lead">{T('Değişkenler ({{1}}, {{2}}) gönderim sırasında kişiye göre doldurulur. Meta, kategoriye göre farklı ücret uygular.', 'Variables ({{1}}, {{2}}) are filled per person at send time. Meta charges differently by category.')}</p></div>
+      <div class="grid g3">
+        {s.templates.map((tp) => (
+          <div class="tplc rv">
+            <div class="tplc-h"><b>{tp.name}</b><span class:list={['chip', catCls[tp.category]]}>{cat[tp.category]}</span></div>
+            <p class="bubble" set:html={fill(tp.body.replace(/&/g, '&amp;').replace(/</g, '&lt;'))} />
+            {tp.buttons && <div class="btns">{tp.buttons.map((b) => <span>{b}</span>)}</div>}
+          </div>
+        ))}
+      </div>
+      <div class="tl-note warn rv" style="margin-top:32px"><Icon name="shield" /><div><strong>{T('İzin ve uyum', 'Consent and compliance')}:</strong> {s.compliance}</div></div>
+    </div>
+  </section>
+
+  <section class="sec fog">
+    <div class="wrap narrow">
+      <div class="sec-head"><h2>{u.nav.faq}</h2></div>
+      <FaqList items={s.faq} />
+    </div>
+  </section>
+
+  <section class="sec-sm">
+    <div class="wrap">
+      <div class="sec-head"><h2 style="font-size:clamp(1.4rem,2.4vw,1.9rem)">{T('Bu sektörde en çok kullanılan özellikler', 'Most used features in this industry')}</h2></div>
+      <div class="grid g4">
+        {s.features.map((fk) => { const x = feature(lang, fk); return (
+          <a class="card" href={fPath(lang, fk)}><span class:list={['ibox', { ai: fk === 'ai' }]}><Icon name={x.icon} /></span><h3>{x.nav}</h3><span class="more">{u.learnMore}<Icon name="arrow-right" /></span></a>
+        ); })}
+      </div>
+    </div>
+  </section>
+  <CtaBand lang={lang} fog />
+</Base>
+
+<style>
+  .flows { display: grid; gap: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 860px) { .flows { grid-template-columns: 1fr; } }
+  .fl-h { display: grid; gap: 8px; margin-bottom: 16px; }
+  .trg { display: inline-flex; gap: 8px; align-items: center; color: var(--indigo-d) !important; font-weight: 600; font-size: .93rem !important; }
+  .fl-steps { list-style: none; counter-reset: s; display: grid; gap: 10px; border-left: 2px solid var(--line); margin-left: 10px; padding-left: 20px; }
+  .fl-steps li { counter-increment: s; position: relative; color: var(--ink-2); font-size: .97rem; }
+  .fl-steps li::before { content: counter(s); position: absolute; left: -32px; top: 1px; width: 22px; height: 22px; border-radius: 7px 7px 7px 2px; background: var(--indigo); color: #fff; font: 700 .75rem/22px var(--f-head); text-align: center; }
+  .out { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--ink-2) !important; }
+  .out :global(.ic) { color: var(--mint-ink); flex: none; margin-top: 3px; }
+  .uses { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .uses a { text-decoration: none; }
+  .tplc { background: #E7EEF4; border-radius: 20px; padding: 18px; }
+  .tplc-h { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; font-size: .9rem; }
+  .tplc-h b { font-family: ui-monospace, Menlo, monospace; font-size: .82rem; color: var(--ink-2); word-break: break-all; }
+  .bubble { background: #fff; border-radius: 4px 16px 16px 16px; padding: 12px 14px; font-size: .95rem; line-height: 1.5; color: var(--ink); box-shadow: 0 1px 1px rgba(0,0,0,.06); white-space: pre-line; }
+  .bubble :global(mark) { background: var(--indigo-soft); color: var(--indigo-d); padding: 0 3px; border-radius: 4px; font-weight: 600; }
+  .btns { display: grid; gap: 4px; margin-top: 4px; }
+  .btns span { background: #fff; border-radius: 10px; text-align: center; padding: 9px; color: var(--indigo); font-weight: 600; font-size: .9rem; }
+</style>

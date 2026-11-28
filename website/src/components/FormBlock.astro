@@ -1,0 +1,54 @@
+---
+// Renders a form from server/forms-spec.mjs. Submits to /api/forms/<type>.
+import type { Lang } from '../data/types';
+import { forms } from '../../server/forms-spec.mjs';
+import { t } from '../i18n/ui';
+import { legalRoutes } from '../data/routes';
+interface Props { type: keyof typeof forms; lang: Lang; submit?: string; compact?: boolean }
+const { type, lang, submit, compact = false } = Astro.props;
+const spec = forms[type] as { fields: any[] };
+const u = t(lang).form;
+const id = (n: string) => `f-${type}-${n}`;
+const pairs = new Set(['name', 'email', 'company', 'phone', 'idno', 'waphone', 'business', 'website', 'team', 'interest', 'ptype', 'clients', 'rtype', 'relation']);
+// Group consecutive short fields into two-column rows.
+const rows: any[][] = [];
+for (const f of spec.fields) {
+  const last = rows[rows.length - 1];
+  const short = pairs.has(f.name) && !(f.type === 'select' && f.options.some((o: any) => o.label[lang].length > 40));
+  if (short && !compact && last && last.length === 1 && last[0].__short) rows[rows.length - 1] = [...last, f];
+  else rows.push([Object.assign({}, f, { __short: short })]);
+}
+const kvkkHref = legalRoutes.kvkk[lang];
+---
+<form class="form" data-form={type} novalidate data-ok={u.ok} data-okmail={u.okMail} data-err={u.err} data-rate={u.rate} data-sending={u.sending}>
+  {rows.map((row) => (
+    <div class={row.length === 2 ? 'row2' : undefined} style={row.length === 1 ? 'display:contents' : undefined}>
+      {row.map((f: any) => f.type === 'checkbox' ? (
+        <label class="check" for={id(f.name)}>
+          <input type="checkbox" id={id(f.name)} name={f.name} value="yes" required={f.required} />
+          <span>{f.name === 'consent' && type !== 'kvkk'
+            ? <Fragment><a href={kvkkHref} target="_blank" rel="noopener">{u.consentLink}</a>{lang === 'tr' ? '’ni okudum; bu talebe yanıt verilmesi için bilgilerimin işlenmesini kabul ediyorum.' : ': I have read it and agree that my details are processed to answer this request.'}</Fragment>
+            : f.label[lang]}</span>
+        </label>
+      ) : (
+        <div class="field">
+          <label for={id(f.name)}>{f.label[lang]} {f.required ? <span class="req" aria-hidden="true">*</span> : <span class="req">({lang === 'tr' ? 'isteğe bağlı' : 'optional'})</span>}</label>
+          {f.type === 'textarea' ? (
+            <textarea id={id(f.name)} name={f.name} required={f.required} maxlength={f.max} autocomplete={f.autocomplete} rows={f.name === 'address' ? 3 : 5} aria-describedby={id(f.name) + '-e'}></textarea>
+          ) : f.type === 'select' ? (
+            <select id={id(f.name)} name={f.name} required={f.required} aria-describedby={id(f.name) + '-e'}>
+              <option value="">{lang === 'tr' ? 'Seçin' : 'Choose'}</option>
+              {f.options.map((o: any) => <option value={o.value}>{o.label[lang]}</option>)}
+            </select>
+          ) : (
+            <input id={id(f.name)} name={f.name} type={f.type} required={f.required} maxlength={f.max} autocomplete={f.autocomplete} inputmode={f.type === 'tel' ? 'tel' : undefined} aria-describedby={id(f.name) + '-e'} />
+          )}
+          <p class="err" id={id(f.name) + '-e'}>{u.invalid}</p>
+        </div>
+      ))}
+    </div>
+  ))}
+  <div class="hp" aria-hidden="true"><label for={id('hp')}>Leave empty</label><input id={id('hp')} name="hp_field" type="text" tabindex="-1" autocomplete="off" /></div>
+  <div class="form-status" role="status" aria-live="polite"></div>
+  <div><button type="submit" class="btn btn-lg" style="width:100%">{submit ?? u.send}</button></div>
+</form>

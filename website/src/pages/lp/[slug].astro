@@ -1,0 +1,9 @@
+---
+import V from '../../views/Landing.astro';
+import { landings } from '../../data/landings';
+export function getStaticPaths() {
+  return Object.entries(landings).map(([slug, d]) => ({ params: { slug }, props: { d } }));
+}
+const { d } = Astro.props as any;
+---
+<V d={d} />

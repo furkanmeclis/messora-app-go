@@ -1,0 +1,9 @@
+---
+import V from '../../../views/SolutionPage.astro';
+import { solutionPaths } from '../../../data/routes';
+export function getStaticPaths() {
+  return Object.entries(solutionPaths).map(([k, p]) => ({ params: { slug: p.en.split('/').pop() }, props: { k } }));
+}
+const { k } = Astro.props as any;
+---
+<V lang="en" k={k} />

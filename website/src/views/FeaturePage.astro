@@ -1,0 +1,80 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import Mock from '../components/Mock.astro';
+import CtaBand from '../components/CtaBand.astro';
+import FaqList from '../components/FaqList.astro';
+import type { Lang, FeatureKey } from '../data/types';
+import { featurePaths, appUrls } from '../data/routes';
+import { t } from '../i18n/ui';
+import { feature, fPath, r } from '../lib/site';
+import { faqLd } from '../lib/schema';
+interface Props { lang: Lang; k: FeatureKey }
+const { lang, k } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
+const u = t(lang);
+const f = feature(lang, k);
+const path = fPath(lang, k);
+const crumbs = [{ name: u.nav.features, path: r(lang, 'features') }, { name: f.nav, path }];
+---
+<Base lang={lang} title={f.seoTitle} description={f.seoDescription} path={path} alt={featurePaths[k]} crumbs={crumbs} jsonLd={[faqLd(f.faq)]}>
+  <PageHero lang={lang} eyebrow={f.eyebrow} title={f.h1} lead={f.lead} crumbs={crumbs} split ai={k === 'ai'}>
+    <div class="actions">
+      <a class="btn btn-lg" href={appUrls.signup} data-signup>{u.trialLong}<Icon name="arrow-right" /></a>
+      <a class="btn btn-ghost btn-lg" href={r(lang, 'demo')}>{u.demo}</a>
+    </div>
+    <ul class="hero-points">{f.highlights.map((h) => <li><Icon name="check-circle" />{h}</li>)}</ul>
+    <Mock slot="aside" kind={k} lang={lang} />
+  </PageHero>
+
+  <section class="sec">
+    <div class="wrap">
+      <div class="grid g2 blocks">
+        {f.blocks.map((b, i) => (
+          <article class="card rv">
+            <span class:list={['ibox', { ai: k === 'ai' && i === 0 }]}><Icon name={['check-circle', 'layers', 'shield', 'bolt', 'eye', 'refresh'][i % 6] as any} /></span>
+            <h2 class="h3">{b.title}</h2>
+            <p>{b.body}</p>
+            {b.points && <ul class="checks">{b.points.map((p) => <li><Icon name="check" />{p}</li>)}</ul>}
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="sec fog">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow">{T('Nasıl çalışır', 'How it works')}</p><h2>{T('Adım adım', 'Step by step')}</h2></div>
+      <ol class="steps">{f.steps.map((s) => <li class="rv"><h3>{s.title}</h3><p>{s.body}</p></li>)}</ol>
+      <div class="tl-note rv" style="margin-top:40px"><Icon name="info" /><div><strong>{T('Paketler', 'Plans')}:</strong> {f.plans} <a href={r(lang, 'pricing')}>{T('Paketleri karşılaştırın', 'Compare plans')}</a></div></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap narrow">
+      <div class="sec-head"><h2>{u.nav.faq}</h2></div>
+      <FaqList items={f.faq} />
+    </div>
+  </section>
+
+  <section class="sec-sm fog">
+    <div class="wrap">
+      <div class="sec-head"><h2 class="h2s">{T('Birlikte iyi çalışır', 'Works well with')}</h2></div>
+      <div class="grid g3">
+        {f.related.map((rk) => { const x = feature(lang, rk); return (
+          <a class="card" href={fPath(lang, rk)}><span class:list={['ibox', { ai: rk === 'ai' }]}><Icon name={x.icon} /></span><h3>{x.nav}</h3><p>{x.summary}</p><span class="more">{u.learnMore}<Icon name="arrow-right" /></span></a>
+        ); })}
+      </div>
+    </div>
+  </section>
+
+  <CtaBand lang={lang} />
+</Base>
+
+<style>
+  .blocks .h3 { font-size: 1.22rem; font-weight: 700; margin-bottom: 8px; }
+  .blocks .checks { margin-top: 16px; font-size: .96rem; color: var(--ink-2); }
+  .h2s { font-size: clamp(1.4rem, 2.4vw, 1.9rem); }
+</style>

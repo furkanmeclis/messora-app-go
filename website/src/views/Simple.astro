@@ -1,0 +1,48 @@
+---
+// Status page and 404.
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import type { Lang } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes, appUrls } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+interface Props { lang: Lang; kind: 'status' | '404' }
+const { lang, kind } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const STATUS_URL = ''; // set when a public status page exists, e.g. https://status.messora.tech
+const m = kind === 'status' ? meta.status[lang] : { title: tr ? 'Sayfa bulunamadı' : 'Page not found', description: tr ? 'Aradığınız sayfa taşınmış ya da hiç var olmamış olabilir.' : 'The page you are looking for may have moved or never existed.', eyebrow: '404' };
+const path = kind === 'status' ? r(lang, 'status') : (tr ? '/404' : '/en/404');
+---
+<Base lang={lang} title={m.title} description={m.description} path={path} alt={kind === 'status' ? staticRoutes.status : {}} noindex>
+  <PageHero lang={lang} eyebrow={m.eyebrow} title={m.title} lead={m.description}>
+    {kind === '404' ? (
+      <div class="actions">
+        <a class="btn btn-lg" href={r(lang, 'home')}>{u.breadcrumbHome}<Icon name="arrow-right" /></a>
+        <a class="btn btn-ghost btn-lg" href={r(lang, 'contact')}>{u.footer.contact}</a>
+      </div>
+    ) : (
+      <div class="actions">
+        {STATUS_URL ? <a class="btn btn-lg" href={STATUS_URL}>{tr ? 'Durum sayfasına git' : 'Open the status page'}</a> : null}
+        <a class="btn btn-ghost btn-lg" href={appUrls.login}>{u.login}</a>
+        <a class="btn btn-ghost btn-lg" href={r(lang, 'contact')}>{u.footer.contact}</a>
+      </div>
+    )}
+  </PageHero>
+  <section class="sec-sm">
+    <div class="wrap narrow">
+      {kind === '404' ? (
+        <ul class="checks">
+          <li><Icon name="arrow-right" /><a href={r(lang, 'features')}>{u.nav.features}</a></li>
+          <li><Icon name="arrow-right" /><a href={r(lang, 'pricing')}>{u.nav.pricing}</a></li>
+          <li><Icon name="arrow-right" /><a href={r(lang, 'resources')}>{u.nav.resources}</a></li>
+          <li><Icon name="arrow-right" /><a href={r(lang, 'faq')}>{u.nav.faq}</a></li>
+        </ul>
+      ) : (
+        <p class="muted">{tr ? 'Bir sorun yaşıyorsanız iletişim formunda “Teknik destek” konusunu seçin. Planlı bakımları önceden e-postayla duyururuz.' : 'If something is wrong, choose “Technical support” in the contact form. We announce planned maintenance by e-mail in advance.'}</p>
+      )}
+    </div>
+  </section>
+</Base>

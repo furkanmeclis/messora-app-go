@@ -1,0 +1,47 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import CtaBand from '../components/CtaBand.astro';
+import type { Lang } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { solutions, sPath, r } from '../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
+const u = t(lang);
+const m = meta.solutions[lang];
+const crumbs = [{ name: u.nav.solutions, path: r(lang, 'solutions') }];
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'solutions')} alt={staticRoutes.solutions} crumbs={crumbs}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={T('Sektörünüzün WhatsApp’ta konuştuğu dil.', 'WhatsApp, the way your industry talks.')}
+    lead={T('Her sektörün sık sorulan sorusu, zamana duyarlı bildirimi ve izin hassasiyeti farklı. Aşağıdaki sayfalarda gerçekçi akışlar, şablon örnekleri ve uyum notları var.', 'Every industry has its own common questions, time-sensitive updates and consent concerns. The pages below show realistic flows, template examples and compliance notes.')} />
+  <section class="sec">
+    <div class="wrap">
+      <div class="grid g2">
+        {solutions(lang).map((s) => (
+          <a class="card rv sol" href={sPath(lang, s.key)}>
+            <span class="ibox"><Icon name={s.icon} /></span>
+            <div>
+              <h2 class="h3">{s.nav}</h2>
+              <p>{s.summary}</p>
+              <ul>{s.flows.slice(0, 3).map((f) => <li>{f.title}</li>)}</ul>
+              <span class="more">{u.learnMore}<Icon name="arrow-right" /></span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+  <CtaBand lang={lang} fog title={T('Sektörünüz listede yok mu?', 'Industry not listed?')} text={T('Akışınızı anlatın, Messora’da nasıl kurulacağını birlikte gösterelim.', 'Tell us your flow and we’ll show you how to set it up in Messora.')} />
+</Base>
+<style>
+  .sol { display: grid; grid-template-columns: auto 1fr; gap: 18px; }
+  .sol .h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+  .sol ul { list-style: none; display: grid; gap: 6px; margin-top: 14px; font-size: .93rem; color: var(--ink-2); }
+  .sol li::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 2px; background: var(--indigo); margin-right: 10px; vertical-align: middle; }
+</style>

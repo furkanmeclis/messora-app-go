@@ -1,0 +1,42 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import FormBlock from '../components/FormBlock.astro';
+import type { Lang } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const m = meta.demo[lang];
+const crumbs = [{ name: u.demo, path: r(lang, 'demo') }];
+const agenda = tr
+  ? ['Kendi senaryonuz: hangi mesajlar geliyor, kim yanıtlıyor', 'Gelen kutusu, atama ve AI devri canlı', 'İlk kampanyanızın kitlesi ve tahmini Meta ücreti', 'Meta hesabı, numara ve şablon onayı için yol haritası']
+  : ['Your scenario: which messages come in and who answers', 'The inbox, assignment and AI hand-over, live', 'Your first campaign’s audience and estimated Meta fee', 'A roadmap for the Meta account, number and template approval'];
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'demo')} alt={staticRoutes.demo} crumbs={crumbs}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={tr ? 'Messora’yı kendi iş akışınızla görün.' : 'See Messora with your own workflow.'}
+    lead={tr ? '30 dakikalık bir görüşmede genel bir sunum değil, sizin mesaj trafiğinize göre bir kurulum gösteriyoruz.' : 'In a 30-minute call we don’t give a generic pitch — we show a setup built around your own message traffic.'} />
+  <section class="sec">
+    <div class="wrap split" style="align-items:start">
+      <div>
+        <h2 class="h2s">{tr ? 'Görüşmede neler var?' : 'What we cover'}</h2>
+        <ol class="steps" style="margin-top:28px;grid-template-columns:1fr">
+          {agenda.map((a) => <li><h3>{a}</h3></li>)}
+        </ol>
+        <div class="tl-note" style="margin-top:28px"><Icon name="info" /><div>{tr ? 'Formu gönderdikten sonra iş günlerinde size e-postayla dönüp uygun bir saat öneriyoruz.' : 'After you send the form we get back to you by e-mail on business days to suggest a time.'}</div></div>
+      </div>
+      <div class="form-card"><FormBlock type="demo" lang={lang} submit={tr ? 'Demo isteyin' : 'Request a demo'} /></div>
+    </div>
+  </section>
+</Base>
+<style>
+  .h2s { font-size: clamp(1.5rem, 2.6vw, 2rem); }
+  .steps li { padding-top: 0; padding-left: 52px; min-height: 36px; display: flex; align-items: center; }
+  .steps h3 { margin: 0; font-size: 1.05rem; }
+</style>

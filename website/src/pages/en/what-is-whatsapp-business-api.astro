@@ -1,0 +1,6 @@
+---
+import V from '../../views/Article.astro';
+import { getEntry } from 'astro:content';
+const entry = (await getEntry('pages', 'en/whatsapp-business-api'))!;
+---
+<V lang="en" entry={entry} kind="guide" />

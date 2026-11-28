@@ -1,0 +1,23 @@
+---
+import type { Lang } from '../data/types';
+import { t } from '../i18n/ui';
+import { legalRoutes } from '../data/routes';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = t(lang).cookie;
+---
+<div class="cc" id="cc" role="dialog" aria-modal="false" aria-labelledby="cc-t" aria-describedby="cc-d">
+  <h2 id="cc-t">{c.title}</h2>
+  <p id="cc-d">{c.text} <a href={legalRoutes.cookies[lang]}>{c.policy}</a></p>
+  <div class="cc-opts" id="cc-opts">
+    <div class="cc-opt"><div><strong>{c.necessary}</strong><p>{c.necessaryText}</p></div><span class="always">{c.always}</span></div>
+    <div class="cc-opt"><div><strong id="cc-a-l">{c.analytics}</strong><p>{c.analyticsText}</p></div><label class="switch"><input type="checkbox" id="cc-a" aria-labelledby="cc-a-l"><span></span></label></div>
+    <div class="cc-opt"><div><strong id="cc-m-l">{c.ads}</strong><p>{c.adsText}</p></div><label class="switch"><input type="checkbox" id="cc-m" aria-labelledby="cc-m-l"><span></span></label></div>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn" data-cc="reject">{c.reject}</button>
+    <button type="button" class="btn" data-cc="accept">{c.accept}</button>
+    <button type="button" class="btn btn-ghost" data-cc="more" id="cc-more">{c.customize}</button>
+    <button type="button" class="btn btn-ghost" data-cc="save" id="cc-save" hidden>{c.save}</button>
+  </div>
+</div>

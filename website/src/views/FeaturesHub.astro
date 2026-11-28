@@ -1,0 +1,45 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import Mock from '../components/Mock.astro';
+import CtaBand from '../components/CtaBand.astro';
+import type { Lang } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { features, fPath, r } from '../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const tr = lang === 'tr';
+const T = (a: string, b: string) => (tr ? a : b);
+const u = t(lang);
+const m = meta.features[lang];
+const crumbs = [{ name: u.nav.features, path: r(lang, 'features') }];
+const list = {
+  '@type': 'ItemList',
+  itemListElement: features(lang).map((f, i) => ({ '@type': 'ListItem', position: i + 1, name: f.nav, url: `https://messora.tech${fPath(lang, f.key)}` })),
+};
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'features')} alt={staticRoutes.features} crumbs={crumbs} jsonLd={[list]}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={T('Ekibiniz, kampanyalarınız ve yapay zekâ — aynı konuşmada.', 'Your team, your campaigns and AI — in the same conversation.')}
+    lead={T('Messora’nın her parçası aynı veriye bakar: gelen kutusundaki not otomasyonu tetikler, kampanyaya gelen yanıt doğru kişiye atanır, AI’ın yakaladığı e-posta kişi kartına yazılır.', 'Every part of Messora looks at the same data: a note in the inbox can trigger an automation, a reply to a campaign lands with the right person, and the e-mail the AI captures goes into the contact card.')} />
+  <section class="sec">
+    <div class="wrap">
+      {features(lang).map((f, i) => (
+        <div class:list={['split', { rev: i % 2 === 1 }]}>
+          <div class="rv">
+            <p class:list={['eyebrow', { ai: f.key === 'ai' }]}>{f.nav}</p>
+            <h2>{f.h1}</h2>
+            <p class="lead">{f.summary}</p>
+            <ul class="checks">{f.highlights.map((h) => <li><Icon name="check" />{h}</li>)}</ul>
+            <a class="more" href={fPath(lang, f.key)}>{u.learnMore}<Icon name="arrow-right" /></a>
+          </div>
+          <div class="rv"><Mock kind={f.key} lang={lang} /></div>
+        </div>
+      ))}
+    </div>
+  </section>
+  <CtaBand lang={lang} fog />
+</Base>

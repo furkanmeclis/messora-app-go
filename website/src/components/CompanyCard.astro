@@ -1,0 +1,41 @@
+---
+// Full company information block (legal pages, contact). Values come from
+// src/config/company.ts; unset fields render as visible placeholders.
+import type { Lang } from '../data/types';
+import { companyText, isPlaceholder, type CompanyKey } from '../config/company';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const tr = lang === 'tr';
+const rows: [CompanyKey, string][] = [
+  ['unvan', tr ? 'Unvan' : 'Legal name'],
+  ['marka', tr ? 'Marka' : 'Brand'],
+  ['adres', tr ? 'Adres' : 'Address'],
+  ['mersis', 'MERSİS'],
+  ['ticaretSicil', tr ? 'Ticaret sicili' : 'Trade registry'],
+  ['vergiDairesi', tr ? 'Vergi dairesi' : 'Tax office'],
+  ['vergiNo', tr ? 'Vergi no' : 'Tax number'],
+  ['kep', 'KEP'],
+  ['telefon', tr ? 'Telefon' : 'Phone'],
+  ['eposta', tr ? 'E-posta' : 'E-mail'],
+  ['kvkkEposta', tr ? 'KVKK' : 'Privacy'],
+  ['temsilci', tr ? 'Veri sorumlusu irtibat kişisi' : 'Data controller contact'],
+];
+---
+<div class="card co">
+  <h2 class="h3">{tr ? 'Şirket bilgileri' : 'Company details'}</h2>
+  <dl>
+    {rows.map(([k, label]) => {
+      const v = companyText(k, lang);
+      return (<div><dt>{label}</dt><dd>{isPlaceholder(k) ? <span class="ph">{v}</span> : (k === 'eposta' || k === 'kvkkEposta') ? <a href={`mailto:${v}`}>{v}</a> : v}</dd></div>);
+    })}
+  </dl>
+</div>
+<style>
+  .co .h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 12px; }
+  dl { margin: 0; display: grid; gap: 0; font-size: .93rem; }
+  dl div { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  dl div:last-child { border-bottom: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+  @media (max-width: 480px) { dl div { grid-template-columns: 1fr; gap: 2px; } }
+</style>

@@ -1,0 +1,61 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import CtaBand from '../components/CtaBand.astro';
+import CompanyCard from '../components/CompanyCard.astro';
+import type { Lang, IconName } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const m = meta.about[lang];
+const crumbs = [{ name: u.footer.aboutUs, path: r(lang, 'about') }];
+const values: { i: IconName; h: string; p: string }[] = tr ? [
+  { i: 'eye', h: 'Net', p: 'Jargon yerine ne olacağını söyleriz: kaç kişiye gidecek, kaç kişi çıkarıldı, Meta ne kadar alacak.' },
+  { i: 'message', h: 'Sıcak', p: 'İşletmenin müşterisiyle konuştuğu dili koruruz. AI, ekibin sesini taklit etmez; ekibin yanında çalışır.' },
+  { i: 'shield', h: 'Güven veren', p: 'İzne ve veriye saygı ürünün varsayılanıdır. İzin vermeyene mesaj gitmez; veri AB’de, firmaya ayrık tutulur.' },
+  { i: 'sparkle', h: 'Akıllı, abartısız', p: 'Yapay zekâyı işe yaradığı yerde kullanırız. Emin olmadığında insana devreder.' },
+] : [
+  { i: 'eye', h: 'Clear', p: 'Instead of jargon we say what will happen: how many people it reaches, how many were left out, what Meta will charge.' },
+  { i: 'message', h: 'Warm', p: 'We keep the voice a business uses with its customers. The AI doesn’t imitate the team; it works next to it.' },
+  { i: 'shield', h: 'Trustworthy', p: 'Respect for consent and data is the default. No consent, no message; data stays in the EU, isolated per company.' },
+  { i: 'sparkle', h: 'Smart, without the hype', p: 'We use AI where it helps. When it isn’t sure, it hands over to a person.' },
+];
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'about')} alt={staticRoutes.about} crumbs={crumbs}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={tr ? 'Her müşteri konuşması bir sonraki satışa dönüşsün.' : 'Every customer conversation should lead to the next sale.'}
+    lead={tr ? 'Türkiye’de müşteriler işletmelere en çok WhatsApp’tan yazıyor. Ama bu konuşmalar çoğu zaman tek bir telefonda, tek bir kişinin elinde kalıyor. Messora’yı bunu değiştirmek için yapıyoruz.' : 'In Türkiye, customers message businesses on WhatsApp more than anywhere else. Yet those conversations often sit on one phone, with one person. We build Messora to change that.'} />
+  <section class="sec">
+    <div class="wrap narrow prose">
+      {tr ? (
+        <Fragment>
+          <p>Messora; Türk işletmelerinin WhatsApp’taki satış, destek ve kampanyalarını tek panelde toplayan, yapay zekâyı ekibin yanında çalıştıran bir platform. Yalnızca Meta’nın resmi WhatsApp Business Cloud API’si üzerinde çalışıyoruz; numaranızı riske atan gayriresmî araçlara yer yok.</p>
+          <p>Ürünü üç ilkeyle kuruyoruz. Birincisi şeffaflık: bir kampanyanın kaç kişiye gideceği, kaçının izin vermediği ve Meta’nın ne kadar alacağı göndermeden önce görünmeli. İkincisi ekip: her konuşmanın bir sahibi olmalı, not ve devir geçmişi kaybolmamalı. Üçüncüsü ölçülü yapay zekâ: AI sık soruları yanıtlasın, bilgiyi toplasın, emin olmadığında insana devretsin.</p>
+          <p>Verileri Avrupa Birliği’nde, AWS Frankfurt’ta tutuyoruz ve her firmanın verisini veritabanı seviyesinde ayırıyoruz. Fiyatlarımızı TL olarak, KDV hariç ve taahhütsüz yayımlıyoruz.</p>
+          <p>Messora yeni bir ürün. Müşteri logosu, sayılar ya da ödül göstermiyoruz; bunun yerine ürünü 14 gün ücretsiz denemenizi ve bize doğrudan yazmanızı istiyoruz.</p>
+        </Fragment>
+      ) : (
+        <Fragment>
+          <p>Messora is a platform that brings the sales, support and campaigns of businesses in Türkiye on WhatsApp into one panel, with AI working next to the team. We work only on Meta’s official WhatsApp Business Cloud API — there is no room for unofficial tools that put your number at risk.</p>
+          <p>We build the product on three principles. Transparency: how many people a campaign reaches, how many haven’t consented and what Meta will charge should be visible before you send. Teamwork: every conversation should have an owner, and notes and hand-overs shouldn’t get lost. Measured AI: let it answer common questions and collect details, and hand over to a person when it isn’t sure.</p>
+          <p>We keep data in the European Union, on AWS Frankfurt, and separate each company’s data at the database level. We publish our prices in Turkish lira, excluding VAT, with no lock-in.</p>
+          <p>Messora is a new product. We don’t show customer logos, numbers or awards; instead, we invite you to try it free for 14 days and to write to us directly.</p>
+        </Fragment>
+      )}
+    </div>
+  </section>
+  <section class="sec fog">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow">{tr ? 'Nasıl konuşuruz' : 'How we speak'}</p><h2>{tr ? 'Net, sıcak, güven veren.' : 'Clear, warm, trustworthy.'}</h2></div>
+      <div class="grid g4">{values.map((v) => <div class="card"><span class:list={['ibox', { ai: v.i === 'sparkle' }]}><Icon name={v.i} /></span><h3>{v.h}</h3><p>{v.p}</p></div>)}</div>
+    </div>
+  </section>
+  <section class="sec-sm"><div class="wrap narrow"><CompanyCard lang={lang} /></div></section>
+  <CtaBand lang={lang} fog />
+</Base>

@@ -1,0 +1,75 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import FaqList from '../components/FaqList.astro';
+import CtaBand from '../components/CtaBand.astro';
+import type { Lang, Faq } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r } from '../lib/site';
+import { faqLd } from '../lib/schema';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const m = meta.faq[lang];
+const crumbs = [{ name: m.title, path: r(lang, 'faq') }];
+const groups: { h: string; items: Faq[] }[] = tr ? [
+  { h: 'WhatsApp Business API', items: [
+    { q: 'WhatsApp Business API nedir?', a: 'Meta’nın işletmeler için sunduğu, WhatsApp’ı bir yazılım üzerinden ekipçe ve ölçekli kullanmayı sağlayan resmi arayüzdür. Uygulamadan farkı; birden çok kullanıcı, otomasyon, onaylı şablonlarla toplu gönderim ve entegrasyon imkânıdır. Ayrıntılar [rehberimizde](/whatsapp-business-api-nedir).' },
+    { q: 'Messora bir BSP (Meta iş ortağı) mı?', a: 'Hayır. Messora, Meta’nın Cloud API’sine kendi Meta uygulamanız üzerinden bağlanan bir yazılımdır. Tek tıkla bağlantı (Embedded Signup) için Tech Provider başvurumuz sürüyor; onaylandığında duyuracağız.' },
+    { q: 'Numaram engellenir mi?', a: 'Resmi API’de numaralar QR araçlarındaki gibi rastgele kapanmaz; ama Meta, şikâyet ve engellemelere göre kalite puanını düşürebilir ve gönderim limitini sınırlayabilir. Messora yalnızca izin verenlere gönderir, DUR yazanı hemen çıkarır ve kalite uyarısında kampanyayı durdurur.' },
+    { q: 'Mevcut numaramı taşıyabilir miyim?', a: 'Evet. Numara WhatsApp Business uygulamasındaysa önce oradan kaldırılması veya Meta’nın taşıma adımlarının izlenmesi gerekir. Sabit hatlar da sesli arama ile doğrulanarak kullanılabilir.' },
+  ] },
+  { h: 'Ücretler ve ödeme', items: [
+    { q: 'Paket fiyatları neleri kapsıyor?', a: 'Messora’nın yazılım kullanımını: kullanıcı, numara, AI ajanı, aktif otomasyon ve API kotası paketinize göre. Meta’nın mesaj ücretleri ayrıdır. [Fiyatlar](/fiyatlar)' },
+    { q: 'Meta ücretini kime ödüyorum?', a: 'Meta ücretleri Meta hesabınıza ve Meta’ya tanımladığınız ödeme yöntemine yansır. Messora bu ücreti gönderim öncesinde tahmin olarak gösterir.' },
+    { q: 'Hangi ödeme yöntemleri var?', a: 'Şu an havale/EFT. Kartla ödeme yakında PayTR altyapısıyla açılacak. Faturalar e-Fatura veya e-Arşiv olarak kesilir.' },
+    { q: 'İptal edersem ne olur?', a: 'Aylık paketlerde iptal dönem sonunda geçerli olur. Hizmet bittikten sonra verilerinizi 30 gün boyunca dışa aktarabilirsiniz. Ayrıntılar [İptal, İade ve Cayma Koşulları](/yasal/iptal-iade-ve-cayma) sayfasında.' },
+  ] },
+  { h: 'Veri ve güvenlik', items: [
+    { q: 'Verilerimiz nerede?', a: 'AWS Frankfurt (eu-central-1), Avrupa Birliği. Her firmanın verisi satır bazlı güvenlikle ayrılır, sırlar şifrelenir, her gece şifreli yedek alınır. [Güvenlik](/guvenlik)' },
+    { q: 'Yapay zekâ sağlayıcıları konuşmalarımızı görür mü?', a: 'AI özelliklerini açarsanız, yanıt üretmek için gereken konuşma metni seçtiğiniz sağlayıcıya gönderilir. Sağlayıcılar ticari API koşullarında bu veriyi model eğitiminde kullanmaz; OpenAI isteklerinde saklama kapalıdır.' },
+    { q: 'KVKK açısından rolümüz ne?', a: 'Panele yüklediğiniz müşteri verileri için siz veri sorumlusu, Messora veri işleyendir. [Veri İşleme Sözleşmesi](/yasal/veri-isleme-sozlesmesi) bu ilişkiyi düzenler.' },
+  ] },
+  { h: 'Kurulum ve kullanım', items: [
+    { q: 'Kurulum ne kadar sürer?', a: 'Messora tarafı kısa: hesap açılır, Meta bağlantısı sihirbazla yapılır. Meta’nın işletme doğrulaması ve şablon onayı ise Meta’ya bağlıdır ve birkaç gün sürebilir.' },
+    { q: 'Kendi alan adımı kullanabilir miyim?', a: 'Evet. Firmanız firma.messora.tech adresiyle açılır; isterseniz kendi alan adınızı bağlarsınız, TLS sertifikası otomatik alınır.' },
+    { q: 'Hangi sistemlerle entegre olur?', a: 'Hazır eklenti yerine açık bir REST API ve imzalı webhook’lar sunuyoruz; e-ticaret, CRM veya ERP sisteminizi bunlarla bağlayabilirsiniz. Her firmanın API belgeleri kendi adresinde açılır.' },
+  ] },
+] : [
+  { h: 'WhatsApp Business API', items: [
+    { q: 'What is the WhatsApp Business API?', a: 'Meta’s official interface that lets businesses use WhatsApp through software, as a team and at scale. Unlike the app, it supports many users, automation, broadcasts with approved templates and integrations. See [our guide](/en/what-is-whatsapp-business-api).' },
+    { q: 'Is Messora a BSP (Meta partner)?', a: 'No. Messora is software that connects to Meta’s Cloud API through your own Meta app. Our Tech Provider application for one-click connection (Embedded Signup) is in progress; we will announce it when approved.' },
+    { q: 'Will my number be banned?', a: 'On the official API numbers aren’t shut down at random as with QR tools, but Meta can lower the quality rating and messaging limit based on complaints and blocks. Messora sends only to people who consented, removes anyone who replies STOP and stops a campaign on a quality warning.' },
+    { q: 'Can I move my existing number?', a: 'Yes. If it is in the WhatsApp Business app it has to be removed from there first or moved following Meta’s steps. Landlines can be used too, verified by voice call.' },
+  ] },
+  { h: 'Fees and payment', items: [
+    { q: 'What do plan prices cover?', a: 'Use of the Messora software: users, numbers, AI agents, active automations and API quota by plan. Meta’s message fees are separate. [Pricing](/en/pricing)' },
+    { q: 'Who do I pay Meta fees to?', a: 'Meta fees are billed to your Meta account and the payment method you set up with Meta. Messora shows an estimate before you send.' },
+    { q: 'Which payment methods are there?', a: 'Bank transfer for now. Card payments via PayTR are coming soon. Invoices are issued as e-Fatura or e-Arşiv.' },
+    { q: 'What happens if I cancel?', a: 'Monthly plans end at the end of the period. After the service ends you can export your data for 30 days. See the [Cancellation and Refund Terms](/en/legal/cancellation-and-refunds).' },
+  ] },
+  { h: 'Data and security', items: [
+    { q: 'Where is our data?', a: 'AWS Frankfurt (eu-central-1), European Union. Each company’s data is separated with row-level security, secrets are encrypted and encrypted backups are taken nightly. [Security](/en/security)' },
+    { q: 'Do AI providers see our conversations?', a: 'If you turn AI features on, the conversation text needed for a reply is sent to the provider you chose. Providers don’t use this data for training under their commercial API terms; OpenAI requests are sent with storage off.' },
+    { q: 'What is our role under KVKK and GDPR?', a: 'For customer data you put in the panel you are the controller and Messora is the processor. The [Data Processing Agreement](/en/legal/data-processing-agreement) governs this.' },
+  ] },
+  { h: 'Setup and use', items: [
+    { q: 'How long does setup take?', a: 'Messora’s part is short: create the account and connect Meta with the wizard. Meta’s business verification and template approval depend on Meta and can take a few days.' },
+    { q: 'Can I use my own domain?', a: 'Yes. Your company opens at company.messora.tech; you can connect your own domain and the TLS certificate is issued automatically.' },
+    { q: 'What does it integrate with?', a: 'Instead of ready-made plug-ins we offer an open REST API and signed webhooks to connect your e-commerce, CRM or ERP system. Each company’s API docs open at its own address.' },
+  ] },
+];
+const all = groups.flatMap((g) => g.items);
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'faq')} alt={staticRoutes.faq} crumbs={crumbs} jsonLd={[faqLd(all)]}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs} title={m.title} lead={tr ? 'Bulamadığınız bir soru varsa iletişim formundan yazın.' : 'If your question isn’t here, use the contact form.'} />
+  <section class="sec">
+    <div class="wrap narrow">
+      {groups.map((g) => (<div style="margin-bottom:48px"><h2 style="font-size:1.5rem;margin-bottom:18px">{g.h}</h2><FaqList items={g.items} /></div>))}
+    </div>
+  </section>
+  <CtaBand lang={lang} fog />
+</Base>

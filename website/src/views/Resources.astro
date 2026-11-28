@@ -1,0 +1,49 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import CtaBand from '../components/CtaBand.astro';
+import type { Lang } from '../data/types';
+import { meta } from '../data/meta';
+import { staticRoutes, blogBase } from '../data/routes';
+import { t } from '../i18n/ui';
+import { r, readingMinutes, fmtDate } from '../lib/site';
+import { getCollection } from 'astro:content';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const u = t(lang);
+const tr = lang === 'tr';
+const m = meta.resources[lang];
+const posts = (await getCollection('blog', (e) => e.data.lang === lang)).sort((a, b) => +b.data.date - +a.data.date);
+const crumbs = [{ name: u.nav.resources, path: r(lang, 'resources') }];
+const list = { '@type': 'ItemList', itemListElement: posts.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `https://messora.tech${blogBase[lang]}/${p.data.slug}`, name: p.data.title })) };
+---
+<Base lang={lang} title={m.title} description={m.description} path={r(lang, 'resources')} alt={staticRoutes.resources} crumbs={crumbs} jsonLd={[list]}>
+  <PageHero lang={lang} eyebrow={m.eyebrow} crumbs={crumbs}
+    title={tr ? 'WhatsApp Business API’yi doğru kullanmak için rehberler' : 'Guides to using the WhatsApp Business API well'}
+    lead={tr ? 'Başvurudan Meta ücretlerine, izin kurallarından şablon onayına kadar; işletmenize gerçekten lazım olan bilgiler.' : 'From applying to Meta pricing, from consent rules to template approval — what your business actually needs to know.'} />
+  <section class="sec">
+    <div class="wrap">
+      <a class="card pillar" href={r(lang, 'guide')}>
+        <span class="ibox"><Icon name="layers" /></span>
+        <div><p class="small muted">{tr ? 'Temel rehber' : 'Pillar guide'}</p><h2>{u.nav.guide}</h2><p>{meta.guide[lang].description}</p><span class="more">{u.readMore}<Icon name="arrow-right" /></span></div>
+      </a>
+      <div class="grid g3" style="margin-top:20px">
+        {posts.map((p) => (
+          <a class="card" href={`${blogBase[lang]}/${p.data.slug}`}>
+            <p class="small muted">{p.data.tags.slice(0, 2).join(' · ')}</p>
+            <h2 class="h3">{p.data.title}</h2>
+            <p>{p.data.description}</p>
+            <p class="small muted" style="margin-top:14px">{fmtDate(p.data.updated ?? p.data.date, lang)} · {readingMinutes(p.data.words)} {u.minRead}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+  <CtaBand lang={lang} fog />
+</Base>
+<style>
+  .pillar { display: grid; grid-template-columns: auto 1fr; gap: 20px; background: var(--fog); border-color: transparent; }
+  .pillar h2 { font-size: clamp(1.4rem, 2.6vw, 2rem); margin: 6px 0 10px; }
+  .h3 { font-size: 1.15rem; font-weight: 700; margin: 8px 0; line-height: 1.35; }
+</style>
