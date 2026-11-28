@@ -11,6 +11,7 @@ import (
 
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/edge"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/health"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/metrics"
@@ -82,6 +83,9 @@ func RunAPI(ctx context.Context) error {
 	// /status on the internal port checks the whole stack (worker, scheduler,
 	// Centrifugo); used by operators and the end-to-end smoke test.
 	internal.Handler.(chi.Router).Get("/status", sys.ReadyHandler)
+	// The edge proxy's questions: may Caddy get a certificate for a host
+	// (on-demand TLS), which custom domains Traefik routes.
+	edge.Mount(internal.Handler.(chi.Router), edge.Options{Resolver: svc.tenants, Pool: pool, BaseDomain: cfg.TenantBaseDomain, Logger: log})
 
 	g, gctx := errgroup.WithContext(ctx)
 	var handler http.Handler = r
