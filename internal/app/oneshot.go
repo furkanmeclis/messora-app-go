@@ -71,7 +71,7 @@ func RunInit(_ context.Context) error {
 		return reportFatal(log, err)
 	}
 	res, err := provision.Run(provision.Options{
-		Dir: dir, Getenv: os.Getenv, PublicAppURL: os.Getenv("PUBLIC_APP_URL"), Owners: owners, Logger: log,
+		Dir: dir, Getenv: os.Getenv, PublicAppURL: os.Getenv("PUBLIC_APP_URL"), BaseDomain: os.Getenv("TENANT_BASE_DOMAIN"), Owners: owners, Logger: log,
 	})
 	if err != nil {
 		return reportFatal(log, err)
