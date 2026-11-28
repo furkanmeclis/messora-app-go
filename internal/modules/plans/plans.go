@@ -60,6 +60,22 @@ type Service struct {
 	q    *db.Queries
 	o    Options
 	now  func() time.Time
+	// meBilling adds the billing banners' state to /me (Phase 17 WP9).
+	meBilling func(ctx context.Context, id uuid.UUID) MeBilling
+}
+
+// MeBilling is the subscription state /me carries for the panel's banners.
+type MeBilling struct {
+	Status                  string
+	ReadOnly                bool
+	TrialEndsAt             *time.Time
+	GraceEndsAt             *time.Time
+	MessageBalanceExhausted bool
+}
+
+// SetMeBilling installs billing's /me summary.
+func (s *Service) SetMeBilling(fn func(ctx context.Context, id uuid.UUID) MeBilling) {
+	s.meBilling = fn
 }
 
 // New returns the service.
@@ -250,7 +266,16 @@ func (s *Service) MePlan(ctx context.Context, id uuid.UUID) *api.MePlan {
 		s.o.Logger.WarnContext(ctx, "plan of /me", "err", err)
 		return nil
 	}
-	out := &api.MePlan{Key: info.Key, NameTr: info.NameTR, NameEn: info.NameEN, Features: []api.PlanFeature{}}
+	out := &api.MePlan{Key: info.Key, NameTr: info.NameTR, NameEn: info.NameEN, Features: []api.PlanFeature{},
+		SubscriptionStatus: api.SubscriptionStatus(info.SubscriptionStatus), TrialEndsAt: info.TrialEndsAt}
+	if out.SubscriptionStatus == "" {
+		out.SubscriptionStatus = api.SubscriptionStatusActive
+	}
+	if s.meBilling != nil {
+		b := s.meBilling(ctx, id)
+		out.SubscriptionStatus, out.ReadOnly, out.TrialEndsAt = api.SubscriptionStatus(b.Status), b.ReadOnly, b.TrialEndsAt
+		out.GraceEndsAt, out.MessageBalanceExhausted = b.GraceEndsAt, b.MessageBalanceExhausted
+	}
 	if out.NameTr == "" {
 		out.NameTr, out.NameEn = "Varsayılan", "Default"
 	}

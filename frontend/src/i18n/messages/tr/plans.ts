@@ -14,6 +14,7 @@ const plans: Messages['plans'] = {
         trial: 'Deneme',
         active: 'Aktif',
         past_due: 'Ödeme bekliyor',
+        read_only: 'Salt okunur',
         canceled: 'İptal edildi',
     },
     usageTitle: 'Kullanım',

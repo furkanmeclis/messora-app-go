@@ -6,6 +6,49 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (Phase 17 WP9: subscriptions and billing)
+
+- **Subscriptions** (docs/BILLING.md): plan, monthly or yearly cycle
+  (yearly = 10 months), period and next renewal per company; the states
+  `trial`, `active`, `past_due` (7 days of grace) and the new `read_only`,
+  and `canceled`; a per-tenant billing job (every 15 minutes) ends trials,
+  issues renewal proformas 10 days before the period ends, sends reminders
+  7 and 3 days before and on the due day (each once), moves unpaid
+  companies to past due and then read-only. Payment brings a company back
+  at once.
+- **Read-only mode:** reading and exports keep working; sending, campaigns,
+  AI replies, automations and creating answer `402 SUBSCRIPTION_READ_ONLY`
+  (spec extension `x-messora-read-only: allow` marks the operations that
+  stay open); inbound webhooks are still stored.
+- **Bank transfer payments:** proformas (plan periods, prorated upgrades, AI
+  credit packs, message balance top-ups) with Messora's IBANs, the
+  KDV-inclusive amount, a due date and a unique, check-digited payment
+  reference (`MSR-4F8K-002C-7`); branded proforma PDF; the platform admin's
+  payments inbox (record a transfer or import a bank statement CSV,
+  automatic suggestion by reference and amount, confirm, ignore), partial
+  payments and account credit for overpayments; invoice records with the
+  official e-Fatura/e-Arşiv number and PDF recorded by the admin
+  (`invoicing.Issuer`, manual for now); a `payments.Provider` interface with
+  bank transfer and a disabled card stub.
+- **Message balance** for companies on Messora's Tech Provider connection:
+  a TL wallet debited once per message Meta charges (Meta's USD price × the
+  day's rate; marketing × 1.20, other categories + $0.0006), `402
+  MESSAGE_BALANCE_EXHAUSTED` for templates and a `message_balance` campaign
+  pause when it runs out, a `credit_low` e-mail below the threshold.
+  Companies on their own Meta app are billed by Meta and never debited.
+- **Platform admin panel:** billing overview (MRR, collections),
+  subscriptions, payments inbox, proformas, invoices, seller identity and
+  bank accounts, prices (VAT, FX rate, margins, AI credit packs, top-ups),
+  and per company: extend, comp months, change the cycle or status, set a
+  company price, adjust balances (every action with a reason, both audit
+  logs).
+- **Workspaces:** Settings → Billing (plan and cycle, status and period,
+  balances, plan change, AI credit packs, message balance top-ups,
+  proformas with bank details and the reference to copy, invoices, invoice
+  details), read-only, past-due, trial and message balance banners.
+- `/me` → `tenant.plan` carries the subscription status, read-only flag,
+  trial and grace ends and whether the message balance is used up.
+
 ### Added (Phase 17 WP8: plans and entitlements)
 
 - **Plans:** the plan catalogue (Başlangıç, Büyüme, Pro, Kurumsal) with

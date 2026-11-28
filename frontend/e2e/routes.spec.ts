@@ -157,6 +157,7 @@ const routes: [string, () => string][] = [
     ['/system/failed-jobs', () => '/system/failed-jobs'],
     ['/settings', () => '/settings'],
     ['/settings/plan', () => '/settings/plan'],
+    ['/settings/billing', () => '/settings/billing'],
     ['/settings/email', () => '/settings/email'],
     ['/settings/consent', () => '/settings/consent'],
     ['/settings/security', () => '/settings/security'],

@@ -9,6 +9,7 @@ import type { Schemas } from '@/lib/types';
 import { Heading } from '../../heading';
 import { TenantDetail } from './tenant-client';
 import { TenantPlan } from './tenant-plan';
+import { TenantBilling } from './tenant-billing';
 
 export async function generateMetadata(): Promise<Metadata> {
     const t = await getT();
@@ -36,13 +37,18 @@ export default async function TenantPage({
             }),
     ]);
     if (!tenant) notFound();
-    const [plan, plans] = await Promise.all([
+    const [plan, plans, billing] = await Promise.all([
         papi<Schemas['PlatformTenantPlan']>(`/platform/tenants/${id}/plan`)
             .then((r) => r.data)
             .catch(() => null),
         papi<Schemas['PlatformPlan'][]>('/platform/plans')
             .then((r) => r.data)
             .catch(() => [] as Schemas['PlatformPlan'][]),
+        papi<Schemas['PlatformTenantBilling']>(
+            `/platform/tenants/${id}/billing`,
+        )
+            .then((r) => r.data)
+            .catch(() => null),
     ]);
     return (
         <>
@@ -61,6 +67,7 @@ export default async function TenantPage({
             {plan && (
                 <TenantPlan tenantId={tenant.id} data={plan} plans={plans} />
             )}
+            {billing && <TenantBilling tenantId={tenant.id} data={billing} />}
         </>
     );
 }

@@ -71,9 +71,10 @@ async function errorText(res: Response): Promise<string> {
 export async function streamDownload(
     req: NextRequest,
     path: string,
+    auth: 'session' | 'platform' = 'session',
 ): Promise<NextResponse> {
     if (crossSite(req)) return plain(403, 'Forbidden');
-    const h = await apiHeaders(req);
+    const h = await apiHeaders(req, auth);
     if (!h) return plain(401, 'Your session has ended. Sign in again.');
     let res: Response;
     try {
@@ -86,7 +87,7 @@ export async function streamDownload(
         return plain(503, 'The Messora API is not reachable.');
     }
     if (!res.ok || !res.body) {
-        const status = [400, 401, 403, 404, 422].includes(res.status)
+        const status = [400, 401, 402, 403, 404, 409, 422].includes(res.status)
             ? res.status
             : 502;
         return plain(status, await errorText(res));

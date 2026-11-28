@@ -106,5 +106,21 @@ const errors: Messages['errors'] = {
         "Messora'nın Tech Provider ayarlarını yalnızca platform yöneticisi değiştirebilir.",
     PLAN_REQUEST_OPEN: 'Açık bir plan değişikliği talebiniz zaten var.',
     AI_CREDITS_EXHAUSTED: 'Bu ayın AI kredisi bitti.',
+    SUBSCRIPTION_READ_ONLY:
+        'Çalışma alanı abonelik ödenene kadar salt okunur: görüntüleme ve dışa aktarma çalışır, gönderim ve yeni kayıt oluşturma çalışmaz.',
+    MESSAGE_BALANCE_EXHAUSTED:
+        'Mesaj bakiyesi bitti; şablon göndermek için Faturalama’dan bakiye yükleyin.',
+    BILLING_PROFILE_REQUIRED: 'Önce fatura bilgilerini girin.',
+    BILLING_NOT_CONFIGURED: 'Ödeme altyapısı henüz hazır değil.',
+    PLAN_NOT_SELF_SERVE:
+        'Bu plan teklifle fiyatlandırılır; Messora’dan teklif isteyin.',
+    RENEWAL_DUE: 'Önce açık yenilemeyi ödeyin; plan sonra değiştirilebilir.',
+    PROFORMA_OPEN:
+        'Üzerinde ödeme olan açık bir proforma var; önce tamamını ödeyin.',
+    PROFORMA_NOT_OPEN:
+        'Yalnızca hiç ödeme yapılmamış açık bir proforma iptal edilebilir.',
+    INVOICE_PDF_PENDING: 'Resmî fatura PDF’i henüz eklenmedi.',
+    TRANSFER_NOT_UNMATCHED: 'Bu havale zaten eşleştirildi ya da yok sayıldı.',
+    PERIOD_ENDING: 'Dönem bugün bitiyor; bir sonraki dönemin planını seçin.',
 };
 export default errors;

@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useT } from '@/i18n/client';
 import type { MessageKey, Translate } from '@/i18n/translate';
 import { PLAN_PAGE, planError, type PlanFeature } from '@/lib/plan';
+import { BILLING_PAGE, isBillingError } from '@/lib/billing';
 
 type ApiErrorLike = {
     code?: string;
@@ -68,6 +69,15 @@ export function toastApiError(
             action: {
                 label: t('plans.upgrade.link'),
                 onClick: () => window.location.assign(PLAN_PAGE),
+            },
+        });
+        return;
+    }
+    if (isBillingError(e?.code)) {
+        toast.error(label(t, `errors.${e?.code}`, e?.message ?? fallback), {
+            action: {
+                label: t('billing.banner.link'),
+                onClick: () => window.location.assign(BILLING_PAGE),
             },
         });
         return;

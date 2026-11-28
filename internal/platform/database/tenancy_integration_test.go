@@ -38,12 +38,15 @@ var platformTables = []string{
 	"platform_sessions", "email_verification_tokens", "platform_audit_logs",
 	// Plans and Messora's own AI keys (WP8).
 	"plans", "platform_ai_providers", "platform_ai_models",
+	// Incoming bank transfers (WP9): recorded by the platform admin before
+	// any company is known; tenant_id names the company once matched.
+	"bank_transfers",
 }
 
 // routingTables are platform tables whose tenant_id names the tenant a
 // row is about: routing (read before any tenant is known), the sign-up to
 // verify, the audit subject.
-var routingTables = []string{"tenant_domains", "meta_webhook_keys", "email_verification_tokens", "platform_audit_logs", "meta_routes"}
+var routingTables = []string{"tenant_domains", "meta_webhook_keys", "email_verification_tokens", "platform_audit_logs", "meta_routes", "bank_transfers"}
 
 // nullableTenant may hold rows without a tenant (platform events).
 var nullableTenant = []string{"outbox_events"}

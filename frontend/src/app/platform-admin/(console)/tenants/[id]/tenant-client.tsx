@@ -210,6 +210,7 @@ function Details({ tenant }: { tenant: Tenant }) {
                                         'trial',
                                         'active',
                                         'past_due',
+                                        'read_only',
                                         'canceled',
                                     ] as const
                                 ).map((s) => (

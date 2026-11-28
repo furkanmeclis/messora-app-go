@@ -88,6 +88,25 @@ on the transport. `settings.Mail` decides per message (Phase 17 WP8):
 | --- | --- | --- |
 | `plan_change_request` | a workspace asks for another plan; to every active platform admin, in their language | `https://admin.<base>/plan-requests` |
 
+### Billing (Phase 17 WP9)
+
+`internal/modules/billing` sends the billing kinds through
+`identity.NotifyBilling`: to the workspace's active owners and to the
+billing e-mail of its invoice details (in the workspace's default language
+when that address is not an owner's), branded, after the transaction that
+triggered them, once each (`billing_events`). Links go to the workspace's
+`/settings/billing`.
+
+| Kind | Sent when | Notes |
+| --- | --- | --- |
+| `invoice_issued` | a proforma is issued (a renewal 10 days before the period ends, a plan choice, an upgrade, an AI credit pack, a message balance top-up) | `InvoiceNo` is the proforma number; the bank block carries the first IBAN and the payment reference |
+| `payment_reminder` | 7 and 3 days before a renewal's due date and on the due day; `Overdue` with `GraceEndsAt` when the period ended unpaid | |
+| `payment_received` | a proforma is paid in full (matched transfer or account credit) | method "Havale/EFT" |
+| `subscription_suspended` | the workspace turns read-only (trial ended, grace ended) | the unpaid renewal and its open amount when there is one |
+| `credit_low` | the message balance of a Tech Provider workspace falls below the threshold (once until a top-up re-arms it) | `CreditType` `message`, amounts in whole TL; queued as the outbox task `billing:notify` |
+
+No new kind was needed.
+
 ## Templates
 
 | Kind | When | Unsubscribe |

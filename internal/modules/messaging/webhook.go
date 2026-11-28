@@ -602,9 +602,14 @@ func (s *Service) status(ctx context.Context, tx pgx.Tx, q *db.Queries, st *what
 		if err != nil {
 			return false, err
 		}
-		if err := metacost.PriceMessage(ctx, q, updated, metacost.Pricing{Type: p.Type, Category: p.Category,
-			Model: p.PricingModel, Billable: p.Billable}, c.PhoneE164); err != nil {
+		pricing := metacost.Pricing{Type: p.Type, Category: p.Category, Model: p.PricingModel, Billable: p.Billable}
+		if err := metacost.PriceMessage(ctx, q, updated, pricing, c.PhoneE164); err != nil {
 			return false, fmt.Errorf("price message: %w", err)
+		}
+		if s.charge != nil {
+			if err := s.charge(ctx, tx, q, updated, pricing, c.PhoneE164); err != nil {
+				return false, fmt.Errorf("charge message: %w", err)
+			}
 		}
 	}
 	if updated.Status != m.Status {

@@ -88,6 +88,7 @@ const platform = {
             trial: 'Trial',
             active: 'Active',
             past_due: 'Past due',
+            read_only: 'Read-only',
             canceled: 'Canceled',
         },
         trialEnds: 'Trial ends {date}',

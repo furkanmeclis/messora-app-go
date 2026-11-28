@@ -79,6 +79,14 @@ with an API key), and creating more of something than the plan allows
 answers `409 PLAN_LIMIT_REACHED` (`{"field": "limit", "code":
 "webhook_endpoints", "message": "50"}`).
 
+While a workspace's subscription is unpaid past its grace period it is
+read-only: reads and exports keep working, but sending, starting campaigns
+and creating or changing things answer `402 SUBSCRIPTION_READ_ONLY` until it
+is paid (deleting is always allowed). A workspace that sends through
+Messora's Tech Provider connection pays Meta's fees from its message
+balance: a template sent while it is used up answers `402
+MESSAGE_BALANCE_EXHAUSTED`.
+
 ## Idempotency
 
 `POST` operations accept an `Idempotency-Key` header (8–200 characters, e.g. a

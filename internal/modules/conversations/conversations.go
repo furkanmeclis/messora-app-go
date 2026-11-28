@@ -52,7 +52,13 @@ type Service struct {
 	ai       *ai.Service // nil: no AI reply loop
 	debounce time.Duration
 	log      *slog.Logger
+	// readOnly reports a read-only subscription (Phase 17 WP9): the AI
+	// does not answer while it is.
+	readOnly func(ctx context.Context) bool
 }
+
+// SetReadOnly installs billing's read-only check.
+func (s *Service) SetReadOnly(fn func(ctx context.Context) bool) { s.readOnly = fn }
 
 // New returns the service.
 func New(pool *pgxpool.Pool, msg *messaging.Service, media *messaging.MediaStore, log *slog.Logger) *Service {

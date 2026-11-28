@@ -222,6 +222,81 @@ type AutomationSend struct {
 	TenantID  uuid.UUID
 }
 
+type BankTransfer struct {
+	ID                  uuid.UUID
+	AmountKurus         int64
+	Currency            string
+	ReceivedOn          pgtype.Date
+	SenderName          string
+	SenderIban          *string
+	Description         string
+	Reference           *string
+	Source              string
+	Fingerprint         *string
+	Status              string
+	SuggestedProformaID *uuid.UUID
+	Suggestion          *string
+	MatchMethod         *string
+	TenantID            *uuid.UUID
+	ProformaID          *uuid.UUID
+	Note                string
+	CreatedBy           *uuid.UUID
+	MatchedBy           *uuid.UUID
+	MatchedAt           *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type BillingAccountEntry struct {
+	ID           uuid.UUID
+	TenantID     uuid.UUID
+	AmountKurus  int64
+	BalanceAfter int64
+	Reason       string
+	TransferID   *uuid.UUID
+	ProformaID   *uuid.UUID
+	Note         string
+	CreatedBy    *uuid.UUID
+	CreatedAt    time.Time
+}
+
+type BillingEvent struct {
+	ID         uuid.UUID
+	TenantID   uuid.UUID
+	Kind       string
+	Key        string
+	ProformaID *uuid.UUID
+	CreatedAt  time.Time
+}
+
+type BillingPayment struct {
+	ID          uuid.UUID
+	TenantID    uuid.UUID
+	ProformaID  uuid.UUID
+	Source      string
+	TransferID  *uuid.UUID
+	AmountKurus int64
+	ReceivedOn  pgtype.Date
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+}
+
+type BillingProfile struct {
+	TenantID  uuid.UUID
+	Kind      string
+	Title     string
+	TaxOffice string
+	TaxNumber string
+	Address   string
+	City      string
+	Country   string
+	Email     string
+	Phone     string
+	UpdatedBy *uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Campaign struct {
 	ID                  uuid.UUID
 	Name                string
@@ -654,6 +729,25 @@ type IdempotencyKey struct {
 	TenantID       uuid.UUID
 }
 
+type Invoice struct {
+	ID             uuid.UUID
+	TenantID       uuid.UUID
+	ProformaID     uuid.UUID
+	Issuer         string
+	Status         string
+	OfficialNumber *string
+	IssuedOn       pgtype.Date
+	PdfKey         *string
+	NetKurus       int64
+	VatKurus       int64
+	TotalKurus     int64
+	Buyer          []byte
+	Seller         []byte
+	IssuedBy       *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type MediaFile struct {
 	ID          uuid.UUID
 	MessageID   *uuid.UUID
@@ -729,6 +823,30 @@ type MessageTemplate struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	TenantID        uuid.UUID
+}
+
+type MessageWallet struct {
+	TenantID      uuid.UUID
+	BalanceMicros int64
+	LowNotifiedAt *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type MessageWalletEntry struct {
+	ID            uuid.UUID
+	TenantID      uuid.UUID
+	Kind          string
+	AmountMicros  int64
+	BalanceAfter  int64
+	MessageID     *uuid.UUID
+	ProformaID    *uuid.UUID
+	Category      *string
+	MetaUsdMicros *int64
+	FxRate        pgtype.Numeric
+	Note          string
+	CreatedBy     *uuid.UUID
+	CreatedAt     time.Time
 }
 
 type MetaConnection struct {
@@ -1010,6 +1128,40 @@ type PortfolioReach struct {
 	TenantID  uuid.UUID
 }
 
+type Proforma struct {
+	ID                 uuid.UUID
+	TenantID           uuid.UUID
+	Number             string
+	Reference          string
+	Kind               string
+	Status             string
+	Renewal            bool
+	Lines              []byte
+	NetKurus           int64
+	VatRateBp          int64
+	VatKurus           int64
+	TotalKurus         int64
+	PaidKurus          int64
+	Currency           string
+	PlanKey            *string
+	BillingCycle       *string
+	PeriodStart        *time.Time
+	PeriodEnd          *time.Time
+	AiCredits          *int64
+	PackKey            *string
+	MessageAmountKurus *int64
+	Buyer              []byte
+	Seller             []byte
+	DueAt              time.Time
+	PaidAt             *time.Time
+	FulfilledAt        *time.Time
+	VoidedAt           *time.Time
+	VoidReason         string
+	CreatedBy          *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
 type Role struct {
 	ID        uuid.UUID
 	Key       string
@@ -1041,6 +1193,24 @@ type Setting struct {
 	UpdatedBy *uuid.UUID
 	UpdatedAt time.Time
 	TenantID  uuid.UUID
+}
+
+type Subscription struct {
+	TenantID           uuid.UUID
+	Code               string
+	BillingCycle       string
+	PeriodStart        *time.Time
+	PeriodEnd          *time.Time
+	PendingPlanKey     *string
+	PendingCycle       *string
+	CustomPriceKurus   *int64
+	GraceEndsAt        *time.Time
+	ReadOnlySince      *time.Time
+	StatusReason       string
+	AccountCreditKurus int64
+	ProformaSeq        int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type SupportAccessGrant struct {

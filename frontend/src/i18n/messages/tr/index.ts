@@ -31,6 +31,7 @@ import ai from './ai';
 import analytics from './analytics';
 import platform from './platform';
 import plans from './plans';
+import billing from './billing';
 
 export const tr: Messages = {
     common,
@@ -60,6 +61,7 @@ export const tr: Messages = {
     analytics,
     platform,
     plans,
+    billing,
     auth,
     overview,
     inbox,

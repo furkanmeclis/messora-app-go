@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer/templates"
@@ -131,6 +132,60 @@ func (s *Service) NotifyPlanChangeRequest(ctx context.Context, n PlanChangeNotic
 			continue
 		}
 		sent++
+	}
+	return sent
+}
+
+// BillingNotice is a billing e-mail of the context's workspace (WP9): it
+// goes to the active owners and to the billing contact address of the
+// invoice details (in the workspace's default language when it is not an
+// owner's address).
+type BillingNotice struct {
+	Kind templates.Kind
+	// Contact is the billing e-mail address ("" for none).
+	Contact string
+	// Build makes one recipient's data from the branding block, a builder
+	// of absolute links into the workspace and the recipient's time zone.
+	Build func(c templates.Common, link func(path string) string, loc *time.Location) templates.Data
+}
+
+// NotifyBilling sends a billing notice; it reports how many e-mails went
+// out (best effort: failures are logged).
+func (s *Service) NotifyBilling(ctx context.Context, n BillingNotice) int {
+	id, ok := tenant.FromCtx(ctx)
+	if !ok {
+		return 0
+	}
+	w, err := s.workspaceOf(ctx, id)
+	if err != nil {
+		s.o.Logger.ErrorContext(ctx, "load workspace for e-mail", "tenant_id", id, "err", err)
+		return 0
+	}
+	members, err := s.q.ListUsersWithRole(ctx)
+	if err != nil {
+		s.o.Logger.ErrorContext(ctx, "list owners for a billing notice", "err", err)
+		return 0
+	}
+	link := func(path string) string { return w.link(path) }
+	sent := 0
+	seen := map[string]bool{}
+	for _, m := range members {
+		if m.Status != "active" || m.RoleKey != "owner" {
+			continue
+		}
+		seen[strings.ToLower(m.Email)] = true
+		if s.sendTo(ctx, w, m.Email, m.Locale, n.Kind, n.Build(w.common(m.Name), link, userLocation(m.Timezone))) {
+			sent++
+		}
+	}
+	if c := strings.TrimSpace(n.Contact); c != "" && !seen[strings.ToLower(c)] {
+		locale, zone := "tr", ""
+		if st, err := s.settings.Get(ctx); err == nil {
+			locale, zone = st.DefaultLocale, st.DefaultTimezone
+		}
+		if s.sendTo(ctx, w, c, locale, n.Kind, n.Build(w.common(""), link, userLocation(zone))) {
+			sent++
+		}
 	}
 	return sent
 }

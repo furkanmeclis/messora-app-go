@@ -20,6 +20,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/billing"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
@@ -72,6 +73,7 @@ type (
 	opsHandler        = ops.Handler
 	platformHandler   = platform.Handler
 	plansHandler      = plans.Handler
+	billingHandler    = billing.Handler
 )
 
 // apiServer composes every module handler into api.ServerInterface; the
@@ -95,6 +97,7 @@ type apiServer struct {
 	*opsHandler
 	*platformHandler
 	*plansHandler
+	*billingHandler
 }
 
 var _ api.ServerInterface = apiServer{}
@@ -137,6 +140,9 @@ type services struct {
 	planDB   *entitlements.DBProvider
 	credits  *credits.Service
 	plansSvc *plans.Service
+	// billing is subscriptions, proformas, transfers and the message
+	// balance (docs/BILLING.md).
+	billing *billing.Service
 }
 
 // planOf is the services' plan provider as it is at call time.
@@ -301,13 +307,21 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// AI field steps store values with their provenance (never over a
 	// person's or verified value).
 	auto.SetFieldWriter(inbox)
-	out = &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
+	// Billing (Phase 17 WP9): a read-only subscription stops sending,
+	// AI replies and automations; a Tech Provider number's templates need
+	// message balance, debited when Meta prices each message.
+	bill := billing.New(pool, billing.Options{InvalidatePlan: planDB.Invalidate, Credits: credit, Notify: idsvc.NotifyBilling,
+		Store: stores.Private, Logger: log})
+	wireBilling(bill, msg, camp, auto, inbox)
+	out = &services{cfg: cfg, ai: aiSvc, billing: bill, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
 		automation: auto, stores: stores, tenants: resolver, hosts: hosts, platform: plat, fairness: fair, plans: planDB,
 		planDB: planDB, credits: credit}
 	out.plansSvc = plans.New(pool, plans.Options{Plans: func() entitlements.Provider { return out.plans },
 		Invalidate: planDB.Invalidate, InvalidateAll: planDB.InvalidateAll, Credits: credit, AI: aiSvc, Identity: idsvc, Redis: rdb, Logger: log})
-	// /me tells the panel the plan's features and whether AI credits ran out.
+	// /me tells the panel the plan's features, whether AI credits ran out
+	// and the subscription's state (billing banners).
+	out.plansSvc.SetMeBilling(func(ctx context.Context, id uuid.UUID) plans.MeBilling { return plans.MeBilling(bill.Me(ctx, id)) })
 	idsvc.SetMePlan(out.plansSvc.MePlan)
 	// Webhook limits and the webhooks feature come from the tenant's plan;
 	// an endpoint switched off automatically is reported to the
@@ -337,6 +351,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		APIKeyLimit:     ratelimit.PerMinute(apiguard.APIKeyPerMinute),
 		AnonymousLimit:  ratelimit.PerMinute(apiguard.AnonymousPerMinute),
 		Plans:           svc.planOf(),
+		ReadOnly:        svc.billing.ReadOnlyTenant,
 	})
 	if err != nil {
 		return err
@@ -368,7 +383,8 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		platformHandler:   platform.NewHandler(svc.platform, ch.ListMetaRates, aih.ListAIPrices, sys.FailedJobs(), log),
 		opsHandler: ops.NewHandler(ops.New(pool, ops.Deps{Campaigns: svc.campaigns, FailedJobs: sys.FailedJobsTotal,
 			Budget: svc.ai.BudgetStatus}), log),
-		plansHandler: plans.NewHandler(svc.plansSvc, svc.mail, log),
+		plansHandler:   plans.NewHandler(svc.plansSvc, svc.mail, log),
+		billingHandler: billing.NewHandler(svc.billing, log),
 	}
 	// The public API description (only what an API key can call), anonymous.
 	raw, err := api.GetSpecJSON()
@@ -464,6 +480,34 @@ func wireCampaignAI(aiSvc *ai.Service, camp *campaigns.Service, inbox *conversat
 		_, err := camp.SetReaction(ctx, campaignID, recipientID, &sentiment, campaigns.ReactionSourceAI)
 		return err
 	})
+}
+
+// wireBilling connects billing to the engines that send: every queued
+// message and campaign tick asks it first, and Meta's pricing webhook
+// debits the message balance.
+func wireBilling(bill *billing.Service, msg *messaging.Service, camp *campaigns.Service, auto *automation.Service, inbox *conversations.Service) {
+	msg.SetSendGate(func(ctx context.Context, q *db.Queries, phoneNumberID uuid.UUID, template bool) error {
+		if err := bill.CheckWritable(ctx); err != nil {
+			return err
+		}
+		if !template {
+			return nil // replies in the customer service window are free
+		}
+		return bill.CheckMessageBalance(ctx, q, phoneNumberID)
+	})
+	msg.SetMessageCharge(bill.ChargeMessage)
+	camp.SetSendGate(func(ctx context.Context, q *db.Queries, c db.Campaign) (string, error) {
+		if err := bill.CheckWritable(ctx); err != nil {
+			return campaigns.PauseReasonReadOnly, err
+		}
+		err := bill.CheckMessageBalance(ctx, q, c.PhoneNumberID)
+		if e, ok := apperr.As(err); ok && e.Code == billing.CodeBalanceExhausted {
+			return campaigns.PauseReasonMessageBalance, err
+		}
+		return "", err
+	})
+	auto.SetReadOnly(bill.ReadOnly)
+	inbox.SetReadOnly(bill.ReadOnly)
 }
 
 // campaignCap is each tenant's campaign send rate: the fairness setting,

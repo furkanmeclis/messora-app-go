@@ -67,6 +67,9 @@ func NoReplyKey(from string, conv, msg uuid.UUID) string {
 // make it idempotent, so a scan that overlaps another or repeats after a
 // crash starts nothing twice.
 func (s *Service) Scan(ctx context.Context) (int, error) {
+	if s.paused(ctx) {
+		return 0, nil
+	}
 	autos, err := s.q.ListAutomationsByTypes(ctx, []string{trigger.WindowClosing, trigger.NoReply})
 	if err != nil || len(autos) == 0 {
 		return 0, err

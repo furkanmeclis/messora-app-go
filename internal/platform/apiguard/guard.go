@@ -123,11 +123,33 @@ type Options struct {
 	// quota and feature flags (docs/ENTITLEMENTS.md). Nil means no plan
 	// checks.
 	Plans entitlements.Provider
+	// ReadOnly reports whether a tenant's subscription is read-only
+	// (billing): its sessions and API keys may read, but every POST, PUT
+	// and PATCH without x-messora-read-only: allow answers 402
+	// SUBSCRIPTION_READ_ONLY. Nil means no check.
+	ReadOnly func(ctx context.Context, tenantID uuid.UUID) bool
 	// MaxBody caps request bodies (default 1 MiB). An operation with the
 	// extension "x-messora-raw-body: <bytes>" accepts a larger streamed
 	// body that is not schema-validated (file uploads); its handler parses it.
 	MaxBody int64
 }
+
+// ReadOnlyExtension marks a changing operation a read-only subscription
+// may still call ("allow"): signing in and out, the account, billing,
+// exports, previews and stopping work. DELETE is always allowed (removing
+// data is never blocked).
+const ReadOnlyExtension = "x-messora-read-only"
+
+func allowedReadOnly(op *openapi3.Operation, method string) bool {
+	if method == http.MethodGet || method == http.MethodHead || method == http.MethodDelete || method == http.MethodOptions {
+		return true
+	}
+	v, _ := op.Extensions[ReadOnlyExtension].(string)
+	return v == "allow"
+}
+
+// CodeSubscriptionReadOnly is the 402 answer of a read-only subscription.
+const CodeSubscriptionReadOnly = "SUBSCRIPTION_READ_ONLY"
 
 // RawBodyExtension marks operations whose body is a streamed file.
 const RawBodyExtension = "x-messora-raw-body"
@@ -199,6 +221,9 @@ func New(spec *openapi3.T, o Options) (*Guard, error) {
 			scope := hostScope(op)
 			if scope != HostTenant && scope != HostPlatform && scope != HostAny {
 				return nil, fmt.Errorf("apiguard: %s %s has unknown %s %q", method, path, HostExtension, scope)
+			}
+			if v, ok := op.Extensions[ReadOnlyExtension]; ok && v != "allow" {
+				return nil, fmt.Errorf("apiguard: %s %s has %s %v; the only value is allow", method, path, ReadOnlyExtension, v)
 			}
 			if f := featureOf(op); f != "" && !slices.Contains(entitlements.AllFeatures, f) {
 				return nil, fmt.Errorf("apiguard: %s %s has unknown %s %q", method, path, FeatureExtension, f)
@@ -282,6 +307,11 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 		}
 		if err := g.entitled(w, r, p, plan, featureOf(op)); err != nil {
 			httpx.WriteError(w, r, err, g.o.Logger)
+			return
+		}
+		if g.o.ReadOnly != nil && plan != nil && !allowedReadOnly(op, r.Method) && g.o.ReadOnly(ctx, tenant.ID(ctx)) {
+			httpx.WriteError(w, r, apperr.PaymentRequired(CodeSubscriptionReadOnly,
+				"The workspace is read-only until its subscription is paid: reading and exports work, sending and creating do not."), g.o.Logger)
 			return
 		}
 

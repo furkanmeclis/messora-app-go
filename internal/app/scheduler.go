@@ -11,6 +11,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/billing"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/offers"
@@ -40,6 +41,8 @@ func PeriodicJobs() []scheduler.Job {
 		{Name: "ai_model_sync", Every: 24 * time.Hour, TaskType: ai.TypeModelSync},
 		{Name: "ai_attribution_reconcile", Every: time.Hour, TaskType: ai.TypeAttributionReconcile},
 		{Name: "contact_import_retention", Every: 6 * time.Hour, TaskType: contacts.TypeImportRetention},
+		// Billing: trial end, renewals, reminders, grace and read-only.
+		{Name: "billing_tick", Every: 15 * time.Minute, TaskType: billing.TypeTick},
 	}
 }
 
