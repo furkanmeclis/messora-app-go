@@ -1,7 +1,10 @@
 # End-to-end test additions (scripts/e2e.sh only, never production):
 # Mailpit catches every e-mail the stack sends, so the browser tests can
 # read verification and invitation links from its HTTP API on
-# 127.0.0.1:${MAILPIT_HTTP_PORT}.
+# 127.0.0.1:${MAILPIT_HTTP_PORT}. Outgoing webhooks may reach a receiver
+# the test runs on the host (host.docker.internal: Docker Desktop's
+# 192.168.65.0/24, the bridge gateway on Linux); WEBHOOK_ALLOWED_CIDRS is
+# the operator allowlist of internal receivers (docs/WEBHOOKS.md).
 services:
   mailpit:
     image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
@@ -23,12 +26,15 @@ services:
       SMTP_PORT: "1025"
       SMTP_TLS: none
       SMTP_FROM: "Messora <no-reply@messora.test>"
+      WEBHOOK_ALLOWED_CIDRS: "172.16.0.0/12,192.168.65.0/24"
+    extra_hosts: &e2e-host ["host.docker.internal:host-gateway"]
     depends_on:
       mailpit:
         condition: service_started
 
   messora-worker:
     environment: *e2e-mail
+    extra_hosts: *e2e-host
     depends_on:
       mailpit:
         condition: service_started
