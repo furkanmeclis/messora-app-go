@@ -393,8 +393,16 @@ function PlanChooser({ overview: o }: { overview: Overview }) {
                 {o.offer.plans.map((p) => {
                     const price = cycle === 'yearly' ? p.yearly : p.monthly;
                     const gross = price ? withVAT(price, vat) : null;
+                    // Without a paid period (trial, read-only) the
+                    // current plan is bought like any other.
+                    const paid =
+                        o.subscription.period_end !== null &&
+                        (o.subscription.status === 'active' ||
+                            o.subscription.status === 'past_due');
                     const current =
-                        p.current && cycle === o.subscription.billing_cycle;
+                        paid &&
+                        p.current &&
+                        cycle === o.subscription.billing_cycle;
                     return (
                         <div
                             key={p.key}
