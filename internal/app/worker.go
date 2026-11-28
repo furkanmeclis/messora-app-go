@@ -18,6 +18,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/config"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/ai"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/billing"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/automation/trigger"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/campaigns"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/contacts"
@@ -168,6 +169,16 @@ func RunWorker(ctx context.Context) error {
 			log.InfoContext(ctx, "old contact imports removed", "count", n)
 		}
 		return err
+	})
+	mux.HandleFunc(billing.TypeTick, func(ctx context.Context, _ *asynq.Task) error {
+		res, err := svc.billing.Tick(ctx)
+		if len(res.Transitions)+len(res.Issued)+len(res.Reminders) > 0 {
+			log.InfoContext(ctx, "billing", "transitions", res.Transitions, "issued", res.Issued, "reminders", res.Reminders)
+		}
+		return err
+	})
+	mux.HandleFunc(billing.TypeNotify, func(ctx context.Context, t *asynq.Task) error {
+		return svc.billing.HandleNotify(ctx, t.Payload())
 	})
 	mux.HandleFunc(contacts.TypeImport, func(ctx context.Context, t *asynq.Task) error {
 		var p struct {

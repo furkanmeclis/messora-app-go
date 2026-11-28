@@ -85,6 +85,23 @@ func accountCurrency(ctx context.Context, q *db.Queries, phoneNumberID uuid.UUID
 // lookup finds the rate for a message: the account's currency, the
 // recipient's market and the month's volume so far (rate tiers).
 func lookup(ctx context.Context, q *db.Queries, m db.Message, country, category string, at time.Time) (Rate, bool, error) {
+	return lookupIn(ctx, q, m, country, category, at, "")
+}
+
+// PriceIn is the rate card's price of a message Meta charged (category)
+// in currency, whatever the account's own currency: the message balance of
+// Tech Provider workspaces is debited at Meta's USD price (Phase 17 WP9).
+// ok is false when the card has no matching rate.
+func PriceIn(ctx context.Context, q *db.Queries, m db.Message, category, recipient, currency string) (Micros, bool, error) {
+	at := time.Now()
+	if m.SentAt != nil {
+		at = *m.SentAt
+	}
+	r, ok, err := lookupIn(ctx, q, m, phonecountry.Of(recipient), category, at, currency)
+	return r.Price, ok, err
+}
+
+func lookupIn(ctx context.Context, q *db.Queries, m db.Message, country, category string, at time.Time, currency string) (Rate, bool, error) {
 	category = NormalizeCategory(category)
 	rows, err := q.MetaRateCandidates(ctx, db.MetaRateCandidatesParams{Category: category, Country: country})
 	if err != nil || len(rows) == 0 {
@@ -101,6 +118,9 @@ func lookup(ctx context.Context, q *db.Queries, m db.Message, country, category 
 	card := Card{Markets: map[string]string{}}
 	if acc.Currency != nil {
 		card.Currency = *acc.Currency
+	}
+	if currency != "" {
+		card.Currency = currency
 	}
 	market, err := q.GetMetaRateMarket(ctx, country)
 	switch {

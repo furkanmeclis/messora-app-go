@@ -73,6 +73,30 @@ type Service struct {
 	exports *ExportStore
 	// TickInterval is the dispatcher period (tests shorten it).
 	TickInterval time.Duration
+	// sendGate is billing's say on sending (nil: always allowed).
+	sendGate SendGate
+}
+
+// Pause reasons set by billing (Phase 17 WP9).
+const (
+	PauseReasonReadOnly       = "subscription_read_only"
+	PauseReasonMessageBalance = "message_balance"
+)
+
+// SendGate decides whether campaign c may send now: "" and nil when it
+// may; otherwise the pause reason of a running campaign and the error
+// starting or resuming answers (402).
+type SendGate func(ctx context.Context, q *db.Queries, c db.Campaign) (reason string, err error)
+
+// SetSendGate installs billing's check (a read-only subscription, a used-up
+// message balance of a Tech Provider number).
+func (s *Service) SetSendGate(g SendGate) { s.sendGate = g }
+
+func (s *Service) gate(ctx context.Context, q *db.Queries, c db.Campaign) (string, error) {
+	if s.sendGate == nil {
+		return "", nil
+	}
+	return s.sendGate(ctx, q, c)
 }
 
 // New returns the service.
@@ -529,6 +553,9 @@ func (s *Service) Start(ctx context.Context, id uuid.UUID, at *time.Time, actor 
 		if _, err := s.checkTemplate(ctx, q, cur); err != nil {
 			return err
 		}
+		if _, err := s.gate(ctx, q, cur); err != nil {
+			return err
+		}
 		if at != nil && at.After(time.Now().Add(30*time.Second)) {
 			c, err = s.transition(ctx, q, tx, id, "scheduled", []string{"draft", "scheduled"}, "scheduled",
 				map[string]any{"at": at.UTC()}, actor, at)
@@ -652,6 +679,9 @@ func (s *Service) ResumeWith(ctx context.Context, id uuid.UUID, actor *uuid.UUID
 		}
 		if !IsPaused(cur.Status) {
 			return apperr.Conflict("INVALID_TRANSITION", fmt.Sprintf("A %s campaign cannot be resumed.", cur.Status))
+		}
+		if _, err := s.gate(ctx, q, cur); err != nil {
+			return err
 		}
 		changes, err := s.applySettings(ctx, q, cur, o.Settings)
 		if err != nil {
@@ -878,6 +908,15 @@ func (s *Service) Dispatch(ctx context.Context, id uuid.UUID, gen int32) error {
 			// ended offer is linked, so the campaign is cancelled or
 			// recreated with a running offer.
 			_, err := s.transition(ctx, q, tx, id, "paused", []string{"running"}, "paused", offerExpiredDetail(*offer), nil, nil)
+			return err
+		}
+		// Billing: a read-only subscription or a used-up message balance
+		// pauses the campaign with its reason; resuming is refused until
+		// it is paid or topped up.
+		if reason, err := s.gate(ctx, q, c); reason != "" {
+			_, err := s.transition(ctx, q, tx, id, "paused", []string{"running"}, "paused", map[string]any{"reason": reason}, nil, nil)
+			return err
+		} else if err != nil {
 			return err
 		}
 		// The scheduler sizes this tick: the campaign's fair share of the

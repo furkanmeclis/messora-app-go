@@ -63,6 +63,9 @@ tags:
     x-displayName: Webhooks
     description: Endpoints that receive signed event notifications, and their delivery log.
   - name: ai
+  - name: billing
+    x-displayName: Billing
+    description: Subscription, proformas, invoices and balances (the panel; bank transfer payments).
   - name: platform
     x-displayName: Platform admin
     description: The platform admin panel (admin host only; never part of the public API).
@@ -71,6 +74,7 @@ paths:
   /auth/login:
     post:
       operationId: login
+      x-messora-read-only: allow
       tags: [auth]
       summary: Sign in with e-mail and password
       security: [{ panel: [] }]
@@ -90,6 +94,7 @@ paths:
   /auth/login/mfa:
     post:
       operationId: loginMfa
+      x-messora-read-only: allow
       tags: [auth]
       summary: Complete sign-in with a TOTP or recovery code
       security: [{ panel: [] }]
@@ -109,6 +114,7 @@ paths:
   /auth/logout:
     post:
       operationId: logout
+      x-messora-read-only: allow
       tags: [auth]
       summary: End the current session
       security: [{ session: [] }]
@@ -119,6 +125,7 @@ paths:
   /auth/reauth:
     post:
       operationId: reauthenticate
+      x-messora-read-only: allow
       tags: [auth]
       summary: Confirm identity before a sensitive action
       description: Valid for 10 minutes on the current session.
@@ -139,6 +146,7 @@ paths:
   /auth/password/forgot:
     post:
       operationId: requestPasswordReset
+      x-messora-read-only: allow
       tags: [auth]
       summary: E-mail a password reset link
       description: Always answers 202 so that registered addresses cannot be discovered.
@@ -155,6 +163,7 @@ paths:
   /auth/password/reset:
     post:
       operationId: resetPassword
+      x-messora-read-only: allow
       tags: [auth]
       summary: Set a new password with a reset token
       security: [{ panel: [] }]
@@ -197,6 +206,7 @@ paths:
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateMe
+      x-messora-read-only: allow
       tags: [me]
       summary: Update profile
       security: [{ session: [] }]
@@ -216,6 +226,7 @@ paths:
   /me/password:
     post:
       operationId: changePassword
+      x-messora-read-only: allow
       tags: [me]
       summary: Change password; ends every other session
       security: [{ session: [] }]
@@ -265,6 +276,7 @@ paths:
   /me/mfa/totp:
     post:
       operationId: startTotpSetup
+      x-messora-read-only: allow
       tags: [me]
       summary: Generate a TOTP secret to enrol an authenticator app
       description: Requires recent re-authentication.
@@ -289,6 +301,7 @@ paths:
   /me/mfa/totp/confirm:
     post:
       operationId: confirmTotp
+      x-messora-read-only: allow
       tags: [me]
       summary: Activate TOTP with a code from the app; returns recovery codes once
       security: [{ session: [] }]
@@ -308,6 +321,7 @@ paths:
   /me/mfa/recovery-codes:
     post:
       operationId: regenerateRecoveryCodes
+      x-messora-read-only: allow
       tags: [me]
       summary: Replace all recovery codes
       description: Requires recent re-authentication.
@@ -337,6 +351,7 @@ paths:
   /users/{userId}:
     patch:
       operationId: updateUser
+      x-messora-read-only: allow
       tags: [users]
       summary: Change a user's role or status
       security: [{ session: [users.manage] }]
@@ -404,6 +419,7 @@ paths:
   /invitations/lookup:
     post:
       operationId: lookupInvitation
+      x-messora-read-only: allow
       tags: [users]
       summary: Show who an invitation token is for
       security: [{ panel: [] }]
@@ -423,6 +439,7 @@ paths:
   /invitations/accept:
     post:
       operationId: acceptInvitation
+      x-messora-read-only: allow
       tags: [users]
       summary: Accept an invitation and create the account
       security: [{ panel: [] }]
@@ -468,6 +485,7 @@ paths:
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateSettings
+      x-messora-read-only: allow
       tags: [settings]
       summary: Change workspace settings
       security: [{ session: [settings.update] }]
@@ -2509,6 +2527,7 @@ paths:
   /segments/preview:
     post:
       operationId: previewSegment
+      x-messora-read-only: allow
       tags: [segments]
       summary: Count matching contacts and show a sample, without saving
       security: [{ session: [segments.read] }]
@@ -2607,6 +2626,7 @@ paths:
   /realtime/connection-token:
     post:
       operationId: createRealtimeConnectionToken
+      x-messora-read-only: allow
       tags: [realtime]
       summary: Token for opening a Centrifugo connection
       description: >-
@@ -2628,6 +2648,7 @@ paths:
   /realtime/subscription-token:
     post:
       operationId: createRealtimeSubscriptionToken
+      x-messora-read-only: allow
       tags: [realtime]
       summary: Token for subscribing to one channel
       description: >-
@@ -2764,6 +2785,7 @@ paths:
   /campaigns/preflight:
     post:
       operationId: preflightCampaign
+      x-messora-read-only: allow
       tags: [campaigns]
       summary: How many recipients of an audience may receive a template
       description: >-
@@ -2793,6 +2815,7 @@ paths:
   /campaigns/forecast:
     post:
       operationId: forecastCampaign
+      x-messora-read-only: allow
       tags: [campaigns]
       summary: Pre-launch analysis of a campaign
       description: >-
@@ -2924,6 +2947,7 @@ paths:
   /campaigns/{campaignId}/pause:
     post:
       operationId: pauseCampaign
+      x-messora-read-only: allow
       tags: [campaigns]
       summary: Pause sending; unsent messages are held
       description: >-
@@ -2981,6 +3005,7 @@ paths:
   /campaigns/{campaignId}/cancel:
     post:
       operationId: cancelCampaign
+      x-messora-read-only: allow
       tags: [campaigns]
       summary: Stop for good; unsent messages are cancelled
       description: >-
@@ -3060,6 +3085,7 @@ paths:
   /campaigns/{campaignId}/resume-preview:
     post:
       operationId: previewCampaignResume
+      x-messora-read-only: allow
       tags: [campaigns]
       summary: What resuming would send, with consent checked again and the estimated time
       description: >-
@@ -3145,6 +3171,7 @@ paths:
   /campaigns/{campaignId}/recipients/search:
     post:
       operationId: searchCampaignRecipients
+      x-messora-read-only: allow
       tags: [campaigns]
       summary: The recipients table (filters, sorting, pages, total)
       description: >-
@@ -3406,6 +3433,7 @@ paths:
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createCampaignExport
+      x-messora-read-only: allow
       tags: [campaigns]
       summary: Export recipients or the report in the background
       description: >-
@@ -3615,6 +3643,7 @@ paths:
   /conversations/{conversationId}/assignment:
     put:
       operationId: assignConversation
+      x-messora-read-only: allow
       tags: [conversations]
       summary: Assign the conversation to a user, or unassign it with null
       description: >-
@@ -3646,6 +3675,7 @@ paths:
   /conversations/{conversationId}/close:
     post:
       operationId: closeConversation
+      x-messora-read-only: allow
       tags: [conversations]
       summary: Close the conversation; the next customer message reopens it
       description: >-
@@ -3699,6 +3729,7 @@ paths:
   /conversations/{conversationId}/read:
     post:
       operationId: markConversationRead
+      x-messora-read-only: allow
       tags: [conversations]
       summary: Mark the customer's messages as read for the team
       security:
@@ -3780,6 +3811,7 @@ paths:
   /conversations/{conversationId}/ai-mode:
     put:
       operationId: setConversationAIMode
+      x-messora-read-only: allow
       tags: [conversations]
       summary: Set how the AI works in the conversation
       description: >-
@@ -3824,6 +3856,7 @@ paths:
   /conversations/{conversationId}/handoff:
     post:
       operationId: handOffConversation
+      x-messora-read-only: allow
       tags: [conversations]
       summary: Hand the conversation to the AI or to a person
       description: >-
@@ -3864,6 +3897,7 @@ paths:
   /conversations/{conversationId}/takeover:
     post:
       operationId: takeOverConversation
+      x-messora-read-only: allow
       tags: [conversations]
       summary: Take the conversation over from the AI or the pool
       description: >-
@@ -4562,6 +4596,7 @@ paths:
   /auth/signup:
     post:
       operationId: signup
+      x-messora-read-only: allow
       tags: [auth]
       summary: Create a workspace and its owner account (self sign-up)
       description: >-
@@ -4607,6 +4642,7 @@ paths:
   /auth/verify-email:
     post:
       operationId: verifyEmail
+      x-messora-read-only: allow
       tags: [auth]
       summary: Confirm an e-mail address with the link from the sign-up e-mail
       description: >-
@@ -4630,6 +4666,7 @@ paths:
   /auth/resend-verification:
     post:
       operationId: resendVerification
+      x-messora-read-only: allow
       tags: [auth]
       summary: Send the verification e-mail again
       description: >-
@@ -4649,6 +4686,7 @@ paths:
   /auth/switch-workspace:
     post:
       operationId: switchWorkspace
+      x-messora-read-only: allow
       tags: [auth]
       summary: Hand the signed-in person over to another of their workspaces
       description: >-
@@ -4673,6 +4711,7 @@ paths:
   /auth/handoff:
     post:
       operationId: completeHandoff
+      x-messora-read-only: allow
       tags: [auth]
       summary: Exchange a one-time workspace hand-over token for a session
       description: >-
@@ -4695,6 +4734,7 @@ paths:
   /auth/email-change/confirm:
     post:
       operationId: confirmEmailChange
+      x-messora-read-only: allow
       tags: [auth]
       summary: Confirm a new e-mail address with the link sent to it
       security: [{ panel: [] }]
@@ -4724,6 +4764,7 @@ paths:
   /me/email:
     post:
       operationId: requestEmailChange
+      x-messora-read-only: allow
       tags: [me]
       summary: Change the e-mail address (confirmed from the new address)
       description: Requires recent re-authentication. The link sent to the new address is valid for 24 hours.
@@ -4788,6 +4829,7 @@ paths:
   /plan/change-requests:
     post:
       operationId: createPlanChangeRequest
+      x-messora-read-only: allow
       tags: [settings]
       summary: Ask Messora to change the workspace's plan
       description: >-
@@ -5989,6 +6031,568 @@ paths:
               schema: { $ref: "#/components/schemas/PlatformPlanRequestResponse" }
         default: { $ref: "#/components/responses/Error" }
 
+  /billing:
+    get:
+      operationId: getBilling
+      tags: [billing]
+      summary: The workspace's subscription, balances and open proformas
+      description: >-
+        The subscription (plan, cycle, status, period, next renewal), the
+        billing details, Messora's bank accounts, the AI credit and message
+        balances, the open proformas and the prices a workspace can buy
+        (AI credit packs, message balance top-ups; TL, VAT shown apart).
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Billing overview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingOverviewResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/profile:
+    put:
+      operationId: updateBillingProfile
+      tags: [billing]
+      summary: Set the invoice details (required before the first proforma)
+      description: >-
+        Company title with tax office and 10-digit tax number (VKN), or an
+        individual's name with the 11-digit TCKN; address and the billing
+        e-mail address (billing mail goes there and to the owners).
+      security: [{ session: [settings.update] }]
+      x-messora-read-only: allow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillingProfileInput" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingProfileResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/plan-change:
+    post:
+      operationId: changeBillingPlan
+      tags: [billing]
+      summary: Choose a plan and billing cycle
+      description: >-
+        Without a paid period (trial, read-only, or no period yet) this
+        creates a proforma for a full period that starts when it is paid.
+        During a paid period a higher plan in the same cycle creates a
+        prorated upgrade proforma (the plan changes when it is paid); a
+        lower plan or another cycle is scheduled for the next renewal
+        (effect "scheduled"). 409 BILLING_PROFILE_REQUIRED without invoice
+        details.
+      security: [{ session: [settings.update] }]
+      x-messora-read-only: allow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillingPlanChangeRequest" }
+      responses:
+        "200":
+          description: What happened
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingPlanChangeResultResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: cancelBillingPlanChange
+      tags: [billing]
+      summary: Drop a scheduled plan or cycle change
+      security: [{ session: [settings.update] }]
+      x-messora-read-only: allow
+      responses:
+        "200":
+          description: The subscription
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingSubscriptionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/proformas:
+    get:
+      operationId: listBillingProformas
+      tags: [billing]
+      summary: The workspace's proformas, newest first
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Proformas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProformaListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createBillingProforma
+      tags: [billing]
+      summary: Buy an AI credit pack or top up the message balance
+      description: >-
+        A proforma for a pack of the catalogue (`pack_key`) or a message
+        balance top-up (`amount`, TL, VAT excluded, at least the platform's
+        minimum). Paid by bank transfer with the proforma's reference.
+      security: [{ session: [settings.update] }]
+      x-messora-read-only: allow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBillingProformaRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProformaResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/proformas/{proformaId}:
+    parameters: [{ $ref: "#/components/parameters/ProformaId" }]
+    get:
+      operationId: getBillingProforma
+      tags: [billing]
+      summary: A proforma
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: The proforma
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProformaResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/proformas/{proformaId}/cancel:
+    parameters: [{ $ref: "#/components/parameters/ProformaId" }]
+    post:
+      operationId: cancelBillingProforma
+      tags: [billing]
+      summary: Cancel an unpaid proforma
+      description: Only proformas with nothing paid yet (409 PROFORMA_NOT_OPEN otherwise); a renewal cannot be cancelled.
+      security: [{ session: [settings.update] }]
+      x-messora-read-only: allow
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProformaResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/proformas/{proformaId}/pdf:
+    parameters: [{ $ref: "#/components/parameters/ProformaId" }]
+    get:
+      operationId: downloadBillingProformaPdf
+      tags: [billing]
+      summary: The proforma as PDF
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: The PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/invoices:
+    get:
+      operationId: listBillingInvoices
+      tags: [billing]
+      summary: The workspace's invoices, newest first
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: Invoices
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/invoices/{invoiceId}/pdf:
+    parameters: [{ $ref: "#/components/parameters/InvoiceId" }]
+    get:
+      operationId: downloadBillingInvoicePdf
+      tags: [billing]
+      summary: The official invoice PDF
+      description: 409 INVOICE_PDF_PENDING until Messora has attached the official e-Fatura/e-Arşiv PDF.
+      security: [{ session: [settings.read] }]
+      responses:
+        "200":
+          description: The PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        default: { $ref: "#/components/responses/Error" }
+
+  /billing/message-balance:
+    get:
+      operationId: getMessageBalance
+      tags: [billing]
+      summary: The message balance and its latest movements
+      description: >-
+        Only workspaces sending through Messora's Tech Provider connection
+        use the message balance (used = false otherwise: Meta bills a
+        workspace's own app directly).
+      security: [{ session: [settings.read] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+      responses:
+        "200":
+          description: Balance and entries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageBalanceDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/overview:
+    get:
+      operationId: getPlatformBillingOverview
+      tags: [platform]
+      summary: Recurring revenue, collections and what waits for a match
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Numbers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformBillingOverviewResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/subscriptions:
+    get:
+      operationId: listPlatformSubscriptions
+      tags: [platform]
+      summary: Every company's subscription
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/SubscriptionStatus" } }
+      responses:
+        "200":
+          description: Subscriptions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformSubscriptionListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/settings:
+    get:
+      operationId: getPlatformBillingSettings
+      tags: [platform]
+      summary: Seller identity, bank accounts and prices
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformBillingSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updatePlatformBillingSettings
+      tags: [platform]
+      summary: Change the seller identity, bank accounts or prices
+      description: Each part given replaces the stored one; recorded in the platform audit log.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePlatformBillingSettingsRequest" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformBillingSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/proformas:
+    get:
+      operationId: listPlatformProformas
+      tags: [platform]
+      summary: Proformas of every company
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/ProformaStatus" } }
+        - { name: tenant_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Proformas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProformaListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/proformas/{proformaId}/void:
+    parameters: [{ $ref: "#/components/parameters/ProformaId" }]
+    post:
+      operationId: voidPlatformProforma
+      tags: [platform]
+      summary: Void an unpaid proforma
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillingReasonRequest" }
+      responses:
+        "200":
+          description: Voided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProformaResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/proformas/{proformaId}/pdf:
+    parameters: [{ $ref: "#/components/parameters/ProformaId" }]
+    get:
+      operationId: downloadPlatformProformaPdf
+      tags: [platform]
+      summary: A company's proforma as PDF
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: The PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/transfers:
+    get:
+      operationId: listPlatformTransfers
+      tags: [platform]
+      summary: The payments inbox (recorded bank transfers)
+      description: Unmatched transfers carry the automatic suggestion (by reference and amount) or the candidates when the amount alone is ambiguous.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [unmatched, matched, ignored] } }
+      responses:
+        "200":
+          description: Transfers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankTransferListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createPlatformTransfer
+      tags: [platform]
+      summary: Record an incoming transfer
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBankTransferRequest" }
+      responses:
+        "201":
+          description: Recorded, with the automatic suggestion
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankTransferResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/transfers/import:
+    post:
+      operationId: importPlatformTransfers
+      tags: [platform]
+      summary: Import incoming transfers from a bank statement CSV
+      description: >-
+        UTF-8 CSV with a header row: date (YYYY-MM-DD or DD.MM.YYYY), amount
+        (1234.56 or 1.234,56; only incoming, positive amounts are
+        imported), description, and optionally sender and sender_iban;
+        comma or semicolon separated (docs/BILLING.md). A line imported
+        before is skipped.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      x-messora-raw-body: 2097152
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: What was imported
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankTransferImportResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/transfers/{transferId}/match:
+    parameters: [{ $ref: "#/components/parameters/TransferId" }]
+    post:
+      operationId: matchPlatformTransfer
+      tags: [platform]
+      summary: Confirm a transfer for a proforma (or a company's account credit)
+      description: >-
+        The amount is applied to the proforma; what it does not need is kept
+        as the company's account credit (and applied to its other open
+        proformas). A fully paid proforma is fulfilled at once (period
+        extended, credits or balance added), its invoice record created and
+        the company told by e-mail.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MatchBankTransferRequest" }
+      responses:
+        "200":
+          description: Matched
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankTransferResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/transfers/{transferId}/ignore:
+    parameters: [{ $ref: "#/components/parameters/TransferId" }]
+    post:
+      operationId: ignorePlatformTransfer
+      tags: [platform]
+      summary: Mark a transfer as not a customer payment
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillingReasonRequest" }
+      responses:
+        "200":
+          description: Ignored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankTransferResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/invoices:
+    get:
+      operationId: listPlatformInvoices
+      tags: [platform]
+      summary: Invoice records of every company
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, issued] } }
+        - { name: tenant_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Invoices
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/invoices/{invoiceId}:
+    parameters: [{ $ref: "#/components/parameters/InvoiceId" }]
+    patch:
+      operationId: recordPlatformInvoice
+      tags: [platform]
+      summary: Record the official invoice number
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordInvoiceRequest" }
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/billing/invoices/{invoiceId}/pdf:
+    parameters: [{ $ref: "#/components/parameters/InvoiceId" }]
+    put:
+      operationId: uploadPlatformInvoicePdf
+      tags: [platform]
+      summary: Attach the official invoice PDF
+      description: The raw PDF (at most 5 MB).
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      x-messora-raw-body: 5242880
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Attached
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    get:
+      operationId: downloadPlatformInvoicePdf
+      tags: [platform]
+      summary: The official invoice PDF
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: The PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/billing:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    get:
+      operationId: getPlatformTenantBilling
+      tags: [platform]
+      summary: A company's subscription, documents, payments and balances
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Billing detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantBillingResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/billing/actions:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    post:
+      operationId: applyPlatformBillingAction
+      tags: [platform]
+      summary: Extend, comp, change the cycle or status, set a price or adjust a balance
+      description: Every action needs a reason and is recorded in both audit logs.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformBillingActionRequest" }
+      responses:
+        "200":
+          description: The company's billing after the action
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantBillingResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     panel:
@@ -6011,6 +6615,21 @@ components:
       description: Platform admin session (admin host only), accepted only together with the panel secret.
 
   parameters:
+    ProformaId:
+      name: proformaId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    InvoiceId:
+      name: invoiceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TransferId:
+      name: transferId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     TenantId:
       name: tenantId
       in: path
@@ -11454,7 +12073,12 @@ components:
 
     SubscriptionStatus:
       type: string
-      enum: [trial, active, past_due, canceled]
+      enum: [trial, active, past_due, read_only, canceled]
+      description: >-
+        trial (14 days), active (a paid period, or none before billing),
+        past_due (the renewal is unpaid: 7 days of grace), read_only (the
+        trial or the grace ended: reading and exports only), canceled (no
+        renewal; read-only once the period ends).
 
     PlatformAuthCapabilities:
       type: object
@@ -12033,14 +12657,19 @@ components:
       properties: { data: { $ref: "#/components/schemas/PlanOverview" }, meta: { $ref: "#/components/schemas/Meta" } }
     MePlan:
       type: object
-      required: [key, name_tr, name_en, features, ai_credits_exhausted]
-      description: What the panel needs to show or hide gated features (the API checks them too).
+      required: [key, name_tr, name_en, features, ai_credits_exhausted, subscription_status, read_only, trial_ends_at, grace_ends_at, message_balance_exhausted]
+      description: What the panel needs to show or hide gated features and billing banners (the API checks them too).
       properties:
         key: { type: string }
         name_tr: { type: string }
         name_en: { type: string }
         features: { type: array, items: { $ref: "#/components/schemas/PlanFeature" } }
         ai_credits_exhausted: { type: boolean }
+        subscription_status: { $ref: "#/components/schemas/SubscriptionStatus" }
+        read_only: { type: boolean, description: "The subscription is read-only: sending, AI, automations and creating answer 402." }
+        trial_ends_at: { type: [string, "null"], format: date-time }
+        grace_ends_at: { type: [string, "null"], format: date-time }
+        message_balance_exhausted: { type: boolean, description: "A Tech Provider workspace's message balance is used up." }
 
     EmailSettings:
       type: object
@@ -12329,3 +12958,557 @@ components:
         status: { type: string, enum: [done, declined] }
         note: { type: string, maxLength: 1000 }
         apply: { type: boolean, default: false, description: "With done: assign the requested plan now." }
+
+    # ── Billing (Phase 17 WP9, docs/BILLING.md) ───────────────────────────
+    Amount:
+      type: string
+      pattern: '^-?[0-9]{1,13}\.[0-9]{2}$'
+      description: TL as a decimal string with two decimals (kuruş), e.g. "3588.00".
+    BillingCycle:
+      type: string
+      enum: [monthly, yearly]
+    ProformaStatus:
+      type: string
+      enum: [open, partially_paid, paid, void]
+    BillingSubscription:
+      type: object
+      required: [status, read_only, code, plan_key, plan_name_tr, plan_name_en, billing_cycle, period_start, period_end, next_renewal_at,
+                 trial_ends_at, grace_ends_at, read_only_since, status_reason, pending_plan_key, pending_cycle, account_credit, custom_price, price]
+      properties:
+        status: { $ref: "#/components/schemas/SubscriptionStatus" }
+        read_only: { type: boolean, description: "Sending, AI, automations and creating are blocked (402 SUBSCRIPTION_READ_ONLY)." }
+        code: { type: string, description: The workspace's code in payment references. }
+        plan_key: { type: [string, "null"] }
+        plan_name_tr: { type: string }
+        plan_name_en: { type: string }
+        billing_cycle: { $ref: "#/components/schemas/BillingCycle" }
+        period_start: { type: [string, "null"], format: date-time }
+        period_end: { type: [string, "null"], format: date-time }
+        next_renewal_at: { type: [string, "null"], format: date-time, description: When the renewal proforma is (or was) issued. }
+        trial_ends_at: { type: [string, "null"], format: date-time }
+        grace_ends_at: { type: [string, "null"], format: date-time }
+        read_only_since: { type: [string, "null"], format: date-time }
+        status_reason: { type: string }
+        pending_plan_key: { type: [string, "null"], description: A lower plan the next renewal switches to. }
+        pending_cycle:
+          oneOf:
+            - { $ref: "#/components/schemas/BillingCycle" }
+            - { type: "null" }
+        account_credit: { $ref: "#/components/schemas/Amount" }
+        custom_price:
+          oneOf:
+            - { $ref: "#/components/schemas/Amount" }
+            - { type: "null" }
+        price:
+          oneOf:
+            - { $ref: "#/components/schemas/Amount" }
+            - { type: "null" }
+          description: The price of one period of the plan and cycle (VAT excluded); null when the plan has no list price.
+    BillingSubscriptionResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/BillingSubscription" }, meta: { $ref: "#/components/schemas/Meta" } }
+    BillingProfileInput:
+      type: object
+      additionalProperties: false
+      required: [kind, title, tax_number, address, email]
+      properties:
+        kind: { type: string, enum: [company, individual] }
+        title: { type: string, minLength: 2, maxLength: 200, description: Company title (ticari unvan) or full name. }
+        tax_office: { type: string, maxLength: 100, description: Required for companies. }
+        tax_number: { type: string, pattern: '^[0-9]{10,11}$', description: "VKN (10 digits) for companies, TCKN (11 digits) for individuals." }
+        address: { type: string, minLength: 5, maxLength: 500 }
+        city: { type: string, maxLength: 100 }
+        country: { type: string, pattern: '^[A-Z]{2}$' }
+        email: { type: string, format: email, maxLength: 254 }
+        phone: { type: string, maxLength: 40 }
+    BillingProfile:
+      type: object
+      required: [kind, title, tax_office, tax_number, address, city, country, email, phone, updated_at]
+      properties:
+        kind: { type: string, enum: [company, individual] }
+        title: { type: string }
+        tax_office: { type: string }
+        tax_number: { type: string }
+        address: { type: string }
+        city: { type: string }
+        country: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        updated_at: { type: string, format: date-time }
+    BillingProfileResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/BillingProfile" }, meta: { $ref: "#/components/schemas/Meta" } }
+    BankAccount:
+      type: object
+      additionalProperties: false
+      required: [bank_name, account_holder, iban]
+      properties:
+        bank_name: { type: string, minLength: 1, maxLength: 120 }
+        account_holder: { type: string, minLength: 1, maxLength: 200 }
+        iban: { type: string, minLength: 15, maxLength: 42, description: Spaces are allowed and dropped; the checksum is verified. }
+        currency: { type: string, enum: [TRY], default: TRY }
+    BillingSeller:
+      type: object
+      additionalProperties: false
+      required: [company_name, tax_office, tax_number, address, email, phone, website, invoice_note, bank_accounts]
+      description: Who sells and invoices (a platform setting until the legal entity is settled).
+      properties:
+        company_name: { type: string, maxLength: 200 }
+        tax_office: { type: string, maxLength: 100 }
+        tax_number: { type: string, maxLength: 20 }
+        address: { type: string, maxLength: 500 }
+        email: { type: string, maxLength: 254 }
+        phone: { type: string, maxLength: 40 }
+        website: { type: string, maxLength: 200 }
+        mersis_no: { type: string, maxLength: 40 }
+        invoice_note: { type: string, maxLength: 500, description: "Shown on proformas, e.g. how the e-Fatura/e-Arşiv invoice is sent." }
+        bank_accounts: { type: array, maxItems: 5, items: { $ref: "#/components/schemas/BankAccount" } }
+    AICreditPack:
+      type: object
+      additionalProperties: false
+      required: [key, credits, price]
+      properties:
+        key: { type: string, pattern: '^[a-z0-9_-]{1,30}$' }
+        credits: { type: integer, format: int64, minimum: 1, maximum: 100000000 }
+        price: { $ref: "#/components/schemas/Amount" }
+    BillingPricing:
+      type: object
+      additionalProperties: false
+      required: [vat_rate_percent, fx_usd_try, fx_updated_at, marketing_markup, other_markup_usd, ai_credit_packs, message_topups, min_message_topup,
+                 low_balance_threshold, renewal_lead_days, due_days, grace_days, ai_credit_validity_months]
+      properties:
+        vat_rate_percent: { type: string, pattern: '^[0-9]{1,2}(\.[0-9]{1,2})?$' }
+        fx_usd_try: { type: string, pattern: '^[0-9]{1,6}(\.[0-9]{1,6})?$', description: USD → TL rate for message charges (set daily). }
+        fx_updated_at: { type: [string, "null"], format: date-time }
+        marketing_markup: { type: string, pattern: '^[0-9]{1,3}(\.[0-9]{1,4})?$', description: Marketing messages cost Meta's price × this. }
+        other_markup_usd: { type: string, pattern: '^[0-9]{1,3}(\.[0-9]{1,6})?$', description: Other categories cost Meta's price + this (USD per message). }
+        ai_credit_packs: { type: array, maxItems: 10, items: { $ref: "#/components/schemas/AICreditPack" } }
+        message_topups: { type: array, maxItems: 10, items: { $ref: "#/components/schemas/Amount" } }
+        min_message_topup: { $ref: "#/components/schemas/Amount" }
+        low_balance_threshold: { $ref: "#/components/schemas/Amount" }
+        renewal_lead_days: { type: integer, minimum: 7, maximum: 60 }
+        due_days: { type: integer, minimum: 1, maximum: 60 }
+        grace_days: { type: integer, minimum: 0, maximum: 60 }
+        ai_credit_validity_months: { type: integer, minimum: 1, maximum: 60 }
+    PlatformBillingSettings:
+      type: object
+      required: [seller, pricing]
+      properties:
+        seller: { $ref: "#/components/schemas/BillingSeller" }
+        pricing: { $ref: "#/components/schemas/BillingPricing" }
+    PlatformBillingSettingsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformBillingSettings" }, meta: { $ref: "#/components/schemas/Meta" } }
+    UpdatePlatformBillingSettingsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        seller: { $ref: "#/components/schemas/BillingSeller" }
+        pricing: { $ref: "#/components/schemas/BillingPricing" }
+    ProformaLine:
+      type: object
+      required: [description_tr, description_en, quantity, unit_price, net]
+      properties:
+        description_tr: { type: string }
+        description_en: { type: string }
+        quantity: { type: integer, format: int64 }
+        unit_price: { $ref: "#/components/schemas/Amount" }
+        net: { $ref: "#/components/schemas/Amount" }
+    Proforma:
+      type: object
+      required: [id, number, reference, reference_display, kind, status, renewal, lines, net, vat_rate_percent, vat, total, paid, due, currency,
+                 plan_key, billing_cycle, period_start, period_end, ai_credits, message_amount, buyer, seller, due_at, paid_at, voided_at,
+                 void_reason, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string, description: "Document number, e.g. PF-2026-000112." }
+        reference: { type: string, description: The payment reference to write in the transfer description. }
+        reference_display: { type: string, description: "The reference grouped for reading, e.g. MSR-4F8K-002C-7." }
+        kind: { type: string, enum: [subscription, upgrade, ai_credits, message_balance] }
+        status: { $ref: "#/components/schemas/ProformaStatus" }
+        renewal: { type: boolean }
+        lines: { type: array, items: { $ref: "#/components/schemas/ProformaLine" } }
+        net: { $ref: "#/components/schemas/Amount" }
+        vat_rate_percent: { type: string }
+        vat: { $ref: "#/components/schemas/Amount" }
+        total: { $ref: "#/components/schemas/Amount" }
+        paid: { $ref: "#/components/schemas/Amount" }
+        due: { $ref: "#/components/schemas/Amount" }
+        currency: { type: string }
+        plan_key: { type: [string, "null"] }
+        billing_cycle:
+          oneOf:
+            - { $ref: "#/components/schemas/BillingCycle" }
+            - { type: "null" }
+        period_start: { type: [string, "null"], format: date-time }
+        period_end: { type: [string, "null"], format: date-time }
+        ai_credits: { type: [integer, "null"], format: int64 }
+        message_amount:
+          oneOf:
+            - { $ref: "#/components/schemas/Amount" }
+            - { type: "null" }
+        buyer: { type: object, additionalProperties: true }
+        seller: { type: object, additionalProperties: true }
+        due_at: { type: string, format: date-time }
+        paid_at: { type: [string, "null"], format: date-time }
+        voided_at: { type: [string, "null"], format: date-time }
+        void_reason: { type: string }
+        created_at: { type: string, format: date-time }
+        tenant: { $ref: "#/components/schemas/TenantRef" }
+    ProformaResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Proforma" }, meta: { $ref: "#/components/schemas/Meta" } }
+    ProformaListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Proforma" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    Invoice:
+      type: object
+      required: [id, proforma_id, proforma_number, proforma_kind, issuer, status, official_number, issued_on, has_pdf, net, vat, total, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        proforma_id: { type: string, format: uuid }
+        proforma_number: { type: string }
+        proforma_kind: { type: string }
+        issuer: { type: string, description: '"manual": the official invoice is issued outside Messora and recorded here.' }
+        status: { type: string, enum: [pending, issued] }
+        official_number: { type: [string, "null"] }
+        issued_on: { type: [string, "null"], format: date }
+        has_pdf: { type: boolean }
+        net: { $ref: "#/components/schemas/Amount" }
+        vat: { $ref: "#/components/schemas/Amount" }
+        total: { $ref: "#/components/schemas/Amount" }
+        created_at: { type: string, format: date-time }
+        tenant: { $ref: "#/components/schemas/TenantRef" }
+    InvoiceResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Invoice" }, meta: { $ref: "#/components/schemas/Meta" } }
+    InvoiceListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Invoice" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    RecordInvoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [official_number, issued_on]
+      properties:
+        official_number: { type: string, minLength: 1, maxLength: 60 }
+        issued_on: { type: string, format: date }
+    MessageBalance:
+      type: object
+      required: [used, balance, balance_exact, low, exhausted, low_threshold, fx_usd_try, marketing_markup, other_markup_usd]
+      properties:
+        used: { type: boolean, description: "The workspace sends through Messora's Tech Provider connection (Messora pays Meta)." }
+        balance: { $ref: "#/components/schemas/Amount" }
+        balance_exact: { type: string, description: TL with six decimals. }
+        low: { type: boolean }
+        exhausted: { type: boolean }
+        low_threshold: { $ref: "#/components/schemas/Amount" }
+        fx_usd_try: { type: string }
+        marketing_markup: { type: string }
+        other_markup_usd: { type: string }
+    MessageBalanceEntry:
+      type: object
+      required: [id, kind, amount, balance_after, category, meta_usd, fx_rate, note, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [top_up, charge, adjustment] }
+        amount: { type: string, description: TL with six decimals (negative for charges). }
+        balance_after: { type: string }
+        category: { type: [string, "null"] }
+        meta_usd: { type: [string, "null"], description: "Meta's price of a charged message (USD)." }
+        fx_rate: { type: [string, "null"] }
+        note: { type: string }
+        created_at: { type: string, format: date-time }
+    MessageBalanceDetail:
+      type: object
+      required: [balance, entries]
+      properties:
+        balance: { $ref: "#/components/schemas/MessageBalance" }
+        entries: { type: array, items: { $ref: "#/components/schemas/MessageBalanceEntry" } }
+    MessageBalanceDetailResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/MessageBalanceDetail" }, meta: { $ref: "#/components/schemas/Meta" } }
+    BillingOffer:
+      type: object
+      required: [vat_rate_percent, ai_credit_packs, message_topups, min_message_topup, plans]
+      description: What a workspace can buy, with VAT shown apart.
+      properties:
+        vat_rate_percent: { type: string }
+        ai_credit_packs: { type: array, items: { $ref: "#/components/schemas/AICreditPack" } }
+        message_topups: { type: array, items: { $ref: "#/components/schemas/Amount" } }
+        min_message_topup: { $ref: "#/components/schemas/Amount" }
+        plans: { type: array, items: { $ref: "#/components/schemas/BillingOfferPlan" } }
+    BillingOfferPlan:
+      type: object
+      required: [key, name_tr, name_en, monthly, yearly, custom_pricing, current]
+      properties:
+        key: { type: string }
+        name_tr: { type: string }
+        name_en: { type: string }
+        monthly:
+          oneOf:
+            - { $ref: "#/components/schemas/Amount" }
+            - { type: "null" }
+        yearly:
+          oneOf:
+            - { $ref: "#/components/schemas/Amount" }
+            - { type: "null" }
+        custom_pricing: { type: boolean }
+        current: { type: boolean }
+    BillingOverview:
+      type: object
+      required: [subscription, profile, seller, offer, ai_credits, message_balance, open_proformas]
+      properties:
+        subscription: { $ref: "#/components/schemas/BillingSubscription" }
+        profile:
+          oneOf:
+            - { $ref: "#/components/schemas/BillingProfile" }
+            - { type: "null" }
+        seller: { $ref: "#/components/schemas/BillingSeller" }
+        offer: { $ref: "#/components/schemas/BillingOffer" }
+        ai_credits: { $ref: "#/components/schemas/AICreditBalance" }
+        message_balance: { $ref: "#/components/schemas/MessageBalance" }
+        open_proformas: { type: array, items: { $ref: "#/components/schemas/Proforma" } }
+    BillingOverviewResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/BillingOverview" }, meta: { $ref: "#/components/schemas/Meta" } }
+    BillingPlanChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [plan_key, billing_cycle]
+      properties:
+        plan_key: { type: string, minLength: 1, maxLength: 40 }
+        billing_cycle: { $ref: "#/components/schemas/BillingCycle" }
+    BillingPlanChangeResult:
+      type: object
+      required: [effect, proforma, subscription]
+      properties:
+        effect: { type: string, enum: [proforma, scheduled] }
+        proforma:
+          oneOf:
+            - { $ref: "#/components/schemas/Proforma" }
+            - { type: "null" }
+        subscription: { $ref: "#/components/schemas/BillingSubscription" }
+    BillingPlanChangeResultResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/BillingPlanChangeResult" }, meta: { $ref: "#/components/schemas/Meta" } }
+    CreateBillingProformaRequest:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [ai_credits, message_balance] }
+        pack_key: { type: string, maxLength: 30, description: An AI credit pack of the catalogue. }
+        amount: { $ref: "#/components/schemas/Amount" }
+    BillingReasonRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
+    BankTransfer:
+      type: object
+      required: [id, amount, received_on, sender_name, sender_iban, description, reference, source, status, suggestion, suggested_proforma,
+                 candidates, match_method, tenant, proforma_id, note, created_at, matched_at]
+      properties:
+        id: { type: string, format: uuid }
+        amount: { $ref: "#/components/schemas/Amount" }
+        received_on: { type: string, format: date }
+        sender_name: { type: string }
+        sender_iban: { type: [string, "null"] }
+        description: { type: string }
+        reference: { type: [string, "null"], description: The payment reference found in the description. }
+        source: { type: string, enum: [manual, csv] }
+        status: { type: string, enum: [unmatched, matched, ignored] }
+        suggestion:
+          type: [string, "null"]
+          enum: [reference_amount, reference, amount, null]
+          description: >-
+            How the suggested proforma was found: reference_amount (reference
+            and the amount due agree), reference (the amount differs: partial
+            or over payment), amount (no reference; exactly one open proforma
+            owes this amount).
+        suggested_proforma:
+          oneOf:
+            - { $ref: "#/components/schemas/Proforma" }
+            - { type: "null" }
+        candidates: { type: array, items: { $ref: "#/components/schemas/Proforma" }, description: "Open proformas owing the amount when it alone is ambiguous." }
+        match_method: { type: [string, "null"] }
+        tenant:
+          oneOf:
+            - { $ref: "#/components/schemas/TenantRef" }
+            - { type: "null" }
+        proforma_id: { type: [string, "null"], format: uuid }
+        note: { type: string }
+        created_at: { type: string, format: date-time }
+        matched_at: { type: [string, "null"], format: date-time }
+    BankTransferResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/BankTransfer" }, meta: { $ref: "#/components/schemas/Meta" } }
+    BankTransferListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/BankTransfer" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    CreateBankTransferRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, received_on]
+      properties:
+        amount: { $ref: "#/components/schemas/Amount" }
+        received_on: { type: string, format: date }
+        sender_name: { type: string, maxLength: 200 }
+        sender_iban: { type: string, maxLength: 42 }
+        description: { type: string, maxLength: 1000 }
+        reference: { type: string, maxLength: 40, description: "The payment reference, when it is not in the description." }
+        note: { type: string, maxLength: 500 }
+    BankTransferImport:
+      type: object
+      required: [created, duplicates, errors, transfers]
+      properties:
+        created: { type: integer }
+        duplicates: { type: integer }
+        errors: { type: array, items: { $ref: "#/components/schemas/BankTransferImportError" } }
+        transfers: { type: array, items: { $ref: "#/components/schemas/BankTransfer" } }
+    BankTransferImportError:
+      type: object
+      required: [line, message]
+      properties:
+        line: { type: integer }
+        message: { type: string }
+    BankTransferImportResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/BankTransferImport" }, meta: { $ref: "#/components/schemas/Meta" } }
+    MatchBankTransferRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        proforma_id: { type: string, format: uuid, description: The proforma the transfer pays. }
+        tenant_id: { type: string, format: uuid, description: "Without a proforma: the company whose account credit receives the amount." }
+        note: { type: string, maxLength: 500 }
+    BillingPayment:
+      type: object
+      required: [id, proforma_id, source, amount, received_on, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        proforma_id: { type: string, format: uuid }
+        source: { type: string, enum: [transfer, account_credit] }
+        amount: { $ref: "#/components/schemas/Amount" }
+        received_on: { type: string, format: date }
+        created_at: { type: string, format: date-time }
+    BillingAccountEntry:
+      type: object
+      required: [id, amount, balance_after, reason, note, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        amount: { $ref: "#/components/schemas/Amount" }
+        balance_after: { $ref: "#/components/schemas/Amount" }
+        reason: { type: string, enum: [overpayment, unallocated, applied, adjustment] }
+        note: { type: string }
+        created_at: { type: string, format: date-time }
+    PlatformSubscription:
+      type: object
+      required: [tenant, status, plan_key, plan_name_tr, plan_name_en, billing_cycle, period_end, grace_ends_at, read_only_since, trial_ends_at,
+                 status_reason, open_amount, account_credit, monthly_value]
+      properties:
+        tenant: { $ref: "#/components/schemas/TenantRef" }
+        status: { $ref: "#/components/schemas/SubscriptionStatus" }
+        plan_key: { type: [string, "null"] }
+        plan_name_tr: { type: string }
+        plan_name_en: { type: string }
+        billing_cycle:
+          oneOf:
+            - { $ref: "#/components/schemas/BillingCycle" }
+            - { type: "null" }
+        period_end: { type: [string, "null"], format: date-time }
+        grace_ends_at: { type: [string, "null"], format: date-time }
+        read_only_since: { type: [string, "null"], format: date-time }
+        trial_ends_at: { type: [string, "null"], format: date-time }
+        status_reason: { type: string }
+        open_amount: { $ref: "#/components/schemas/Amount" }
+        account_credit: { $ref: "#/components/schemas/Amount" }
+        monthly_value: { $ref: "#/components/schemas/Amount" }
+    PlatformSubscriptionListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformSubscription" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    PlatformBillingOverview:
+      type: object
+      required: [mrr, arr, counts, collected_this_month, collected_last_month, open_amount, unmatched_transfers, pending_invoices]
+      properties:
+        mrr: { $ref: "#/components/schemas/Amount" }
+        arr: { $ref: "#/components/schemas/Amount" }
+        counts:
+          type: object
+          required: [trial, active, past_due, read_only, canceled]
+          properties:
+            trial: { type: integer, format: int64 }
+            active: { type: integer, format: int64 }
+            past_due: { type: integer, format: int64 }
+            read_only: { type: integer, format: int64 }
+            canceled: { type: integer, format: int64 }
+        collected_this_month: { $ref: "#/components/schemas/Amount" }
+        collected_last_month: { $ref: "#/components/schemas/Amount" }
+        open_amount: { $ref: "#/components/schemas/Amount" }
+        unmatched_transfers: { type: integer, format: int64 }
+        pending_invoices: { type: integer, format: int64 }
+    PlatformBillingOverviewResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformBillingOverview" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformTenantBilling:
+      type: object
+      required: [tenant, subscription, profile, proformas, invoices, payments, account_entries, message_balance]
+      properties:
+        tenant: { $ref: "#/components/schemas/TenantRef" }
+        subscription: { $ref: "#/components/schemas/BillingSubscription" }
+        profile:
+          oneOf:
+            - { $ref: "#/components/schemas/BillingProfile" }
+            - { type: "null" }
+        proformas: { type: array, items: { $ref: "#/components/schemas/Proforma" } }
+        invoices: { type: array, items: { $ref: "#/components/schemas/Invoice" } }
+        payments: { type: array, items: { $ref: "#/components/schemas/BillingPayment" } }
+        account_entries: { type: array, items: { $ref: "#/components/schemas/BillingAccountEntry" } }
+        message_balance: { $ref: "#/components/schemas/MessageBalance" }
+    PlatformTenantBillingResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformTenantBilling" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformBillingActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action, reason]
+      properties:
+        action:
+          type: string
+          enum: [extend_days, comp_months, set_cycle, set_status, set_custom_price, adjust_message_balance, adjust_account_credit]
+        days: { type: integer, minimum: 1, maximum: 3660, description: extend_days }
+        months: { type: integer, minimum: 1, maximum: 120, description: comp_months }
+        cycle: { $ref: "#/components/schemas/BillingCycle" }
+        status: { type: string, enum: [active, read_only, canceled], description: set_status }
+        price:
+          description: set_custom_price (VAT excluded, per cycle); null returns to the list price.
+          oneOf:
+            - { $ref: "#/components/schemas/Amount" }
+            - { type: "null" }
+        amount: { $ref: "#/components/schemas/Amount" }
+        reason: { type: string, minLength: 3, maxLength: 500 }

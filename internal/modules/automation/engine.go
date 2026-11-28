@@ -95,10 +95,21 @@ type Service struct {
 	now    func() time.Time
 	// plans caps the active flows (Phase 17 WP8).
 	plans entitlements.Provider
+	// readOnly reports a read-only subscription (Phase 17 WP9): no
+	// automation starts or continues while it is.
+	readOnly func(ctx context.Context) bool
 }
 
 // SetPlans installs the plan provider.
 func (s *Service) SetPlans(p entitlements.Provider) { s.plans = p }
+
+// SetReadOnly installs billing's read-only check.
+func (s *Service) SetReadOnly(fn func(ctx context.Context) bool) { s.readOnly = fn }
+
+// ErrorReadOnly is the error of a run stopped by a read-only subscription.
+const ErrorReadOnly = "subscription_read_only: the workspace is read-only until its subscription is paid"
+
+func (s *Service) paused(ctx context.Context) bool { return s.readOnly != nil && s.readOnly(ctx) }
 
 // checkActive refuses one more active flow past the plan's limit
 // (except: the flow being switched on, already counted when active).
@@ -131,6 +142,9 @@ func (s *Service) SetClock(now func() time.Time) { s.now = now }
 // Evaluate starts a run for every active automation the event matches. A
 // redelivered event finds its runs already present and starts nothing.
 func (s *Service) Evaluate(ctx context.Context, e trigger.Event) error {
+	if s.paused(ctx) {
+		return nil // a read-only workspace starts no automation
+	}
 	autos, err := s.q.ActiveAutomationsFor(ctx, e.Type)
 	if err != nil || len(autos) == 0 {
 		return err
@@ -239,6 +253,9 @@ func external(in Instr) bool {
 // position, so a crash never repeats it; HTTP, e-mail and AI calls happen
 // at least once, and their effects (sends included) exactly once.
 func (s *Service) Run(ctx context.Context, id uuid.UUID) error {
+	if s.paused(ctx) {
+		return s.q.FinishAutomationRun(ctx, db.FinishAutomationRunParams{ID: id, Status: "failed", Error: ptr(ErrorReadOnly)})
+	}
 	for range maxInstructionsPerRun {
 		done, err := s.step(ctx, id)
 		if err != nil || done {

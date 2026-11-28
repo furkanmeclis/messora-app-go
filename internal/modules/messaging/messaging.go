@@ -30,6 +30,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/channels"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/consent"
+	"github.com/furkanmeclis/messora-app-go/internal/modules/metacost"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/whatsapp"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
@@ -119,7 +120,24 @@ type Service struct {
 	log              *slog.Logger
 	media            *MediaStore
 	maxMedia         int64
+	sendGate         SendGate
+	charge           MessageCharge
 }
+
+// SendGate is billing's check before a message is queued (Phase 17 WP9):
+// a read-only subscription refuses every send, a used-up message balance
+// of a Tech Provider number refuses templates (402).
+type SendGate func(ctx context.Context, q *db.Queries, phoneNumberID uuid.UUID, template bool) error
+
+// SetSendGate installs the check.
+func (s *Service) SetSendGate(g SendGate) { s.sendGate = g }
+
+// MessageCharge debits the message balance when Meta prices a message (in
+// the status webhook's transaction).
+type MessageCharge func(ctx context.Context, tx pgx.Tx, q *db.Queries, m db.Message, p metacost.Pricing, recipient string) error
+
+// SetMessageCharge installs the debit.
+func (s *Service) SetMessageCharge(c MessageCharge) { s.charge = c }
 
 // New returns the service.
 func New(pool *pgxpool.Pool, ch *channels.Service, media *MediaStore, log *slog.Logger) *Service {
@@ -299,6 +317,11 @@ func (s *Service) QueueTx(ctx context.Context, tx pgx.Tx, in SendInput) (db.Mess
 	}
 	var out db.Message
 	q := db.New(tx)
+	if s.sendGate != nil {
+		if err := s.sendGate(ctx, q, pn.ID, in.Type == "template"); err != nil {
+			return db.Message{}, err
+		}
+	}
 	err = func() error {
 		c, err := q.UpsertContactByPhone(ctx, db.UpsertContactByPhoneParams{PhoneE164: to})
 		if err != nil {

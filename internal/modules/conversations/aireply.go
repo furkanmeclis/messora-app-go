@@ -239,7 +239,7 @@ type turn struct {
 // newer message's turn answers the burst. It never drops a turn silently:
 // when the AI cannot answer a conversation it owns, a person gets it.
 func (s *Service) HandleAIReply(ctx context.Context, convID, msgID uuid.UUID) error {
-	if s.ai == nil {
+	if s.ai == nil || (s.readOnly != nil && s.readOnly(ctx)) {
 		return nil
 	}
 	c, err := s.q.GetConversation(ctx, convID)

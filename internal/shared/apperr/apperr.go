@@ -66,6 +66,12 @@ func RateLimited(code, message string, retryAfter time.Duration) *Error {
 	return &Error{Status: http.StatusTooManyRequests, Code: code, Message: message, RetryAfter: retryAfter}
 }
 
+// PaymentRequired is refused until something is paid (402), e.g. a
+// read-only subscription or a used-up message balance.
+func PaymentRequired(code, message string) *Error {
+	return &Error{Status: http.StatusPaymentRequired, Code: code, Message: message}
+}
+
 // Unavailable is a 503 for a disabled or unreachable dependency.
 func Unavailable(code, message string) *Error {
 	return &Error{Status: http.StatusServiceUnavailable, Code: code, Message: message}
