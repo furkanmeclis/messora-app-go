@@ -11,6 +11,8 @@ const settings: Messages['settings'] = {
         metaRates: 'Meta fiyat kartı',
     },
     metaRates: {
+        managedByPlatform:
+            'Meta’nın fiyat kartını tüm çalışma alanları için Messora güncel tutar; mesaj maliyetleri buradan hesaplanır.',
         title: 'Meta fiyat kartı',
         description:
             'Meta mesaj başı fiyatlarını API ile değil, yalnızca fiyat kartı olarak yayımlar. Kartı buraya aktarın; ücretli her mesaj hesabınızın para biriminde fiyatlandırılır. Meta’nın kendi günlük toplamları karşılaştırma için ayrıca çekilir.',

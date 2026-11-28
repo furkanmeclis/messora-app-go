@@ -32,42 +32,17 @@ func decode[T any](h *Handler, w http.ResponseWriter, r *http.Request) (T, bool)
 	return v, true
 }
 
-// ── Setup ──────────────────────────────────────────────────────────────────
-
-// GetSetupStatus implements api.ServerInterface.
-func (h *Handler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
-	req, err := h.svc.SetupRequired(r.Context())
-	if err != nil {
-		h.fail(w, r, err)
-		return
-	}
-	httpx.JSON(w, r, http.StatusOK, api.SetupStatus{SetupRequired: req})
-}
-
-// CompleteSetup implements api.ServerInterface.
-func (h *Handler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
-	req, ok := decode[api.CompleteSetupRequest](h, w, r)
-	if !ok {
-		return
-	}
-	out, err := h.svc.CompleteSetup(r.Context(), req)
-	if err != nil {
-		h.fail(w, r, err)
-		return
-	}
-	httpx.JSON(w, r, http.StatusCreated, out)
-}
-
 // ── Auth ───────────────────────────────────────────────────────────────────
 
 // GetAuthCapabilities implements api.ServerInterface.
 func (h *Handler) GetAuthCapabilities(w http.ResponseWriter, r *http.Request) {
-	setup, err := h.svc.SetupRequired(r.Context())
+	signup, err := h.svc.SignupEnabled(r.Context())
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	httpx.JSON(w, r, http.StatusOK, api.AuthCapabilities{PasswordReset: h.svc.PasswordResetEnabled(r.Context()), SetupRequired: setup})
+	httpx.JSON(w, r, http.StatusOK, api.AuthCapabilities{PasswordReset: h.svc.PasswordResetEnabled(r.Context()),
+		SignupEnabled: signup && h.svc.o.Hosts.Base != ""})
 }
 
 // Login implements api.ServerInterface.
@@ -398,3 +373,203 @@ func (h *Handler) GetApiKeySelf(w http.ResponseWriter, r *http.Request) { //noli
 	}
 	httpx.JSON(w, r, http.StatusOK, out)
 }
+
+// ── Sign-up and workspaces ─────────────────────────────────────────────────
+
+// Signup implements api.ServerInterface.
+func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.SignupRequest](h, w, r)
+	if !ok {
+		return
+	}
+	out, err := h.svc.Signup(r.Context(), req)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusCreated, out)
+}
+
+// GetSlugAvailability implements api.ServerInterface.
+func (h *Handler) GetSlugAvailability(w http.ResponseWriter, r *http.Request, params api.GetSlugAvailabilityParams) {
+	out, err := h.svc.SlugAvailability(r.Context(), params.Slug)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// VerifyEmail implements api.ServerInterface.
+func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.VerifyEmailRequest](h, w, r)
+	if !ok {
+		return
+	}
+	out, err := h.svc.VerifyEmail(r.Context(), req.Token)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// ResendVerification implements api.ServerInterface.
+func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.ResendVerificationRequest](h, w, r)
+	if !ok {
+		return
+	}
+	if err := h.svc.ResendVerification(r.Context(), string(req.Email)); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Length", "0")
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// ListMyMemberships implements api.ServerInterface.
+func (h *Handler) ListMyMemberships(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.ListMemberships(r.Context(), principal.From(r.Context()))
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// SwitchWorkspace implements api.ServerInterface.
+func (h *Handler) SwitchWorkspace(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.SwitchWorkspaceRequest](h, w, r)
+	if !ok {
+		return
+	}
+	url, err := h.svc.SwitchWorkspace(r.Context(), principal.From(r.Context()), req.TenantId)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, api.SwitchWorkspace{RedirectUrl: url})
+}
+
+// CompleteHandoff implements api.ServerInterface.
+func (h *Handler) CompleteHandoff(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.WorkspaceHandoffRequest](h, w, r)
+	if !ok {
+		return
+	}
+	out, err := h.svc.CompleteHandoff(r.Context(), req.Token)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// RequestEmailChange implements api.ServerInterface.
+func (h *Handler) RequestEmailChange(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.EmailChangeRequest](h, w, r)
+	if !ok {
+		return
+	}
+	if err := h.svc.RequestEmailChange(r.Context(), principal.From(r.Context()), string(req.Email)); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Length", "0")
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// ConfirmEmailChange implements api.ServerInterface.
+func (h *Handler) ConfirmEmailChange(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.VerifyEmailRequest](h, w, r)
+	if !ok {
+		return
+	}
+	if err := h.svc.ConfirmEmailChange(r.Context(), req.Token); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.NoContent(w)
+}
+
+// ── Platform admins' own sign-in ───────────────────────────────────────────
+
+// GetPlatformAuthCapabilities implements api.ServerInterface.
+func (h *Handler) GetPlatformAuthCapabilities(w http.ResponseWriter, r *http.Request) {
+	req, err := h.svc.BootstrapRequired(r.Context())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, api.PlatformAuthCapabilities{BootstrapRequired: req})
+}
+
+// BootstrapPlatformAdmin implements api.ServerInterface.
+func (h *Handler) BootstrapPlatformAdmin(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.PlatformBootstrapRequest](h, w, r)
+	if !ok {
+		return
+	}
+	out, err := h.svc.Bootstrap(r.Context(), req)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusCreated, out)
+}
+
+// PlatformLogin implements api.ServerInterface.
+func (h *Handler) PlatformLogin(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.LoginRequest](h, w, r)
+	if !ok {
+		return
+	}
+	out, err := h.svc.PlatformLogin(r.Context(), req)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// PlatformLoginMfa implements api.ServerInterface.
+func (h *Handler) PlatformLoginMfa(w http.ResponseWriter, r *http.Request) {
+	req, ok := decode[api.LoginMfaRequest](h, w, r)
+	if !ok {
+		return
+	}
+	out, err := h.svc.PlatformLoginMFA(r.Context(), req)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// PlatformLogout implements api.ServerInterface.
+func (h *Handler) PlatformLogout(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.PlatformLogout(r.Context(), principal.From(r.Context())); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.NoContent(w)
+}
+
+// GetPlatformMe implements api.ServerInterface.
+func (h *Handler) GetPlatformMe(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.PlatformMe(r.Context(), principal.From(r.Context()))
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.JSON(w, r, http.StatusOK, out)
+}
+
+// StartPlatformTotpSetup implements api.ServerInterface.
+func (h *Handler) StartPlatformTotpSetup(w http.ResponseWriter, r *http.Request) {
+	h.StartTotpSetup(w, r)
+}
+
+// ConfirmPlatformTotp implements api.ServerInterface.
+func (h *Handler) ConfirmPlatformTotp(w http.ResponseWriter, r *http.Request) { h.ConfirmTotp(w, r) }

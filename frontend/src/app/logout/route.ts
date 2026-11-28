@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { api } from '@/lib/server/api';
 import { clearSession, getSessionToken } from '@/lib/server/session';
-import { serverConfig } from '@/lib/server/config';
+import { headers } from 'next/headers';
+import { requestOrigin } from '@/lib/server/tenant-host';
 
 /**
  * Ends the session (best effort on the API side) and clears the cookies.
@@ -12,7 +13,10 @@ async function logout() {
         await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
     }
     await clearSession();
-    return NextResponse.redirect(`${serverConfig().publicAppUrl}/login`, 303);
+    return NextResponse.redirect(
+        `${requestOrigin(await headers())}/login`,
+        303,
+    );
 }
 
 export const GET = logout;

@@ -73,6 +73,13 @@ const auth = {
         verified: 'Your e-mail address is verified. You can sign in now.',
         noAccount: 'New to Messora?',
         signup: 'Create an account',
+        notVerifiedTitle: 'Confirm your e-mail address first',
+        notVerifiedBody:
+            'Open the link we sent when you signed up, or request a new one.',
+        resetRequiredTitle: 'Choose a new password',
+        resetRequiredBody:
+            'For your security a new password is required. We sent you a reset link; you can also request one now.',
+        resetRequiredLink: 'Reset my password',
     },
     verify: {
         title: 'Two-factor authentication',
@@ -107,9 +114,9 @@ const auth = {
         submit: 'Create account',
         haveAccount: 'Already have an account?',
         signin: 'Sign in',
-        soonTitle: 'Sign-ups open soon',
+        soonTitle: 'Sign-up is closed right now',
         soonBody:
-            'We are opening self sign-up step by step. Until then, write to us and we will set your workspace up for you.',
+            'New workspaces cannot be created at the moment. Write to us and we will set yours up for you.',
         soonContact: 'Contact us',
         soonBack: 'Back to sign in',
     },
@@ -140,19 +147,6 @@ const auth = {
             'It may have been used already or copied incompletely. Request a new one below.',
         alreadyTitle: 'Already verified',
         alreadyBody: 'This address is already verified. You can sign in.',
-        soonTitle: 'Verification is not open yet',
-        soonBody: 'Sign-ups open soon. You can come back to this link then.',
-    },
-    setup: {
-        title: 'Set up Messora',
-        description: 'Create the owner account for this installation.',
-        organizationName: 'Organization name',
-        organizationPlaceholder: 'Acme Inc.',
-        submit: 'Create owner account',
-        openLinkTitle: 'Open the setup link',
-        openLinkLogs:
-            'The one-time link is printed in the API logs on first start:',
-        newLink: 'For a new link run:',
     },
     invite: {
         metaTitle: 'Accept invitation',
@@ -168,6 +162,9 @@ const auth = {
         invalidTitle: 'This invitation does not work',
         askAdmin: 'Ask an administrator for a new invitation.',
         submit: 'Join',
+        existingAccount:
+            'You already have a Messora account. Enter its password to join this workspace.',
+        submitExisting: 'Sign in and join',
     },
     forgot: {
         metaTitle: 'Reset password',
@@ -200,11 +197,26 @@ const auth = {
         current: 'Current',
         open: 'Open {name}',
         role: 'Role: {role}',
-        unavailableTitle: 'One workspace for now',
+        unavailableTitle: 'One workspace',
         unavailableBody:
-            'Switching between workspaces arrives with the next update. You can continue to your panel.',
+            'You are a member of one workspace. Continue to your panel.',
         continue: 'Continue to the panel',
         signOut: 'Sign out',
+    },
+    suspended: {
+        title: 'This workspace is suspended',
+        body: 'Signing in is not possible at the moment. Contact Messora support or the workspace owner.',
+    },
+    confirmEmail: {
+        metaTitle: 'Confirm your new address',
+        title: 'Confirm your new e-mail address',
+        submit: 'Confirm address',
+        successTitle: 'Your e-mail address was changed',
+        successBody: 'Sign in again with the new address.',
+        invalidTitle: 'This link does not work',
+        invalidBody:
+            'It may have expired or been used already. Request the change again from your profile.',
+        continue: 'Continue to sign in',
     },
 };
 export default auth;

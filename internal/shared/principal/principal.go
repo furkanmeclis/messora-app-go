@@ -38,7 +38,28 @@ type Principal struct {
 	// authentication that is not enabled yet; the session is then limited
 	// to enrolment.
 	MFAPending bool
+	// Email of a user (audit entries of platform actions).
+	Email string
+	// Platform is true for a platform admin's session of the admin panel
+	// (admin host, msp_ token); TenantID is then uuid.Nil.
+	Platform bool
+	// Support is set for a platform admin who opened this tenant's panel
+	// through support access.
+	Support *Support
 }
+
+// Support describes a support-access session.
+type Support struct {
+	GrantID   uuid.UUID
+	ReadOnly  bool
+	Reason    string
+	AdminName string
+	ExpiresAt time.Time
+}
+
+// ReadOnly reports whether the principal may only read (a read-only
+// support session).
+func (p *Principal) ReadOnly() bool { return p.Support != nil && p.Support.ReadOnly }
 
 // Has reports whether the principal holds every permission.
 func (p *Principal) Has(perms ...string) bool {

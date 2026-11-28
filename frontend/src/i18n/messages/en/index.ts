@@ -29,6 +29,7 @@ import consent from './consent';
 import offers from './offers';
 import ai from './ai';
 import analytics from './analytics';
+import platform from './platform';
 
 /**
  * The English dictionary defines the shape every language must match.
@@ -60,6 +61,7 @@ export const en = {
     offers,
     ai,
     analytics,
+    platform,
     auth,
     overview,
     inbox,

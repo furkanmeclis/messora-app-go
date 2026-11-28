@@ -30,6 +30,7 @@ type ctxKey int
 const (
 	idKey ctxKey = iota
 	systemKey
+	platformKey
 )
 
 // WithID returns ctx scoped to tenant id: database rows (row-level
@@ -40,6 +41,8 @@ func WithID(ctx context.Context, id uuid.UUID) context.Context {
 	if id == uuid.Nil {
 		return ctx
 	}
+	// A tenant's work is never platform work.
+	ctx = context.WithValue(ctx, platformKey, false)
 	return storage.WithTenant(context.WithValue(ctx, idKey, id), id.String())
 }
 
@@ -70,6 +73,37 @@ func System(ctx context.Context) context.Context {
 func IsSystem(ctx context.Context) bool {
 	ok, _ := ctx.Value(systemKey).(bool)
 	return ok
+}
+
+// PlatformRole is the database role of platform work (migration 00031):
+// it writes the tenant registry and the catalogue and sees memberships and
+// sessions of every tenant, but cannot bypass row-level security otherwise.
+const PlatformRole = "messora_platform"
+
+// Platform marks ctx as platform work: sign-up and the platform admin
+// panel. It drops any tenant of ctx; connections acquired with it switch
+// to PlatformRole (SET ROLE) for as long as they are held. A transaction
+// that must write one tenant's rows scopes itself with
+// set_config('app.tenant_id', ..., true).
+func Platform(ctx context.Context) context.Context {
+	ctx = context.WithValue(ctx, idKey, uuid.Nil)
+	ctx = context.WithValue(ctx, systemKey, true)
+	return context.WithValue(ctx, platformKey, true)
+}
+
+// IsPlatform reports whether ctx carries the Platform marker.
+func IsPlatform(ctx context.Context) bool {
+	ok, _ := ctx.Value(platformKey).(bool)
+	return ok
+}
+
+// Role returns the database role a connection acquired with ctx switches
+// to ("" for the pool's own role).
+func Role(ctx context.Context) string {
+	if IsPlatform(ctx) {
+		return PlatformRole
+	}
+	return ""
 }
 
 // Setting returns the value the pool stores in app.tenant_id for ctx: the

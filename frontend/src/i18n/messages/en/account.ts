@@ -9,7 +9,7 @@ const account = {
         language: 'Language',
         saved: 'Profile saved.',
         email: 'E-mail address',
-        emailHint: 'Your sign-in address. Ask an admin to change it.',
+        emailHint: 'Your sign-in address in every workspace.',
         regional: 'Language and region',
         regionalHint: 'Dates and times across the panel follow these.',
         localTime: 'Your local time: {time}',
@@ -26,6 +26,15 @@ const account = {
         personalTheme: 'Your colour scheme',
         personalThemeHint: 'Only for you, on this device.',
         keyboardHint: 'Press ? anywhere to see keyboard shortcuts.',
+    },
+    emailChange: {
+        open: 'Change e-mail address',
+        title: 'Change your e-mail address',
+        description:
+            'You sign in with {current} in every workspace. We send a confirmation link to the new address; the change applies once you open it.',
+        newEmail: 'New e-mail address',
+        submit: 'Send confirmation link',
+        sent: 'Check {email}: open the link there to confirm the change.',
     },
     security: {
         title: 'Security',

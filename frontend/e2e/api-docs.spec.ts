@@ -14,7 +14,13 @@ test('the public OpenAPI document is anonymous and API-key only', async ({
     const doc = await res.json();
     expect(doc.info.title).toBe('Messora API');
     expect(doc.paths['/messages'].post).toBeTruthy();
-    for (const internal of ['/auth/login', '/setup', '/users', '/roles']) {
+    for (const internal of [
+        '/auth/login',
+        '/auth/signup',
+        '/platform/tenants',
+        '/users',
+        '/roles',
+    ]) {
         expect(doc.paths[internal]).toBeUndefined();
     }
     expect(Object.keys(doc.components.securitySchemes)).toEqual(['apiKey']);

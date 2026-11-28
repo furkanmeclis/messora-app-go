@@ -245,7 +245,7 @@ func TestAIUsageAttributedToOneCampaign(t *testing.T) {
 	h := newHarness(t)
 	env := h.setupAI(nil)
 	today := time.Now().UTC().Format(time.DateOnly)
-	h.expect(h.do(call{method: "POST", path: "/api/v1/ai/prices", token: env.owner, body: map[string]any{"provider_kind": "fake",
+	h.expect(h.adminDo(call{method: "POST", path: "/ai-prices", body: map[string]any{"provider_kind": "fake",
 		"model_pattern": "fake-*", "input": "1", "output": "2", "effective_from": today}}), 201, "")
 	start := time.Now().Add(-time.Minute)
 
@@ -348,7 +348,7 @@ func TestAIBudgetPausesAutoReplies(t *testing.T) {
 	h := newHarness(t)
 	env := h.setupAI(nil)
 	today := time.Now().UTC().Format(time.DateOnly)
-	h.expect(h.do(call{method: "POST", path: "/api/v1/ai/prices", token: env.owner, body: map[string]any{"provider_kind": "fake",
+	h.expect(h.adminDo(call{method: "POST", path: "/ai-prices", body: map[string]any{"provider_kind": "fake",
 		"model_pattern": "fake-*", "input": "1", "output": "2", "effective_from": today}}), 201, "")
 	r := h.do(call{method: "PUT", path: "/api/v1/ai/settings", token: env.owner, body: map[string]any{
 		"enabled": true, "default_provider_id": env.providerID, "default_model": "fake-small", "monthly_budget": "0.0001",

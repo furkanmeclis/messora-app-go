@@ -25,7 +25,6 @@ servers:
   - url: /api/v1
 
 tags:
-  - name: setup
   - name: auth
   - name: me
   - name: users
@@ -64,41 +63,11 @@ tags:
     x-displayName: Webhooks
     description: Endpoints that receive signed event notifications, and their delivery log.
   - name: ai
+  - name: platform
+    x-displayName: Platform admin
+    description: The platform admin panel (admin host only; never part of the public API).
 
 paths:
-  /setup/status:
-    get:
-      operationId: getSetupStatus
-      tags: [setup]
-      summary: Whether the first owner account still has to be created
-      security: [{ panel: [] }]
-      responses:
-        "200":
-          description: Setup status
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/SetupStatusResponse" }
-        default: { $ref: "#/components/responses/Error" }
-
-  /setup:
-    post:
-      operationId: completeSetup
-      tags: [setup]
-      summary: Create the first owner account with the one-time setup token
-      security: [{ panel: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/CompleteSetupRequest" }
-      responses:
-        "201":
-          description: Owner created and signed in
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/SessionCreatedResponse" }
-        default: { $ref: "#/components/responses/Error" }
-
   /auth/login:
     post:
       operationId: login
@@ -204,6 +173,7 @@ paths:
       tags: [auth]
       summary: Which optional sign-in features are available
       security: [{ panel: [] }]
+      x-messora-host: any
       responses:
         "200":
           description: Capabilities
@@ -520,9 +490,9 @@ paths:
       tags: [settings]
       summary: Imported Meta rate card
       description: >-
-        Meta's per-message prices as imported from CSV, used to price each
-        billable message. Meta publishes no pricing API; see docs/WHATSAPP.md
-        ("Rate card") for the import format.
+        Meta's per-message prices, used to price each billable message. The
+        card is shared by every company and managed in the platform admin
+        panel; see docs/WHATSAPP.md ("Rate card").
       security: [{ session: [settings.read] }]
       responses:
         "200":
@@ -530,38 +500,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MetaRateListResponse" }
-        default: { $ref: "#/components/responses/Error" }
-
-  /settings/meta-rates/import:
-    post:
-      operationId: importMetaRates
-      tags: [settings]
-      summary: Import Meta's rate card from CSV
-      description: >-
-        Multipart upload with a `file` field holding a CSV with the columns
-        market, countries, category, price, currency, effective_from and
-        optionally tier_lower, tier_upper and source (at most 2 MB). Rows add
-        to or replace the stored rates of the same currency, market,
-        category, tier and date; a rate stays valid until the next date of
-        its market and category. The whole file is rejected when any row is
-        invalid.
-      security: [{ session: [settings.update] }]
-      x-messora-raw-body: 2097152
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file: { type: string, format: binary }
-      responses:
-        "200":
-          description: Imported
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/MetaRateImportResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /ai/settings:
@@ -722,8 +660,9 @@ paths:
       summary: AI price table (per 1M tokens)
       description: >-
         No provider publishes prices through an API. Rows come from the
-        shipped seed (unconfirmed), a LiteLLM import (unconfirmed) or an
-        admin; `confirmed` rows were checked by an admin.
+        shipped seed (unconfirmed), a LiteLLM import (unconfirmed) or a
+        platform admin; `confirmed` rows were checked. The table is shared by
+        every company and managed in the platform admin panel.
       security: [{ session: [ai.read] }]
       responses:
         "200":
@@ -731,88 +670,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AIPriceListResponse" }
-        default: { $ref: "#/components/responses/Error" }
-    post:
-      operationId: createAIPrice
-      tags: [ai]
-      summary: Add a price row (counts as confirmed by the admin)
-      security: [{ session: [ai.manage] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/CreateAIPriceRequest" }
-      responses:
-        "201":
-          description: Added
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AIPriceResponse" }
-        default: { $ref: "#/components/responses/Error" }
-
-  /ai/prices/{priceId}:
-    parameters: [{ $ref: "#/components/parameters/PriceId" }]
-    patch:
-      operationId: updateAIPrice
-      tags: [ai]
-      summary: Edit or confirm a price row
-      description: >-
-        `confirm: true` records the admin as having checked the row against
-        its source. Changing any figure without confirming clears an earlier
-        confirmation. Costs already recorded never change.
-      security: [{ session: [ai.manage] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UpdateAIPriceRequest" }
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AIPriceResponse" }
-        default: { $ref: "#/components/responses/Error" }
-    delete:
-      operationId: deleteAIPrice
-      tags: [ai]
-      summary: Remove a price row
-      security: [{ session: [ai.manage] }]
-      responses:
-        "204": { description: Removed }
-        default: { $ref: "#/components/responses/Error" }
-
-  /ai/prices/import:
-    post:
-      operationId: importAIPrices
-      tags: [ai]
-      summary: Import prices from LiteLLM's price list
-      description: >-
-        Multipart upload with a `file` field holding LiteLLM's
-        model_prices_and_context_window.json (MIT licensed, per-token
-        prices; at most 16 MB) and an optional `effective_from` date
-        (default today). OpenAI, Anthropic, Gemini and DeepSeek chat models
-        are converted to per-1M prices, including long-context thresholds
-        and cache prices. Imported rows replace rows of the same model and
-        date and are unconfirmed. Messora never downloads the file itself.
-      security: [{ session: [ai.manage] }]
-      x-messora-raw-body: 16777216
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file: { type: string, format: binary }
-                effective_from: { type: string, format: date }
-      responses:
-        "200":
-          description: Imported
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AIPriceImportResponse" }
         default: { $ref: "#/components/responses/Error" }
 
   /ai/profiles:
@@ -951,6 +808,7 @@ paths:
       tags: [settings]
       summary: Look and regional defaults for every page, including sign-in
       security: [{ panel: [] }]
+      x-messora-host: any
       responses:
         "200":
           description: Appearance
@@ -965,6 +823,7 @@ paths:
       tags: [settings]
       summary: The organisation logo
       security: [{ panel: [] }]
+      x-messora-host: any
       responses:
         "200":
           description: Logo image (PNG, JPEG, WebP or SVG)
@@ -4564,6 +4423,942 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/Error" }
 
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create a workspace and its owner account (self sign-up)
+      description: >-
+        Creates the company (tenant) at `<workspace_slug>.<base domain>`, its
+        owner and a verification e-mail. No session yet: the address has to
+        be verified first. Errors: 409 EMAIL_TAKEN, 409 SLUG_TAKEN,
+        422 SLUG_RESERVED, 403 SIGNUP_DISABLED, 429 RATE_LIMITED.
+      security: [{ panel: [] }]
+      x-messora-host: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignupRequest" }
+      responses:
+        "201":
+          description: Workspace created; verification e-mail sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignupResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/signup/slug-availability:
+    get:
+      operationId: getSlugAvailability
+      tags: [auth]
+      summary: Whether a workspace address is free
+      security: [{ panel: [] }]
+      x-messora-host: any
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 63 }
+      responses:
+        "200":
+          description: Availability (422 for a malformed address)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SlugAvailabilityResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Confirm an e-mail address with the link from the sign-up e-mail
+      description: >-
+        Errors: 410 VERIFICATION_TOKEN_EXPIRED, 400 VERIFICATION_TOKEN_INVALID,
+        409 EMAIL_ALREADY_VERIFIED.
+      security: [{ panel: [] }]
+      x-messora-host: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailRequest" }
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifyEmailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [auth]
+      summary: Send the verification e-mail again
+      description: >-
+        Answers 202 whether or not the address is known. At most one e-mail
+        per address and minute: 429 RATE_LIMITED with Retry-After.
+      security: [{ panel: [] }]
+      x-messora-host: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResendVerificationRequest" }
+      responses:
+        "202": { description: "Sent if the address waits for verification" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/switch-workspace:
+    post:
+      operationId: switchWorkspace
+      tags: [auth]
+      summary: Hand the signed-in person over to another of their workspaces
+      description: >-
+        Sessions belong to one workspace. The answer is a link to the other
+        workspace's address with a one-time token (valid 60 seconds) that
+        signs the person in there. Errors: 403 FORBIDDEN (no membership),
+        403 ACCOUNT_DISABLED.
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SwitchWorkspaceRequest" }
+      responses:
+        "200":
+          description: Where to go
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SwitchWorkspaceResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/handoff:
+    post:
+      operationId: completeHandoff
+      tags: [auth]
+      summary: Exchange a one-time workspace hand-over token for a session
+      description: >-
+        The token only works once, within 60 seconds and only at the address
+        of the workspace it was issued for (401 HANDOFF_INVALID otherwise).
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkspaceHandoffRequest" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /auth/email-change/confirm:
+    post:
+      operationId: confirmEmailChange
+      tags: [auth]
+      summary: Confirm a new e-mail address with the link sent to it
+      security: [{ panel: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailRequest" }
+      responses:
+        "204": { description: "The address was changed; other sessions were ended" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me/memberships:
+    get:
+      operationId: listMyMemberships
+      tags: [me]
+      summary: The workspaces the signed-in person belongs to
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: Memberships
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /me/email:
+    post:
+      operationId: requestEmailChange
+      tags: [me]
+      summary: Change the e-mail address (confirmed from the new address)
+      description: Requires recent re-authentication. The link sent to the new address is valid for 24 hours.
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmailChangeRequest" }
+      responses:
+        "202": { description: "Confirmation e-mail sent to the new address" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /support-access:
+    get:
+      operationId: listSupportAccess
+      tags: [audit]
+      summary: When Messora support opened this workspace
+      security: [{ session: [audit.read] }]
+      responses:
+        "200":
+          description: Support sessions, newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportGrantListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ── Platform admin panel (admin.<base>; never in the public API) ─────────
+  /platform/auth/capabilities:
+    get:
+      operationId: getPlatformAuthCapabilities
+      tags: [platform]
+      summary: Whether the platform still needs its first admin
+      security: [{ panel: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Capabilities
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAuthCapabilitiesResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/auth/bootstrap:
+    post:
+      operationId: bootstrapPlatformAdmin
+      tags: [platform]
+      summary: Create the first platform admin with the token `messora migrate` printed
+      security: [{ panel: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformBootstrapRequest" }
+      responses:
+        "201":
+          description: Admin created and signed in (two-factor enrolment pending)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformSessionCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/auth/login:
+    post:
+      operationId: platformLogin
+      tags: [platform]
+      summary: Sign in to the platform admin panel
+      security: [{ panel: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Signed in, or a second factor is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformLoginResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/auth/login/mfa:
+    post:
+      operationId: platformLoginMfa
+      tags: [platform]
+      summary: Complete the platform sign-in with a TOTP or recovery code
+      security: [{ panel: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginMfaRequest" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformSessionCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/auth/logout:
+    post:
+      operationId: platformLogout
+      tags: [platform]
+      summary: End the platform session
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: "Signed out" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/me:
+    get:
+      operationId: getPlatformMe
+      tags: [platform]
+      summary: The signed-in platform admin
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Admin
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformMeResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/me/mfa/totp:
+    post:
+      operationId: startPlatformTotpSetup
+      tags: [platform]
+      summary: Generate a TOTP secret (platform admins must use two-factor authentication)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Secret and otpauth URI (not active until confirmed)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TotpSetupResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/me/mfa/totp/confirm:
+    post:
+      operationId: confirmPlatformTotp
+      tags: [platform]
+      summary: Activate TOTP; returns recovery codes once
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TotpConfirmRequest" }
+      responses:
+        "200":
+          description: Enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecoveryCodesResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/overview:
+    get:
+      operationId: getPlatformOverview
+      tags: [platform]
+      summary: Platform counters
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Counters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformOverviewResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants:
+    get:
+      operationId: listPlatformTenants
+      tags: [platform]
+      summary: Companies, newest first
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/TenantStatus" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Tenants
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createPlatformTenant
+      tags: [platform]
+      summary: Create a company at <slug>.<base domain>, optionally inviting its owner
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePlatformTenantRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantCreatedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    get:
+      operationId: getPlatformTenant
+      tags: [platform]
+      summary: A company with its domains and owners
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Tenant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePlatformTenant
+      tags: [platform]
+      summary: Rename a company or change its trial
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePlatformTenantRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/suspend:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    post:
+      operationId: suspendPlatformTenant
+      tags: [platform]
+      summary: Suspend a company (its addresses answer 403 TENANT_SUSPENDED)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SuspendTenantRequest" }
+      responses:
+        "200":
+          description: Suspended
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/unsuspend:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    post:
+      operationId: unsuspendPlatformTenant
+      tags: [platform]
+      summary: Lift a suspension
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Active again
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformTenantDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/owner-invitations:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    post:
+      operationId: invitePlatformTenantOwner
+      tags: [platform]
+      summary: Invite an owner to a company
+      description: The acceptance link is returned once and e-mailed.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InviteOwnerRequest" }
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OwnerInvitationResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/domains:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    post:
+      operationId: addPlatformTenantDomain
+      tags: [platform]
+      summary: Add a custom domain (answers once its TXT record is verified)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddDomainRequest" }
+      responses:
+        "201":
+          description: Added, waiting for verification
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformDomainResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/tenants/{tenantId}/support-sessions:
+    parameters: [{ $ref: "#/components/parameters/TenantId" }]
+    post:
+      operationId: startSupportSession
+      tags: [platform]
+      summary: Open the company's panel as support (time-boxed, audited, read-only by default)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartSupportSessionRequest" }
+      responses:
+        "201":
+          description: Grant created; open redirect_url within 60 seconds
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportSessionStartedResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/domains/{domainId}/verify:
+    parameters: [{ $ref: "#/components/parameters/DomainId" }]
+    post:
+      operationId: verifyPlatformDomain
+      tags: [platform]
+      summary: Look up the domain's TXT record now
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Result of the check
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformDomainResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/domains/{domainId}/primary:
+    parameters: [{ $ref: "#/components/parameters/DomainId" }]
+    post:
+      operationId: setPlatformPrimaryDomain
+      tags: [platform]
+      summary: Make a verified domain the company's main address (links in e-mails)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformDomainResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/domains/{domainId}:
+    parameters: [{ $ref: "#/components/parameters/DomainId" }]
+    delete:
+      operationId: deletePlatformDomain
+      tags: [platform]
+      summary: Remove a custom domain
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: Removed }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/users:
+    get:
+      operationId: listPlatformUsers
+      tags: [platform]
+      summary: Search accounts across every company
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Accounts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformUserListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/users/{userId}:
+    parameters: [{ $ref: "#/components/parameters/UserId" }]
+    get:
+      operationId: getPlatformUser
+      tags: [platform]
+      summary: An account and its memberships
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformUserDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/users/{userId}/disable:
+    parameters: [{ $ref: "#/components/parameters/UserId" }]
+    post:
+      operationId: disablePlatformUser
+      tags: [platform]
+      summary: Disable an account everywhere (ends every session)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Disabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformUserDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/users/{userId}/enable:
+    parameters: [{ $ref: "#/components/parameters/UserId" }]
+    post:
+      operationId: enablePlatformUser
+      tags: [platform]
+      summary: Enable a disabled account
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformUserDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/users/{userId}/force-password-reset:
+    parameters: [{ $ref: "#/components/parameters/UserId" }]
+    post:
+      operationId: forcePlatformUserPasswordReset
+      tags: [platform]
+      summary: End every session and require a new password (a reset link is e-mailed)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformUserDetailResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/support-sessions:
+    get:
+      operationId: listSupportSessions
+      tags: [platform]
+      summary: Support sessions, newest first
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - name: tenant_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Grants
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportGrantListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/support-sessions/{grantId}/end:
+    parameters: [{ $ref: "#/components/parameters/GrantId" }]
+    post:
+      operationId: endSupportSession
+      tags: [platform]
+      summary: End a support session now
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: Ended }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/settings:
+    get:
+      operationId: getPlatformSettings
+      tags: [platform]
+      summary: Platform settings
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePlatformSettings
+      tags: [platform]
+      summary: Change platform settings
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePlatformSettingsRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformSettingsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/audit-logs:
+    get:
+      operationId: listPlatformAuditLogs
+      tags: [platform]
+      summary: What platform admins did, newest first
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - name: tenant_id
+          in: query
+          schema: { type: string, format: uuid }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Entries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAuditLogListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/failed-jobs:
+    get:
+      operationId: listPlatformFailedJobs
+      tags: [platform]
+      summary: Background jobs of every company that ran out of retries, newest first
+      description: Like /system/failed-jobs, across companies; each job names the company it ran for.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      parameters:
+        - name: queue
+          in: query
+          schema: { $ref: "#/components/schemas/QueueName" }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Failed jobs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformFailedJobListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/failed-jobs/{queue}/{jobId}:
+    parameters:
+      - { $ref: "#/components/parameters/QueuePath" }
+      - { $ref: "#/components/parameters/JobId" }
+    delete:
+      operationId: deletePlatformFailedJob
+      tags: [platform]
+      summary: Discard a failed job of any company
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: "Deleted" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/failed-jobs/{queue}/{jobId}/retry:
+    parameters:
+      - { $ref: "#/components/parameters/QueuePath" }
+      - { $ref: "#/components/parameters/JobId" }
+    post:
+      operationId: retryPlatformFailedJob
+      tags: [platform]
+      summary: Run a failed job of any company again now
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: "Queued" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/meta-rates:
+    get:
+      operationId: listPlatformMetaRates
+      tags: [platform]
+      summary: The platform's Meta rate card
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Rates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetaRateListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/meta-rates/import:
+    post:
+      operationId: importMetaRates
+      tags: [platform]
+      summary: Import Meta's rate card from CSV (every company reads it)
+      description: >-
+        Multipart upload with a `file` field holding a CSV with the columns
+        market, countries, category, price, currency, effective_from and
+        optionally tier_lower, tier_upper and source (at most 2 MB). Rows add
+        to or replace the stored rates of the same currency, market,
+        category, tier and date; a rate stays valid until the next date of
+        its market and category. The whole file is rejected when any row is
+        invalid.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      x-messora-raw-body: 2097152
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: Imported
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetaRateImportResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/ai-prices:
+    get:
+      operationId: listPlatformAIPrices
+      tags: [platform]
+      summary: The platform's AI price table (per 1M tokens)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "200":
+          description: Prices
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPriceListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAIPrice
+      tags: [platform]
+      summary: Add a price row (counts as confirmed by the admin)
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAIPriceRequest" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPriceResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/ai-prices/{priceId}:
+    parameters: [{ $ref: "#/components/parameters/PriceId" }]
+    patch:
+      operationId: updateAIPrice
+      tags: [platform]
+      summary: Edit or confirm a price row
+      description: >-
+        `confirm: true` records the admin as having checked the row against
+        its source. Changing any figure without confirming clears an earlier
+        confirmation. Costs already recorded never change.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAIPriceRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPriceResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteAIPrice
+      tags: [platform]
+      summary: Remove a price row
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      responses:
+        "204": { description: Removed }
+        default: { $ref: "#/components/responses/Error" }
+
+  /platform/ai-prices/import:
+    post:
+      operationId: importAIPrices
+      tags: [platform]
+      summary: Import prices from LiteLLM's price list
+      description: >-
+        Multipart upload with a `file` field holding LiteLLM's
+        model_prices_and_context_window.json (MIT licensed, per-token
+        prices; at most 16 MB) and an optional `effective_from` date
+        (default today). OpenAI, Anthropic, Gemini and DeepSeek chat models
+        are converted to per-1M prices, including long-context thresholds
+        and cache prices. Imported rows replace rows of the same model and
+        date and are unconfirmed. Messora never downloads the file itself.
+      security: [{ platform: [] }]
+      x-messora-host: platform
+      x-messora-raw-body: 16777216
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                effective_from: { type: string, format: date }
+      responses:
+        "200":
+          description: Imported
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPriceImportResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     panel:
@@ -4579,8 +5374,28 @@ components:
       type: http
       scheme: bearer
       bearerFormat: msk_live_…
+    platform:
+      type: http
+      scheme: bearer
+      bearerFormat: msp_…
+      description: Platform admin session (admin host only), accepted only together with the panel secret.
 
   parameters:
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DomainId:
+      name: domainId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    GrantId:
+      name: grantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     UserId:
       name: userId
       in: path
@@ -4919,6 +5734,18 @@ components:
         mfa_required:
           type: boolean
           description: The user's role requires two-factor authentication but it is not enabled yet.
+        tenant:
+          description: The workspace this session belongs to.
+          type: object
+          required: [id, slug, name]
+          properties:
+            id: { type: string, format: uuid }
+            slug: { type: string }
+            name: { type: string }
+        support:
+          oneOf:
+            - { $ref: "#/components/schemas/SupportInfo" }
+            - { type: "null" }
 
     SessionCreated:
       type: object
@@ -4929,23 +5756,6 @@ components:
           description: Opaque token. The panel stores it in an HttpOnly cookie; never expose it to browsers.
         expires_at: { type: string, format: date-time }
         user: { $ref: "#/components/schemas/User" }
-
-    SetupStatus:
-      type: object
-      required: [setup_required]
-      properties:
-        setup_required: { type: boolean }
-
-    CompleteSetupRequest:
-      type: object
-      additionalProperties: false
-      required: [token, name, email, password]
-      properties:
-        token: { type: string, minLength: 20, maxLength: 200 }
-        name: { $ref: "#/components/schemas/PersonName" }
-        email: { $ref: "#/components/schemas/Email" }
-        password: { $ref: "#/components/schemas/Password" }
-        organization_name: { type: string, minLength: 1, maxLength: 120 }
 
     LoginRequest:
       type: object
@@ -5004,12 +5814,14 @@ components:
 
     AuthCapabilities:
       type: object
-      required: [password_reset, setup_required]
+      required: [password_reset, signup_enabled]
       properties:
         password_reset:
           type: boolean
           description: False when outgoing e-mail is not configured.
-        setup_required: { type: boolean }
+        signup_enabled:
+          type: boolean
+          description: Self sign-up is open (platform setting).
 
     UpdateMeRequest:
       type: object
@@ -5095,20 +5907,44 @@ components:
 
     InvitationPreview:
       type: object
-      required: [email, role, expires_at]
+      required: [email, role, expires_at, account_exists]
       properties:
         email: { type: string }
         role: { $ref: "#/components/schemas/RoleRef" }
         expires_at: { type: string, format: date-time }
+        account_exists:
+          type: boolean
+          description: The address already has a Messora account; accepting asks for its password instead of creating one.
+        invited_by:
+          oneOf:
+            - type: object
+              required: [name]
+              properties:
+                name: { type: string }
+            - { type: "null" }
+        tenant:
+          oneOf:
+            - type: object
+              required: [name, logo_url]
+              properties:
+                name: { type: string }
+                logo_url: { type: [string, "null"] }
+            - { type: "null" }
 
     AcceptInvitationRequest:
       type: object
       additionalProperties: false
-      required: [token, name, password]
+      required: [token, password]
       properties:
         token: { type: string, minLength: 20, maxLength: 200 }
-        name: { $ref: "#/components/schemas/PersonName" }
-        password: { $ref: "#/components/schemas/Password" }
+        name:
+          $ref: "#/components/schemas/PersonName"
+          description: Required for a new account; ignored when the address already has one.
+        password:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: The new account's password (at least 12 characters), or the existing account's password.
 
     Role:
       type: object
@@ -5438,10 +6274,6 @@ components:
           additionalProperties: { type: string }
 
     # ── Envelopes ────────────────────────────────────────────────────────
-    SetupStatusResponse:
-      type: object
-      required: [data, meta]
-      properties: { data: { $ref: "#/components/schemas/SetupStatus" }, meta: { $ref: "#/components/schemas/Meta" } }
     SessionCreatedResponse:
       type: object
       required: [data, meta]
@@ -9617,3 +10449,557 @@ components:
       type: object
       required: [data, meta]
       properties: { data: { $ref: "#/components/schemas/UploadedMedia" }, meta: { $ref: "#/components/schemas/Meta" } }
+    # ── Phase 17 WP2: sign-up, workspaces, platform admin ────────────────
+    WorkspaceSlug:
+      type: string
+      minLength: 3
+      maxLength: 30
+      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+      description: Sub-domain label; reserved labels are refused (SLUG_RESERVED).
+
+    SignupRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, password, company_name, workspace_slug, locale, accept_terms]
+      properties:
+        name: { $ref: "#/components/schemas/PersonName" }
+        email: { $ref: "#/components/schemas/Email" }
+        password: { $ref: "#/components/schemas/Password" }
+        company_name: { type: string, minLength: 1, maxLength: 120 }
+        workspace_slug: { type: string, minLength: 1, maxLength: 63 }
+        locale: { $ref: "#/components/schemas/Locale" }
+        accept_terms: { type: boolean, enum: [true] }
+
+    TenantRef:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+
+    Signup:
+      type: object
+      required: [email, tenant, verification_required]
+      properties:
+        email: { type: string }
+        tenant: { $ref: "#/components/schemas/TenantRef" }
+        verification_required: { type: boolean }
+
+    SlugAvailability:
+      type: object
+      required: [slug, available]
+      properties:
+        slug: { type: string }
+        available: { type: boolean }
+        reason: { type: string, enum: [taken, reserved] }
+
+    VerifyEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, minLength: 20, maxLength: 200 }
+
+    VerifyEmailResult:
+      type: object
+      required: [email, tenant, login_url]
+      properties:
+        email: { type: string }
+        tenant:
+          type: object
+          required: [slug, name]
+          properties:
+            slug: { type: string }
+            name: { type: string }
+        login_url: { type: string, description: "https://<slug>.<base domain>/login" }
+
+    ResendVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { $ref: "#/components/schemas/Email" }
+
+    Membership:
+      type: object
+      required: [tenant, role, current, url]
+      properties:
+        tenant:
+          type: object
+          required: [id, slug, name, logo_url]
+          properties:
+            id: { type: string, format: uuid }
+            slug: { type: string }
+            name: { type: string }
+            logo_url: { type: [string, "null"] }
+        role:
+          type: object
+          required: [key, name]
+          properties:
+            key: { type: string }
+            name: { type: string }
+        current: { type: boolean, description: The workspace this session belongs to. }
+        url: { type: string, description: "The workspace's address (https://<slug>.<base domain> or its custom domain)." }
+
+    SwitchWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      required: [tenant_id]
+      properties:
+        tenant_id: { type: string, format: uuid }
+
+    SwitchWorkspace:
+      type: object
+      required: [redirect_url]
+      properties:
+        redirect_url: { type: string, description: "https://<slug>.<base domain>/auth/handoff?token=…" }
+
+    WorkspaceHandoffRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, minLength: 20, maxLength: 200 }
+
+    EmailChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { $ref: "#/components/schemas/Email" }
+
+    SupportInfo:
+      type: object
+      required: [grant_id, admin_name, reason, read_only, expires_at]
+      description: Set while Messora support has this workspace open.
+      properties:
+        grant_id: { type: string, format: uuid }
+        admin_name: { type: string }
+        reason: { type: string }
+        read_only: { type: boolean }
+        expires_at: { type: string, format: date-time }
+
+    SupportGrant:
+      type: object
+      required: [id, tenant, admin, reason, read_only, created_at, expires_at, ended_at, active]
+      properties:
+        id: { type: string, format: uuid }
+        tenant: { $ref: "#/components/schemas/TenantRef" }
+        admin:
+          type: object
+          required: [id, name, email]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            email: { type: string }
+        reason: { type: string }
+        read_only: { type: boolean }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        ended_at: { type: [string, "null"], format: date-time }
+        active: { type: boolean }
+
+    TenantStatus:
+      type: string
+      enum: [active, suspended, deleted]
+
+    SubscriptionStatus:
+      type: string
+      enum: [trial, active, past_due, canceled]
+
+    PlatformAuthCapabilities:
+      type: object
+      required: [bootstrap_required]
+      properties:
+        bootstrap_required:
+          type: boolean
+          description: No platform admin exists yet; use the link `messora migrate` printed or `messora admin create`.
+
+    PlatformBootstrapRequest:
+      type: object
+      additionalProperties: false
+      required: [token, name, email, password]
+      properties:
+        token: { type: string, minLength: 20, maxLength: 200 }
+        name: { $ref: "#/components/schemas/PersonName" }
+        email: { $ref: "#/components/schemas/Email" }
+        password: { $ref: "#/components/schemas/Password" }
+
+    PlatformAdmin:
+      type: object
+      required: [id, email, name, mfa_enabled]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string }
+        mfa_enabled: { type: boolean }
+
+    PlatformSessionCreated:
+      type: object
+      required: [session_token, expires_at, admin]
+      properties:
+        session_token: { type: string, description: "Opaque msp_ token; the panel keeps it in its own HttpOnly cookie." }
+        expires_at: { type: string, format: date-time }
+        admin: { $ref: "#/components/schemas/PlatformAdmin" }
+
+    PlatformLoginResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [authenticated, mfa_required] }
+        session: { $ref: "#/components/schemas/PlatformSessionCreated" }
+        mfa_token: { type: string }
+
+    PlatformMe:
+      type: object
+      required: [admin, session, mfa_required]
+      properties:
+        admin: { $ref: "#/components/schemas/PlatformAdmin" }
+        session:
+          type: object
+          required: [id, expires_at]
+          properties:
+            id: { type: string, format: uuid }
+            expires_at: { type: string, format: date-time }
+        mfa_required:
+          type: boolean
+          description: Two-factor authentication is not set up yet; only enrolment works until it is.
+
+    PlatformOverview:
+      type: object
+      required: [tenants, active_tenants, suspended_tenants, trial_tenants, users, signups_7d, active_support_sessions]
+      properties:
+        tenants: { type: integer, format: int64 }
+        active_tenants: { type: integer, format: int64 }
+        suspended_tenants: { type: integer, format: int64 }
+        trial_tenants: { type: integer, format: int64 }
+        users: { type: integer, format: int64 }
+        signups_7d: { type: integer, format: int64 }
+        active_support_sessions: { type: integer, format: int64 }
+
+    PlatformTenant:
+      type: object
+      required: [id, slug, name, status, subscription_status, trial_ends_at, suspended_at, suspended_reason, member_count, primary_host, url, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/TenantStatus" }
+        subscription_status: { $ref: "#/components/schemas/SubscriptionStatus" }
+        trial_ends_at: { type: [string, "null"], format: date-time }
+        suspended_at: { type: [string, "null"], format: date-time }
+        suspended_reason: { type: [string, "null"] }
+        member_count: { type: integer, format: int64 }
+        primary_host: { type: [string, "null"] }
+        url: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+
+    PlatformDomain:
+      type: object
+      required: [id, tenant_id, hostname, kind, is_primary, verified_at, created_at, verification]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        hostname: { type: string }
+        kind: { type: string, enum: [subdomain, custom] }
+        is_primary: { type: boolean }
+        verified_at: { type: [string, "null"], format: date-time }
+        last_checked_at: { type: [string, "null"], format: date-time }
+        last_check_error: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        verification:
+          description: The DNS record that proves ownership (custom domains).
+          oneOf:
+            - type: object
+              required: [type, name, value]
+              properties:
+                type: { type: string, enum: [TXT] }
+                name: { type: string }
+                value: { type: string }
+            - { type: "null" }
+
+    PlatformTenantDetail:
+      allOf:
+        - { $ref: "#/components/schemas/PlatformTenant" }
+        - type: object
+          required: [domains, owners]
+          properties:
+            domains:
+              type: array
+              items: { $ref: "#/components/schemas/PlatformDomain" }
+            owners:
+              type: array
+              items:
+                type: object
+                required: [id, email, name]
+                properties:
+                  id: { type: string, format: uuid }
+                  email: { type: string }
+                  name: { type: string }
+
+    CreatePlatformTenantRequest:
+      type: object
+      additionalProperties: false
+      required: [name, slug]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        slug: { type: string, minLength: 1, maxLength: 63 }
+        owner_email: { $ref: "#/components/schemas/Email" }
+        locale: { $ref: "#/components/schemas/Locale" }
+        trial_days: { type: integer, minimum: 0, maximum: 365, description: "0 starts the company without a trial (subscription active)." }
+
+    OwnerInvitation:
+      type: object
+      required: [email, accept_url, email_sent, expires_at]
+      properties:
+        email: { type: string }
+        accept_url: { type: string, description: Shown once. }
+        email_sent: { type: boolean }
+        expires_at: { type: string, format: date-time }
+
+    PlatformTenantCreated:
+      type: object
+      required: [tenant]
+      properties:
+        tenant: { $ref: "#/components/schemas/PlatformTenantDetail" }
+        owner_invitation: { $ref: "#/components/schemas/OwnerInvitation" }
+
+    UpdatePlatformTenantRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        trial_ends_at: { type: [string, "null"], format: date-time }
+        subscription_status: { $ref: "#/components/schemas/SubscriptionStatus" }
+
+    SuspendTenantRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
+
+    InviteOwnerRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { $ref: "#/components/schemas/Email" }
+        locale: { $ref: "#/components/schemas/Locale" }
+
+    AddDomainRequest:
+      type: object
+      additionalProperties: false
+      required: [hostname]
+      properties:
+        hostname: { type: string, minLength: 4, maxLength: 253 }
+
+    StartSupportSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
+        minutes: { type: integer, minimum: 5, maximum: 240, default: 30 }
+        write: { type: boolean, default: false, description: "Allow changes; the default is read-only." }
+
+    SupportSessionStarted:
+      type: object
+      required: [grant, redirect_url]
+      properties:
+        grant: { $ref: "#/components/schemas/SupportGrant" }
+        redirect_url: { type: string }
+
+    PlatformUser:
+      type: object
+      required: [id, email, name, status, is_platform_admin, mfa_enabled, email_verified, password_reset_required, membership_count, last_login_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [active, disabled] }
+        is_platform_admin: { type: boolean }
+        mfa_enabled: { type: boolean }
+        email_verified: { type: boolean }
+        password_reset_required: { type: boolean }
+        membership_count: { type: integer, format: int64 }
+        locked_until: { type: [string, "null"], format: date-time }
+        last_login_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    PlatformUserDetail:
+      type: object
+      required: [user, memberships]
+      properties:
+        user: { $ref: "#/components/schemas/PlatformUser" }
+        memberships:
+          type: array
+          items:
+            type: object
+            required: [tenant, role, status, created_at]
+            properties:
+              tenant: { $ref: "#/components/schemas/TenantRef" }
+              role: { type: string }
+              status: { type: string, enum: [active, disabled] }
+              created_at: { type: string, format: date-time }
+
+    PlatformSettings:
+      type: object
+      required: [signup_enabled, base_domain, admin_url, platform_url, email]
+      properties:
+        signup_enabled: { type: boolean }
+        base_domain: { type: string, description: "TENANT_BASE_DOMAIN (read-only)." }
+        admin_url: { type: [string, "null"] }
+        platform_url: { type: [string, "null"] }
+        email:
+          type: object
+          required: [configured, from, host, reply_to]
+          description: The platform sender (SMTP_* settings; Resend in production).
+          properties:
+            configured: { type: boolean }
+            from: { type: string }
+            host: { type: string }
+            reply_to: { type: [string, "null"] }
+
+    UpdatePlatformSettingsRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        signup_enabled: { type: boolean }
+        reply_to:
+          oneOf:
+            - { $ref: "#/components/schemas/Email" }
+            - { type: "null" }
+
+    PlatformAuditLog:
+      type: object
+      required: [id, occurred_at, actor_id, actor_email, action, entity_type, entity_id, tenant, changes]
+      properties:
+        id: { type: string, format: uuid }
+        occurred_at: { type: string, format: date-time }
+        actor_id: { type: [string, "null"], format: uuid }
+        actor_email: { type: [string, "null"] }
+        action: { type: string }
+        entity_type: { type: [string, "null"] }
+        entity_id: { type: [string, "null"], format: uuid }
+        tenant:
+          oneOf:
+            - type: object
+              required: [id, slug]
+              properties:
+                id: { type: string, format: uuid }
+                slug: { type: string }
+            - { type: "null" }
+        ip: { type: [string, "null"] }
+        changes: { type: object, additionalProperties: true }
+
+    SignupResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/Signup" }, meta: { $ref: "#/components/schemas/Meta" } }
+    SlugAvailabilityResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/SlugAvailability" }, meta: { $ref: "#/components/schemas/Meta" } }
+    VerifyEmailResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/VerifyEmailResult" }, meta: { $ref: "#/components/schemas/Meta" } }
+    MembershipListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Membership" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    SwitchWorkspaceResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/SwitchWorkspace" }, meta: { $ref: "#/components/schemas/Meta" } }
+    SupportGrantListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/SupportGrant" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    PlatformAuthCapabilitiesResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformAuthCapabilities" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformSessionCreatedResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformSessionCreated" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformLoginResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformLoginResult" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformMeResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformMe" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformOverviewResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformOverview" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformTenantListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformTenant" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    PlatformTenantDetailResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformTenantDetail" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformTenantCreatedResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformTenantCreated" }, meta: { $ref: "#/components/schemas/Meta" } }
+    OwnerInvitationResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/OwnerInvitation" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformDomainResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformDomain" }, meta: { $ref: "#/components/schemas/Meta" } }
+    SupportSessionStartedResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/SupportSessionStarted" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformUserListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformUser" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    PlatformUserDetailResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformUserDetail" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformSettingsResponse:
+      type: object
+      required: [data, meta]
+      properties: { data: { $ref: "#/components/schemas/PlatformSettings" }, meta: { $ref: "#/components/schemas/Meta" } }
+    PlatformAuditLogListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformAuditLog" } }
+        meta: { $ref: "#/components/schemas/Meta" }
+    PlatformFailedJob:
+      allOf:
+        - { $ref: "#/components/schemas/FailedJob" }
+        - type: object
+          required: [tenant_id]
+          properties:
+            tenant_id: { type: [string, "null"], format: uuid, description: "The company the job ran for (null: a platform job)." }
+    PlatformFailedJobListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PlatformFailedJob" } }
+        meta: { $ref: "#/components/schemas/Meta" }

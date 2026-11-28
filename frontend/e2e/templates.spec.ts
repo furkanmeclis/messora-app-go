@@ -75,10 +75,10 @@ test.beforeAll(() => {
                    ON CONFLICT (key) DO UPDATE SET name = EXCLUDED.name RETURNING id),
              p AS (INSERT INTO role_permissions (role_id, permission_key)
                    SELECT r.id, k FROM r, unnest(ARRAY['${PERMISSIONS.join("','")}']) k ON CONFLICT DO NOTHING),
-             u AS (INSERT INTO users (email, name, password_hash)
-                   SELECT '${USER.email}', 'Tina Templates', password_hash FROM users WHERE email = 'ari@example.com'
+             u AS (INSERT INTO users (email, name, password_hash, email_verified_at)
+                   SELECT '${USER.email}', 'Tina Templates', password_hash, now() FROM users WHERE email = 'ari@example.com'
                    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id)
-        INSERT INTO user_roles (user_id, role_id) SELECT u.id, r.id FROM u, r ON CONFLICT DO NOTHING;`);
+        INSERT INTO tenant_memberships (user_id, role_id) SELECT u.id, r.id FROM u, r ON CONFLICT DO NOTHING;`);
     // A disabled account with an approved limited-time offer template.
     sql(`
         WITH a AS (INSERT INTO whatsapp_accounts (name, waba_id, access_token_enc, status)

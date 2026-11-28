@@ -143,8 +143,7 @@ values and API calls).
    ```
 
    Two-factor authentication is set up at the first sign-in on
-   `admin.messora.tech`. (Until WP2 is merged the branch still uses the
-   setup link of tenant #1: `messora setup token`.)
+   `admin.messora.tech`.
 8. **Companies** are opened in the admin panel or by sign-up on
    `app.messora.tech`; each is at `<slug>.messora.tech` at once. A custom
    domain is added and verified in the admin panel; within one provider

@@ -23,10 +23,13 @@ single-domain path.
 
    Caddy obtains and renews a Let's Encrypt certificate automatically
    (ports 80 and 443 must be reachable from the internet).
-3. `docker compose up -d --build`, then follow the setup link printed in
-   `docker compose logs messora-api` (or run
-   `docker compose exec messora-api messora setup token`) to create the owner
-   account. Two-factor authentication is mandatory for owners and admins.
+3. `docker compose up -d --build`, then open the platform admin bootstrap
+   link printed by `docker compose logs messora-migrate`
+   (`https://admin.<TENANT_BASE_DOMAIN>/bootstrap?token=…`, valid 24 hours) or
+   run `docker compose exec -T messora-api messora admin create --email you@example.com --password-stdin`.
+   Platform admins must set up two-factor authentication at their first
+   sign-in. Companies are created in the admin panel (with an owner
+   invitation) or by self sign-up on `app.<TENANT_BASE_DOMAIN>`.
 4. Connect WhatsApp: Channels → connect account, then enter the webhook values
    from Channels → Webhook in the Meta App dashboard. See
    [WHATSAPP.md](WHATSAPP.md) — including the manual smoke test with a test
