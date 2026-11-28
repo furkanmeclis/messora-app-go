@@ -1,0 +1,25 @@
+Subject: A webhook endpoint was switched off
+Preheader: 20 delivery attempts in a row failed. Events are no longer sent to it.
+
+Acme Gıda · with Messora
+========================================
+
+Hi Ayşe,
+
+Messora switched off a webhook endpoint of the Acme Gıda workspace on 27 November 2026 at 14:05 (UTC+03:00), because its delivery attempts kept failing.
+
+  Endpoint: https://crm.acmegida.com.tr/hooks/messora
+  Description: CRM sync
+  Failed attempts in a row: 20
+  Failing since: 26 November 2026 at 12:05 (UTC+03:00)
+  Last error: HTTP 503
+
+No new events are sent to this endpoint until it is switched back on. Events already recorded stay in the delivery log for 30 days and can be redelivered.
+
+Fix the receiver, send a test event, then switch the endpoint back on:
+https://acme.messora.tech/settings/webhooks
+
+----------------------------------------
+You're receiving this because you are an owner or admin of Acme Gıda on Messora.
+Questions? Write to our support team: https://messora.tech/destek
+This e-mail was sent automatically. © Messora · https://messora.tech

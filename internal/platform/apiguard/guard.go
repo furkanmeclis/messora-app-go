@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/furkanmeclis/messora-app-go/internal/db"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
@@ -54,6 +55,19 @@ const (
 	HostPlatform = "platform"
 	HostAny      = "any"
 )
+
+// FeatureExtension names the plan feature (entitlements.Feature) an
+// operation needs; without it the operation answers 403
+// FEATURE_NOT_IN_PLAN. API keys additionally need the public_api feature
+// for every operation.
+const FeatureExtension = "x-messora-feature"
+
+func featureOf(op *openapi3.Operation) entitlements.Feature {
+	if v, ok := op.Extensions[FeatureExtension].(string); ok {
+		return entitlements.Feature(v)
+	}
+	return ""
+}
 
 func hostScope(op *openapi3.Operation) string {
 	if v, ok := op.Extensions[HostExtension].(string); ok {
@@ -101,7 +115,13 @@ type Options struct {
 	// second factor; every other operation answers MFA_SETUP_REQUIRED.
 	MFAEnrolmentOps []string
 	// Limits per principal kind; anonymous panel calls are limited per IP.
+	// With Plans, the session and API key budgets come from the tenant's
+	// plan instead (platform sessions keep SessionLimit).
 	SessionLimit, APIKeyLimit, AnonymousLimit ratelimit.Limit
+	// Plans answers the tenant's plan: request budgets, the monthly API
+	// quota and feature flags (docs/ENTITLEMENTS.md). Nil means no plan
+	// checks.
+	Plans entitlements.Provider
 	// MaxBody caps request bodies (default 1 MiB). An operation with the
 	// extension "x-messora-raw-body: <bytes>" accepts a larger streamed
 	// body that is not schema-validated (file uploads); its handler parses it.
@@ -179,6 +199,9 @@ func New(spec *openapi3.T, o Options) (*Guard, error) {
 			if scope != HostTenant && scope != HostPlatform && scope != HostAny {
 				return nil, fmt.Errorf("apiguard: %s %s has unknown %s %q", method, path, HostExtension, scope)
 			}
+			if f := featureOf(op); f != "" && !slices.Contains(entitlements.AllFeatures, f) {
+				return nil, fmt.Errorf("apiguard: %s %s has unknown %s %q", method, path, FeatureExtension, f)
+			}
 			platformPath := strings.HasPrefix(path, "/platform/")
 			if platformPath != (scope == HostPlatform) {
 				return nil, fmt.Errorf("apiguard: %s %s: /platform/ operations, and only they, are %s: platform", method, path, HostExtension)
@@ -247,7 +270,16 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 		}
 		r = r.WithContext(ctx)
 
-		if err := g.rateLimit(w, r, p); err != nil {
+		plan, err := g.plan(ctx, p)
+		if err != nil {
+			httpx.WriteError(w, r, err, g.o.Logger)
+			return
+		}
+		if err := g.rateLimit(w, r, p, plan); err != nil {
+			httpx.WriteError(w, r, err, g.o.Logger)
+			return
+		}
+		if err := g.entitled(w, r, p, plan, featureOf(op)); err != nil {
 			httpx.WriteError(w, r, err, g.o.Logger)
 			return
 		}
@@ -431,9 +463,78 @@ func bearer(r *http.Request) string {
 	return ""
 }
 
+// plan returns the tenant's plan for a workspace principal; nil for
+// anonymous callers, platform sessions, or without a provider.
+func (g *Guard) plan(ctx context.Context, p *principal.Principal) (*entitlements.Plan, error) {
+	if g.o.Plans == nil || p == nil || p.Platform {
+		return nil, nil
+	}
+	id, ok := tenant.FromCtx(ctx)
+	if !ok || tenant.IsSystem(ctx) || tenant.IsPlatform(ctx) {
+		return nil, nil
+	}
+	pl, err := g.o.Plans.Limits(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("apiguard: plan of %s: %w", id, err)
+	}
+	return &pl, nil
+}
+
+// Monthly quota headers on API key responses when the plan has a quota.
+const (
+	HeaderQuotaLimit     = "X-Messora-Quota-Limit"
+	HeaderQuotaRemaining = "X-Messora-Quota-Remaining"
+)
+
+// entitled applies the plan's feature flags and the monthly API quota:
+// API keys need public_api, an operation with x-messora-feature needs its
+// feature, and API key calls count against api_calls_per_month.
+func (g *Guard) entitled(w http.ResponseWriter, r *http.Request, p *principal.Principal, plan *entitlements.Plan, feature entitlements.Feature) error {
+	if plan == nil {
+		return nil
+	}
+	if p.Kind == principal.KindAPIKey {
+		if err := plan.Require(entitlements.PublicAPI); err != nil {
+			return err
+		}
+	}
+	if feature != "" {
+		if err := plan.Require(feature); err != nil {
+			return err
+		}
+	}
+	if p.Kind != principal.KindAPIKey || plan.APICallsPerMonth == entitlements.Unlimited || g.o.Limiter == nil {
+		return nil
+	}
+	now := time.Now().UTC()
+	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	next := month.AddDate(0, 1, 0)
+	key := tenant.RedisKey(r.Context(), "quota:api:"+month.Format("200601"))
+	n, err := g.o.Limiter.Count(r.Context(), key, next.Sub(now)+24*time.Hour)
+	if err != nil {
+		g.o.Logger.WarnContext(r.Context(), "quota counter unavailable; allowing request", "err", err)
+		return nil // fail open, like the rate limiter
+	}
+	h := w.Header()
+	h.Set(HeaderQuotaLimit, strconv.FormatInt(plan.APICallsPerMonth, 10))
+	h.Set(HeaderQuotaRemaining, strconv.FormatInt(max(plan.APICallsPerMonth-n, 0), 10))
+	if n <= plan.APICallsPerMonth {
+		return nil
+	}
+	wait := next.Sub(now)
+	// The budget headers describe the limit that binds now: the month's.
+	h.Set(HeaderRateLimitLimit, strconv.FormatInt(plan.APICallsPerMonth, 10))
+	h.Set(HeaderRateLimitRemaining, "0")
+	h.Set(HeaderRateLimitReset, strconv.Itoa(ceilSeconds(wait)))
+	h.Set(HeaderRateLimitPolicy, fmt.Sprintf("%d;w=%d", plan.APICallsPerMonth, ceilSeconds(next.Sub(month))))
+	e := apperr.RateLimited(entitlements.CodeQuotaExceeded, "The workspace's monthly API quota is used up", wait)
+	e.Details = []apperr.Detail{{Field: "limit", Code: "api_calls_per_month", Message: strconv.FormatInt(plan.APICallsPerMonth, 10)}}
+	return e
+}
+
 // rateLimit consumes one request from the caller's budget and reports the
 // budget in the RateLimit-* headers (on 429 too, next to Retry-After).
-func (g *Guard) rateLimit(w http.ResponseWriter, r *http.Request, p *principal.Principal) error {
+func (g *Guard) rateLimit(w http.ResponseWriter, r *http.Request, p *principal.Principal, plan *entitlements.Plan) error {
 	if g.o.Limiter == nil {
 		return nil
 	}
@@ -451,11 +552,17 @@ func (g *Guard) rateLimit(w http.ResponseWriter, r *http.Request, p *principal.P
 		key = tenant.GlobalRedisKey("rl:api:anon:" + ip.String())
 	case p.Kind == principal.KindAPIKey:
 		key, lim = tenant.RedisKey(r.Context(), "rl:api:"+p.Key()), g.o.APIKeyLimit
+		if plan != nil {
+			lim = ratelimit.PerMinute(plan.APIKeyRequestsPerMinute)
+		}
 	case p.Platform:
 		// The admin panel's sessions belong to no tenant.
 		key, lim = tenant.GlobalRedisKey("rl:api:platform:"+p.Key()), g.o.SessionLimit
 	default:
 		key, lim = tenant.RedisKey(r.Context(), "rl:api:"+p.Key()), g.o.SessionLimit
+		if plan != nil {
+			lim = ratelimit.PerMinute(plan.SessionRequestsPerMinute)
+		}
 	}
 	if lim.Rate == 0 {
 		return nil

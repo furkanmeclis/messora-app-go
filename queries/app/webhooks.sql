@@ -18,19 +18,43 @@ UPDATE webhook_endpoints SET
     description     = coalesce(sqlc.narg(description), description),
     event_types     = coalesce(sqlc.narg(event_types)::text[], event_types),
     active          = coalesce(sqlc.narg(active), active),
+    -- Switching an endpoint back on starts its health over.
     disabled_reason = CASE WHEN sqlc.narg(active)::boolean THEN NULL ELSE disabled_reason END,
+    disabled_at     = CASE WHEN sqlc.narg(active)::boolean THEN NULL ELSE disabled_at END,
+    failure_streak  = CASE WHEN sqlc.narg(active)::boolean AND NOT active THEN 0 ELSE failure_streak END,
+    failing_since   = CASE WHEN sqlc.narg(active)::boolean AND NOT active THEN NULL ELSE failing_since END,
     updated_at      = now()
 WHERE id = @id
 RETURNING *;
 
 -- name: SetWebhookEndpointSecret :one
-UPDATE webhook_endpoints SET secret_enc = @secret_enc, secret_last4 = @secret_last4, updated_at = now()
+-- Rotation: with a grace period the current secret becomes the previous
+-- one (deliveries carry both signatures until it expires); without one the
+-- previous secret is dropped at once.
+UPDATE webhook_endpoints SET
+    previous_secret_enc        = CASE WHEN @grace_seconds::float8 > 0 THEN secret_enc END,
+    previous_secret_expires_at = CASE WHEN @grace_seconds::float8 > 0 THEN now() + make_interval(secs => @grace_seconds::float8) END,
+    secret_enc = @secret_enc, secret_last4 = @secret_last4, updated_at = now()
 WHERE id = @id
 RETURNING *;
 
--- name: DisableWebhookEndpoint :exec
-UPDATE webhook_endpoints SET active = false, disabled_reason = @reason, updated_at = now()
+-- name: DisableWebhookEndpoint :execrows
+-- Switches an active endpoint off; 0 rows when it already was off (so the
+-- admins are told once).
+UPDATE webhook_endpoints SET active = false, disabled_reason = @reason, disabled_at = now(), updated_at = now()
 WHERE id = @id AND active;
+
+-- name: RecordWebhookSuccess :exec
+UPDATE webhook_endpoints SET failure_streak = 0, failing_since = NULL, last_success_at = now()
+WHERE id = @id;
+
+-- name: RecordWebhookFailure :one
+-- Counts a failed attempt of an active endpoint and returns the run of
+-- failures it belongs to.
+UPDATE webhook_endpoints SET failure_streak = failure_streak + 1,
+    failing_since = coalesce(failing_since, now()), last_failure_at = now()
+WHERE id = @id AND active
+RETURNING failure_streak, failing_since;
 
 -- name: DeleteWebhookEndpoint :execrows
 DELETE FROM webhook_endpoints WHERE id = @id;

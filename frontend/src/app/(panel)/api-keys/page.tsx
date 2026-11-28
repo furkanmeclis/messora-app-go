@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getT } from '@/i18n/server';
 import { api } from '@/lib/server/api';
 import { requirePermission } from '@/lib/server/auth';
+import { requestOrigin } from '@/lib/server/tenant-host';
 import type { ApiKey, RolesAndPermissions } from '@/lib/types';
 import { PageHeading } from '../panel-header';
-import { ApiKeyTable, CreateKeyDialog } from './keys-client';
+import { ApiBaseCard, ApiKeyTable, CreateKeyDialog } from './keys-client';
 
 export async function generateMetadata(): Promise<Metadata> {
     const t = await getT();
@@ -23,6 +25,9 @@ export default async function ApiKeysPage() {
     if (me.permissions.includes('users.manage')) {
         catalogue = (await api<RolesAndPermissions>('/roles')).data.permissions;
     }
+    // The workspace's own API address (there is no shared API host).
+    const apiBase =
+        me.tenant?.api_base_url ?? `${requestOrigin(await headers())}/api/v1`;
     const scopes = me.permissions.map((key) => ({
         key,
         description: catalogue.find((p) => p.key === key)?.description ?? key,
@@ -45,6 +50,7 @@ export default async function ApiKeysPage() {
                     </>
                 }
             />
+            <ApiBaseCard baseUrl={apiBase} />
             <ApiKeyTable keys={keys} />
         </>
     );

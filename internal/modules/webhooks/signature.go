@@ -21,10 +21,15 @@ const (
 )
 
 // Sign returns the Messora-Signature value for body sent at ts:
-// "t=<unix seconds>,v1=<hex HMAC-SHA256(secret, "<t>.<body>")>".
-func Sign(secret string, ts time.Time, body []byte) string {
+// "t=<unix seconds>,v1=<hex HMAC-SHA256(secret, "<t>.<body>")>". Each of
+// others (previous secrets during a rotation's overlap) adds one more v1.
+func Sign(secret string, ts time.Time, body []byte, others ...string) string {
 	t := strconv.FormatInt(ts.Unix(), 10)
-	return "t=" + t + ",v1=" + hex.EncodeToString(mac(secret, t, body))
+	out := "t=" + t + ",v1=" + hex.EncodeToString(mac(secret, t, body))
+	for _, o := range others {
+		out += ",v1=" + hex.EncodeToString(mac(o, t, body))
+	}
+	return out
 }
 
 func mac(secret, t string, body []byte) []byte {

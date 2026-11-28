@@ -94,8 +94,8 @@ func (q *Queries) DeleteWebhookEndpoint(ctx context.Context, id uuid.UUID) (int6
 	return result.RowsAffected(), nil
 }
 
-const disableWebhookEndpoint = `-- name: DisableWebhookEndpoint :exec
-UPDATE webhook_endpoints SET active = false, disabled_reason = $1, updated_at = now()
+const disableWebhookEndpoint = `-- name: DisableWebhookEndpoint :execrows
+UPDATE webhook_endpoints SET active = false, disabled_reason = $1, disabled_at = now(), updated_at = now()
 WHERE id = $2 AND active
 `
 
@@ -104,9 +104,14 @@ type DisableWebhookEndpointParams struct {
 	ID     uuid.UUID
 }
 
-func (q *Queries) DisableWebhookEndpoint(ctx context.Context, arg DisableWebhookEndpointParams) error {
-	_, err := q.db.Exec(ctx, disableWebhookEndpoint, arg.Reason, arg.ID)
-	return err
+// Switches an active endpoint off; 0 rows when it already was off (so the
+// admins are told once).
+func (q *Queries) DisableWebhookEndpoint(ctx context.Context, arg DisableWebhookEndpointParams) (int64, error) {
+	result, err := q.db.Exec(ctx, disableWebhookEndpoint, arg.Reason, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const fanOutWebhookEvent = `-- name: FanOutWebhookEvent :many
@@ -228,7 +233,7 @@ func (q *Queries) GetWebhookDelivery(ctx context.Context, id uuid.UUID) (Webhook
 }
 
 const getWebhookEndpoint = `-- name: GetWebhookEndpoint :one
-SELECT id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id FROM webhook_endpoints WHERE id = $1
+SELECT id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id, failure_streak, failing_since, last_success_at, last_failure_at, disabled_at, previous_secret_enc, previous_secret_expires_at FROM webhook_endpoints WHERE id = $1
 `
 
 func (q *Queries) GetWebhookEndpoint(ctx context.Context, id uuid.UUID) (WebhookEndpoint, error) {
@@ -247,6 +252,13 @@ func (q *Queries) GetWebhookEndpoint(ctx context.Context, id uuid.UUID) (Webhook
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantID,
+		&i.FailureStreak,
+		&i.FailingSince,
+		&i.LastSuccessAt,
+		&i.LastFailureAt,
+		&i.DisabledAt,
+		&i.PreviousSecretEnc,
+		&i.PreviousSecretExpiresAt,
 	)
 	return i, err
 }
@@ -303,7 +315,7 @@ func (q *Queries) InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDe
 const insertWebhookEndpoint = `-- name: InsertWebhookEndpoint :one
 INSERT INTO webhook_endpoints (id, url, description, event_types, active, secret_enc, secret_last4, created_by)
 VALUES ($1, $2, $3, $4::text[], $5, $6, $7, $8)
-RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id
+RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id, failure_streak, failing_since, last_success_at, last_failure_at, disabled_at, previous_secret_enc, previous_secret_expires_at
 `
 
 type InsertWebhookEndpointParams struct {
@@ -342,6 +354,13 @@ func (q *Queries) InsertWebhookEndpoint(ctx context.Context, arg InsertWebhookEn
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantID,
+		&i.FailureStreak,
+		&i.FailingSince,
+		&i.LastSuccessAt,
+		&i.LastFailureAt,
+		&i.DisabledAt,
+		&i.PreviousSecretEnc,
+		&i.PreviousSecretExpiresAt,
 	)
 	return i, err
 }
@@ -426,7 +445,7 @@ func (q *Queries) ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeli
 }
 
 const listWebhookEndpoints = `-- name: ListWebhookEndpoints :many
-SELECT id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id FROM webhook_endpoints ORDER BY id DESC
+SELECT id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id, failure_streak, failing_since, last_success_at, last_failure_at, disabled_at, previous_secret_enc, previous_secret_expires_at FROM webhook_endpoints ORDER BY id DESC
 `
 
 func (q *Queries) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, error) {
@@ -451,6 +470,13 @@ func (q *Queries) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TenantID,
+			&i.FailureStreak,
+			&i.FailingSince,
+			&i.LastSuccessAt,
+			&i.LastFailureAt,
+			&i.DisabledAt,
+			&i.PreviousSecretEnc,
+			&i.PreviousSecretExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -460,6 +486,37 @@ func (q *Queries) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpoint, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordWebhookFailure = `-- name: RecordWebhookFailure :one
+UPDATE webhook_endpoints SET failure_streak = failure_streak + 1,
+    failing_since = coalesce(failing_since, now()), last_failure_at = now()
+WHERE id = $1 AND active
+RETURNING failure_streak, failing_since
+`
+
+type RecordWebhookFailureRow struct {
+	FailureStreak int64
+	FailingSince  *time.Time
+}
+
+// Counts a failed attempt of an active endpoint and returns the run of
+// failures it belongs to.
+func (q *Queries) RecordWebhookFailure(ctx context.Context, id uuid.UUID) (RecordWebhookFailureRow, error) {
+	row := q.db.QueryRow(ctx, recordWebhookFailure, id)
+	var i RecordWebhookFailureRow
+	err := row.Scan(&i.FailureStreak, &i.FailingSince)
+	return i, err
+}
+
+const recordWebhookSuccess = `-- name: RecordWebhookSuccess :exec
+UPDATE webhook_endpoints SET failure_streak = 0, failing_since = NULL, last_success_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) RecordWebhookSuccess(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, recordWebhookSuccess, id)
+	return err
 }
 
 const resetWebhookDelivery = `-- name: ResetWebhookDelivery :one
@@ -494,19 +551,31 @@ func (q *Queries) ResetWebhookDelivery(ctx context.Context, id uuid.UUID) (Webho
 }
 
 const setWebhookEndpointSecret = `-- name: SetWebhookEndpointSecret :one
-UPDATE webhook_endpoints SET secret_enc = $1, secret_last4 = $2, updated_at = now()
-WHERE id = $3
-RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id
+UPDATE webhook_endpoints SET
+    previous_secret_enc        = CASE WHEN $1::float8 > 0 THEN secret_enc END,
+    previous_secret_expires_at = CASE WHEN $1::float8 > 0 THEN now() + make_interval(secs => $1::float8) END,
+    secret_enc = $2, secret_last4 = $3, updated_at = now()
+WHERE id = $4
+RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id, failure_streak, failing_since, last_success_at, last_failure_at, disabled_at, previous_secret_enc, previous_secret_expires_at
 `
 
 type SetWebhookEndpointSecretParams struct {
-	SecretEnc   []byte
-	SecretLast4 string
-	ID          uuid.UUID
+	GraceSeconds float64
+	SecretEnc    []byte
+	SecretLast4  string
+	ID           uuid.UUID
 }
 
+// Rotation: with a grace period the current secret becomes the previous
+// one (deliveries carry both signatures until it expires); without one the
+// previous secret is dropped at once.
 func (q *Queries) SetWebhookEndpointSecret(ctx context.Context, arg SetWebhookEndpointSecretParams) (WebhookEndpoint, error) {
-	row := q.db.QueryRow(ctx, setWebhookEndpointSecret, arg.SecretEnc, arg.SecretLast4, arg.ID)
+	row := q.db.QueryRow(ctx, setWebhookEndpointSecret,
+		arg.GraceSeconds,
+		arg.SecretEnc,
+		arg.SecretLast4,
+		arg.ID,
+	)
 	var i WebhookEndpoint
 	err := row.Scan(
 		&i.ID,
@@ -521,6 +590,13 @@ func (q *Queries) SetWebhookEndpointSecret(ctx context.Context, arg SetWebhookEn
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantID,
+		&i.FailureStreak,
+		&i.FailingSince,
+		&i.LastSuccessAt,
+		&i.LastFailureAt,
+		&i.DisabledAt,
+		&i.PreviousSecretEnc,
+		&i.PreviousSecretExpiresAt,
 	)
 	return i, err
 }
@@ -531,10 +607,14 @@ UPDATE webhook_endpoints SET
     description     = coalesce($2, description),
     event_types     = coalesce($3::text[], event_types),
     active          = coalesce($4, active),
+    -- Switching an endpoint back on starts its health over.
     disabled_reason = CASE WHEN $4::boolean THEN NULL ELSE disabled_reason END,
+    disabled_at     = CASE WHEN $4::boolean THEN NULL ELSE disabled_at END,
+    failure_streak  = CASE WHEN $4::boolean AND NOT active THEN 0 ELSE failure_streak END,
+    failing_since   = CASE WHEN $4::boolean AND NOT active THEN NULL ELSE failing_since END,
     updated_at      = now()
 WHERE id = $5
-RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id
+RETURNING id, url, description, event_types, active, secret_enc, secret_last4, disabled_reason, created_by, created_at, updated_at, tenant_id, failure_streak, failing_since, last_success_at, last_failure_at, disabled_at, previous_secret_enc, previous_secret_expires_at
 `
 
 type UpdateWebhookEndpointParams struct {
@@ -567,6 +647,13 @@ func (q *Queries) UpdateWebhookEndpoint(ctx context.Context, arg UpdateWebhookEn
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantID,
+		&i.FailureStreak,
+		&i.FailingSince,
+		&i.LastSuccessAt,
+		&i.LastFailureAt,
+		&i.DisabledAt,
+		&i.PreviousSecretEnc,
+		&i.PreviousSecretExpiresAt,
 	)
 	return i, err
 }

@@ -13,6 +13,14 @@ const apiKeys: Messages['apiKeys'] = {
         lastUsed: 'Son kullanım',
         expires: 'Son geçerlilik',
     },
+    base: {
+        title: 'API adresiniz',
+        description:
+            'Her çalışma alanının kendi API adresi vardır. Bu çalışma alanının anahtarları yalnızca burada çalışır; başka bir adreste 401 yanıtı alırlar.',
+        copy: 'Taban adresi kopyala',
+        copied: 'Taban adres kopyalandı',
+        sample: 'Bir anahtarı deneyin',
+    },
     never: 'Süresiz',
     revoke: 'İptal et',
     revoked: 'API anahtarı iptal edildi.',

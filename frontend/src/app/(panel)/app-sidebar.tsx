@@ -119,7 +119,25 @@ export function AppSidebar({
                                 isActive={item.id === active}
                                 tooltip={t(item.label)}
                             >
-                                <Link href={item.href}>
+                                <Link
+                                    href={item.href}
+                                    // Prefetch on intent, not on sight: the
+                                    // sidebar shows ~20 links, and every
+                                    // viewport prefetch of a dynamic route
+                                    // renders its layouts on the server
+                                    // (each calling /me against the
+                                    // session's API budget). Hover, focus
+                                    // or touch prefetches the one link the
+                                    // user is about to open.
+                                    prefetch={false}
+                                    onMouseEnter={() =>
+                                        router.prefetch(item.href)
+                                    }
+                                    onFocus={() => router.prefetch(item.href)}
+                                    onTouchStart={() =>
+                                        router.prefetch(item.href)
+                                    }
+                                >
                                     <item.icon />
                                     <span>{t(item.label)}</span>
                                 </Link>
@@ -159,7 +177,11 @@ export function AppSidebar({
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton asChild tooltip={t('apiDocs.link')}>
-                            <Link href="/docs/api" target="_blank">
+                            <Link
+                                href="/docs/api"
+                                target="_blank"
+                                prefetch={false}
+                            >
                                 <BookOpen />
                                 <span>{t('apiDocs.link')}</span>
                             </Link>

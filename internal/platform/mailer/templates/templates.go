@@ -46,6 +46,7 @@ const (
 	PaymentReceived       Kind = "payment_received"
 	SubscriptionSuspended Kind = "subscription_suspended"
 	CreditLow             Kind = "credit_low"
+	WebhookDisabled       Kind = "webhook_disabled"
 )
 
 // kinds lists every kind in a stable order (preview gallery, tests).
@@ -53,6 +54,7 @@ var kinds = []Kind{
 	VerifyEmail, PasswordReset, PasswordChanged, Invitation, Welcome,
 	LoginAlert, TwoFactorCode, EmailChangeConfirm, InvoiceIssued,
 	PaymentReminder, PaymentReceived, SubscriptionSuspended, CreditLow,
+	WebhookDisabled,
 }
 
 // unsubscribable kinds are notifications the recipient may opt out of; only

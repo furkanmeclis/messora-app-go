@@ -3,6 +3,7 @@ package webhooks
 import (
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -32,7 +33,17 @@ func endpointToAPI(ep db.WebhookEndpoint) api.WebhookEndpoint {
 		types[i] = api.WebhookEventType(t)
 	}
 	return api.WebhookEndpoint{Id: ep.ID, Url: ep.Url, Description: ep.Description, EventTypes: types, Active: ep.Active,
-		SecretLast4: ep.SecretLast4, DisabledReason: ep.DisabledReason, CreatedAt: ep.CreatedAt, UpdatedAt: ep.UpdatedAt}
+		SecretLast4: ep.SecretLast4, DisabledReason: ep.DisabledReason, DisabledAt: ep.DisabledAt, FailureStreak: int(ep.FailureStreak),
+		FailingSince: ep.FailingSince, LastSuccessAt: ep.LastSuccessAt, LastFailureAt: ep.LastFailureAt,
+		PreviousSecretExpiresAt: activeUntil(ep.PreviousSecretExpiresAt), CreatedAt: ep.CreatedAt, UpdatedAt: ep.UpdatedAt}
+}
+
+// activeUntil hides an overlap that has already ended.
+func activeUntil(t *time.Time) *time.Time {
+	if t == nil || !time.Now().Before(*t) {
+		return nil
+	}
+	return t
 }
 
 func intPtr(v *int32) *int {
@@ -175,7 +186,17 @@ func (h *Handler) DeleteWebhookEndpoint(w http.ResponseWriter, r *http.Request, 
 
 // RotateWebhookSecret implements api.ServerInterface.
 func (h *Handler) RotateWebhookSecret(w http.ResponseWriter, r *http.Request, id api.EndpointId) {
-	ep, secret, err := h.svc.RotateSecret(r.Context(), id)
+	grace := 24
+	if r.ContentLength != 0 {
+		var req api.RotateWebhookSecretRequest
+		if err := httpx.Decode(r, &req); err != nil && r.ContentLength > 0 {
+			h.fail(w, r, err)
+			return
+		} else if err == nil && req.GraceHours != nil {
+			grace = *req.GraceHours
+		}
+	}
+	ep, secret, err := h.svc.RotateSecret(r.Context(), id, time.Duration(grace)*time.Hour)
 	if err != nil {
 		h.fail(w, r, err)
 		return

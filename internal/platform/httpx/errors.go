@@ -41,6 +41,9 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, log *slog.Log
 		if e.Field != "" {
 			details = []ErrorDetail{{Field: e.Field, Code: "invalid", Msg: e.Message}}
 		}
+		for _, d := range e.Details {
+			details = append(details, ErrorDetail{Field: d.Field, Code: d.Code, Msg: d.Message})
+		}
 		Error(w, r, e.Status, e.Code, e.Message, details...)
 		return
 	}

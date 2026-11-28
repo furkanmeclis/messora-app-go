@@ -3,7 +3,8 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { serverConfig } from './config';
 import { getPlatformToken, getSessionToken } from './session';
-import { forwardHost } from './tenant-host';
+import { meCache, meKey } from './me-cache';
+import { forwardHost, requestHost } from './tenant-host';
 import type { ApiErrorBody } from '@/lib/types';
 
 export class ApiError extends Error {
@@ -84,6 +85,7 @@ export async function api<T>(
     if (xff) h.set('X-Forwarded-For', xff.split(',').pop()!.trim());
     const ua = incoming.get('user-agent');
     if (ua) h.set('User-Agent', ua.slice(0, 512));
+    let staleMe: string | undefined;
     if (o.auth !== 'none') {
         const token =
             o.token ??
@@ -91,20 +93,48 @@ export async function api<T>(
                 ? await getPlatformToken()
                 : await getSessionToken());
         if (token) h.set('Authorization', `Bearer ${token}`);
+        // Whatever the panel changes for a session (profile, language,
+        // 2FA, roles, settings) may change its /me: read it fresh next time.
+        // Dropped before and after the call, so a /me read racing with the
+        // change cannot keep the old value either.
+        if (token && o.auth !== 'platform' && (o.method ?? 'GET') !== 'GET') {
+            staleMe = meKey(token, requestHost(incoming));
+            meCache.invalidate(staleMe);
+        }
     }
     if (o.body !== undefined) h.set('Content-Type', 'application/json');
     if (o.idempotencyKey) h.set('Idempotency-Key', o.idempotencyKey);
 
     let res: Response;
     try {
-        res = await fetch(`${apiInternalUrl}/api/v1${path}`, {
-            method: o.method ?? 'GET',
-            headers: h,
-            body: o.body === undefined ? undefined : JSON.stringify(o.body),
-            cache: 'no-store',
-            signal: AbortSignal.timeout(o.timeoutMs ?? 15_000),
-        });
+        const send = () =>
+            fetch(`${apiInternalUrl}/api/v1${path}`, {
+                method: o.method ?? 'GET',
+                headers: h,
+                body: o.body === undefined ? undefined : JSON.stringify(o.body),
+                cache: 'no-store',
+                signal: AbortSignal.timeout(o.timeoutMs ?? 15_000),
+            });
+        res = await send();
+        // A server render must not fail (React #441 in production: "An
+        // error occurred in the Server Components render") because a
+        // burst of renders briefly used up the session's request budget.
+        // A read that would be allowed again within two seconds is retried
+        // once; anything longer (or any write) reaches the caller as 429.
+        const wait = Number(res.headers.get('retry-after'));
+        if (
+            res.status === 429 &&
+            (o.method ?? 'GET') === 'GET' &&
+            Number.isFinite(wait) &&
+            wait > 0 &&
+            wait <= 2
+        ) {
+            await res.body?.cancel();
+            await new Promise((r) => setTimeout(r, wait * 1000));
+            res = await send();
+        }
     } catch {
+        if (staleMe) meCache.invalidate(staleMe);
         throw new ApiError(
             503,
             'API_UNREACHABLE',
@@ -112,6 +142,7 @@ export async function api<T>(
             requestId,
         );
     }
+    if (staleMe) meCache.invalidate(staleMe);
     // 204 has no body; 202 may (e.g. a queued message or import).
     if (
         res.status === 204 ||

@@ -987,6 +987,7 @@ paths:
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createApiKey
+      x-messora-feature: public_api
       tags: [api-keys]
       summary: Create an API key; the secret is shown once
       description: Requires recent re-authentication. Scopes cannot exceed the creator's permissions.
@@ -4342,6 +4343,7 @@ paths:
         default: { $ref: "#/components/responses/Error" }
     post:
       operationId: createWebhookEndpoint
+      x-messora-feature: webhooks
       tags: [webhooks]
       summary: Register an endpoint; the signing secret is returned once
       description: >-
@@ -4393,9 +4395,12 @@ paths:
         default: { $ref: "#/components/responses/Error" }
     patch:
       operationId: updateWebhookEndpoint
+      x-messora-feature: webhooks
       tags: [webhooks]
       summary: Change the URL, description, events or active flag
-      description: Re-activating an endpoint clears its `disabled_reason`.
+      description: >-
+        Re-activating an endpoint (`active: true`) clears `disabled_reason`
+        and `disabled_at` and starts its failure count over.
       security: [{ session: [webhooks.manage] }, { apiKey: [webhooks.manage] }]
       parameters:
         - { $ref: "#/components/parameters/EndpointId" }
@@ -4437,12 +4442,23 @@ paths:
   /webhook-endpoints/{endpointId}/rotate-secret:
     post:
       operationId: rotateWebhookSecret
+      x-messora-feature: webhooks
       tags: [webhooks]
       summary: Replace the signing secret; the new one is returned once
-      description: The old secret stops working immediately, including for retries of earlier events.
+      description: >-
+        For `grace_hours` (default 24, 0–168) every delivery is signed with
+        both the new and the previous secret (two `v1` values in
+        `Messora-Signature`), so the receiver can switch over without
+        dropping events. With `grace_hours: 0` the old secret stops working
+        at once, including for retries of earlier events.
       security: [{ session: [webhooks.manage] }, { apiKey: [webhooks.manage] }]
       parameters:
         - { $ref: "#/components/parameters/EndpointId" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RotateWebhookSecretRequest" }
       responses:
         "200":
           description: Endpoint and its new secret
@@ -4460,6 +4476,7 @@ paths:
   /webhook-endpoints/{endpointId}/test:
     post:
       operationId: sendWebhookTest
+      x-messora-feature: webhooks
       tags: [webhooks]
       summary: Queue a `webhook.test` event for this endpoint only
       description: Also works for an inactive endpoint, so a receiver can be checked before it is switched back on.
@@ -4510,6 +4527,7 @@ paths:
   /webhook-deliveries/{deliveryId}/redeliver:
     post:
       operationId: redeliverWebhook
+      x-messora-feature: webhooks
       tags: [webhooks]
       summary: Send a delivery again with a fresh retry budget
       description: >-
@@ -5917,6 +5935,14 @@ components:
             id: { type: string, format: uuid }
             slug: { type: string }
             name: { type: string }
+            url:
+              type: string
+              description: Origin of the workspace's primary address, e.g. https://acme.messora.tech.
+            api_base_url:
+              type: string
+              description: >-
+                The workspace's own public API base URL (url + /api/v1). API keys
+                of this workspace work only there; there is no shared API host.
         support:
           oneOf:
             - { $ref: "#/components/schemas/SupportInfo" }
@@ -6910,6 +6936,18 @@ components:
           description: Signed events for a WhatsApp Business Account this workspace has not connected; they are dropped.
         last_waba_mismatch_at: { type: [string, "null"], format: date-time }
         last_mismatch_waba_id: { type: [string, "null"] }
+
+    RotateWebhookSecretRequest:
+      example: { grace_hours: 24 }
+      type: object
+      additionalProperties: false
+      properties:
+        grace_hours:
+          type: integer
+          minimum: 0
+          maximum: 168
+          default: 24
+          description: How long deliveries are also signed with the previous secret.
 
     RotateMetaWebhookKeyRequest:
       type: object
@@ -10516,10 +10554,16 @@ components:
         active: true
         secret_last4: 7b9a
         disabled_reason: null
+        disabled_at: null
+        failure_streak: 0
+        failing_since: null
+        last_success_at: "2026-11-01T10:05:00Z"
+        last_failure_at: null
+        previous_secret_expires_at: null
         created_at: "2026-11-01T10:00:00Z"
         updated_at: "2026-11-01T10:00:00Z"
       type: object
-      required: [id, url, description, event_types, active, secret_last4, created_at, updated_at]
+      required: [id, url, description, event_types, active, secret_last4, failure_streak, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         url: { type: string }
@@ -10529,7 +10573,27 @@ components:
         secret_last4: { type: string, description: Last four characters of the signing secret. }
         disabled_reason:
           type: [string, "null"]
-          description: Set when Messora switched the endpoint off (e.g. the receiver answered 410 Gone).
+          description: >-
+            Set when Messora switched the endpoint off: the receiver answered
+            410 Gone, or delivery attempts kept failing (20 in a row over at
+            least 24 hours). The workspace's owners and admins get an e-mail.
+        disabled_at:
+          type: [string, "null"]
+          format: date-time
+          description: When Messora switched the endpoint off.
+        failure_streak:
+          type: integer
+          description: Delivery attempts that failed in a row; a success resets it.
+        failing_since:
+          type: [string, "null"]
+          format: date-time
+          description: When the current run of failures began.
+        last_success_at: { type: [string, "null"], format: date-time }
+        last_failure_at: { type: [string, "null"], format: date-time }
+        previous_secret_expires_at:
+          type: [string, "null"]
+          format: date-time
+          description: Until then deliveries are also signed with the secret before the last rotation.
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -10543,6 +10607,12 @@ components:
           active: true
           secret_last4: 7b9a
           disabled_reason: null
+          disabled_at: null
+          failure_streak: 0
+          failing_since: null
+          last_success_at: null
+          last_failure_at: null
+          previous_secret_expires_at: null
           created_at: "2026-11-01T10:00:00Z"
           updated_at: "2026-11-01T10:00:00Z"
         secret: whsec_example-signing-secret

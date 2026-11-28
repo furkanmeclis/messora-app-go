@@ -109,6 +109,16 @@ func (h Hosts) URL(host string) string {
 	return h.scheme + "://" + host
 }
 
+// WorkspaceOrigin is the origin of a workspace sub-domain with the
+// placeholder {workspace} (e.g. https://{workspace}.messora.tech), or ""
+// without a base domain.
+func (h Hosts) WorkspaceOrigin() string {
+	if h.Base == "" {
+		return ""
+	}
+	return h.URL("{workspace}." + h.Base)
+}
+
 // PlatformURL is the public platform address (app.<base>), or "" without a
 // base domain.
 func (h Hosts) PlatformURL() string {

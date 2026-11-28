@@ -15,6 +15,14 @@ type Error struct {
 	Message    string
 	Field      string        // optional: the request field at fault
 	RetryAfter time.Duration // optional: for 429 responses
+	// Details are extra machine-readable entries of error.details (e.g. the
+	// feature a plan lacks).
+	Details []Detail
+}
+
+// Detail is one entry of error.details.
+type Detail struct {
+	Field, Code, Message string
 }
 
 func (e *Error) Error() string { return e.Code + ": " + e.Message }

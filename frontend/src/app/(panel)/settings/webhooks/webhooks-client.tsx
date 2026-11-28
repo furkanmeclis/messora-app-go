@@ -340,6 +340,9 @@ function EditEndpointDialog({
 
 type Confirm = { kind: 'rotate' | 'delete'; endpoint: Endpoint } | null;
 
+/** Overlap choices after a secret rotation, in hours (API: 0–168). */
+const GRACE_HOURS = [0, 24, 72, 168] as const;
+
 export function EndpointTable({
     endpoints,
     catalogue,
@@ -357,6 +360,14 @@ export function EndpointTable({
     const [logOpen, setLogOpen] = useState(false);
     const [confirm, setConfirm] = useState<Confirm>(null);
     const [secret, setSecret] = useState<string | null>(null);
+    const [grace, setGrace] = useState<string>('24');
+    const formatDateTime = useFormatDateTime();
+    const graceLabels: Record<(typeof GRACE_HOURS)[number], string> = {
+        0: t('webhooks.graceNone'),
+        24: t('webhooks.graceDay'),
+        72: t('webhooks.grace3'),
+        168: t('webhooks.graceWeek'),
+    };
 
     const run = (id: string, fn: () => Promise<ActionResult<unknown>>) =>
         startTransition(async () => {
@@ -496,11 +507,24 @@ export function EndpointTable({
                         sortValue: (e) => (e.active ? 0 : 1),
                         cell: (e) =>
                             e.active ? (
-                                <Badge variant="secondary">
-                                    {t('webhooks.active')}
-                                </Badge>
+                                <div className="grid justify-items-start gap-1">
+                                    <Badge variant="secondary">
+                                        {t('webhooks.active')}
+                                    </Badge>
+                                    {e.failure_streak > 0 && (
+                                        <Badge
+                                            variant="outline"
+                                            className="border-amber-500/50 text-amber-700 dark:text-amber-400"
+                                            data-testid="webhook-failing"
+                                        >
+                                            {t('webhooks.failing', {
+                                                count: e.failure_streak,
+                                            })}
+                                        </Badge>
+                                    )}
+                                </div>
                             ) : (
-                                <div className="grid gap-1">
+                                <div className="grid justify-items-start gap-1">
                                     <Badge variant="destructive">
                                         {t('webhooks.disabled')}
                                     </Badge>
@@ -509,6 +533,31 @@ export function EndpointTable({
                                             {e.disabled_reason}
                                         </span>
                                     )}
+                                    {e.disabled_at && (
+                                        <span className="text-xs text-muted-foreground">
+                                            {t('webhooks.disabledAt', {
+                                                date: formatDateTime(
+                                                    e.disabled_at,
+                                                ),
+                                            })}
+                                        </span>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={busyId === e.id}
+                                        onClick={(ev) => {
+                                            ev.stopPropagation();
+                                            run(e.id, () =>
+                                                setWebhookActiveAction(
+                                                    e.id,
+                                                    true,
+                                                ),
+                                            );
+                                        }}
+                                    >
+                                        <Webhook /> {t('webhooks.reEnable')}
+                                    </Button>
                                 </div>
                             ),
                     },
@@ -516,9 +565,20 @@ export function EndpointTable({
                         id: 'secret',
                         header: t('webhooks.columns.secret'),
                         cell: (e) => (
-                            <span className="font-mono text-xs text-muted-foreground">
-                                whsec_…{e.secret_last4}
-                            </span>
+                            <div className="grid gap-1">
+                                <span className="font-mono text-xs text-muted-foreground">
+                                    whsec_…{e.secret_last4}
+                                </span>
+                                {e.previous_secret_expires_at && (
+                                    <span className="text-xs text-muted-foreground">
+                                        {t('webhooks.previousUntil', {
+                                            date: formatDateTime(
+                                                e.previous_secret_expires_at,
+                                            ),
+                                        })}
+                                    </span>
+                                )}
+                            </div>
                         ),
                     },
                 ]}
@@ -614,6 +674,28 @@ export function EndpointTable({
                                 : t('webhooks.confirmDeleteBody')}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
+                    {confirm?.kind === 'rotate' && (
+                        <div className="space-y-1.5">
+                            <Label htmlFor="webhook-grace">
+                                {t('webhooks.grace')}
+                            </Label>
+                            <Select value={grace} onValueChange={setGrace}>
+                                <SelectTrigger
+                                    id="webhook-grace"
+                                    className="w-full"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {GRACE_HOURS.map((h) => (
+                                        <SelectItem key={h} value={String(h)}>
+                                            {graceLabels[h]}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                     <AlertDialogFooter>
                         <AlertDialogCancel>
                             {t('common.cancel')}
@@ -633,8 +715,10 @@ export function EndpointTable({
                                 }
                                 startTransition(async () => {
                                     setBusyId(id);
-                                    const r =
-                                        await rotateWebhookSecretAction(id);
+                                    const r = await rotateWebhookSecretAction(
+                                        id,
+                                        Number(grace),
+                                    );
                                     setBusyId(null);
                                     if (notify(r)) setSecret(r.data);
                                 });

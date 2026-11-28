@@ -45,7 +45,16 @@ const webhooks: Messages['webhooks'] = {
     rotateSecret: 'Anahtarı yenile',
     confirmRotateTitle: 'İmzalama anahtarı yenilensin mi?',
     confirmRotateBody:
-        'Mevcut anahtar, önceki olayların yeniden denemeleri dahil hemen geçersiz olur. Yeniledikten hemen sonra alıcı sisteminizi güncelleyin.',
+        'Yeni bir anahtar oluşturulur. Geçiş süresince her gönderim iki anahtarla da imzalanır (iki v1 değeri); alıcı sisteminizi olay kaybetmeden güncelleyebilirsiniz. Süre bitince eski anahtar, önceki olayların yeniden denemeleri dahil geçersiz olur.',
+    grace: 'Eski anahtar geçerli kalsın',
+    graceNone: 'Geçiş yok (hemen biter)',
+    graceDay: '24 saat',
+    grace3: '3 gün',
+    graceWeek: '7 gün',
+    previousUntil: 'Önceki anahtar {date} tarihine kadar geçerli',
+    failing: 'Art arda {count} başarısız deneme',
+    disabledAt: '{date} tarihinde kapatıldı',
+    reEnable: 'Yeniden etkinleştir',
     confirmDeleteTitle: 'Bu uç nokta silinsin mi?',
     confirmDeleteBody:
         'Gönderim kaydı da silinir. Bu adrese artık olay gönderilmez.',

@@ -1092,18 +1092,25 @@ type WebhookDelivery struct {
 }
 
 type WebhookEndpoint struct {
-	ID             pgtype.UUID
-	Url            string
-	Description    string
-	EventTypes     []string
-	Active         bool
-	SecretEnc      []byte
-	SecretLast4    string
-	DisabledReason *string
-	CreatedBy      pgtype.UUID
-	CreatedAt      pgtype.Timestamptz
-	UpdatedAt      pgtype.Timestamptz
-	TenantID       pgtype.UUID
+	ID                      pgtype.UUID
+	Url                     string
+	Description             string
+	EventTypes              []string
+	Active                  bool
+	SecretEnc               []byte
+	SecretLast4             string
+	DisabledReason          *string
+	CreatedBy               pgtype.UUID
+	CreatedAt               pgtype.Timestamptz
+	UpdatedAt               pgtype.Timestamptz
+	TenantID                pgtype.UUID
+	FailureStreak           int64
+	FailingSince            pgtype.Timestamptz
+	LastSuccessAt           pgtype.Timestamptz
+	LastFailureAt           pgtype.Timestamptz
+	DisabledAt              pgtype.Timestamptz
+	PreviousSecretEnc       []byte
+	PreviousSecretExpiresAt pgtype.Timestamptz
 }
 
 type WebhookEvent struct {

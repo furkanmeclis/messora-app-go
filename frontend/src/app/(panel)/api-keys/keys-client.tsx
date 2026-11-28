@@ -42,6 +42,48 @@ import { useT } from '@/i18n/client';
 import type { ActionResult, ApiKey, Schemas } from '@/lib/types';
 import { createApiKeyAction, revokeApiKeyAction } from '../actions';
 
+/** The workspace's API base URL with a copy button and a curl sample. */
+export function ApiBaseCard({ baseUrl }: { baseUrl: string }) {
+    const t = useT();
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(baseUrl);
+            toast.success(t('apiKeys.base.copied'));
+        } catch {
+            // Clipboard access can be refused; the URL stays selectable.
+        }
+    };
+    return (
+        <section
+            aria-labelledby="api-base-title"
+            className="mb-4 grid gap-2 rounded-lg border bg-card p-4"
+            data-testid="api-base"
+        >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="api-base-title" className="text-sm font-medium">
+                    {t('apiKeys.base.title')}
+                </h2>
+                <Button size="sm" variant="outline" onClick={copy}>
+                    <Copy /> {t('apiKeys.base.copy')}
+                </Button>
+            </div>
+            <code
+                className="rounded bg-muted px-2 py-1 font-mono text-sm break-all select-all"
+                data-testid="api-base-url"
+            >
+                {baseUrl}
+            </code>
+            <p className="text-xs text-muted-foreground">
+                {t('apiKeys.base.description')}
+            </p>
+            <p className="text-xs font-medium">{t('apiKeys.base.sample')}</p>
+            <pre className="overflow-x-auto rounded bg-muted px-2 py-1 font-mono text-xs">
+                {`curl ${baseUrl}/api-keys/whoami \\\n  -H "Authorization: Bearer msk_live_…"`}
+            </pre>
+        </section>
+    );
+}
+
 export function ApiKeyTable({ keys }: { keys: ApiKey[] }) {
     const t = useT();
     const ask = useConfirm();

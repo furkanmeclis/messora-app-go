@@ -43,7 +43,16 @@ const webhooks = {
     rotateSecret: 'Rotate secret',
     confirmRotateTitle: 'Rotate the signing secret?',
     confirmRotateBody:
-        'The current secret stops working at once, also for retries of earlier events. Update your receiver right after rotating.',
+        'A new secret is issued. During the overlap every delivery is signed with both secrets (two v1 values), so you can update your receiver without losing events; after it the old secret stops working, also for retries of earlier events.',
+    grace: 'Keep the old secret valid for',
+    graceNone: 'No overlap (stops at once)',
+    graceDay: '24 hours',
+    grace3: '3 days',
+    graceWeek: '7 days',
+    previousUntil: 'Previous secret valid until {date}',
+    failing: '{count} failed attempt in a row|{count} failed attempts in a row',
+    disabledAt: 'Switched off {date}',
+    reEnable: 'Re-enable',
     confirmDeleteTitle: 'Delete this endpoint?',
     confirmDeleteBody:
         'Its delivery log is deleted too. Events are no longer sent to this URL.',

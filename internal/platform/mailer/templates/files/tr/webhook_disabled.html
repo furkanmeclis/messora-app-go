@@ -1,0 +1,9 @@
+{{define "content"}}
+{{template "h1" "Bir webhook uç noktası kapatıldı"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Messora, {{with .C.TenantName}}<strong>{{.}}</strong> çalışma alanındaki{{else}}çalışma alanınızdaki{{end}} bir webhook uç noktasını {{datetime .D.DisabledAt}} itibarıyla kapattı; çünkü {{if .D.Failures}}teslim denemeleri sürekli başarısız oluyordu{{else}}alıcı 410 Gone yanıtı verdi{{end}}.</p>
+{{template "rows" (rows "Uç nokta" .D.EndpointURL "Açıklama" .D.Description "Art arda başarısız deneme" (opt (gt .D.Failures 0) (num .D.Failures)) "Başarısızlık başlangıcı" (opt (not .D.FailingSince.IsZero) (datetime .D.FailingSince)) "Son hata" .D.LastError)}}
+<p class="m-text" style="{{css "p"}}">Uç nokta yeniden açılana kadar ona yeni olay gönderilmez. Kaydedilmiş olaylar teslim kaydında 30 gün kalır ve yeniden gönderilebilir.</p>
+<p class="m-text" style="{{css "p"}}">Alıcıyı düzeltin, bir test olayı gönderin ve uç noktayı yeniden açın.</p>
+{{template "button" (dict "URL" .D.ManageURL "Label" "Webhook ayarlarını aç" "L" .L)}}
+{{end}}

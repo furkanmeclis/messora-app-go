@@ -1,8 +1,11 @@
 import 'server-only';
 
 import { cache } from 'react';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { requestHost } from '@/lib/host';
 import { api, ApiError } from './api';
+import { meCache, meKey } from './me-cache';
 import { getSessionToken } from './session';
 import type { Me } from '@/lib/types';
 
@@ -14,9 +17,13 @@ type MeResult =
 
 /** The signed-in user for this request, without redirecting (cached). */
 export const tryMe = cache(async (): Promise<MeResult> => {
-    if (!(await getSessionToken())) return { me: null, reason: 'signed-out' };
+    const token = await getSessionToken();
+    if (!token) return { me: null, reason: 'signed-out' };
+    const key = meKey(token, requestHost(await headers()));
     try {
-        return { me: (await api<Me>('/me')).data };
+        return {
+            me: await meCache.get(key, async () => (await api<Me>('/me')).data),
+        };
     } catch (err) {
         if (
             err instanceof ApiError &&

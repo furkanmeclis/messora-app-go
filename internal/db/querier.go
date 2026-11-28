@@ -213,7 +213,9 @@ type Querier interface {
 	DeleteTenantDomain(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWebhookEndpoint(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWhatsAppAccount(ctx context.Context, id uuid.UUID) (int64, error)
-	DisableWebhookEndpoint(ctx context.Context, arg DisableWebhookEndpointParams) error
+	// Switches an active endpoint off; 0 rows when it already was off (so the
+	// admins are told once).
+	DisableWebhookEndpoint(ctx context.Context, arg DisableWebhookEndpointParams) (int64, error)
 	DisableWhatsAppAccount(ctx context.Context, arg DisableWhatsAppAccountParams) (WhatsappAccount, error)
 	// Deferred messages whose retry time passed a while ago: their send task
 	// may have been lost.
@@ -640,6 +642,10 @@ type Querier interface {
 	// A template reached a customer outside their service window: they count
 	// against the portfolio's messaging limit for 24 hours.
 	RecordPortfolioReach(ctx context.Context, arg RecordPortfolioReachParams) error
+	// Counts a failed attempt of an active endpoint and returns the run of
+	// failures it belongs to.
+	RecordWebhookFailure(ctx context.Context, id uuid.UUID) (RecordWebhookFailureRow, error)
+	RecordWebhookSuccess(ctx context.Context, id uuid.UUID) error
 	ReleaseHeldMessages(ctx context.Context, campaignID *uuid.UUID) ([]uuid.UUID, error)
 	ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempotencyKeyParams) error
 	ReleaseMessageForRetry(ctx context.Context, arg ReleaseMessageForRetryParams) error
@@ -738,6 +744,9 @@ type Querier interface {
 	SetTenantLocal(ctx context.Context, tenantID string) error
 	SetTotpSecret(ctx context.Context, arg SetTotpSecretParams) error
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) error
+	// Rotation: with a grace period the current secret becomes the previous
+	// one (deliveries carry both signatures until it expires); without one the
+	// previous secret is dropped at once.
 	SetWebhookEndpointSecret(ctx context.Context, arg SetWebhookEndpointSecretParams) (WebhookEndpoint, error)
 	// ── Account signals ─────────────────────────────────────────────────────────
 	SetWhatsAppAccountCurrency(ctx context.Context, arg SetWhatsAppAccountCurrencyParams) error

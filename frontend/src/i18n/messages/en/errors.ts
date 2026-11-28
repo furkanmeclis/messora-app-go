@@ -72,6 +72,9 @@ const errors = {
     EMAIL_ALREADY_VERIFIED: 'This e-mail address is already verified.',
     VALIDATION_ERROR: 'Check the highlighted fields: {detail}',
     WEBHOOK_LIMIT: 'The webhook limit has been reached.',
+    PLAN_LIMIT_REACHED: 'You have reached the limit of your plan.',
+    FEATURE_NOT_IN_PLAN: 'Your plan does not include this feature.',
+    QUOTA_EXCEEDED: 'The monthly API quota of this workspace is used up.',
     AI_UNAVAILABLE: 'The AI is not available here: {detail}',
     DRAFT_DECIDED: 'Someone already decided on this draft.',
     AI_DISABLED:
