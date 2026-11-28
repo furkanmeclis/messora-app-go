@@ -13,6 +13,7 @@ import type { Invitation, RolesAndPermissions, User } from '@/lib/types';
 import { PageHeading } from '../panel-header';
 import { RoleCards } from './role-cards';
 import { InvitationList, InviteDialog, UserTable } from './users-client';
+import { roleLabel } from '@/i18n/roles';
 
 export async function generateMetadata(): Promise<Metadata> {
     const t = await getT();
@@ -40,7 +41,7 @@ export default async function UsersPage() {
         .filter((r) => me.user.role.key === 'owner' || r.rank > myRank)
         .map((r) => ({
             key: r.key,
-            name: t(`settings.security.roles.${r.key}`),
+            name: roleLabel(t, r),
         }));
 
     return (

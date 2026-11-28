@@ -50,6 +50,7 @@ import type { Membership } from '@/lib/auth/contracts';
 import type { User } from '@/lib/types';
 import { switchWorkspaceAction } from '../(auth)/actions';
 import { setLanguageAction } from './actions';
+import { roleLabel } from '@/i18n/roles';
 
 function initials(name: string) {
     return name
@@ -201,9 +202,7 @@ export function AppSidebar({
                                             {user.name}
                                         </span>
                                         <span className="truncate text-xs text-muted-foreground">
-                                            {t(
-                                                `settings.security.roles.${user.role.key}`,
-                                            )}
+                                            {roleLabel(t, user.role)}
                                         </span>
                                     </div>
                                     <ChevronsUpDown className="ml-auto size-4" />

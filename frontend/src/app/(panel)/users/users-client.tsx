@@ -45,6 +45,7 @@ import {
     revokeInvitationAction,
     updateUserAction,
 } from '../actions';
+import { roleLabel } from '@/i18n/roles';
 
 type RoleOption = { key: RoleKey; name: string };
 const RANK: Record<string, number> = {
@@ -154,9 +155,7 @@ export function UserTable({
                                 </SelectContent>
                             </Select>
                         ) : (
-                            <span>
-                                {t(`settings.security.roles.${u.role.key}`)}
-                            </span>
+                            <span>{roleLabel(t, u.role)}</span>
                         ),
                 },
                 {
@@ -428,7 +427,7 @@ export function InvitationList({ invitations }: { invitations: Invitation[] }) {
                     id: 'role',
                     header: t('users.columns.role'),
                     sortValue: (i) => RANK[i.role.key] ?? 99,
-                    cell: (i) => t(`settings.security.roles.${i.role.key}`),
+                    cell: (i) => roleLabel(t, i.role),
                 },
                 {
                     id: 'invitedBy',

@@ -9,10 +9,10 @@ import {
     ShieldCheck,
 } from 'lucide-react';
 import { getT } from '@/i18n/server';
-import type { MessageKey } from '@/i18n/translate';
 import { formatDate, formatDateTime, type DisplayPrefs } from '@/lib/format';
 import type { User } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { roleLabel } from '@/i18n/roles';
 
 const ROLE_ICON = {
     owner: Crown,
@@ -67,9 +67,7 @@ export async function ProfileHero({
                             )}
                         >
                             <RoleIcon className="size-3.5" />
-                            {t(
-                                `settings.security.roles.${user.role.key}` as MessageKey,
-                            )}
+                            {roleLabel(t, user.role)}
                         </span>
                         <Link
                             href="/account/security"
