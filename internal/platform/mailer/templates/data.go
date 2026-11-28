@@ -183,6 +183,24 @@ type CreditLowData struct {
 	TopUpURL   string
 }
 
+// WebhookDisabledData is the payload for an outgoing webhook endpoint
+// Messora switched off (sent to the workspace's owners and admins).
+type WebhookDisabledData struct {
+	Common
+	// EndpointURL is the receiver without query string or credentials.
+	EndpointURL string
+	Description string // optional, the endpoint's description
+	// Failures is the run of failed attempts; 0 when the receiver answered
+	// 410 Gone.
+	Failures     int64
+	FailingSince time.Time // optional, when the failures began
+	DisabledAt   time.Time
+	// LastError is the last error, e.g. "HTTP 503" (optional).
+	LastError string
+	// ManageURL opens the webhook settings to re-enable the endpoint.
+	ManageURL string
+}
+
 func (VerifyEmailData) kind() Kind           { return VerifyEmail }
 func (PasswordResetData) kind() Kind         { return PasswordReset }
 func (PasswordChangedData) kind() Kind       { return PasswordChanged }
@@ -196,6 +214,7 @@ func (PaymentReminderData) kind() Kind       { return PaymentReminder }
 func (PaymentReceivedData) kind() Kind       { return PaymentReceived }
 func (SubscriptionSuspendedData) kind() Kind { return SubscriptionSuspended }
 func (CreditLowData) kind() Kind             { return CreditLow }
+func (WebhookDisabledData) kind() Kind       { return WebhookDisabled }
 
 func (d VerifyEmailData) validate(v *validator) {
 	v.url("VerifyURL", d.VerifyURL, true)
@@ -287,6 +306,15 @@ func (d CreditLowData) validate(v *validator) {
 		v.missing("Threshold")
 	}
 	v.url("TopUpURL", d.TopUpURL, true)
+}
+
+func (d WebhookDisabledData) validate(v *validator) {
+	v.str("EndpointURL", d.EndpointURL)
+	v.time("DisabledAt", d.DisabledAt)
+	if d.Failures < 0 {
+		v.fail("Failures must not be negative")
+	}
+	v.url("ManageURL", d.ManageURL, true)
 }
 
 // validator collects every problem so the caller sees them all at once.

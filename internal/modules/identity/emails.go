@@ -34,17 +34,8 @@ func (s *Service) workspaceOf(ctx context.Context, id uuid.UUID) (workspace, err
 		return workspace{}, err
 	}
 	w := workspace{ID: id, Slug: t.Slug, Name: t.Name}
-	host, err := s.q.PrimaryHost(tenant.System(ctx), id)
-	switch {
-	case err == nil:
-		w.URL = s.o.Hosts.URL(host)
-	case isNoRows(err):
-		if h := s.o.Hosts.TenantHost(t.Slug); h != "" {
-			w.URL = s.o.Hosts.URL(h)
-		} else {
-			w.URL = strings.TrimRight(s.o.PublicAppURL, "/")
-		}
-	default:
+	w.URL, err = s.originOf(ctx, id, t.Slug)
+	if err != nil {
 		return workspace{}, err
 	}
 	if st, err := s.settings.Get(tenant.WithID(ctx, id)); err == nil {
@@ -56,6 +47,33 @@ func (s *Service) workspaceOf(ctx context.Context, id uuid.UUID) (workspace, err
 		}
 	}
 	return w, nil
+}
+
+// originOf is the origin of the tenant's primary address (its oldest
+// verified one without a primary), else its platform sub-domain, else
+// PUBLIC_APP_URL.
+func (s *Service) originOf(ctx context.Context, id uuid.UUID, slug string) (string, error) {
+	host, err := s.q.PrimaryHost(tenant.System(ctx), id)
+	switch {
+	case err == nil:
+		return s.o.Hosts.URL(host), nil
+	case isNoRows(err):
+		if h := s.o.Hosts.TenantHost(slug); h != "" {
+			return s.o.Hosts.URL(h), nil
+		}
+		return strings.TrimRight(s.o.PublicAppURL, "/"), nil
+	}
+	return "", err
+}
+
+// tenantOrigin is originOf, "" when it cannot be read (best effort).
+func (s *Service) tenantOrigin(ctx context.Context, id uuid.UUID, slug string) string {
+	o, err := s.originOf(ctx, id, slug)
+	if err != nil {
+		s.o.Logger.WarnContext(ctx, "workspace address", "tenant_id", id, "err", err)
+		return ""
+	}
+	return o
 }
 
 // link returns an absolute link into the workspace.

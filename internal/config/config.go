@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -89,6 +90,13 @@ type Config struct {
 	// AIFakeProvider enables the scriptable "fake" AI provider
 	// (AI_FAKE_PROVIDER); refused in production.
 	AIFakeProvider bool
+
+	// WebhookAllowedCIDRs (WEBHOOK_ALLOWED_CIDRS, comma-separated) are
+	// private networks outgoing webhooks may reach anyway: an operator's
+	// explicit allowlist of internal receivers (and the E2E receiver). The
+	// metadata services and loopback can never be listed.
+	WebhookAllowedCIDRs []netip.Prefix
+	webhookCIDRs        string
 
 	// Storage configures the object store for media, imports, exports and
 	// branding assets (internal/platform/storage, docs/STORAGE.md).
@@ -333,6 +341,7 @@ func loadFrom(getenv func(string) string, file map[string]string) (*Config, erro
 			WebhookBaseURL: strings.TrimRight(l.str("HOOKS_PUBLIC_URL", ""), "/"),
 		},
 		AIFakeProvider: l.bool("AI_FAKE_PROVIDER", false),
+		webhookCIDRs:   l.str("WEBHOOK_ALLOWED_CIDRS", ""),
 		Storage: StorageConfig{
 			Driver:   strings.ToLower(l.str("STORAGE_DRIVER", StorageLocal)),
 			LocalDir: l.str("STORAGE_LOCAL_DIR", l.str("MEDIA_DIR", "/var/lib/messora/media")),
@@ -476,6 +485,11 @@ func (c *Config) Validate(role Role) error {
 	}
 	if c.AIFakeProvider && c.Env == EnvProduction {
 		errs = append(errs, errors.New("AI_FAKE_PROVIDER is only allowed with APP_ENV=development or test"))
+	}
+	if cidrs, err := ParseWebhookCIDRs(c.webhookCIDRs); err != nil {
+		errs = append(errs, err)
+	} else if len(c.WebhookAllowedCIDRs) == 0 {
+		c.WebhookAllowedCIDRs = cidrs
 	}
 	switch c.LogFormat {
 	case "json", "text":

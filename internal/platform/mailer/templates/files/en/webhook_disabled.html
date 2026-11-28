@@ -1,0 +1,9 @@
+{{define "content"}}
+{{template "h1" "A webhook endpoint was switched off"}}
+{{template "greeting" .}}
+<p class="m-text" style="{{css "p"}}">Messora switched off a webhook endpoint {{with .C.TenantName}}of the <strong>{{.}}</strong> workspace{{else}}of your workspace{{end}} on {{datetime .D.DisabledAt}}, because {{if .D.Failures}}its delivery attempts kept failing{{else}}the receiver answered 410 Gone{{end}}.</p>
+{{template "rows" (rows "Endpoint" .D.EndpointURL "Description" .D.Description "Failed attempts in a row" (opt (gt .D.Failures 0) (num .D.Failures)) "Failing since" (opt (not .D.FailingSince.IsZero) (datetime .D.FailingSince)) "Last error" .D.LastError)}}
+<p class="m-text" style="{{css "p"}}">No new events are sent to this endpoint until it is switched back on. Events already recorded stay in the delivery log for 30 days and can be redelivered.</p>
+<p class="m-text" style="{{css "p"}}">Fix the receiver, send a test event, then switch the endpoint back on.</p>
+{{template "button" (dict "URL" .D.ManageURL "Label" "Open webhook settings" "L" .L)}}
+{{end}}

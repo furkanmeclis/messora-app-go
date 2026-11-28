@@ -229,6 +229,7 @@ var blockedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("240.0.0.0/4"),     // reserved, broadcast
 	netip.MustParsePrefix("100::/64"),        // discard
 	netip.MustParsePrefix("2001:db8::/32"),   // documentation
+	netip.MustParsePrefix("2001::/32"),       // Teredo (embeds IPv4, reached through relays)
 	netip.MustParsePrefix("2002::/16"),       // 6to4 (embeds IPv4)
 	netip.MustParsePrefix("fec0::/10"),       // site-local (deprecated)
 	netip.MustParsePrefix("::/96"),           // IPv4-compatible (deprecated)

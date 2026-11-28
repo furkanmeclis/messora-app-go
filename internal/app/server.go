@@ -39,6 +39,7 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/platform/apiguard"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/centrifugo"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/fairness"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/httpx"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/mailer"
@@ -122,6 +123,16 @@ type services struct {
 	platform *platform.Service
 	// fairness holds the noisy-neighbour limits (platform setting).
 	fairness *fairness.Source
+	// plans answers each tenant's plan (docs/ENTITLEMENTS.md). Read
+	// through planOf, so tests can replace it after the API is mounted.
+	plans entitlements.Provider
+}
+
+// planOf is the services' plan provider as it is at call time.
+func (s *services) planOf() entitlements.Provider {
+	return entitlements.ProviderFunc(func(ctx context.Context, id uuid.UUID) (entitlements.Plan, error) {
+		return s.plans.Limits(ctx, id)
+	})
 }
 
 // openStorage opens the object store the configuration selects.
@@ -226,7 +237,9 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	inbox := conversations.New(pool, msg, media, log)
 	// Outgoing webhooks: https only outside development; private
 	// destinations are always refused (internal/platform/safehttp).
-	hooks := webhooks.New(pool, sealer, webhooks.Options{AllowHTTP: cfg.Env == config.EnvDevelopment, Logger: log})
+	plans := entitlements.NewSettingsProvider(pool)
+	hooks := webhooks.New(pool, sealer, webhooks.Options{AllowHTTP: cfg.Env == config.EnvDevelopment, Logger: log, Limiter: ratelimit.New(rdb, "messora:rl"),
+		AllowedPrefixes: cfg.WebhookAllowedCIDRs})
 	// AI provider calls go through an SSRF-safe client (https, public
 	// addresses only); the fake provider only with AI_FAKE_PROVIDER.
 	aiSvc := ai.New(pool, sealer, ai.Options{AllowFake: cfg.AIFakeProvider}, log)
@@ -243,9 +256,19 @@ func newServicesWith(cfg *config.Config, pool *pgxpool.Pool, rdb goredis.Univers
 	// AI field steps store values with their provenance (never over a
 	// person's or verified value).
 	auto.SetFieldWriter(inbox)
-	return &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
+	out := &services{cfg: cfg, ai: aiSvc, identity: idsvc, settings: st, mail: mailSettings, queries: q, channels: ch, messaging: msg, contacts: cts,
 		campaigns: camp, throttle: throttle, offers: offers.New(pool, camp, log), inbox: inbox, webhooks: hooks,
-		automation: auto, stores: stores, tenants: resolver, hosts: hosts, platform: plat, fairness: fair}, nil
+		automation: auto, stores: stores, tenants: resolver, hosts: hosts, platform: plat, fairness: fair, plans: plans}
+	// Webhook limits and the webhooks feature come from the tenant's plan;
+	// an endpoint switched off automatically is reported to the
+	// workspace's owners and admins by e-mail.
+	hooks.SetPlans(out.planOf())
+	hooks.SetOnDisabled(func(ctx context.Context, d webhooks.Disabled) {
+		idsvc.NotifyWebhookDisabled(ctx, identity.WebhookDisabledNotice{URL: webhooks.RedactURL(d.Endpoint.Url),
+			Description: d.Endpoint.Description, Reason: d.Reason, Failures: d.Failures, FailingSince: d.Endpoint.FailingSince,
+			DisabledAt: d.Endpoint.DisabledAt, LastError: d.LastError})
+	})
+	return out, nil
 }
 
 // mountAPI registers the guarded API under /api/v1 on r.
@@ -263,6 +286,7 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 		SessionLimit:    ratelimit.PerMinute(apiguard.SessionPerMinute),
 		APIKeyLimit:     ratelimit.PerMinute(apiguard.APIKeyPerMinute),
 		AnonymousLimit:  ratelimit.PerMinute(apiguard.AnonymousPerMinute),
+		Plans:           svc.planOf(),
 	})
 	if err != nil {
 		return err
@@ -299,12 +323,26 @@ func mountAPI(r chi.Router, svc *services, pool *pgxpool.Pool, sys *system.Handl
 	if err != nil {
 		return fmt.Errorf("load embedded spec: %w", err)
 	}
-	public, err := apidocs.PublicJSON(raw, apidocs.Options{Version: Version, APIKeyPerMinute: apiguard.APIKeyPerMinute})
+	public, err := apidocs.NewPublished(raw, apidocs.Options{Version: Version, APIKeyPerMinute: apiguard.APIKeyPerMinute,
+		WorkspaceOrigin: svc.hosts.WorkspaceOrigin()})
 	if err != nil {
 		return err
 	}
-	r.Method(http.MethodGet, apidocs.Path, apidocs.Handler(public))
-	r.Method(http.MethodHead, apidocs.Path, apidocs.Handler(public))
+	// Each workspace's address serves the document with that workspace's
+	// own API address (docs/PHASE-17.md §2); platform and unknown hosts the
+	// generic one.
+	docs := apidocs.PerRequest(func(r *http.Request) ([]byte, error) {
+		w, ok, err := svc.workspaceDocs(r)
+		if err != nil {
+			log.WarnContext(r.Context(), "workspace of the API document", "err", err)
+		}
+		if !ok {
+			return public.Generic(), nil
+		}
+		return public.For(w)
+	}, log)
+	r.Method(http.MethodGet, apidocs.Path, docs)
+	r.Method(http.MethodHead, apidocs.Path, docs)
 	// Everything below runs as the tenant of the request's host (unknown
 	// hosts get 404, suspended tenants 403).
 	byHost := tenant.Middleware(svc.tenants, svc.hosts, log)

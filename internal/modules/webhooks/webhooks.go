@@ -19,10 +19,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -33,9 +35,12 @@ import (
 	"github.com/furkanmeclis/messora-app-go/internal/db"
 	"github.com/furkanmeclis/messora-app-go/internal/modules/audit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/crypto"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/entitlements"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/outbox"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/queue"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/ratelimit"
 	"github.com/furkanmeclis/messora-app-go/internal/platform/safehttp"
+	"github.com/furkanmeclis/messora-app-go/internal/platform/tenant"
 	"github.com/furkanmeclis/messora-app-go/internal/shared/apperr"
 )
 
@@ -48,7 +53,6 @@ const (
 
 // Limits.
 const (
-	maxEndpoints     = 50
 	requestTimeout   = 10 * time.Second
 	leaseSeconds     = 60 // > requestTimeout: a vanished worker's delivery is taken over after this
 	storedBodyBytes  = 1024
@@ -56,15 +60,53 @@ const (
 	userAgent        = "Messora-Webhooks/1"
 	// Retention is how long events and their delivery log are kept.
 	Retention = 30 * 24 * time.Hour
+
+	// DefaultDisableAfterFailures and DefaultDisableAfter switch an
+	// endpoint off when this many attempts in a row failed and the run of
+	// failures is at least this old: a busy endpoint's short outage (many
+	// failures in minutes) does not disable it, a dead one is switched off
+	// after a day.
+	DefaultDisableAfterFailures = 20
+	DefaultDisableAfter         = 24 * time.Hour
+	// DefaultMaxInFlight is how many deliveries to one endpoint a worker
+	// process sends at the same time; an endpoint that is failing gets one.
+	DefaultMaxInFlight = 4
+	// failingStreak is the run of failures after which an endpoint counts
+	// as failing (one request at a time).
+	failingStreak = 3
+	// MaxSecretGrace bounds the overlap of a rotated signing secret.
+	MaxSecretGrace = 7 * 24 * time.Hour
 )
+
+// Disabled describes an endpoint the service switched off.
+type Disabled struct {
+	Endpoint db.WebhookEndpoint
+	Reason   string
+	// Failures is the run of failed attempts (0 for 410 Gone).
+	Failures int64
+	// LastError is the error of the attempt that tipped it over.
+	LastError string
+}
 
 // Options configures the service.
 type Options struct {
 	// AllowHTTP accepts http:// endpoint URLs (development only).
 	AllowHTTP bool
+	// AllowedPrefixes are private networks deliveries may reach anyway
+	// (WEBHOOK_ALLOWED_CIDRS).
+	AllowedPrefixes []netip.Prefix
 	// Client replaces the HTTP client (tests).
 	Client *safehttp.Client
 	Logger *slog.Logger
+	// Limiter enforces the plan's deliveries per minute per tenant (nil: no
+	// rate limit).
+	Limiter *ratelimit.Limiter
+	// DisableAfterFailures and DisableAfter tune the automatic switch-off
+	// (defaults above; DisableAfter < 0 means no minimum age).
+	DisableAfterFailures int
+	DisableAfter         time.Duration
+	// MaxInFlight caps concurrent deliveries per endpoint and process.
+	MaxInFlight int
 }
 
 // Service manages endpoints and delivers events.
@@ -74,6 +116,13 @@ type Service struct {
 	sealer *crypto.Sealer
 	client *safehttp.Client
 	log    *slog.Logger
+	o      Options
+	plans  entitlements.Provider
+	// onDisabled is told (after commit) about every automatic switch-off.
+	onDisabled func(context.Context, Disabled)
+
+	mu       sync.Mutex
+	inFlight map[uuid.UUID]int
 }
 
 // New returns the service. The HTTP client refuses private destinations; no
@@ -81,18 +130,51 @@ type Service struct {
 func New(pool *pgxpool.Pool, sealer *crypto.Sealer, o Options) *Service {
 	c := o.Client
 	if c == nil {
-		c = NewClient(o.AllowHTTP)
+		c = NewClient(o.AllowHTTP, o.AllowedPrefixes...)
 	}
 	log := o.Logger
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Service{pool: pool, q: db.New(pool), sealer: sealer, client: c, log: log}
+	if o.DisableAfterFailures <= 0 {
+		o.DisableAfterFailures = DefaultDisableAfterFailures
+	}
+	switch {
+	case o.DisableAfter == 0:
+		o.DisableAfter = DefaultDisableAfter
+	case o.DisableAfter < 0:
+		o.DisableAfter = 0
+	}
+	if o.MaxInFlight <= 0 {
+		o.MaxInFlight = DefaultMaxInFlight
+	}
+	return &Service{pool: pool, q: db.New(pool), sealer: sealer, client: c, log: log, o: o, inFlight: map[uuid.UUID]int{}}
 }
 
-// NewClient returns the production delivery client.
-func NewClient(allowHTTP bool) *safehttp.Client {
-	return safehttp.New(safehttp.Options{Timeout: requestTimeout, MaxResponseBytes: responseBodyRead, AllowHTTP: allowHTTP})
+// SetPlans sets the plan provider (endpoint count, deliveries per minute,
+// the webhooks feature). Without one every tenant has the default plan.
+func (s *Service) SetPlans(p entitlements.Provider) { s.plans = p }
+
+// SetOnDisabled registers fn, called after an endpoint was switched off
+// automatically (e-mail to the tenant's admins). fn runs in the caller's
+// goroutine with the tenant's context; it must not fail the delivery.
+func (s *Service) SetOnDisabled(fn func(context.Context, Disabled)) { s.onDisabled = fn }
+
+// SetDisableRule changes the automatic switch-off rule (tests).
+func (s *Service) SetDisableRule(failures int, after time.Duration) {
+	s.o.DisableAfterFailures, s.o.DisableAfter = failures, after
+}
+
+func (s *Service) plan(ctx context.Context) (entitlements.Plan, error) {
+	return entitlements.For(ctx, s.plans)
+}
+
+// NewClient returns the production delivery client. allowed are private
+// networks the operator explicitly allows (WEBHOOK_ALLOWED_CIDRS); every
+// other private, loopback, link-local or metadata address is refused.
+func NewClient(allowHTTP bool, allowed ...netip.Prefix) *safehttp.Client {
+	return safehttp.New(safehttp.Options{Timeout: requestTimeout, MaxResponseBytes: responseBodyRead, AllowHTTP: allowHTTP,
+		AllowedPrefixes: allowed})
 }
 
 // SetClient replaces the HTTP client (tests).
@@ -179,14 +261,18 @@ func (s *Service) Create(ctx context.Context, in EndpointInput, actor *uuid.UUID
 	if err != nil {
 		return db.WebhookEndpoint{}, "", err
 	}
+	plan, err := s.plan(ctx)
+	if err != nil {
+		return db.WebhookEndpoint{}, "", err
+	}
 	var ep db.WebhookEndpoint
 	err = s.tx(ctx, func(_ pgx.Tx, q *db.Queries) error {
 		n, err := q.CountWebhookEndpoints(ctx)
 		if err != nil {
 			return err
 		}
-		if n >= maxEndpoints {
-			return apperr.Conflict("WEBHOOK_LIMIT", fmt.Sprintf("At most %d webhook endpoints can be registered.", maxEndpoints))
+		if err := plan.Allow(entitlements.WebhookEndpoints, n); err != nil {
+			return err
 		}
 		ep, err = q.InsertWebhookEndpoint(ctx, db.InsertWebhookEndpointParams{ID: id, Url: u, Description: desc, EventTypes: types,
 			Active: active, SecretEnc: sealed, SecretLast4: last4(secret), CreatedBy: actor})
@@ -198,6 +284,10 @@ func (s *Service) Create(ctx context.Context, in EndpointInput, actor *uuid.UUID
 	})
 	return ep, secret, err
 }
+
+// RedactURL renders an endpoint URL for logs and e-mails (no query string,
+// no credentials).
+func RedactURL(raw string) string { return redactURL(raw) }
 
 func redactURL(raw string) string {
 	u, err := url.Parse(raw)
@@ -275,8 +365,14 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	})
 }
 
-// RotateSecret replaces the signing secret and returns the new one.
-func (s *Service) RotateSecret(ctx context.Context, id uuid.UUID) (db.WebhookEndpoint, string, error) {
+// RotateSecret replaces the signing secret and returns the new one. For
+// grace after the rotation deliveries carry a signature with the previous
+// secret too, so a receiver can switch over without dropping events; 0
+// retires the old secret at once.
+func (s *Service) RotateSecret(ctx context.Context, id uuid.UUID, grace time.Duration) (db.WebhookEndpoint, string, error) {
+	if grace < 0 || grace > MaxSecretGrace {
+		return db.WebhookEndpoint{}, "", apperr.Validation("grace_hours", fmt.Sprintf("The overlap must be between 0 and %d hours.", int(MaxSecretGrace.Hours())))
+	}
 	secret, err := newSecret()
 	if err != nil {
 		return db.WebhookEndpoint{}, "", err
@@ -288,14 +384,16 @@ func (s *Service) RotateSecret(ctx context.Context, id uuid.UUID) (db.WebhookEnd
 	var ep db.WebhookEndpoint
 	err = s.tx(ctx, func(_ pgx.Tx, q *db.Queries) error {
 		var err error
-		ep, err = q.SetWebhookEndpointSecret(ctx, db.SetWebhookEndpointSecretParams{ID: id, SecretEnc: sealed, SecretLast4: last4(secret)})
+		ep, err = q.SetWebhookEndpointSecret(ctx, db.SetWebhookEndpointSecretParams{ID: id, SecretEnc: sealed, SecretLast4: last4(secret),
+			GraceSeconds: grace.Seconds()})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apperr.NotFound("Webhook endpoint not found.")
 		}
 		if err != nil {
 			return err
 		}
-		return audit.Record(ctx, q, audit.Entry{Action: "webhook.rotate_secret", EntityType: "webhook_endpoint", EntityID: &id})
+		return audit.Record(ctx, q, audit.Entry{Action: "webhook.rotate_secret", EntityType: "webhook_endpoint", EntityID: &id,
+			Changes: map[string]any{"grace_hours": grace.Hours()}})
 	})
 	return ep, secret, err
 }
@@ -381,6 +479,13 @@ func (s *Service) Deliveries(ctx context.Context, endpoint uuid.UUID, status *st
 // FanOut creates a delivery for every active endpoint subscribed to the
 // event. It is idempotent: a second run for the same event creates nothing.
 func (s *Service) FanOut(ctx context.Context, eventID uuid.UUID) (int, error) {
+	// A plan without webhooks creates no deliveries (the event stays in the
+	// log until retention).
+	if plan, err := s.plan(ctx); err != nil {
+		return 0, err
+	} else if !plan.Has(entitlements.Webhooks) {
+		return 0, nil
+	}
 	var n int
 	err := s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
 		ev, err := q.GetOutgoingWebhookEvent(ctx, eventID)
@@ -414,6 +519,9 @@ type outcome struct {
 	body     *string
 	delay    time.Duration // before the next try (retrying)
 	disable  string        // reason to switch the endpoint off
+	// counts: the attempt reached an active endpoint, so it counts for the
+	// endpoint's health (a test event to a disabled endpoint does not).
+	counts bool
 }
 
 // Deliver performs one attempt of a delivery. It returns nil when the
@@ -421,6 +529,12 @@ type outcome struct {
 // another worker holds the delivery; other errors when the outcome could not
 // be stored.
 func (s *Service) Deliver(ctx context.Context, id uuid.UUID) error {
+	// Budgets come before the claim, so a deferral costs no attempt.
+	release, err := s.admit(ctx, id)
+	if err != nil || release == nil {
+		return err
+	}
+	defer release()
 	d, err := s.q.ClaimWebhookDelivery(ctx, db.ClaimWebhookDeliveryParams{ID: id, LeaseSeconds: leaseSeconds})
 	if errors.Is(err, pgx.ErrNoRows) {
 		cur, gerr := s.q.GetWebhookDelivery(ctx, id)
@@ -446,6 +560,92 @@ func (s *Service) Deliver(ctx context.Context, id uuid.UUID) error {
 	return s.finish(context.WithoutCancel(ctx), d, o)
 }
 
+// admit applies the delivery budgets: the tenant's deliveries per minute
+// (plan, shared by every worker through Redis) and the in-flight cap of the
+// endpoint in this process (one request at a time while it is failing), so
+// one slow or broken endpoint cannot hold the tenant's worker share. Over a
+// budget the task is deferred (RetryAfterError: no attempt, no retry budget
+// spent). A nil release with a nil error means there is nothing to send.
+func (s *Service) admit(ctx context.Context, id uuid.UUID) (func(), error) {
+	d, err := s.q.GetWebhookDelivery(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil // endpoint deleted
+	}
+	if err != nil {
+		return nil, err
+	}
+	if d.Status == "succeeded" || d.Status == "failed" {
+		return nil, nil
+	}
+	ep, err := s.q.GetWebhookEndpoint(ctx, d.EndpointID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	limit := s.o.MaxInFlight
+	if ep.FailureStreak >= failingStreak {
+		limit = 1
+	}
+	s.mu.Lock()
+	if s.inFlight[ep.ID] >= limit {
+		s.mu.Unlock()
+		return nil, &queue.RetryAfterError{After: time.Second + time.Duration(min(ep.FailureStreak, 30))*time.Second,
+			Reason: "endpoint has its maximum of deliveries in flight"}
+	}
+	s.inFlight[ep.ID]++
+	s.mu.Unlock()
+	release := func() {
+		s.mu.Lock()
+		if s.inFlight[ep.ID]--; s.inFlight[ep.ID] <= 0 {
+			delete(s.inFlight, ep.ID)
+		}
+		s.mu.Unlock()
+	}
+	if s.o.Limiter != nil {
+		plan, err := s.plan(ctx)
+		if err != nil {
+			release()
+			return nil, err
+		}
+		if n := plan.WebhookDeliveriesPerMinute; n > 0 {
+			res, err := s.o.Limiter.AllowRaw(ctx, tenant.RedisKey(ctx, "rl:webhook:deliveries"), ratelimit.PerMinute(n))
+			if err != nil {
+				s.log.WarnContext(ctx, "webhook rate limiter unavailable; delivering", "err", err)
+			} else if !res.Allowed {
+				release()
+				return nil, &queue.RetryAfterError{After: max(res.RetryAfter, 100*time.Millisecond), Reason: "tenant's webhook deliveries per minute reached"}
+			}
+		}
+	}
+	return release, nil
+}
+
+// InFlight reports how many deliveries to endpoint this process is sending
+// (tests, metrics).
+func (s *Service) InFlight(endpoint uuid.UUID) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inFlight[endpoint]
+}
+
+// signature signs body with the endpoint's secret and, during a rotation's
+// overlap, with the previous one too ("t=…,v1=<new>,v1=<old>").
+func (s *Service) signature(ep db.WebhookEndpoint, now time.Time, body []byte) (string, error) {
+	secret, err := s.sealer.Open(ep.SecretEnc, secretAD(ep.ID))
+	if err != nil {
+		return "", err
+	}
+	var others []string
+	if len(ep.PreviousSecretEnc) > 0 && ep.PreviousSecretExpiresAt != nil && now.Before(*ep.PreviousSecretExpiresAt) {
+		if prev, err := s.sealer.Open(ep.PreviousSecretEnc, secretAD(ep.ID)); err == nil {
+			others = append(others, string(prev))
+		}
+	}
+	return Sign(string(secret), now, body, others...), nil
+}
+
 func (s *Service) attempt(ctx context.Context, d db.WebhookDelivery) (outcome, error) {
 	ep, err := s.q.GetWebhookEndpoint(ctx, d.EndpointID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -464,13 +664,13 @@ func (s *Service) attempt(ctx context.Context, d db.WebhookDelivery) (outcome, e
 	if !ep.Active && ev.Type != TypeTest {
 		return outcome{status: "failed", errMsg: ptr("endpoint is disabled")}, nil
 	}
-	secret, err := s.sealer.Open(ep.SecretEnc, secretAD(ep.ID))
-	if err != nil {
-		return outcome{status: "failed", errMsg: ptr("signing secret cannot be decrypted (was ENCRYPTION_KEY changed?)")}, nil
-	}
 	var body bytes.Buffer
 	if err := json.Compact(&body, ev.Payload); err != nil {
 		return outcome{}, err
+	}
+	sig, err := s.signature(ep, time.Now(), body.Bytes())
+	if err != nil {
+		return outcome{status: "failed", errMsg: ptr("signing secret cannot be decrypted (was ENCRYPTION_KEY changed?)")}, nil
 	}
 	rctx, cancel := context.WithTimeout(ctx, requestTimeout+2*time.Second)
 	defer cancel()
@@ -480,13 +680,15 @@ func (s *Service) attempt(ctx context.Context, d db.WebhookDelivery) (outcome, e
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set(HeaderSignature, Sign(string(secret), time.Now(), body.Bytes()))
+	req.Header.Set(HeaderSignature, sig)
 	req.Header.Set(HeaderEventID, ev.ID.String())
 	req.Header.Set(HeaderEventType, ev.Type)
 	req.Header.Set(HeaderDelivery, d.ID.String())
 	req.Header.Set(HeaderAttempt, strconv.Itoa(int(d.Attempts)))
 	res, err := s.client.Do(req)
-	return classify(res, err, int(d.Attempts), time.Now()), nil
+	o := classify(res, err, int(d.Attempts), time.Now())
+	o.counts = ep.Active
+	return o, nil
 }
 
 // classify applies the retry policy (docs/WEBHOOKS.md):
@@ -546,7 +748,9 @@ func classify(res *safehttp.Response, err error, attempt int, now time.Time) out
 }
 
 func (s *Service) finish(ctx context.Context, d db.WebhookDelivery, o outcome) error {
-	return s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+	var disabled *Disabled
+	err := s.tx(ctx, func(tx pgx.Tx, q *db.Queries) error {
+		disabled = nil
 		p := db.FinishWebhookDeliveryParams{ID: d.ID, Status: o.status, LastStatusCode: o.code, LastDurationMs: o.duration,
 			LastError: o.errMsg, LastResponseBody: o.body}
 		if o.status == "retrying" {
@@ -562,16 +766,59 @@ func (s *Service) finish(ctx context.Context, d db.WebhookDelivery, o outcome) e
 				return err
 			}
 		}
-		if o.disable != "" {
-			if err := q.DisableWebhookEndpoint(ctx, db.DisableWebhookEndpointParams{ID: d.EndpointID, Reason: &o.disable}); err != nil {
-				return err
+		reason, streak := o.disable, int64(0)
+		if o.counts {
+			if o.status == "succeeded" {
+				if err := q.RecordWebhookSuccess(ctx, d.EndpointID); err != nil {
+					return err
+				}
+			} else {
+				run, err := q.RecordWebhookFailure(ctx, d.EndpointID)
+				switch {
+				case errors.Is(err, pgx.ErrNoRows): // switched off meanwhile
+				case err != nil:
+					return err
+				case reason == "" && s.shouldDisable(run, time.Now()):
+					streak = run.FailureStreak
+					reason = fmt.Sprintf("%d delivery attempts in a row failed since %s.", run.FailureStreak,
+						run.FailingSince.UTC().Format(time.RFC3339))
+				}
 			}
-			s.log.WarnContext(ctx, "webhook endpoint disabled", "endpoint_id", d.EndpointID, "reason", o.disable)
-			return audit.Record(ctx, q, audit.Entry{Action: "webhook.disable", EntityType: "webhook_endpoint", EntityID: &d.EndpointID,
-				Changes: map[string]any{"reason": o.disable}})
 		}
-		return nil
+		if reason == "" {
+			return nil
+		}
+		rows, err := q.DisableWebhookEndpoint(ctx, db.DisableWebhookEndpointParams{ID: d.EndpointID, Reason: &reason})
+		if err != nil || rows == 0 {
+			return err
+		}
+		ep, err := q.GetWebhookEndpoint(ctx, d.EndpointID)
+		if err != nil {
+			return err
+		}
+		disabled = &Disabled{Endpoint: ep, Reason: reason, Failures: streak}
+		if o.errMsg != nil {
+			disabled.LastError = *o.errMsg
+		}
+		return audit.Record(ctx, q, audit.Entry{Action: "webhook.disable", EntityType: "webhook_endpoint", EntityID: &d.EndpointID,
+			Changes: map[string]any{"reason": reason, "failure_streak": streak}})
 	})
+	if err != nil || disabled == nil {
+		return err
+	}
+	s.log.WarnContext(ctx, "webhook endpoint disabled", "endpoint_id", d.EndpointID, "reason", disabled.Reason)
+	if s.onDisabled != nil {
+		s.onDisabled(ctx, *disabled)
+	}
+	return nil
+}
+
+// shouldDisable applies the switch-off rule to a run of failures.
+func (s *Service) shouldDisable(run db.RecordWebhookFailureRow, now time.Time) bool {
+	if run.FailureStreak < int64(s.o.DisableAfterFailures) || run.FailingSince == nil {
+		return false
+	}
+	return now.Sub(*run.FailingSince) >= s.o.DisableAfter
 }
 
 // Cleanup deletes events (and their deliveries) older than retention.

@@ -62,6 +62,10 @@ func Sample(kind Kind, locale string) Data {
 	case SubscriptionSuspended:
 		return SubscriptionSuspendedData{Common: tenant, SuspendedAt: at, InvoiceNo: "MSR-2026-0142",
 			Amount: amount, BillingURL: app + "/billing"}
+	case WebhookDisabled:
+		return WebhookDisabledData{Common: tenant, EndpointURL: "https://crm.acmegida.com.tr/hooks/messora",
+			Description: pick("CRM senkronizasyonu", "CRM sync"), Failures: 20, FailingSince: at.Add(-26 * time.Hour),
+			DisabledAt: at, LastError: "HTTP 503", ManageURL: app + "/settings/webhooks"}
 	case CreditLow:
 		c := tenant
 		c.UnsubscribeURL = app + "/settings/notifications/unsubscribe?k=credit_low&t=9a7e"

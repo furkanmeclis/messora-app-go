@@ -154,8 +154,13 @@ func TestPublicMetadata(t *testing.T) {
 			t.Errorf("info.description lacks %q", want)
 		}
 	}
-	if s := pub["servers"].([]any)[0].(map[string]any); s["url"] != "/api/v1" {
+	// Outside a workspace the server is the per-workspace address pattern;
+	// there is no shared API host.
+	if s := pub["servers"].([]any)[0].(map[string]any); s["url"] != "https://{workspace}.messora.tech/api/v1" || s["variables"] == nil {
 		t.Fatalf("servers = %v", pub["servers"])
+	}
+	if !strings.Contains(desc, "https://<workspace>.messora.tech/api/v1") || !strings.Contains(desc, "no shared API host") {
+		t.Errorf("generic introduction does not explain the per-workspace address:\n%s", desc)
 	}
 	groups := pub["x-tagGroups"].([]any)
 	grouped := map[string]bool{}

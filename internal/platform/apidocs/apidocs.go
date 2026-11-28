@@ -46,6 +46,10 @@ type Options struct {
 	Version string
 	// APIKeyPerMinute is the request budget of one API key.
 	APIKeyPerMinute int
+	// WorkspaceOrigin is the origin of a workspace's sub-domain with the
+	// placeholder {workspace}, e.g. https://{workspace}.messora.tech (the
+	// default when empty). Only the generic document uses it.
+	WorkspaceOrigin string
 }
 
 // Doc is a parsed OpenAPI document as plain JSON values.
@@ -218,7 +222,9 @@ func Public(full Doc, o Options) (Doc, error) {
 	}
 
 	d["info"] = info(full, o)
-	d["servers"] = []any{map[string]any{"url": "/api/v1", "description": "This Messora installation"}}
+	// Every workspace has its own address; the generic document shows the
+	// pattern, ForWorkspace the workspace's own.
+	d["servers"] = o.genericServers()
 	d["security"] = []any{map[string]any{SchemeAPIKey: []any{}}}
 
 	// Tags: only those in use, in the order of the groups.
@@ -340,16 +346,21 @@ func publishOperation(op map[string]any, o Options) {
 	}
 }
 
-func info(full Doc, o Options) map[string]any {
+var intro = template.Must(template.New("intro").Parse(introTemplate))
+
+func renderIntro(d introData) string {
 	var buf bytes.Buffer
-	t := template.Must(template.New("intro").Parse(introTemplate))
-	if err := t.Execute(&buf, o); err != nil {
+	if err := intro.Execute(&buf, d); err != nil {
 		panic(err) // the embedded template is fixed and tested
 	}
+	return buf.String()
+}
+
+func info(full Doc, o Options) map[string]any {
 	out := map[string]any{
 		"title":       "Messora API",
 		"version":     o.Version,
-		"description": buf.String(),
+		"description": renderIntro(introData{APIKeyPerMinute: o.APIKeyPerMinute, BaseURL: o.genericBase()}),
 	}
 	if src, ok := full["info"].(map[string]any); ok {
 		if l, ok := src["license"]; ok {
