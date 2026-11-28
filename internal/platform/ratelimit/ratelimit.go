@@ -89,6 +89,19 @@ func (l *Limiter) AllowRaw(ctx context.Context, redisKey string, lim Limit) (Res
 	}, nil
 }
 
+var counter = goredis.NewScript(`
+local n = redis.call('INCR', KEYS[1])
+if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return n
+`)
+
+// Count increments the plain counter redisKey (no prefix) and returns its
+// new value. The key expires ttl after its first increment: quotas name
+// their period in the key.
+func (l *Limiter) Count(ctx context.Context, redisKey string, ttl time.Duration) (int64, error) {
+	return counter.Run(ctx, l.rdb, []string{redisKey}, max(ttl.Milliseconds(), 1)).Int64()
+}
+
 // Reset clears the counter for key (e.g. after a successful login).
 func (l *Limiter) Reset(ctx context.Context, key string) error {
 	return l.rdb.Del(ctx, l.prefix+":"+key).Err()
