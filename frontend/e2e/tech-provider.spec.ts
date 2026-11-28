@@ -184,11 +184,21 @@ test('the platform admin sets the Tech Provider up and turns it on', async ({
     await page.getByLabel('Password', { exact: true }).fill(PLATFORM.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/login\/verify$/);
-    await page
-        .getByLabel('Digit 1 of 6')
-        .fill(totp(platformSecret().secret, Date.now() + 60_000));
-    await page.getByRole('button', { name: 'Verify' }).click();
-    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+    // The current code; if an earlier spec spent it, the next one.
+    for (let attempt = 0; ; attempt++) {
+        await page
+            .getByLabel('Digit 1 of 6')
+            .fill(totp(platformSecret().secret, Date.now()));
+        await page.getByRole('button', { name: 'Verify' }).click();
+        const ok = await page
+            .getByRole('heading', { name: 'Overview' })
+            .waitFor({ timeout: 5_000 })
+            .then(() => true)
+            .catch(() => false);
+        if (ok) break;
+        if (attempt > 0) throw new Error('platform admin sign-in failed');
+        await page.waitForTimeout(31_000 - (Date.now() % 30_000));
+    }
 
     await page.getByRole('link', { name: 'Meta Tech Provider' }).click();
     await expect(

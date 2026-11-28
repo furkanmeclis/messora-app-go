@@ -334,6 +334,9 @@ func (s *Server) provision(sg Signup, code, token string) {
 			VerifiedName: sg.VerifiedName, QualityRating: "GREEN", Status: sg.Status, CodeVerificationStatus: "VERIFIED"})
 	}
 	s.codes[code] = signupCode{token: token, appID: sg.AppID}
+	if len(s.tokens) > 0 {
+		s.tokens[token] = true
+	}
 	s.tokenInfo[token] = TokenInfo{AppID: sg.AppID, Type: "SYSTEM_USER",
 		Scopes:  []string{"whatsapp_business_management", "whatsapp_business_messaging", "business_management"},
 		Targets: map[string][]string{"whatsapp_business_management": {sg.WABA}, "whatsapp_business_messaging": {sg.WABA}}}
@@ -513,6 +516,9 @@ func NewHandler() (*Server, http.Handler) {
 func NewAutoSignupHandler(appID, callbackURL string) (*Server, http.Handler) {
 	s := newServer()
 	s.autoSignup = true
+	// Only the business tokens it hands out work: a made-up token (the
+	// connect form's error path) is refused as by Meta.
+	s.tokens["\x00no-token"] = true
 	if appID != "" {
 		s.appSubs[appID] = []whatsapp.AppSubscription{{Object: "whatsapp_business_account", CallbackURL: callbackURL, Active: true,
 			Fields: []string{"messages", "message_template_status_update", "account_update"}}}
