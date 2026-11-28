@@ -441,8 +441,9 @@ INSERT INTO user_recovery_codes (user_id, code_hash) SELECT id, '\x01' FROM o;`
 	if err := owner.QueryRow(ctx, "SELECT count(*) FROM user_recovery_codes").Scan(&codes); err != nil || codes != 1 {
 		t.Fatalf("recovery codes %d %v", codes, err)
 	}
-	// Down restores the per-tenant accounts while nobody is in two tenants.
-	if _, err := p.Down(ctx); err != nil {
+	// Down restores the per-tenant accounts while nobody is in two tenants
+	// (down to 30: later migrations are undone first).
+	if _, err := p.DownTo(ctx, 30); err != nil {
 		t.Fatal(err)
 	}
 	var status string
